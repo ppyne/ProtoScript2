@@ -1,4 +1,9 @@
 .DS_Store
+*.dSYM/
 tests/.conformance_passed
 tests/.runtime_crosscheck_passed
 *.o
+modules/psmod_*.so
+modules/psmod_*.dylib
+c/ps
+c/pscc
