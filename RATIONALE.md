@@ -10,7 +10,7 @@ Objectif : conserver une compréhension stable du langage pour :
 - les contributeurs
 - le mainteneur futur (y compris soi-même dans 2 ans)
 
-Ce texte ne remplace pas la spécification normative (`SPECIFICATION.md`) : il en donne les motivations techniques.
+Ce texte ne remplace pas la spécification normative ([`SPECIFICATION.md`](SPECIFICATION.md)) : il en donne les motivations techniques.
 
 ---
 

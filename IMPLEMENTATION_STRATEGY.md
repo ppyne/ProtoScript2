@@ -132,6 +132,6 @@ Node reste maintenu comme validateur/oracle.
 ## 8. Décisions opérationnelles immédiates
 
 1. Geler Node comme frontend de référence.
-2. Stabiliser le format IR sérialisé (JSON lisible d’abord, cf. `IR_FORMAT.md`).
+2. Stabiliser le format IR sérialisé (JSON lisible d’abord, cf. [`IR_FORMAT.md`](IR_FORMAT.md)).
 3. Faire évoluer la CLI C en priorité sur backend/runtime.
 4. Exécuter conformance + opt-safety à chaque jalon significatif.

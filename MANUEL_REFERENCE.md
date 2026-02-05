@@ -1,15 +1,15 @@
 ![ProtoScript2](header.png)
 
-# Manuel de reference ProtoScript V2
+# Manuel de référence ProtoScript V2
 
 Ce document est le manuel utilisateur de ProtoScript V2.
-Il est descriptif. La specification `specification.md` reste la source normative.
+Il est descriptif. La spécification [`SPECIFICATION.md`](SPECIFICATION.md) reste la source normative.
 
 Philosophie directrice :
-**La magie cache les couts. ProtoScript les rend visibles.**
+**La magie cache les coûts. ProtoScript les rend visibles.**
 
 Public cible :
-Ce manuel s'adresse a des developpeurs ayant deja une experience de langages imperatifs (C, JS, PHP, Java), et suppose une familiarite avec les notions de typage statique et de compilation.
+Ce manuel s'adresse à des développeurs ayant déjà une expérience de langages impératifs (C, JS, PHP, Java), et suppose une familiarité avec les notions de typage statique et de compilation.
 
 ---
 
@@ -17,12 +17,12 @@ Ce manuel s'adresse a des developpeurs ayant deja une experience de langages imp
 
 ### 1.1 Qu'est-ce que ProtoScript V2
 
-ProtoScript V2 est un langage statiquement type, deterministic, prototype-based, concu pour une compilation bas niveau (notamment vers C) sans semantique cachee.
+ProtoScript V2 est un langage statiquement typé, déterministe, prototype-based, conçu pour une compilation bas niveau (notamment vers C) sans sémantique cachée.
 
-### 1.2 Specification vs manuel
+### 1.2 Spécification vs manuel
 
-- Specification (`specification.md`) : regles normatives (ce qui est autorise/interdit).
-- Manuel (ce document) : guide pratique (comment ecrire du code correct et lisible).
+- Spécification ([`SPECIFICATION.md`](SPECIFICATION.md)) : règles normatives (ce qui est autorisé/interdit).
+- Manuel (ce document) : guide pratique (comment écrire du code correct et lisible).
 
 ### 1.3 Programme minimal
 
@@ -44,7 +44,7 @@ Ce code est invalide : le type de retour est obligatoire.
 
 ### 1.5 Pourquoi ?
 
-Le langage prefere une surface explicite des le premier exemple : type de retour visible, point d'entree explicite, aucun comportement implicite.
+Le langage préfère une surface explicite dès le premier exemple : type de retour visible, point d'entrée explicite, aucun comportement implicite.
 
 ---
 
@@ -52,13 +52,13 @@ Le langage prefere une surface explicite des le premier exemple : type de retour
 
 ### 2.1 Structure d'un fichier
 
-Un fichier contient des declarations (imports, prototypes, fonctions, declarations autorisees par la grammaire).
+Un fichier contient des déclarations (imports, prototypes, fonctions, déclarations autorisées par la grammaire).
 
 ### 2.2 Instructions et blocs
 
 - Chaque instruction se termine par `;`.
 - Les blocs utilisent `{ ... }`.
-- La portee est lexicale.
+- La portée est lexicale.
 
 Exemple :
 
@@ -83,9 +83,9 @@ function main() : void {
 ### 2.4 Ce que le langage ne fait pas
 
 - Pas de balises.
-- Pas d'HTML embarque (contrairement a l'usage historique de PHP).
+- Pas d'HTML embarqué (contrairement à l'usage historique de PHP).
 
-### 2.5 Erreur frequente
+### 2.5 Erreur fréquente
 
 Oublier `;` en fin d'instruction. ProtoScript n'a pas d'insertion automatique de point-virgule.
 
@@ -93,9 +93,9 @@ Oublier `;` en fin d'instruction. ProtoScript n'a pas d'insertion automatique de
 
 ## 3. Types
 
-### 3.1 Systeme de types
+### 3.1 Système de types
 
-Le typage est statique et explicite. Les types sont resolus a la compilation.
+Le typage est statique et explicite. Les types sont résolus à la compilation.
 
 ### 3.2 Types primitifs
 
@@ -119,7 +119,7 @@ string s = "abc";
 
 ### 3.3 Absence de null
 
-Il n'y a pas de nullite universelle.
+Il n'y a pas de nullité universelle.
 
 Contre-exemple :
 
@@ -128,16 +128,16 @@ Contre-exemple :
 // string s = null;
 ```
 
-### 3.4 Valeurs par defaut
+### 3.4 Valeurs par défaut
 
-Une variable locale doit etre assignee avant lecture.
+Une variable locale doit être assignée avant lecture.
 
 Contre-exemple :
 
 ```c
 function main() : void {
     int x;
-    Sys.print(x.toString()); // invalide : x non initialise
+    Sys.print(x.toString()); // invalide : x non initialisée
 }
 ```
 
@@ -149,28 +149,28 @@ string s = n.toString();
 float f = s.toFloat();
 ```
 
-### 3.6 Erreur frequente
+### 3.6 Erreur fréquente
 
 Supposer qu'un `int` se convertit implicitement en `string` dans un appel. Les conversions restent explicites.
 
 ### 3.7 Pourquoi ?
 
-L'absence de null et de conversions implicites reduit les branches cachees et rend les erreurs plus locales.
+L'absence de null et de conversions implicites réduit les branches cachées et rend les erreurs plus locales.
 
 ---
 
-## 4. Litteraux
+## 4. Littéraux
 
 ### 4.1 Entiers
 
-- Decimal, hexadecimal (`0x`), binaire (`0b`), octal (`0...`).
-- Le signe `-` est un operateur unaire.
+- Décimal, hexadécimal (`0x`), binaire (`0b`), octal (`0...`).
+- Le signe `-` est un opérateur unaire.
 
 ```c
 int a = 10;
 int b = 0x2A;
 int c = 0b1010;
-int d = -5; // unaire '-' applique a 5
+int d = -5; // unaire '-' appliqué à 5
 ```
 
 ### 4.2 Flottants
@@ -180,7 +180,7 @@ float f1 = 1.5;
 float f2 = 1e-3;
 ```
 
-### 4.3 Chaines
+### 4.3 Chaînes
 
 ```c
 string s = "Bonjour";
@@ -193,7 +193,7 @@ list<int> xs = [1, 2, 3];
 map<string, int> mm = {"a": 1, "b": 2};
 ```
 
-### 4.5 Litteraux vides et typage contextuel
+### 4.5 Littéraux vides et typage contextuel
 
 ```c
 list<int> xs = [];
@@ -207,22 +207,22 @@ var x = []; // invalide sans contexte de type
 var m = {}; // invalide sans contexte de type
 ```
 
-### 4.6 Erreur frequente
+### 4.6 Erreur fréquente
 
-Confondre `{}` map vide avec un bloc vide. Dans une expression, `{}` est un litteral de map.
+Confondre `{}` map vide avec un bloc vide. Dans une expression, `{}` est un littéral de map.
 
 ---
 
 ## 5. Variables
 
-### 5.1 Declaration
+### 5.1 Déclaration
 
 ```c
 var n = 10;
 int x = 20;
 ```
 
-### 5.2 Portee lexicale et shadowing
+### 5.2 Portée lexicale et shadowing
 
 ```c
 function main() : void {
@@ -237,16 +237,16 @@ function main() : void {
 
 ### 5.3 Initialisation obligatoire
 
-Une variable non assignee ne peut pas etre lue.
+Une variable non assignée ne peut pas être lue.
 
 ### 5.4 Ce qui n'existe pas
 
-- Pas de variables dynamiques nommees a l'execution.
+- Pas de variables dynamiques nommées à l'exécution.
 - Pas de superglobales.
 
 ### 5.5 Comparaison utile (PHP/JS)
 
-En JS/PHP, des acces a des noms dynamiques peuvent exister. Ici, la resolution est compile-time.
+En JS/PHP, des accès à des noms dynamiques peuvent exister. Ici, la résolution est compile-time.
 
 ---
 
@@ -254,11 +254,11 @@ En JS/PHP, des acces a des noms dynamiques peuvent exister. Ici, la resolution e
 
 ### 6.1 Expressions de base
 
-Litteraux, identifiants, appels, acces indexes, acces membres, operations unaires/binaires, ternaire.
+Littéraux, identifiants, appels, accès indexés, accès membres, opérations unaires/binaires, ternaire.
 
-### 6.2 Ordre d'evaluation
+### 6.2 Ordre d'évaluation
 
-L'evaluation est de gauche a droite.
+L'évaluation est de gauche à droite.
 `&&` et `||` court-circuitent.
 
 ```c
@@ -282,7 +282,7 @@ int m = (a < b) ? a : b;
 
 - L'affectation est une instruction.
 - Elle n'a pas de valeur de retour.
-- L'affectation chainee est invalide.
+- L'affectation chaînée est invalide.
 
 Contre-exemple :
 
@@ -298,11 +298,11 @@ Interdire l'affectation en expression supprime une source classique d'effets de 
 
 ---
 
-## 7. Operateurs
+## 7. Opérateurs
 
-### 7.1 Categories
+### 7.1 Catégories
 
-- Arithmetiques : `+ - * / %`
+- Arithmétiques : `+ - * / %`
 - Comparaison : `== != < <= > >=`
 - Logiques : `&& || !`
 - Bitwise : `& | ^ ~ << >>`
@@ -319,7 +319,7 @@ bool k = (a > b) && (b != 0);
 int s = a << 1;
 ```
 
-### 7.3 Chaines : pas de concatenation implicite
+### 7.3 Chaînes : pas de concaténation implicite
 
 Contre-exemple :
 
@@ -328,15 +328,15 @@ Contre-exemple :
 // string s = "a" + "b";
 ```
 
-Utiliser la concatenation explicite disponible par API/methode.
+Utiliser la concaténation explicite disponible par API/méthode.
 
-### 7.4 Erreur frequente
+### 7.4 Erreur fréquente
 
-Traiter `+` comme concatenation universelle (reflexe JS/PHP). En ProtoScript V2, le code doit rester explicite.
+Traiter `+` comme concaténation universelle (réflexe JS/PHP). En ProtoScript V2, le code doit rester explicite.
 
 ---
 
-## 8. Structures de controle
+## 8. Structures de contrôle
 
 ### 8.1 if / else
 
@@ -360,7 +360,7 @@ for (string k in mm) { ... }
 
 ### 8.3 break / continue
 
-Supportes dans les boucles.
+Supportées dans les boucles.
 
 ### 8.4 switch sans fallthrough implicite
 
@@ -387,7 +387,7 @@ default:
 }
 ```
 
-### 8.5 Erreur frequente
+### 8.5 Erreur fréquente
 
 Reproduire un style C classique avec fallthrough implicite. ProtoScript V2 le refuse.
 
@@ -395,7 +395,7 @@ Reproduire un style C classique avec fallthrough implicite. ProtoScript V2 le re
 
 ## 9. Fonctions
 
-### 9.1 Declaration
+### 9.1 Déclaration
 
 ```c
 function add(int a, int b) : int {
@@ -403,11 +403,11 @@ function add(int a, int b) : int {
 }
 ```
 
-### 9.2 Parametres et retour
+### 9.2 Paramètres et retour
 
-- Parametres explicitement types.
+- Paramètres explicitement typés.
 - Type de retour explicite.
-- Pas de parametres optionnels implicites.
+- Pas de paramètres optionnels implicites.
 
 ### 9.3 Variadique
 
@@ -437,22 +437,22 @@ Contre-exemple :
 ### 9.4 Ce qui n'existe pas
 
 - Pas de fonctions comme valeurs.
-- Pas de generiques de fonctions.
+- Pas de génériques de fonctions.
 
 ### 9.5 Comparaison utile (JS/PHP)
 
-Pas de closures/fonctions anonymes comme valeurs de premier ordre. Les appels sont resolus statiquement.
+Pas de closures/fonctions anonymes comme valeurs de premier ordre. Les appels sont résolus statiquement.
 
 ---
 
 ## 10. Prototypes et objets
 
-### 10.1 Modele prototype-based
+### 10.1 Modèle prototype-based
 
 Pas de classes.
-Les objets sont crees par clonage de prototypes.
+Les objets sont créés par clonage de prototypes.
 
-### 10.2 Declaration, champs, methodes, self
+### 10.2 Déclaration, champs, méthodes, self
 
 ```c
 prototype Point {
@@ -474,11 +474,11 @@ prototype ColoredPoint : Point {
 }
 ```
 
-Un `ColoredPoint` peut etre utilise la ou `Point` est attendu, selon les regles statiques.
+Un `ColoredPoint` peut être utilisé là où `Point` est attendu, selon les règles statiques.
 
 ### 10.4 Override
 
-L'override conserve une signature compatible selon la specification.
+L'override conserve une signature compatible selon la spécification.
 
 ### 10.5 Ce qui n'existe pas
 
@@ -488,7 +488,7 @@ L'override conserve une signature compatible selon la specification.
 
 ### 10.6 Pourquoi ?
 
-Le modele prototype-based de ProtoScript V2 conserve un layout stable et une resolution statique des acces.
+Le modèle prototype-based de ProtoScript V2 conserve un layout stable et une résolution statique des accès.
 
 ---
 
@@ -496,15 +496,15 @@ Le modele prototype-based de ProtoScript V2 conserve un layout stable et une res
 
 ### 11.1 `list<T>`
 
-- Mutable et possedante.
-- `list[i] = x` est une ecriture stricte : l'index doit exister.
+- Mutable et possédante.
+- `list[i] = x` est une écriture stricte : l'index doit exister.
 - Pas de redimensionnement implicite via indexation.
 
 Exemple :
 
 ```c
 list<int> xs = [10, 20];
-xs[1] = 30; // mise a jour
+xs[1] = 30; // mise à jour
 xs.push(40);
 int v = xs.pop();
 ```
@@ -516,12 +516,12 @@ list<int> xs = [1];
 // xs[3] = 10; // runtime OOB
 ```
 
-### 11.2 `map<K,V>` : lecture stricte, ecriture constructive
+### 11.2 `map<K,V>` : lecture stricte, écriture constructive
 
 ```c
 map<string, int> m = {};
-m["a"] = 1;    // insertion (cle absente)
-m["a"] = 2;    // mise a jour (cle presente)
+m["a"] = 1;    // insertion (clé absente)
+m["a"] = 2;    // mise à jour (clé présente)
 int x = m["a"]; // lecture valide
 ```
 
@@ -532,19 +532,19 @@ map<string, int> m = {};
 int x = m["absent"]; // runtime missing key
 ```
 
-### 11.3 Erreur frequente
+### 11.3 Erreur fréquente
 
-Supposer que `map[k]` en lecture cree automatiquement une entree. Ce n'est vrai qu'en ecriture (`map[k] = v`).
+Supposer que `map[k]` en lecture crée automatiquement une entrée. Ce n'est vrai qu'en écriture (`map[k] = v`).
 
 ### 11.4 Pourquoi ?
 
-La distinction lecture stricte / ecriture constructive rend les effets de bord visibles.
+La distinction lecture stricte / écriture constructive rend les effets de bord visibles.
 
-### 11.5 Iteration
+### 11.5 Itération
 
 ```c
 for (int v of xs) { ... }
-for (string k in m) { ... } // cles
+for (string k in m) { ... } // clés
 for (int v of m) { ... }    // valeurs
 ```
 
@@ -554,10 +554,10 @@ for (int v of m) { ... }    // valeurs
 
 ### 12.1 `slice<T>` vs `view<T>`
 
-- `slice<T>` : vue mutable, non possedante.
-- `view<T>` : vue lecture seule, non possedante.
+- `slice<T>` : vue mutable, non possédante.
+- `view<T>` : vue lecture seule, non possédante.
 
-### 12.2 Creation
+### 12.2 Création
 
 ```c
 list<int> xs = [1, 2, 3, 4];
@@ -565,30 +565,30 @@ slice<int> s = xs.slice(1, 2);
 view<int> v = xs.view(0, 3);
 ```
 
-### 12.3 Ecriture
+### 12.3 Écriture
 
 ```c
-s[0] = 99; // autorise
+s[0] = 99; // autorisé
 // v[0] = 99; // invalide (view en lecture seule)
 ```
 
-### 12.4 Duree de vie et invalidation
+### 12.4 Durée de vie et invalidation
 
 Une vue ne doit pas survivre au stockage source.
 Les mutations structurelles du stockage source peuvent invalider des vues.
 
-### 12.5 Erreur frequente
+### 12.5 Erreur fréquente
 
-Traiter `view<T>` comme un `list<T>` leger. `view<T>` n'est pas possedante et interdit l'ecriture.
+Traiter `view<T>` comme un `list<T>` léger. `view<T>` n'est pas possédante et interdit l'écriture.
 
 ---
 
-## 13. Chaines (`string`)
+## 13. Chaînes (`string`)
 
-### 13.1 Modele
+### 13.1 Modèle
 
 - `string` est immuable.
-- Semantique en glyphes Unicode.
+- Sémantique en glyphes Unicode.
 - `string` n'est pas un `byte[]`.
 
 ### 13.2 Longueur et indexation glyphique
@@ -608,9 +608,9 @@ Index hors bornes :
 
 ### 13.3 Combining marks
 
-`string` suit les glyphes/scalaires definis par le langage, pas une indexation brute par octet.
+`string` suit les glyphes/scalaires définis par le langage, pas une indexation brute par octet.
 
-### 13.4 Immutabilite
+### 13.4 Immutabilité
 
 ```c
 string s = "abc";
@@ -619,16 +619,16 @@ string s = "abc";
 
 ### 13.5 Comparaison utile (PHP/JS/C)
 
-- JS/PHP/C confondent souvent octets, code units et caracteres utilisateurs.
-- ProtoScript V2 impose une semantique glyphique explicite pour eviter ces ambigu ites.
+- JS/PHP/C confondent souvent octets, code units et caractères utilisateurs.
+- ProtoScript V2 impose une sémantique glyphique explicite pour éviter ces ambiguïtés.
 
-### 13.6 Erreur frequente
+### 13.6 Erreur fréquente
 
-Supposer que `string[i]` modifie la chaine. Toute mutation indexee de `string` est interdite.
+Supposer que `string[i]` modifie la chaîne. Toute mutation indexée de `string` est interdite.
 
 ### 13.7 Pourquoi ?
 
-Immutabilite + semantique glyphique = comportement stable, couts visibles, pas de magie cachant des copies.
+Immutabilité + sémantique glyphique = comportement stable, coûts visibles, pas de magie cachant des copies.
 
 ---
 
@@ -641,7 +641,7 @@ import std.io as io;
 import math.core.{abs, clamp as clip};
 ```
 
-### 14.2 Visibilite et noms
+### 14.2 Visibilité et noms
 
 - Import explicite des symboles.
 - Aliases explicites.
@@ -654,25 +654,25 @@ Contre-exemple :
 // import std.io.*;
 ```
 
-### 14.3 Resolution statique
+### 14.3 Résolution statique
 
-Les symboles de module sont resolus a la compilation.
+Les symboles de module sont résolus à la compilation.
 Aucun chargement dynamique.
 
 ### 14.4 Modules natifs
 
-Les modules natifs etendent l'environnement de noms, pas la semantique du langage.
+Les modules natifs étendent l'environnement de noms, pas la sémantique du langage.
 
 ### 14.5 Ce que les modules ne peuvent pas faire
 
-- introduire de nouveaux operateurs
-- changer les regles de typage
-- activer de la RTTI/reflection
+- introduire de nouveaux opérateurs
+- changer les règles de typage
+- activer de la RTTI/réflexion
 - modifier la grammaire
 
 ### 14.6 Pourquoi ?
 
-L'extension est un mecanisme d'integration, pas un mecanisme de mutation du langage.
+L'extension est un mécanisme d'intégration, pas un mécanisme de mutation du langage.
 
 ---
 
@@ -680,13 +680,13 @@ L'extension est un mecanisme d'integration, pas un mecanisme de mutation du lang
 
 ### 15.1 Erreurs statiques
 
-Diagnostics avec code, categorie, position `file:line:column`.
+Diagnostics avec code, catégorie, position `file:line:column`.
 
 ### 15.2 Exceptions runtime
 
-Les violations runtime normatives levent des exceptions categories.
-Toute exception derive du prototype racine `Exception`.
-Aucune autre valeur ne peut etre levee avec `throw`.
+Les violations runtime normatives lèvent des exceptions catégorisées.
+Toute exception dérive du prototype racine `Exception`.
+Aucune autre valeur ne peut être levée avec `throw`.
 
 ### 15.3 `try / catch / finally`
 
@@ -707,54 +707,54 @@ try {
 // throw 42;
 ```
 
-### 15.5 Erreur frequente
+### 15.5 Erreur fréquente
 
-Confondre absence de RTTI utilisateur et mecanisme `catch` par type : `catch` utilise une metadonnee interne d'exception, non exposable.
+Confondre absence de RTTI utilisateur et mécanisme `catch` par type : `catch` utilise une métadonnée interne d'exception, non exposable.
 
 ---
 
-## 16. Execution
+## 16. Exécution
 
-### 16.1 Modele
+### 16.1 Modèle
 
-Execution deterministe selon l'ordre d'evaluation defini.
+Exécution déterministe selon l'ordre d'évaluation défini.
 
 ### 16.2 Absences volontaires
 
 - Pas de RTTI utilisateur.
-- Pas de reflection.
-- Pas de comportement implicite dependant de l'environnement runtime.
+- Pas de réflexion.
+- Pas de comportement implicite dépendant de l'environnement runtime.
 
 ### 16.3 Comparaison utile (JS/PHP)
 
-Pas d'ajout dynamique de membres/fonctions a chaud. L'execution suit un contrat statique.
+Pas d'ajout dynamique de membres/fonctions à chaud. L'exécution suit un contrat statique.
 
 ---
 
-## 17. Performance et couts
+## 17. Performance et coûts
 
 ### 17.1 Principe
 
-Les couts doivent rester visibles dans le code et predictibles.
+Les coûts doivent rester visibles dans le code et prévisibles.
 
 ### 17.2 Checks runtime
 
-Les checks normatifs font partie de l'execution normale.
-Ils ne sont elidables que si leur inutilite est prouvee.
+Les checks normatifs font partie de l'exécution normale.
+Ils ne sont élidables que si leur inutilité est prouvée.
 
 ### 17.3 Exceptions
 
-Le cout "zero-cost" concerne le mecanisme d'unwind/dispatch quand aucune exception n'est levee.
+Le coût "zéro-cost" concerne le mécanisme d'unwind/dispatch quand aucune exception n'est levée.
 Il ne signifie pas "absence de checks runtime normatifs".
 
 ### 17.4 Debug vs release
 
-- Meme semantique observable.
-- Differences autorisees : instrumentation et qualite des diagnostics.
+- Même sémantique observable.
+- Différences autorisées : instrumentation et qualité des diagnostics.
 
 ### 17.5 Pourquoi ?
 
-Le langage privilegie des garanties defendables plutot que des promesses de performance implicites.
+Le langage privilégie des garanties défendables plutôt que des promesses de performance implicites.
 
 ---
 
@@ -771,45 +771,45 @@ Types (base) :
 Collections :
 
 - `list<T>` : mutable, `list[i] = x` strict, `push/pop` explicites
-- `map<K,V>` : lecture stricte (`map[k]` exige cle presente), ecriture constructive (`map[k] = v` insere/met a jour)
-- `slice<T>` : vue mutable non possedante
-- `view<T>` : vue lecture seule non possedante
+- `map<K,V>` : lecture stricte (`map[k]` exige clé présente), écriture constructive (`map[k] = v` insère/met à jour)
+- `slice<T>` : vue mutable non possédante
+- `view<T>` : vue lecture seule non possédante
 - `string` : immuable, indexation glyphique
 
-Erreurs frequentes :
+Erreurs fréquentes :
 
 - oublier le type de retour d'une fonction
-- tenter `a = b = c` (affectation chainee interdite)
-- supposer `sum()` valide avec variadique (la sequence variadique doit etre non vide)
-- ecrire dans `string[i]` ou `view[i]`
-- lire `map[k]` sur une cle absente en pensant obtenir une valeur par defaut
+- tenter `a = b = c` (affectation chaînée interdite)
+- supposer `sum()` valide avec variadique (la séquence variadique doit être non vide)
+- écrire dans `string[i]` ou `view[i]`
+- lire `map[k]` sur une clé absente en pensant obtenir une valeur par défaut
 
-Differences cles vs JS/PHP :
+Différences clés vs JS/PHP :
 
 - pas de typage dynamique
 - pas de fonctions comme valeurs
 - pas de null universel
 - pas de chargement dynamique des modules
-- pas de concatenation implicite de chaines
+- pas de concaténation implicite de chaînes
 
 ### 18.1 Table de correspondance (Concept -> Section)
 
-| Concept | Ou lire |
+| Concept | Où lire |
 |---|---|
 | Unicode / glyphes | §13 |
 | Exceptions | §15 |
-| map lecture stricte / ecriture constructive | §11.2 |
+| map lecture stricte / écriture constructive | §11.2 |
 | Variadique | §9.3 |
 | slice / view | §12 |
 | Prototypes et substitution parent/enfant | §10 |
 | Modules et imports | §14 |
-| Ordre d'evaluation | §6.2 |
+| Ordre d'évaluation | §6.2 |
 | switch sans fallthrough implicite | §8.4 |
 | Absence de null | §3.3 |
 
-### 18.2 Table rapide des operateurs
+### 18.2 Table rapide des opérateurs
 
-| Famille | Operateurs |
+| Famille | Opérateurs |
 |---|---|
 | Unaires | `! ~ - ++ --` |
 | Multiplicatifs | `* / % &` |
@@ -839,13 +839,13 @@ function main() : void {
 
 ### 18.4 Notes de comparaison (clarification)
 
-- Par rapport a JavaScript : pas de typage dynamique, pas de fonctions comme valeurs, pas de metaprogrammation runtime.
-- Par rapport a PHP : pas d'HTML embarque, pas de superglobales, pas de variables dynamiques.
-- Par rapport a C : semantique de surete normative (checks/diagnostics), tout en gardant un modele de compilation bas niveau.
+- Par rapport à JavaScript : pas de typage dynamique, pas de fonctions comme valeurs, pas de métaprogrammation runtime.
+- Par rapport à PHP : pas d'HTML embarqué, pas de superglobales, pas de variables dynamiques.
+- Par rapport à C : sémantique de sûreté normative (checks/diagnostics), tout en gardant un modèle de compilation bas niveau.
 
 ---
 
 ## Rappel final
 
-Ce manuel decrit l'usage quotidien.
-La specification `specification.md` definit la loi du langage.
+Ce manuel décrit l'usage quotidien.
+La spécification [`SPECIFICATION.md`](SPECIFICATION.md) définit la loi du langage.

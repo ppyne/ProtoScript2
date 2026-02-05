@@ -7,6 +7,8 @@ ProtoScript V2 est un langage conçu pour une promesse simple :
 
 Le projet est désormais spécifié, gouverné, et testable de façon indépendante.
 
+![La magie cache les coûts. ProtoScript les rend visibles](slogan.png)
+
 ## Ce que ProtoScript V2 assume
 
 - typage statique strict
@@ -18,8 +20,8 @@ Le projet est désormais spécifié, gouverné, et testable de façon indépenda
 
 ## Contrat du langage
 
-- la source normative est `specification.md` (ProtoScript Language Specification v2.0)
-- le manuel utilisateur de référence est `MANUEL_REFERENCE.md` (descriptif, aligné sur la spec)
+- la source normative est [`SPECIFICATION.md`](SPECIFICATION.md) (ProtoScript Language Specification v2.0)
+- le manuel utilisateur de référence est [`MANUEL_REFERENCE.md`](MANUEL_REFERENCE.md) (descriptif, aligné sur la spec)
 - la suite de conformité (`tests/manifest.json`) fait partie du contrat
 - une implémentation est conforme uniquement si elle passe 100 % des tests normatifs
 - aucun changement sémantique sans bump de version majeure
