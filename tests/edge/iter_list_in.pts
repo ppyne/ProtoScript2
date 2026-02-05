@@ -1,0 +1,6 @@
+function main() : void {
+    list<string> values = ["a", "b"];
+    for (string v in values) {
+        Sys.print(v);
+    }
+}

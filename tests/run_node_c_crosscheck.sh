@@ -80,8 +80,10 @@ while IFS= read -r case_id; do
 
   out_node="$(mktemp)"
   out_c="$(mktemp)"
-  c_file="$(mktemp /tmp/ps_cross_all_XXXXXX.c)"
-  c_bin="$(mktemp /tmp/ps_cross_all_XXXXXX)"
+  tmp_base="$(mktemp "${TMPDIR:-/tmp}/ps_cross_all_XXXXXX")"
+  c_file="${tmp_base}.c"
+  c_bin="${tmp_base}.bin"
+  rm -f "$tmp_base"
 
   rc_node=0
   rc_emit_c=0

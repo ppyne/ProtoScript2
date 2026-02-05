@@ -131,7 +131,7 @@ class IRBuilder {
         } else if (stmt.target.kind === "IndexExpr") {
           const t = this.lowerExpr(stmt.target.target, block, irFn, scope);
           const i = this.lowerExpr(stmt.target.index, block, irFn, scope);
-          this.emitIndexChecks(block, t, i);
+          this.emitIndexChecks(block, t, i, { forWrite: true });
           this.emit(block, { op: "index_set", target: t.value, index: i.value, src: rhs.value });
         }
         break;
@@ -243,7 +243,6 @@ class IRBuilder {
     const value = this.lowerExpr(stmt.expr, block, irFn, scope);
     const done = this.nextBlock("switch_done_");
     const doneBlock = { kind: "Block", label: done, instrs: [] };
-    irFn.blocks.push(doneBlock);
 
     let nextLabel = null;
     for (let idx = 0; idx < stmt.cases.length; idx += 1) {
@@ -276,6 +275,7 @@ class IRBuilder {
       for (const st of stmt.defaultCase.stmts) this.lowerStmt(st, bDefault, irFn, new Scope(scope));
       this.emit(bDefault, { op: "jump", target: done });
     }
+    irFn.blocks.push(doneBlock);
     this.emit(doneBlock, { op: "nop" });
   }
 
@@ -340,7 +340,7 @@ class IRBuilder {
       case "IndexExpr": {
         const t = this.lowerExpr(expr.target, block, irFn, scope);
         const i = this.lowerExpr(expr.index, block, irFn, scope);
-        this.emitIndexChecks(block, t, i);
+        this.emitIndexChecks(block, t, i, { forWrite: false });
         const dst = this.nextTemp();
         this.emit(block, { op: "index_get", dst, target: t.value, index: i.value });
         return { value: dst, type: this.elementTypeForIndex(t.type) };
@@ -444,10 +444,11 @@ class IRBuilder {
     return { value: dst, type: { kind: "PrimitiveType", name: "unknown" } };
   }
 
-  emitIndexChecks(block, target, index) {
+  emitIndexChecks(block, target, index, opts = {}) {
+    const forWrite = !!opts.forWrite;
     const ts = typeToString(target.type);
     if (ts.startsWith("map<")) {
-      this.emit(block, { op: "check_map_has_key", map: target.value, key: index.value });
+      if (!forWrite) this.emit(block, { op: "check_map_has_key", map: target.value, key: index.value });
       return;
     }
     this.emit(block, { op: "check_index_bounds", target: target.value, index: index.value });

@@ -1,0 +1,5 @@
+function main() : void {
+    list<string> values = ["a"];
+    values[5] = "x";
+    Sys.print("never");
+}

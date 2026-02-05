@@ -1,0 +1,11 @@
+function inner() : string {
+    return "inner";
+}
+
+function outer() : string {
+    return inner();
+}
+
+function main() : void {
+    Sys.print(outer());
+}

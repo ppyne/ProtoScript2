@@ -550,6 +550,7 @@ class Parser {
   }
 
   parseAssignStmt(withSemi) {
+    const start = this.t();
     const target = this.parsePostfixExpr();
     const op = this.eat("sym").value;
     if (!["=", "+=", "-=", "*=", "/="].includes(op)) {
@@ -560,7 +561,7 @@ class Parser {
     }
     const expr = this.parseConditionalExpr();
     if (withSemi) this.eat("sym", ";");
-    return { kind: "AssignStmt", target, op, expr, line: target.line, col: target.col };
+    return { kind: "AssignStmt", target, op, expr, line: start.line, col: start.col };
   }
 
   parseExprStmt() {
@@ -867,7 +868,12 @@ class Analyzer {
         let t = stmt.declaredType;
         if (stmt.init) {
           const initType = this.typeOfExpr(stmt.init, scope);
-          if (t && initType && !sameType(t, initType)) {
+          const emptyMapInit =
+            !!t &&
+            stmt.init.kind === "MapLiteral" &&
+            stmt.init.pairs.length === 0 &&
+            typeToString(t).startsWith("map<");
+          if (t && initType && !sameType(t, initType) && !emptyMapInit) {
             this.addDiag(stmt, "E3001", "TYPE_MISMATCH_ASSIGNMENT", `cannot assign ${typeToString(initType)} to ${typeToString(t)}`);
           }
           if (!t) t = initType;
@@ -876,9 +882,22 @@ class Analyzer {
         break;
       }
       case "AssignStmt": {
+        if (stmt.target && stmt.target.kind === "IndexExpr") {
+          const targetType = this.typeOfExpr(stmt.target.target, scope);
+          const ts = typeToString(targetType);
+          if (targetType && (ts === "string" || ts.startsWith("view<"))) {
+            this.addDiag(stmt, "E3004", "IMMUTABLE_INDEX_WRITE", "cannot assign through immutable index access");
+            break;
+          }
+        }
         const lhsType = this.typeOfAssignable(stmt.target, scope);
         const rhsType = this.typeOfExpr(stmt.expr, scope);
-        if (lhsType && rhsType && !sameType(lhsType, rhsType)) {
+        const emptyMapAssign =
+          !!lhsType &&
+          stmt.expr.kind === "MapLiteral" &&
+          stmt.expr.pairs.length === 0 &&
+          typeToString(lhsType).startsWith("map<");
+        if (lhsType && rhsType && !sameType(lhsType, rhsType) && !emptyMapAssign) {
           this.addDiag(stmt, "E3001", "TYPE_MISMATCH_ASSIGNMENT", `cannot assign ${typeToString(rhsType)} to ${typeToString(lhsType)}`);
         }
         break;

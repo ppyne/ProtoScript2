@@ -341,10 +341,35 @@ function emitFunctionPrototypes(ir) {
   });
 }
 
-function emitInstr(i, fnInf) {
+function emitInstr(i, fnInf, state) {
   const t = (v) => fnInf.tempTypes.get(v) || fnInf.varTypes.get(v) || "int";
   const n = (v) => cIdent(v);
   const out = [];
+  const aliases = state?.mapAliases;
+  const varAliases = state?.mapVarAliases;
+  const resolveVarAlias = (name) => {
+    if (!varAliases || !name) return name;
+    let cur = name;
+    const seen = new Set();
+    while (varAliases.has(cur) && !seen.has(cur)) {
+      seen.add(cur);
+      const next = varAliases.get(cur);
+      if (!next) break;
+      cur = next;
+    }
+    return cur;
+  };
+  const aliasOf = (tmp) => (aliases ? aliases.get(tmp) : undefined);
+  const setAlias = (tmp, name) => {
+    if (!aliases || !tmp) return;
+    if (name) aliases.set(tmp, resolveVarAlias(name));
+    else aliases.delete(tmp);
+  };
+  const setVarAlias = (name, target) => {
+    if (!varAliases || !name) return;
+    if (target) varAliases.set(name, resolveVarAlias(target));
+    else varAliases.set(name, name);
+  };
   switch (i.op) {
     case "const":
       if (i.literalType === "string") {
@@ -357,12 +382,15 @@ function emitInstr(i, fnInf) {
       }
       break;
     case "var_decl":
+      if (parseMapType(i.type.name)) setVarAlias(i.name, i.name);
       out.push(`/* var_decl ${n(i.name)}:${i.type.name} */`);
       break;
     case "load_var":
+      setAlias(i.dst, parseMapType(i.type.name) ? resolveVarAlias(i.name) : null);
       out.push(`${n(i.dst)} = ${n(i.name)};`);
       break;
     case "store_var":
+      if (parseMapType(i.type.name || t(i.name))) setVarAlias(i.name, aliasOf(i.src) || null);
       out.push(`${n(i.name)} = ${n(i.src)};`);
       break;
     case "check_int_overflow":
@@ -382,7 +410,8 @@ function emitInstr(i, fnInf) {
     case "check_map_has_key":
       {
         const m = parseMapType(t(i.map));
-        if (m) out.push(`ps_check_map_has_key(ps_map_has_key_${m.base}(&${n(i.map)}, ${n(i.key)}));`);
+        const mapRefName = aliasOf(i.map) || i.map;
+        if (m) out.push(`ps_check_map_has_key(ps_map_has_key_${m.base}(&${n(mapRefName)}, ${n(i.key)}));`);
         else out.push("ps_check_map_has_key(0);");
       }
       break;
@@ -393,6 +422,7 @@ function emitInstr(i, fnInf) {
       out.push(`${n(i.dst)} = (${i.operator}${n(i.src)});`);
       break;
     case "copy":
+      setAlias(i.dst, aliasOf(i.src) || null);
       out.push(`${n(i.dst)} = ${n(i.src)};`);
       break;
     case "postfix_op":
@@ -420,8 +450,9 @@ function emitInstr(i, fnInf) {
       {
         const tt = t(i.target);
         const m = parseMapType(tt);
+        const mapRefName = aliasOf(i.target) || i.target;
         if (m) {
-          out.push(`${n(i.dst)} = ps_map_get_${m.base}(&${n(i.target)}, ${n(i.index)});`);
+          out.push(`${n(i.dst)} = ps_map_get_${m.base}(&${n(mapRefName)}, ${n(i.index)});`);
         } else {
           out.push(`${n(i.dst)} = ${n(i.target)}.ptr[${n(i.index)}];`);
         }
@@ -431,8 +462,9 @@ function emitInstr(i, fnInf) {
       {
         const tt = t(i.target);
         const m = parseMapType(tt);
+        const mapRefName = aliasOf(i.target) || i.target;
         if (m) {
-          out.push(`ps_map_set_${m.base}(&${n(i.target)}, ${n(i.index)}, ${n(i.src)});`);
+          out.push(`ps_map_set_${m.base}(&${n(mapRefName)}, ${n(i.index)}, ${n(i.src)});`);
         } else {
           out.push(`${n(i.target)}.ptr[${n(i.index)}] = ${n(i.src)};`);
         }
@@ -532,18 +564,19 @@ function emitFunctionBody(fn, fnInf) {
   }
   if (tempDecls.length > 0) out.push(...tempDecls);
 
+  const emitState = { mapAliases: new Map(), mapVarAliases: new Map() };
   if (fn.blocks.length > 0) out.push(`  goto ${fn.blocks[0].label};`);
   for (const b of fn.blocks) {
     out.push(`${b.label}:`);
     for (const i of b.instrs) {
-      const lines = emitInstr(i, fnInf);
+      const lines = emitInstr(i, fnInf, emitState);
       for (const l of lines) out.push(`  ${l}`);
     }
   }
 
   if (ret === "void") out.push("  return;");
   else if (fn.name === "main") out.push("  return 0;");
-  else out.push(`  return (${ret})0;`);
+  else out.push(`  return (${ret}){0};`);
   out.push("}");
   return out;
 }

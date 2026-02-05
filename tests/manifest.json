@@ -9,12 +9,18 @@
     "invalid/type": [
       "invalid/type/type_mismatch_assignment",
       "invalid/type/variadic_empty_call",
-      "invalid/type/switch_no_termination"
+      "invalid/type/switch_no_termination",
+      "invalid/type/string_index_write",
+      "invalid/type/view_index_write"
     ],
     "invalid/runtime": [
       "invalid/runtime/int_overflow_add",
+      "invalid/runtime/div_zero_int",
+      "invalid/runtime/shift_range_int",
       "invalid/runtime/list_index_oob",
-      "invalid/runtime/map_missing_key"
+      "invalid/runtime/map_missing_key",
+      "invalid/runtime/index_get_string_oob",
+      "invalid/runtime/index_set_list_oob"
     ],
     "edge": [
       "edge/overflow_int_add",
@@ -24,7 +30,21 @@
       "edge/map_key_present",
       "edge/map_iteration_in",
       "edge/map_iteration_of",
-      "edge/map_update_then_lookup"
+      "edge/map_update_then_lookup",
+      "edge/map_insert_on_set",
+      "edge/map_empty_literal_typed_set",
+      "edge/map_alias_set_updates_original",
+      "edge/map_alias_chain_set_updates_root",
+      "edge/call_static_basic",
+      "edge/call_static_nested",
+      "edge/index_get_list",
+      "edge/index_get_map",
+      "edge/index_set_list",
+      "edge/index_set_map",
+      "edge/iter_list_of",
+      "edge/iter_list_in",
+      "edge/switch_cfg_case",
+      "edge/switch_cfg_default"
     ]
   }
 }

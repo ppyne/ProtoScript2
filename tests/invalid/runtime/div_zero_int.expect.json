@@ -1,0 +1,11 @@
+{
+  "status": "reject-runtime",
+  "error_family": "Rxxxx",
+  "error_code": "R1004",
+  "category": "RUNTIME_DIVIDE_BY_ZERO",
+  "position": {
+    "file": "invalid/runtime/div_zero_int.pts",
+    "line": 4,
+    "column": 17
+  }
+}

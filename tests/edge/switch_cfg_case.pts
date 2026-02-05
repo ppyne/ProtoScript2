@@ -1,0 +1,14 @@
+function main() : void {
+    int x = 2;
+    switch (x) {
+        case 1:
+            Sys.print("ko");
+            break;
+        case 2:
+            Sys.print("ok");
+            break;
+        default:
+            Sys.print("ko");
+            break;
+    }
+}

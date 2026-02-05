@@ -1,0 +1,5 @@
+function main() : void {
+    map<string, string> m = {};
+    m["x"] = "ok";
+    Sys.print(m["x"]);
+}

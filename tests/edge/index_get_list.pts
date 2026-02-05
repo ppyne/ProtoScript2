@@ -1,0 +1,5 @@
+function main() : void {
+    list<string> values = ["a", "ok", "c"];
+    string x = values[1];
+    Sys.print(x);
+}

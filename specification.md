@@ -251,6 +251,14 @@ s.concat(parts);     // concaténation explicite
 string.format("%02i %.2f %x\n", 5, .2, 10);
 ```
 
+Règles normatives d’accès indexé sur `string` :
+
+- `string[index]` en lecture retourne un `glyph`
+- l’index est exprimé en glyphes (et non en bytes UTF-8)
+- si l’index est hors bornes, une exception runtime est levée (`RUNTIME_INDEX_OOB`)
+- toute écriture `string[index] = value` est une erreur statique (`IMMUTABLE_INDEX_WRITE`)
+- `string` est immuable et ne constitue pas une collection mutable
+
 **list<T>**
 
 ```c
@@ -314,7 +322,7 @@ Les garanties suivantes sont normatives et indépendantes de l’implémentation
 | `list.isEmpty()`              | **O(1)**        | test de longueur         |
 | `list.length()`               | **O(1)**        | longueur stockée         |
 | accès `list[i]`               | **O(1)**        | accès direct mémoire     |
-| affectation `list[i] = x`     | **O(1)**        | écriture directe         |
+| affectation `list[i] = x`     | **O(1)**        | écriture stricte, sans resize implicite |
 | itération `for (T v of list)` | **O(n)**        | parcours séquentiel      |
 | `list.push(x)`                | **O(1)** amorti | réallocation possible    |
 | `list.pop()`                  | **O(1)**        | suppression en fin       |
@@ -328,6 +336,9 @@ Règles complémentaires :
 - la réallocation ne peut se produire que lors de `push`
 - toute opération **O(n)** est proportionnelle au nombre d’éléments
 - l’accès indexé est toujours en temps constant
+- `list[i] = x` est une écriture stricte : l’index doit exister
+- `list[i] = x` ne doit jamais redimensionner la liste
+- `list.pop()` : erreur statique si la vacuité est prouvée, sinon exception runtime si la liste est vide
 
 ---
 
@@ -347,6 +358,16 @@ int v = values["a"];
 - l’ordre d’itération est l’ordre d’insertion
 - les clés dupliquées dans un littéral sont interdites
 - accès par clé via l’opérateur `[]`
+- en lecture, `map[k]` doit lever une exception runtime si `k` est absente
+- en écriture, `map[k] = v` doit insérer une nouvelle entrée si `k` est absente
+- en écriture, `map[k] = v` doit mettre à jour la valeur associée si `k` est présente
+
+### Principe normatif : lecture stricte / écriture constructive
+
+- la **lecture** `map[k]` est stricte : la clé doit exister au moment de l’accès
+- la **lecture** d’une clé absente doit lever une exception runtime (`RUNTIME_MISSING_KEY`)
+- l’**écriture** `map[k] = v` est constructive : elle doit produire un état valide après l’opération
+- pour `map`, cela impose : insertion si la clé est absente, mise à jour si elle est présente
 
 ---
 
@@ -556,14 +577,15 @@ view<glyph> part  = s.view(start, length);
 slice.length();
 slice.isEmpty();
 
-slice.sub(offset, length);
-view.sub(offset, length);
+slice.slice(offset, length);
+view.view(offset, length);
 ```
 
 Règles :
 
 - aucune méthode ne peut provoquer d’allocation implicite
 - aucune méthode ne peut modifier la taille sous-jacente
+- `slice<T>[i] = x` est autorisé, écrit dans le stockage sous-jacent, sans mutation structurelle
 - `view<T>` interdit toute écriture
 
 # 4. Modèle objet & prototypes
@@ -1692,6 +1714,8 @@ L’interdiction de l’affectation chaînée garantit l’absence d’effets de
 Règles :
 
 - l’accès `[]` est défini pour `list`, `map` et `string`
+- pour `string`, l’accès `[]` est strictement en lecture
+- toute affectation via `string[index] = value` est interdite (erreur statique)
 - l’opérateur `.` est résolu statiquement selon le type connu
 
 ---
@@ -2667,6 +2691,12 @@ Cette section définit les comportements obligatoires sur cas limites.
 
 ## 14.2 Tableau normatif des cas limites
 
+Principe général (normatif) :
+
+- toute **lecture** par accès indexé doit être stricte (la donnée ciblée doit exister)
+- toute **écriture** par accès indexé doit suivre la règle du type ciblé sans effet implicite non spécifié
+- pour `map<K,V>`, l’écriture est constructive (insertion si absente, mise à jour si présente)
+
 | Cas | Statut | Comportement normatif | Diagnostic minimal |
 | --- | --- | --- | --- |
 | overflow `int` (add/sub/mul, négation de la valeur minimale) | exception runtime | l’opération doit lever une exception avant publication d’un résultat invalide | catégorie `RUNTIME_INT_OVERFLOW`, `file:line:column` |
@@ -2676,7 +2706,11 @@ Cette section définit les comportements obligatoires sur cas limites.
 | division flottante par zéro | autorisé | comportement IEEE-754 (`+Inf`, `-Inf`, `NaN`) | pas d’exception |
 | décalage `<<`/`>>` avec décalage négatif ou `>= largeur(type)` | exception runtime | l’évaluation doit lever une exception | catégorie `RUNTIME_SHIFT_RANGE`, position |
 | index hors bornes `list`, `string`, `slice`, `view` | exception runtime | accès lecture/écriture doit lever une exception | catégorie `RUNTIME_INDEX_OOB`, position |
+| écriture `string[i] = v` | erreur statique | toute mutation indexée de `string` doit être rejetée | catégorie `IMMUTABLE_INDEX_WRITE`, position |
+| écriture `view[i] = v` | erreur statique | toute mutation indexée de `view<T>` doit être rejetée | catégorie `IMMUTABLE_INDEX_WRITE`, position |
+| `list.pop()` sur liste vide | erreur statique si prouvée vide, sinon exception runtime | l’appel doit être rejeté statiquement quand prouvable ; sinon lever une exception runtime | catégorie `STATIC_EMPTY_POP` ou `RUNTIME_EMPTY_POP`, position |
 | accès `map[k]` avec clé absente | exception runtime | l’accès doit lever une exception | catégorie `RUNTIME_MISSING_KEY`, position |
+| écriture `map[k] = v` avec clé absente | autorisé | l’opération doit insérer une entrée `(k, v)` | pas d’exception |
 | mutation structurelle pendant itération (`list`/`map`) | exception runtime | l’itération doit détecter la mutation et lever une exception au plus tard au prochain pas | catégorie `RUNTIME_CONCURRENT_MUTATION`, position |
 
 ## 14.3 Debug / release
@@ -2728,6 +2762,7 @@ Règles :
 - les collections sont invariantes sur leurs paramètres (`list<T>`, `map<K,V>`, `slice<T>`, `view<T>`)
 - la substitution parent/enfant est autorisée pour les valeurs de prototypes selon les règles de la section 4
 - toute conversion doit être explicite via une opération/méthode définie par la spec
+- toute écriture indexée sur un type immuable (`string`, `view<T>`) est une erreur statique
 
 ## 15.5 Contraintes statiques de contrôle et d’appel
 

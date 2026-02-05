@@ -1,0 +1,11 @@
+{
+  "status": "reject-static",
+  "error_family": "E3xxx",
+  "error_code": "E3004",
+  "category": "IMMUTABLE_INDEX_WRITE",
+  "position": {
+    "file": "invalid/type/string_index_write.pts",
+    "line": 3,
+    "column": 5
+  }
+}

@@ -130,11 +130,37 @@ Pourquoi ce compromis est acceptable ici :
 
 ---
 
+## 5) Structures de données : lecture stricte, écriture constructive
+
+Décision :
+
+- les accès de lecture vérifient l’existence de la donnée ciblée
+- les écritures construisent l’état attendu du conteneur selon sa règle normative
+
+Application principale (`map<K,V>`) :
+
+- `map[k]` en lecture : la clé doit exister, sinon exception runtime explicite
+- `map[k] = v` en écriture : insertion si la clé est absente, mise à jour si elle est présente
+
+Pourquoi ce choix :
+
+- éviter les valeurs implicites ambiguës en lecture
+- garantir une mutation utile et déterministe en écriture
+- aligner la sémantique avec la règle générale du langage : explicite, prévisible, vérifiable
+
+---
+
 ## Synthèse
 
 Ces décisions partagent un même principe :
 
 - supprimer les ambiguïtés qui déplacent la complexité du code vers le runtime ou vers le lecteur.
+- appliquer une règle simple sur les structures : **lecture stricte, écriture constructive**.
+
+Lecture stricte, écriture constructive (cas `map`) :
+
+- `map[k]` en lecture exige que `k` existe (sinon exception explicite)
+- `map[k] = v` en écriture construit l’état attendu (insertion si absente, mise à jour si présente)
 
 ProtoScript V2 préfère :
 

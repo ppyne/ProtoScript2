@@ -1,0 +1,6 @@
+function main() : void {
+    int a = 1;
+    int s = 64;
+    int b = a << s;
+    Sys.print(b.toString());
+}
