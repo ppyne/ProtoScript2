@@ -1840,12 +1840,37 @@ typedef struct {
 } StrVec;
 
 typedef struct {
+  char *label;
+  StrVec instrs;
+} IrBlock;
+
+typedef struct {
+  IrBlock *items;
+  size_t len;
+  size_t cap;
+} IrBlockVec;
+
+typedef struct {
+  IrBlockVec blocks;
+  size_t cur_block;
   StrVec instrs;
   int temp_id;
+  int label_id;
 } IrFnCtx;
 
 static void str_vec_free(StrVec *v) {
   for (size_t i = 0; i < v->len; i++) free(v->items[i]);
+  free(v->items);
+  v->items = NULL;
+  v->len = 0;
+  v->cap = 0;
+}
+
+static void ir_block_vec_free(IrBlockVec *v) {
+  for (size_t i = 0; i < v->len; i++) {
+    free(v->items[i].label);
+    str_vec_free(&v->items[i].instrs);
+  }
   free(v->items);
   v->items = NULL;
   v->len = 0;
@@ -1861,6 +1886,18 @@ static int str_vec_push(StrVec *v, char *s) {
     v->cap = nc;
   }
   v->items[v->len++] = s;
+  return 1;
+}
+
+static int ir_block_vec_push(IrBlockVec *v, IrBlock b) {
+  if (v->len == v->cap) {
+    size_t nc = (v->cap == 0) ? 8 : v->cap * 2;
+    IrBlock *ni = (IrBlock *)realloc(v->items, nc * sizeof(IrBlock));
+    if (!ni) return 0;
+    v->items = ni;
+    v->cap = nc;
+  }
+  v->items[v->len++] = b;
   return 1;
 }
 
@@ -1916,7 +1953,8 @@ static char *json_escape(const char *s) {
 
 static int ir_emit(IrFnCtx *c, char *json_obj) {
   if (!json_obj) return 0;
-  if (!str_vec_push(&c->instrs, json_obj)) {
+  if (c->blocks.len == 0) return 0;
+  if (!str_vec_push(&c->blocks.items[c->cur_block].instrs, json_obj)) {
     free(json_obj);
     return 0;
   }
@@ -1924,6 +1962,28 @@ static int ir_emit(IrFnCtx *c, char *json_obj) {
 }
 
 static char *ir_next_tmp(IrFnCtx *c) { return str_printf("%%t%d", ++c->temp_id); }
+
+static char *ir_next_label(IrFnCtx *c, const char *prefix) { return str_printf("%s%d", prefix ? prefix : "b", ++c->label_id); }
+
+static int ir_add_block(IrFnCtx *c, const char *label, size_t *out_idx) {
+  IrBlock b;
+  memset(&b, 0, sizeof(b));
+  b.label = strdup(label ? label : "b");
+  if (!b.label) return 0;
+  if (!ir_block_vec_push(&c->blocks, b)) {
+    free(b.label);
+    return 0;
+  }
+  if (out_idx) *out_idx = c->blocks.len - 1;
+  return 1;
+}
+
+static int ir_is_terminated_block(const StrVec *v) {
+  if (!v || v->len == 0) return 0;
+  const char *s = v->items[v->len - 1];
+  return strstr(s, "\"op\":\"ret\"") || strstr(s, "\"op\":\"ret_void\"") || strstr(s, "\"op\":\"throw\"") ||
+         strstr(s, "\"op\":\"jump\"") || strstr(s, "\"op\":\"branch_if\"");
+}
 
 static char *ast_type_to_ir_name(AstNode *type_node) {
   if (!type_node || !type_node->text) return strdup("unknown");
@@ -2397,15 +2457,187 @@ static int ir_lower_stmt(AstNode *st, IrFnCtx *ctx) {
   }
   if (strcmp(st->kind, "BreakStmt") == 0) return ir_emit(ctx, strdup("{\"op\":\"break\"}"));
   if (strcmp(st->kind, "ContinueStmt") == 0) return ir_emit(ctx, strdup("{\"op\":\"continue\"}"));
-  if (strcmp(st->kind, "ForStmt") == 0 || strcmp(st->kind, "SwitchStmt") == 0)
+  if (strcmp(st->kind, "SwitchStmt") == 0) {
+    AstNode *sw_expr = (st->child_len > 0) ? st->children[0] : NULL;
+    char *swv = sw_expr ? ir_lower_expr(sw_expr, ctx) : NULL;
+    if (!swv) return 0;
+
+    char *done_label = ir_next_label(ctx, "sw_done_");
+    if (!done_label) {
+      free(swv);
+      return 0;
+    }
+    size_t done_idx = 0;
+    if (!ir_add_block(ctx, done_label, &done_idx)) {
+      free(done_label);
+      free(swv);
+      return 0;
+    }
+
+    size_t case_count = 0;
+    AstNode *default_case = NULL;
+    for (size_t i = 1; i < st->child_len; i++) {
+      if (strcmp(st->children[i]->kind, "CaseClause") == 0) case_count++;
+      if (strcmp(st->children[i]->kind, "DefaultClause") == 0) default_case = st->children[i];
+    }
+
+    char **cmp_labels = (char **)calloc(case_count ? case_count : 1, sizeof(char *));
+    char **body_labels = (char **)calloc(case_count ? case_count : 1, sizeof(char *));
+    size_t *cmp_idxs = (size_t *)calloc(case_count ? case_count : 1, sizeof(size_t));
+    size_t *body_idxs = (size_t *)calloc(case_count ? case_count : 1, sizeof(size_t));
+    if (!cmp_labels || !body_labels || !cmp_idxs || !body_idxs) {
+      free(cmp_labels); free(body_labels); free(cmp_idxs); free(body_idxs); free(done_label); free(swv);
+      return 0;
+    }
+
+    size_t ci = 0;
+    for (size_t i = 1; i < st->child_len; i++) {
+      AstNode *c = st->children[i];
+      if (strcmp(c->kind, "CaseClause") != 0) continue;
+      cmp_labels[ci] = ir_next_label(ctx, "sw_cmp_");
+      body_labels[ci] = ir_next_label(ctx, "sw_body_");
+      if (!cmp_labels[ci] || !body_labels[ci] || !ir_add_block(ctx, cmp_labels[ci], &cmp_idxs[ci]) ||
+          !ir_add_block(ctx, body_labels[ci], &body_idxs[ci])) {
+        free(done_label); free(swv);
+        for (size_t k = 0; k <= ci; k++) { free(cmp_labels[k]); free(body_labels[k]); }
+        free(cmp_labels); free(body_labels); free(cmp_idxs); free(body_idxs);
+        return 0;
+      }
+      ci++;
+    }
+
+    char *default_label = NULL;
+    size_t default_idx = done_idx;
+    if (default_case) {
+      default_label = ir_next_label(ctx, "sw_default_");
+      if (!default_label || !ir_add_block(ctx, default_label, &default_idx)) {
+        free(default_label); free(done_label); free(swv);
+        for (size_t k = 0; k < case_count; k++) { free(cmp_labels[k]); free(body_labels[k]); }
+        free(cmp_labels); free(body_labels); free(cmp_idxs); free(body_idxs);
+        return 0;
+      }
+    }
+
+    if (case_count > 0) {
+      char *tgt = json_escape(cmp_labels[0]);
+      char *ins = str_printf("{\"op\":\"jump\",\"target\":\"%s\"}", tgt ? tgt : "");
+      free(tgt);
+      if (!ir_emit(ctx, ins)) {
+        free(done_label); free(default_label); free(swv);
+        for (size_t k = 0; k < case_count; k++) { free(cmp_labels[k]); free(body_labels[k]); }
+        free(cmp_labels); free(body_labels); free(cmp_idxs); free(body_idxs);
+        return 0;
+      }
+    } else if (default_case) {
+      char *tgt = json_escape(default_label);
+      char *ins = str_printf("{\"op\":\"jump\",\"target\":\"%s\"}", tgt ? tgt : "");
+      free(tgt);
+      if (!ir_emit(ctx, ins)) {
+        free(done_label); free(default_label); free(swv);
+        for (size_t k = 0; k < case_count; k++) { free(cmp_labels[k]); free(body_labels[k]); }
+        free(cmp_labels); free(body_labels); free(cmp_idxs); free(body_idxs);
+        return 0;
+      }
+    }
+
+    ci = 0;
+    for (size_t i = 1; i < st->child_len; i++) {
+      AstNode *c = st->children[i];
+      if (strcmp(c->kind, "CaseClause") != 0) continue;
+      ctx->cur_block = cmp_idxs[ci];
+      AstNode *cv = (c->child_len > 0) ? c->children[0] : NULL;
+      char *vv = cv ? ir_lower_expr(cv, ctx) : NULL;
+      char *eq = ir_next_tmp(ctx);
+      if (!vv || !eq) {
+        free(vv); free(eq); free(done_label); free(default_label); free(swv);
+        for (size_t k = 0; k < case_count; k++) { free(cmp_labels[k]); free(body_labels[k]); }
+        free(cmp_labels); free(body_labels); free(cmp_idxs); free(body_idxs);
+        return 0;
+      }
+      char *eq_esc = json_escape(eq), *sw_esc = json_escape(swv), *vv_esc = json_escape(vv);
+      char *bin = str_printf("{\"op\":\"bin_op\",\"dst\":\"%s\",\"operator\":\"==\",\"left\":\"%s\",\"right\":\"%s\"}",
+                             eq_esc ? eq_esc : "", sw_esc ? sw_esc : "", vv_esc ? vv_esc : "");
+      free(eq_esc); free(sw_esc); free(vv_esc); free(vv);
+      if (!ir_emit(ctx, bin)) {
+        free(eq); free(done_label); free(default_label); free(swv);
+        for (size_t k = 0; k < case_count; k++) { free(cmp_labels[k]); free(body_labels[k]); }
+        free(cmp_labels); free(body_labels); free(cmp_idxs); free(body_idxs);
+        return 0;
+      }
+      const char *else_lbl = (ci + 1 < case_count) ? cmp_labels[ci + 1] : (default_case ? default_label : done_label);
+      char *eq2 = json_escape(eq), *then_esc = json_escape(body_labels[ci]), *else_esc = json_escape(else_lbl);
+      char *br = str_printf("{\"op\":\"branch_if\",\"cond\":\"%s\",\"then\":\"%s\",\"else\":\"%s\"}", eq2 ? eq2 : "",
+                            then_esc ? then_esc : "", else_esc ? else_esc : "");
+      free(eq2); free(then_esc); free(else_esc); free(eq);
+      if (!ir_emit(ctx, br)) {
+        free(done_label); free(default_label); free(swv);
+        for (size_t k = 0; k < case_count; k++) { free(cmp_labels[k]); free(body_labels[k]); }
+        free(cmp_labels); free(body_labels); free(cmp_idxs); free(body_idxs);
+        return 0;
+      }
+
+      ctx->cur_block = body_idxs[ci];
+      for (size_t j = 1; j < c->child_len; j++) {
+        if (!ir_lower_stmt(c->children[j], ctx)) {
+          free(done_label); free(default_label); free(swv);
+          for (size_t k = 0; k < case_count; k++) { free(cmp_labels[k]); free(body_labels[k]); }
+          free(cmp_labels); free(body_labels); free(cmp_idxs); free(body_idxs);
+          return 0;
+        }
+      }
+      if (!ir_is_terminated_block(&ctx->blocks.items[ctx->cur_block].instrs)) {
+        char *d_esc = json_escape(done_label);
+        char *j = str_printf("{\"op\":\"jump\",\"target\":\"%s\"}", d_esc ? d_esc : "");
+        free(d_esc);
+        if (!ir_emit(ctx, j)) {
+          free(done_label); free(default_label); free(swv);
+          for (size_t k = 0; k < case_count; k++) { free(cmp_labels[k]); free(body_labels[k]); }
+          free(cmp_labels); free(body_labels); free(cmp_idxs); free(body_idxs);
+          return 0;
+        }
+      }
+      ci++;
+    }
+
+    if (default_case) {
+      ctx->cur_block = default_idx;
+      for (size_t j = 0; j < default_case->child_len; j++) {
+        if (!ir_lower_stmt(default_case->children[j], ctx)) {
+          free(done_label); free(default_label); free(swv);
+          for (size_t k = 0; k < case_count; k++) { free(cmp_labels[k]); free(body_labels[k]); }
+          free(cmp_labels); free(body_labels); free(cmp_idxs); free(body_idxs);
+          return 0;
+        }
+      }
+      if (!ir_is_terminated_block(&ctx->blocks.items[ctx->cur_block].instrs)) {
+        char *d_esc = json_escape(done_label);
+        char *j = str_printf("{\"op\":\"jump\",\"target\":\"%s\"}", d_esc ? d_esc : "");
+        free(d_esc);
+        if (!ir_emit(ctx, j)) {
+          free(done_label); free(default_label); free(swv);
+          for (size_t k = 0; k < case_count; k++) { free(cmp_labels[k]); free(body_labels[k]); }
+          free(cmp_labels); free(body_labels); free(cmp_idxs); free(body_idxs);
+          return 0;
+        }
+      }
+    }
+
+    ctx->cur_block = done_idx;
+    ir_emit(ctx, strdup("{\"op\":\"nop\"}"));
+
+    free(done_label); free(default_label); free(swv);
+    for (size_t k = 0; k < case_count; k++) { free(cmp_labels[k]); free(body_labels[k]); }
+    free(cmp_labels); free(body_labels); free(cmp_idxs); free(body_idxs);
+    return 1;
+  }
+  if (strcmp(st->kind, "ForStmt") == 0)
     return ir_emit(ctx, str_printf("{\"op\":\"unhandled_stmt\",\"kind\":\"%s\"}", st->kind));
   return ir_emit(ctx, str_printf("{\"op\":\"unhandled_stmt\",\"kind\":\"%s\"}", st->kind));
 }
 
 static int ir_fn_terminated(IrFnCtx *ctx) {
-  if (ctx->instrs.len == 0) return 0;
-  const char *s = ctx->instrs.items[ctx->instrs.len - 1];
-  return strstr(s, "\"op\":\"ret\"") || strstr(s, "\"op\":\"ret_void\"") || strstr(s, "\"op\":\"throw\"");
+  if (ctx->blocks.len == 0) return 0;
+  return ir_is_terminated_block(&ctx->blocks.items[ctx->cur_block].instrs);
 }
 
 int ps_emit_ir_json(const char *file, PsDiag *out_diag, FILE *out) {
@@ -2432,9 +2664,14 @@ int ps_emit_ir_json(const char *file, PsDiag *out_diag, FILE *out) {
 
     IrFnCtx ctx;
     memset(&ctx, 0, sizeof(ctx));
+    if (!ir_add_block(&ctx, "entry", &ctx.cur_block)) {
+      ast_free(root);
+      set_diag(out_diag, file, 1, 1, "E0002", "INTERNAL_ERROR", "IR block allocation failure");
+      return 2;
+    }
     AstNode *blk = ast_child_kind(fn, "Block");
     if (blk && !ir_lower_stmt(blk, &ctx)) {
-      str_vec_free(&ctx.instrs);
+      ir_block_vec_free(&ctx.blocks);
       ast_free(root);
       set_diag(out_diag, file, 1, 1, "E0002", "INTERNAL_ERROR", "IR lowering allocation failure");
       return 2;
@@ -2475,22 +2712,25 @@ int ps_emit_ir_json(const char *file, PsDiag *out_diag, FILE *out) {
     fputs("],\n", out);
     fprintf(out, "        \"returnType\": {\"kind\": \"IRType\", \"name\": \"%s\"},\n", ret_esc ? ret_esc : "void");
     fputs("        \"blocks\": [\n", out);
-    fputs("          {\n", out);
-    fputs("            \"kind\": \"Block\",\n", out);
-    fputs("            \"label\": \"entry\",\n", out);
-    fputs("            \"instrs\": [\n", out);
-    for (size_t ii = 0; ii < ctx.instrs.len; ii++) {
-      fprintf(out, "              %s%s\n", ctx.instrs.items[ii], (ii + 1 < ctx.instrs.len) ? "," : "");
+    for (size_t bi = 0; bi < ctx.blocks.len; bi++) {
+      IrBlock *b = &ctx.blocks.items[bi];
+      fprintf(out, "          {\n");
+      fprintf(out, "            \"kind\": \"Block\",\n");
+      fprintf(out, "            \"label\": \"%s\",\n", b->label ? b->label : "entry");
+      fputs("            \"instrs\": [\n", out);
+      for (size_t ii = 0; ii < b->instrs.len; ii++) {
+        fprintf(out, "              %s%s\n", b->instrs.items[ii], (ii + 1 < b->instrs.len) ? "," : "");
+      }
+      fputs("            ]\n", out);
+      fprintf(out, "          }%s\n", (bi + 1 < ctx.blocks.len) ? "," : "");
     }
-    fputs("            ]\n", out);
-    fputs("          }\n", out);
     fputs("        ]\n", out);
     fputs("      }", out);
 
     free(fn_name);
     free(ret_esc);
     free(ret);
-    str_vec_free(&ctx.instrs);
+    ir_block_vec_free(&ctx.blocks);
   }
 
   fputs("\n    ]\n", out);
