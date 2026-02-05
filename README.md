@@ -1,148 +1,82 @@
 ![ProtoScript2](header.png)
 
-# ProtoScript2
+# ProtoScript V2 — Manifeste
 
-ProtoScript2 est un projet de langage avec spécification normative et chaîne de compilation de référence.
+ProtoScript V2 est un langage conçu pour une promesse simple :
+**pas de magie, pas de coût caché, pas d’ambiguïté sémantique**.
 
-## Positionnement
+Le projet est désormais spécifié, gouverné, et testable de façon indépendante.
 
-ProtoScript2 suit ces choix structurants :
+## Ce que ProtoScript V2 assume
 
 - typage statique strict
-- modèle objet prototype-based (sans classes)
+- modèle prototype-based (sans classes)
 - pas de RTTI utilisateur
 - pas de fonctions comme valeurs
-- pas de généricité des fonctions
-- compilation possible vers C
+- pas de généricité de fonctions
+- résolution déterministe à la compilation
 
-La spécification de référence est dans `SPECIFICATION.md`.
-Format IR sérialisé : `IR_FORMAT.md`.
+## Contrat du langage
 
-![La magie cache les coûts. ProtoScript les rend visibles.](slogan.png)
+- la source normative est `specification.md` (ProtoScript Language Specification v2.0)
+- la suite de conformité (`tests/manifest.json`) fait partie du contrat
+- une implémentation est conforme uniquement si elle passe 100 % des tests normatifs
+- aucun changement sémantique sans bump de version majeure
 
-## État actuel du dépôt
+## Pourquoi ce dépôt existe
 
-Implémenté :
+Ce dépôt fournit :
 
-- frontend minimal (lexer + parser + AST + analyse statique)  
-  - `src/frontend.js`
-- runtime de référence (interpréteur AST pour `--run`)
-  - `src/runtime.js`
-- diagnostics normatifs `file:line:column` avec codes `E1xxx–E4xxx`
-- IR normatif minimal (`Module`, `Function`, `Block`, `Instr`, `Type`)  
-  - `src/ir.js`
-- backend C de référence non optimisé (oracle sémantique)  
-  - `src/c_backend.js`
-- CLI compilateur  
-  - `bin/protoscriptc`
-- CLI native C (bootstrap)  
-  - `c/pscc` (lexer/parser C + oracle Node pour la sémantique)
-- conformance kit + runners  
-  - `tests/`
+- une spécification normative complète
+- une implémentation oracle Node.js (`bin/protoscriptc`)
+- un chemin CLI C (`c/pscc`) pour la crédibilité système
+- une validation croisée Node/C pour éviter les divergences silencieuses
 
-Non implémenté à ce stade :
+Node.js sert de **spec exécutable**.
+Le C sert de **preuve d’implémentabilité bas niveau**.
 
-- exécution runtime complète (`--run`)
-- backend natif/IR finalisé pour tous les cas du langage
+## Commandes essentielles
 
-## Commandes principales
-
-Vérification statique :
-
-```bash
-bin/protoscriptc --check path/to/file.pts
-
-# ou via CLI native C
-c/pscc --check path/to/file.pts
-```
-
-Exécution (runtime de référence) :
-
-```bash
-bin/protoscriptc --run path/to/file.pts
-```
-
-Affichage IR :
-
-```bash
-bin/protoscriptc --emit-ir path/to/file.pts
-bin/protoscriptc --emit-ast-json path/to/file.pts
-
-# IR JSON sérialisé (versionné)
-bin/protoscriptc --emit-ir-json path/to/file.pts
-
-# validation d'un IR JSON
-bin/protoscriptc --validate-ir path/to/file.ir.json
-```
-
-Génération C de référence :
-
-```bash
-bin/protoscriptc --emit-c path/to/file.pts
-```
-
-Optimisations (gated) :
-
-```bash
-BACKEND_C_STABLE=1 bin/protoscriptc --emit-c path/to/file.pts --opt
-```
-
-## Tests
-
-Conformance kit :
-
-- `tests/invalid/parse`
-- `tests/invalid/type`
-- `tests/invalid/runtime`
-- `tests/edge`
-
-Runner principal :
+Vérification de conformité :
 
 ```bash
 tests/run_conformance.sh
 ```
 
-Runner opt-safety :
+Validation croisée Node/C (strict) :
 
 ```bash
-BACKEND_C_STABLE=1 tests/run_opt_safety.sh
+tests/run_node_c_crosscheck.sh --strict-ast --strict-static-c
 ```
 
-Validation du format IR sérialisé :
+Compilation/contrôle côté oracle :
 
 ```bash
-tests/run_ir_format.sh
+bin/protoscriptc --check file.pts
+bin/protoscriptc --run file.pts
+bin/protoscriptc --emit-ir-json file.pts
+bin/protoscriptc --emit-c file.pts
 ```
 
-Validation croisée runtime (oracle Node vs backend C compilé) :
-
-```bash
-tests/run_runtime_crosscheck.sh
-```
-
-Le runner écrit `tests/.runtime_crosscheck_passed` si la parité runtime est validée.
-
-Validation structurelle AST (Node AST vs AST C) :
-
-```bash
-tests/run_ast_structural_crosscheck.sh
-```
-
-Validation IR Node/C (structure + invariants) :
-
-```bash
-tests/run_ir_node_c_crosscheck.sh
-```
-
-## Build de la CLI C
+CLI C :
 
 ```bash
 make -C c
-./c/pscc --check path/to/file.pts
-./c/pscc --check-c path/to/file.pts
-./c/pscc --check-c-static path/to/file.pts
-./c/pscc --ast-c path/to/file.pts
-./c/pscc --emit-ir-c-json path/to/file.pts
+./c/pscc --check file.pts
+./c/pscc --check-c file.pts
+./c/pscc --check-c-static file.pts
 ```
 
-Règle d’or du projet : le compilateur est considéré correct uniquement s’il passe 100 % des tests normatifs.
+## Extension sans compromission
+
+ProtoScript V2 autorise des modules tiers via API native normative (section 20 de la spec) avec contraintes strictes :
+
+- extension de l’environnement, jamais de la sémantique
+- résolution compile-time uniquement
+- symboles importés explicitement et typés statiquement
+- aucun chargement dynamique, aucune RTTI, aucune réflexion
+
+## État
+
+ProtoScript V2 est un langage spécifié au sens de sa spécification.
+La baseline v2.0 figée est taggée : `spec-v2.0-final`.
