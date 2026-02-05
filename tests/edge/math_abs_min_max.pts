@@ -1,0 +1,9 @@
+import Math;
+
+function main() : void {
+    float a = Math.abs(-3.0);
+    float b = Math.min(2.0, 5.0);
+    float c = Math.max(2.0, 5.0);
+    bool ok = (a == 3.0) && (b == 2.0) && (c == 5.0);
+    Sys.print(ok.toString());
+}

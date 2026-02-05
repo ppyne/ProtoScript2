@@ -1,0 +1,5 @@
+import Math;
+
+function main() : void {
+    Math.sqrt(-1.0);
+}

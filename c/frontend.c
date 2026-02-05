@@ -1503,9 +1503,17 @@ typedef struct RegFn {
   struct RegFn *next;
 } RegFn;
 
+typedef struct RegConst {
+  char *name;
+  char *type;
+  char *value;
+  struct RegConst *next;
+} RegConst;
+
 typedef struct RegMod {
   char *name;
   RegFn *fns;
+  RegConst *consts;
   struct RegMod *next;
 } RegMod;
 
@@ -1567,6 +1575,15 @@ static void free_registry(ModuleRegistry *r) {
       free(f->ret_type);
       free(f);
       f = fn;
+    }
+    RegConst *c = m->consts;
+    while (c) {
+      RegConst *cn = c->next;
+      free(c->name);
+      free(c->type);
+      free(c->value);
+      free(c);
+      c = cn;
     }
     free(m->name);
     free(m);
@@ -1706,6 +1723,31 @@ static ModuleRegistry *registry_load(void) {
       rf->next = rm->fns;
       rm->fns = rf;
     }
+    PS_JsonValue *consts = ps_json_obj_get(m, "constants");
+    if (consts && consts->type == PS_JSON_ARRAY) {
+      for (size_t j = 0; j < consts->as.array_v.len; j++) {
+        PS_JsonValue *c = consts->as.array_v.items[j];
+        PS_JsonValue *cname = ps_json_obj_get(c, "name");
+        PS_JsonValue *ctype = ps_json_obj_get(c, "type");
+        PS_JsonValue *cval = ps_json_obj_get(c, "value");
+        if (!cname || cname->type != PS_JSON_STRING) continue;
+        if (!ctype || ctype->type != PS_JSON_STRING) continue;
+        if (strcmp(ctype->as.str_v, "float") != 0) continue;
+        if (!cval || (cval->type != PS_JSON_STRING && cval->type != PS_JSON_NUMBER)) continue;
+        RegConst *rc = (RegConst *)calloc(1, sizeof(RegConst));
+        if (!rc) continue;
+        rc->name = strdup(cname->as.str_v);
+        rc->type = strdup("float");
+        if (cval->type == PS_JSON_STRING) rc->value = strdup(cval->as.str_v);
+        else {
+          char buf[64];
+          snprintf(buf, sizeof(buf), "%.17g", cval->as.num_v);
+          rc->value = strdup(buf);
+        }
+        rc->next = rm->consts;
+        rm->consts = rc;
+      }
+    }
   }
   ps_json_free(root);
   return reg;
@@ -1723,6 +1765,15 @@ static RegFn *registry_find_fn(ModuleRegistry *r, const char *mod, const char *n
   if (!m) return NULL;
   for (RegFn *f = m->fns; f; f = f->next) {
     if (strcmp(f->name, name) == 0) return f;
+  }
+  return NULL;
+}
+
+static RegConst *registry_find_const(ModuleRegistry *r, const char *mod, const char *name) {
+  RegMod *m = registry_find_mod(r, mod);
+  if (!m) return NULL;
+  for (RegConst *c = m->consts; c; c = c->next) {
+    if (strcmp(c->name, name) == 0) return c;
   }
   return NULL;
 }
@@ -2031,6 +2082,16 @@ static char *infer_expr_type(Analyzer *a, AstNode *e, Scope *scope, int *ok) {
   }
   if (strcmp(e->kind, "Identifier") == 0) return strdup(scope_lookup(scope, e->text ? e->text : ""));
   if (strcmp(e->kind, "UnaryExpr") == 0 || strcmp(e->kind, "PostfixExpr") == 0 || strcmp(e->kind, "MemberExpr") == 0) {
+    if (strcmp(e->kind, "MemberExpr") == 0 && e->child_len > 0) {
+      AstNode *target = e->children[0];
+      if (strcmp(target->kind, "Identifier") == 0) {
+        ImportNamespace *ns = find_namespace(a, target->text ? target->text : "");
+        if (ns) {
+          RegConst *rc = registry_find_const(a->registry, ns->module, e->text ? e->text : "");
+          if (rc && rc->type && strcmp(rc->type, "float") == 0) return strdup("float");
+        }
+      }
+    }
     if (e->child_len > 0) return infer_expr_type(a, e->children[0], scope, ok);
     return strdup("unknown");
   }
@@ -2453,6 +2514,7 @@ typedef struct {
   IrFnSig *fn_sigs;
   ImportSymbol *imports;
   ImportNamespace *namespaces;
+  ModuleRegistry *registry;
 } IrFnCtx;
 
 static void str_vec_free(StrVec *v) {
@@ -2712,7 +2774,19 @@ static char *ir_guess_expr_type(AstNode *e, IrFnCtx *ctx) {
     return strdup(t ? t : "unknown");
   }
   if (strcmp(e->kind, "UnaryExpr") == 0 || strcmp(e->kind, "PostfixExpr") == 0 || strcmp(e->kind, "MemberExpr") == 0) {
-    if (strcmp(e->kind, "MemberExpr") == 0 && e->text && strcmp(e->text, "toString") == 0) return strdup("string");
+    if (strcmp(e->kind, "MemberExpr") == 0) {
+      if (e->text && strcmp(e->text, "toString") == 0) return strdup("string");
+      if (e->child_len > 0) {
+        AstNode *target = e->children[0];
+        if (strcmp(target->kind, "Identifier") == 0) {
+          ImportNamespace *ns = ir_find_namespace(ctx, target->text ? target->text : "");
+          if (ns) {
+            RegConst *rc = registry_find_const(ctx->registry, ns->module, e->text ? e->text : "");
+            if (rc && rc->type && strcmp(rc->type, "float") == 0) return strdup("float");
+          }
+        }
+      }
+    }
     return (e->child_len > 0) ? ir_guess_expr_type(e->children[0], ctx) : strdup("unknown");
   }
   if (strcmp(e->kind, "BinaryExpr") == 0) {
@@ -3058,6 +3132,28 @@ static char *ir_lower_expr(AstNode *e, IrFnCtx *ctx) {
     return dst;
   }
   if (strcmp(e->kind, "MemberExpr") == 0 && e->child_len >= 1) {
+    AstNode *target = e->children[0];
+    if (target && strcmp(target->kind, "Identifier") == 0) {
+      ImportNamespace *ns = ir_find_namespace(ctx, target->text ? target->text : "");
+      if (ns) {
+        RegConst *rc = registry_find_const(ctx->registry, ns->module, e->text ? e->text : "");
+        if (rc && rc->type && strcmp(rc->type, "float") == 0 && rc->value) {
+          char *dst = ir_next_tmp(ctx);
+          if (!dst) return NULL;
+          char *d_esc = json_escape(dst);
+          char *v_esc = json_escape(rc->value);
+          char *ins = str_printf("{\"op\":\"const\",\"dst\":\"%s\",\"literalType\":\"float\",\"value\":\"%s\"}", d_esc ? d_esc : "",
+                                 v_esc ? v_esc : "");
+          free(d_esc);
+          free(v_esc);
+          if (!ir_emit(ctx, ins)) {
+            free(dst);
+            return NULL;
+          }
+          return dst;
+        }
+      }
+    }
     char *base = ir_lower_expr(e->children[0], ctx);
     char *dst = ir_next_tmp(ctx);
     if (!base || !dst) {
@@ -3931,6 +4027,7 @@ int ps_emit_ir_json(const char *file, PsDiag *out_diag, FILE *out) {
     ctx.fn_sigs = fn_sigs;
     ctx.imports = a.imports;
     ctx.namespaces = a.namespaces;
+    ctx.registry = a.registry;
     if (!ir_add_block(&ctx, "entry", &ctx.cur_block)) {
       ast_free(root);
       ir_free_fn_sigs(fn_sigs);

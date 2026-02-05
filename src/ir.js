@@ -68,10 +68,11 @@ function loadModuleRegistry() {
 function buildImportMap(ast) {
   const imported = new Map();
   const namespaces = new Map();
+  const moduleConsts = new Map(); // module -> Map(name -> value)
   const imports = ast.imports || [];
-  if (imports.length === 0) return { imported, namespaces };
+  if (imports.length === 0) return { imported, namespaces, moduleConsts };
   const reg = loadModuleRegistry();
-  if (!reg || !Array.isArray(reg.modules)) return { imported, namespaces };
+  if (!reg || !Array.isArray(reg.modules)) return { imported, namespaces, moduleConsts };
   const modules = new Map();
   for (const m of reg.modules) {
     if (!m || typeof m.name !== "string") continue;
@@ -80,6 +81,14 @@ function buildImportMap(ast) {
       if (f && typeof f.name === "string") fns.add(f.name);
     }
     modules.set(m.name, fns);
+    const consts = new Map();
+    for (const c of m.constants || []) {
+      if (!c || typeof c.name !== "string") continue;
+      if (c.type !== "float") continue;
+      if (typeof c.value !== "string" && typeof c.value !== "number") continue;
+      consts.set(c.name, String(c.value));
+    }
+    moduleConsts.set(m.name, consts);
   }
   for (const imp of imports) {
     const mod = imp.modulePath.join(".");
@@ -96,7 +105,7 @@ function buildImportMap(ast) {
       namespaces.set(alias, mod);
     }
   }
-  return { imported, namespaces };
+  return { imported, namespaces, moduleConsts };
 }
 
 class Scope {
@@ -123,6 +132,7 @@ class IRBuilder {
     const imports = buildImportMap(ast);
     this.importedSymbols = imports.imported;
     this.importNamespaces = imports.namespaces;
+    this.moduleConsts = imports.moduleConsts;
   }
 
   nextTemp() {
@@ -450,6 +460,15 @@ class IRBuilder {
         return { value: dst, type: this.elementTypeForIndex(t.type) };
       }
       case "MemberExpr": {
+        if (expr.target.kind === "Identifier" && this.importNamespaces.has(expr.target.name)) {
+          const mod = this.importNamespaces.get(expr.target.name);
+          const consts = this.moduleConsts.get(mod);
+          if (consts && consts.has(expr.name)) {
+            const dst = this.nextTemp();
+            this.emit(block, { op: "const", dst, literalType: "float", value: consts.get(expr.name) });
+            return { value: dst, type: { kind: "PrimitiveType", name: "float" } };
+          }
+        }
         const base = this.lowerExpr(expr.target, block, irFn, scope);
         const dst = this.nextTemp();
         this.emit(block, { op: "member_get", dst, target: base.value, name: expr.name });

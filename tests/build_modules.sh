@@ -15,14 +15,15 @@ EXT="so"
 LINKFLAGS="-shared"
 if [[ "$OS" == "Darwin" ]]; then
   EXT="dylib"
-  LINKFLAGS="-dynamiclib"
+  LINKFLAGS="-dynamiclib -Wl,-undefined,dynamic_lookup"
 fi
 
 build_mod() {
   local name="$1"
   local src="$2"
   local out="$OUT_DIR/psmod_${name}.${EXT}"
-  $CC $CFLAGS "$src" -o "$out" $LINKFLAGS
+  shift 2
+  $CC $CFLAGS "$src" -o "$out" $LINKFLAGS "$@"
 }
 
 build_mod "test_simple" "$SRC_DIR/test_simple.c"
@@ -31,5 +32,6 @@ build_mod "test_throw" "$SRC_DIR/test_throw.c"
 build_mod "test_noinit" "$SRC_DIR/test_noinit.c"
 build_mod "test_badver" "$SRC_DIR/test_badver.c"
 build_mod "test_nosym" "$SRC_DIR/test_nosym.c"
+build_mod "Math" "$SRC_DIR/math.c" -lm
 
 echo "modules built in $OUT_DIR"

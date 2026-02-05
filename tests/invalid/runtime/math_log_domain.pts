@@ -1,0 +1,5 @@
+import Math;
+
+function main() : void {
+    Math.log(0.0);
+}

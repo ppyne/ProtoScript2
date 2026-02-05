@@ -47,6 +47,28 @@
       "functions": [
         { "name": "bad", "ret": "badtype", "params": ["int"] }
       ]
+    },
+    {
+      "name": "Math",
+      "functions": [
+        { "name": "abs", "ret": "float", "params": ["float"] },
+        { "name": "min", "ret": "float", "params": ["float", "float"] },
+        { "name": "max", "ret": "float", "params": ["float", "float"] },
+        { "name": "floor", "ret": "float", "params": ["float"] },
+        { "name": "ceil", "ret": "float", "params": ["float"] },
+        { "name": "round", "ret": "float", "params": ["float"] },
+        { "name": "sqrt", "ret": "float", "params": ["float"] },
+        { "name": "pow", "ret": "float", "params": ["float", "float"] },
+        { "name": "sin", "ret": "float", "params": ["float"] },
+        { "name": "cos", "ret": "float", "params": ["float"] },
+        { "name": "tan", "ret": "float", "params": ["float"] },
+        { "name": "log", "ret": "float", "params": ["float"] },
+        { "name": "exp", "ret": "float", "params": ["float"] }
+      ],
+      "constants": [
+        { "name": "PI", "type": "float", "value": "3.141592653589793" },
+        { "name": "E", "type": "float", "value": "2.718281828459045" }
+      ]
     }
   ]
 }

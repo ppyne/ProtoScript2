@@ -27,6 +27,10 @@ FRONTEND_ONLY="${FRONTEND_ONLY:-0}"
 CONFORMANCE_MODULES="${CONFORMANCE_MODULES:-0}"
 MODULES_BUILT=0
 
+if [[ "$CONFORMANCE_MODULES" == "1" ]]; then
+  export PS_MODULE_REGISTRY="$ROOT_DIR/modules/registry.json"
+fi
+
 if ! command -v jq >/dev/null 2>&1; then
   if [[ -x "/usr/local/bin/jq" ]]; then
     PATH="/usr/local/bin:$PATH"

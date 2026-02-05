@@ -139,6 +139,7 @@ function loadModuleRegistry() {
   for (const m of list) {
     if (!m || typeof m.name !== "string") continue;
     const fns = new Map();
+    const consts = new Map();
     for (const f of m.functions || []) {
       if (!f || typeof f.name !== "string") continue;
       const paramsRaw = Array.isArray(f.params) ? f.params : [];
@@ -155,7 +156,13 @@ function loadModuleRegistry() {
       };
       fns.set(f.name, { name: f.name, params, retType, ast, valid: validParams && validRet });
     }
-    modules.set(m.name, { functions: fns });
+    for (const c of m.constants || []) {
+      if (!c || typeof c.name !== "string") continue;
+      if (c.type !== "float") continue;
+      if (typeof c.value !== "string" && typeof c.value !== "number") continue;
+      consts.set(c.name, { type: "float", value: String(c.value) });
+    }
+    modules.set(m.name, { functions: fns, constants: consts });
   }
   return { modules };
 }
@@ -1016,6 +1023,7 @@ class Analyzer {
     this.functions = new Map();
     this.imported = new Map(); // local name -> { module, name, sig }
     this.namespaces = new Map(); // alias -> module
+    this.moduleConsts = new Map(); // alias -> Map(name -> { type, value })
     this.diags = [];
   }
 
@@ -1063,6 +1071,9 @@ class Analyzer {
       } else {
         const alias = imp.alias || imp.modulePath[imp.modulePath.length - 1];
         this.namespaces.set(alias, mod);
+        if (modEntry.constants && modEntry.constants.size > 0) {
+          this.moduleConsts.set(alias, modEntry.constants);
+        }
       }
     }
   }
@@ -1286,6 +1297,12 @@ class Analyzer {
         return null;
       }
       case "MemberExpr":
+        if (expr.target.kind === "Identifier" && this.moduleConsts.has(expr.target.name)) {
+          const consts = this.moduleConsts.get(expr.target.name);
+          if (consts && consts.has(expr.name)) {
+            return { kind: "PrimitiveType", name: "float" };
+          }
+        }
         return null;
       case "PostfixExpr":
         return this.typeOfExpr(expr.expr, scope);
