@@ -6,6 +6,10 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "runtime/ps_json.h"
+
+static char *str_printf(const char *fmt, ...);
+
 typedef enum {
   TK_EOF,
   TK_KW,
@@ -234,7 +238,7 @@ static int is_keyword(const char *s) {
       "string",    "list",     "map",      "slice",  "view",    "void",   "if",    "else",
       "for",       "of",       "in",       "while",  "do",      "switch", "case",  "default",
       "break",     "continue", "return",   "try",    "catch",   "finally","throw", "true",
-      "false",     "self",     NULL,
+      "false",     "self",     "import",   "as",     NULL,
   };
   for (int i = 0; kws[i]; i++) {
     if (strcmp(s, kws[i]) == 0) return 1;
@@ -469,6 +473,7 @@ static int looks_like_type_start(Parser *p) {
 
 static int parse_expr(Parser *p, AstNode **out);
 static int parse_stmt(Parser *p);
+static int parse_try_stmt(Parser *p);
 static int parse_type(Parser *p);
 static int parse_postfix_expr(Parser *p, AstNode **out);
 static int parse_conditional_expr(Parser *p, AstNode **out);
@@ -675,6 +680,96 @@ static int parse_switch_stmt(Parser *p) {
   return p_eat(p, TK_SYM, "}");
 }
 
+static int parse_try_stmt(Parser *p) {
+  Token *t = p_t(p, 0);
+  AstNode *node = NULL;
+  if (!p_ast_add(p, "TryStmt", NULL, t->line, t->col, &node)) return 0;
+  if (!p_ast_push(p, node)) return 0;
+  if (!p_eat(p, TK_KW, "try")) {
+    p_ast_pop(p);
+    return 0;
+  }
+  if (!parse_block(p)) {
+    p_ast_pop(p);
+    return 0;
+  }
+  int saw_clause = 0;
+  while (p_at(p, TK_KW, "catch")) {
+    Token *ct = p_t(p, 0);
+    if (!p_eat(p, TK_KW, "catch") || !p_eat(p, TK_SYM, "(")) {
+      p_ast_pop(p);
+      return 0;
+    }
+    size_t type_start = p->i;
+    Token *type_tok = p_t(p, 0);
+    if (!parse_type(p)) {
+      p_ast_pop(p);
+      return 0;
+    }
+    size_t type_end = p->i;
+    Token *name = p_t(p, 0);
+    if (!p_eat(p, TK_ID, NULL) || !p_eat(p, TK_SYM, ")")) {
+      p_ast_pop(p);
+      return 0;
+    }
+    AstNode *clause = NULL;
+    if (!p_ast_add(p, "CatchClause", name->text, ct->line, ct->col, &clause)) {
+      p_ast_pop(p);
+      return 0;
+    }
+    if (!p_ast_push(p, clause)) {
+      p_ast_pop(p);
+      return 0;
+    }
+    char *type_txt = token_span_text(p, type_start, type_end);
+    AstNode *tn = ast_new("Type", type_txt ? type_txt : "", type_tok->line, type_tok->col);
+    free(type_txt);
+    if (!tn || !ast_add_child(clause, tn)) {
+      ast_free(tn);
+      p_ast_pop(p);
+      p_ast_pop(p);
+      return 0;
+    }
+    if (!parse_block(p)) {
+      p_ast_pop(p);
+      p_ast_pop(p);
+      return 0;
+    }
+    p_ast_pop(p);
+    saw_clause = 1;
+  }
+  if (p_at(p, TK_KW, "finally")) {
+    Token *ft = p_t(p, 0);
+    if (!p_eat(p, TK_KW, "finally")) {
+      p_ast_pop(p);
+      return 0;
+    }
+    AstNode *fnode = NULL;
+    if (!p_ast_add(p, "FinallyClause", NULL, ft->line, ft->col, &fnode)) {
+      p_ast_pop(p);
+      return 0;
+    }
+    if (!p_ast_push(p, fnode)) {
+      p_ast_pop(p);
+      return 0;
+    }
+    if (!parse_block(p)) {
+      p_ast_pop(p);
+      p_ast_pop(p);
+      return 0;
+    }
+    p_ast_pop(p);
+    saw_clause = 1;
+  }
+  if (!saw_clause) {
+    set_diag(p->diag, p->file, t->line, t->col, "E1001", "PARSE_UNEXPECTED_TOKEN", "catch or finally expected");
+    p_ast_pop(p);
+    return 0;
+  }
+  p_ast_pop(p);
+  return 1;
+}
+
 static int parse_for_stmt(Parser *p) {
   Token *st = p_t(p, 0);
   AstNode *node = NULL;
@@ -809,6 +904,7 @@ static int parse_stmt(Parser *p) {
   }
   if (p_at(p, TK_KW, "for")) return parse_for_stmt(p);
   if (p_at(p, TK_KW, "switch")) return parse_switch_stmt(p);
+  if (p_at(p, TK_KW, "try")) return parse_try_stmt(p);
   if (p_at(p, TK_KW, "return")) {
     Token *t = p_t(p, 0);
     p_eat(p, TK_KW, "return");
@@ -1254,6 +1350,76 @@ static int parse_function_decl(Parser *p) {
   return ok;
 }
 
+static char *parse_module_path(Parser *p) {
+  Token *t = p_t(p, 0);
+  if (!p_eat(p, TK_ID, NULL)) return NULL;
+  char *out = strdup(t->text ? t->text : "");
+  if (!out) return NULL;
+  while (p_at(p, TK_SYM, ".") && p_t(p, 1) && p_t(p, 1)->kind == TK_ID) {
+    p_eat(p, TK_SYM, ".");
+    Token *seg = p_t(p, 0);
+    if (!p_eat(p, TK_ID, NULL)) {
+      free(out);
+      return NULL;
+    }
+    char *prev = out;
+    out = str_printf("%s.%s", prev, seg->text ? seg->text : "");
+    free(prev);
+    if (!out) return NULL;
+  }
+  return out;
+}
+
+static int parse_import_decl(Parser *p) {
+  Token *ikw = p_t(p, 0);
+  if (!p_eat(p, TK_KW, "import")) return 0;
+  char *mod = parse_module_path(p);
+  if (!mod) return 0;
+  AstNode *imp = NULL;
+  if (!p_ast_add(p, "ImportDecl", mod, ikw->line, ikw->col, &imp)) {
+    free(mod);
+    return 0;
+  }
+  free(mod);
+  if (!p_ast_push(p, imp)) return 0;
+
+  if (p_at(p, TK_KW, "as")) {
+    p_eat(p, TK_KW, "as");
+    Token *alias = p_t(p, 0);
+    if (!p_eat(p, TK_ID, NULL)) return 0;
+    AstNode *a = ast_new("Alias", alias->text ? alias->text : "", alias->line, alias->col);
+    if (!a || !ast_add_child(imp, a)) return 0;
+  } else if (p_at(p, TK_SYM, ".") && p_t(p, 1) && strcmp(p_t(p, 1)->text, "{") == 0) {
+    p_eat(p, TK_SYM, ".");
+    if (!p_eat(p, TK_SYM, "{")) return 0;
+    if (!p_at(p, TK_SYM, "}")) {
+      while (1) {
+        Token *name = p_t(p, 0);
+        if (!p_eat(p, TK_ID, NULL)) return 0;
+        AstNode *it = ast_new("ImportItem", name->text ? name->text : "", name->line, name->col);
+        if (!it || !ast_add_child(imp, it)) return 0;
+        if (p_at(p, TK_KW, "as")) {
+          p_eat(p, TK_KW, "as");
+          Token *al = p_t(p, 0);
+          if (!p_eat(p, TK_ID, NULL)) return 0;
+          AstNode *a = ast_new("Alias", al->text ? al->text : "", al->line, al->col);
+          if (!a || !ast_add_child(it, a)) return 0;
+        }
+        if (p_at(p, TK_SYM, ",")) {
+          p_eat(p, TK_SYM, ",");
+          continue;
+        }
+        break;
+      }
+    }
+    if (!p_eat(p, TK_SYM, "}")) return 0;
+  }
+
+  if (!p_eat(p, TK_SYM, ";")) return 0;
+  p_ast_pop(p);
+  return 1;
+}
+
 static int parse_program(Parser *p) {
   Token *t0 = p_t(p, 0);
   AstNode *root = ast_new("Program", NULL, t0->line, t0->col);
@@ -1262,12 +1428,17 @@ static int parse_program(Parser *p) {
   p->ast_stack[0] = root;
   p->ast_sp = 1;
   while (!p_at(p, TK_EOF, NULL)) {
-    if (!p_at(p, TK_KW, "function")) {
-      Token *t = p_t(p, 0);
-      set_diag(p->diag, p->file, t->line, t->col, "E1001", "PARSE_UNEXPECTED_TOKEN", "Top-level declaration expected");
-      return 0;
+    if (p_at(p, TK_KW, "import")) {
+      if (!parse_import_decl(p)) return 0;
+      continue;
     }
-    if (!parse_function_decl(p)) return 0;
+    if (p_at(p, TK_KW, "function")) {
+      if (!parse_function_decl(p)) return 0;
+      continue;
+    }
+    Token *t = p_t(p, 0);
+    set_diag(p->diag, p->file, t->line, t->col, "E1001", "PARSE_UNEXPECTED_TOKEN", "Top-level declaration expected");
+    return 0;
   }
   return 1;
 }
@@ -1324,10 +1495,44 @@ typedef struct FnSig {
   struct FnSig *next;
 } FnSig;
 
+typedef struct RegFn {
+  char *name;
+  char *ret_type;
+  int param_count;
+  int valid;
+  struct RegFn *next;
+} RegFn;
+
+typedef struct RegMod {
+  char *name;
+  RegFn *fns;
+  struct RegMod *next;
+} RegMod;
+
+typedef struct {
+  RegMod *mods;
+} ModuleRegistry;
+
+typedef struct ImportSymbol {
+  char *local;
+  char *module;
+  char *name;
+  struct ImportSymbol *next;
+} ImportSymbol;
+
+typedef struct ImportNamespace {
+  char *alias;
+  char *module;
+  struct ImportNamespace *next;
+} ImportNamespace;
+
 typedef struct {
   const char *file;
   PsDiag *diag;
   FnSig *fns;
+  ModuleRegistry *registry;
+  ImportSymbol *imports;
+  ImportNamespace *namespaces;
 } Analyzer;
 
 static void free_syms(Sym *s) {
@@ -1348,6 +1553,178 @@ static void free_fns(FnSig *f) {
     free(f);
     f = n;
   }
+}
+
+static void free_registry(ModuleRegistry *r) {
+  if (!r) return;
+  RegMod *m = r->mods;
+  while (m) {
+    RegMod *mn = m->next;
+    RegFn *f = m->fns;
+    while (f) {
+      RegFn *fn = f->next;
+      free(f->name);
+      free(f->ret_type);
+      free(f);
+      f = fn;
+    }
+    free(m->name);
+    free(m);
+    m = mn;
+  }
+  free(r);
+}
+
+static void free_imports(ImportSymbol *s) {
+  while (s) {
+    ImportSymbol *n = s->next;
+    free(s->local);
+    free(s->module);
+    free(s->name);
+    free(s);
+    s = n;
+  }
+}
+
+static void free_namespaces(ImportNamespace *n) {
+  while (n) {
+    ImportNamespace *nx = n->next;
+    free(n->alias);
+    free(n->module);
+    free(n);
+    n = nx;
+  }
+}
+
+static void skip_ws(const char **p) {
+  while (*p && (**p == ' ' || **p == '\t' || **p == '\r' || **p == '\n')) (*p)++;
+}
+
+static int consume_kw(const char **p, const char *kw) {
+  size_t n = strlen(kw);
+  if (strncmp(*p, kw, n) != 0) return 0;
+  *p += n;
+  return 1;
+}
+
+static int parse_registry_type(const char **p, int allow_void) {
+  skip_ws(p);
+  if (allow_void && consume_kw(p, "void")) return 1;
+  if (consume_kw(p, "int") || consume_kw(p, "float") || consume_kw(p, "bool") || consume_kw(p, "byte") || consume_kw(p, "glyph") ||
+      consume_kw(p, "string")) {
+    return 1;
+  }
+  if (consume_kw(p, "list") || consume_kw(p, "slice") || consume_kw(p, "view")) {
+    if (**p != '<') return 0;
+    (*p)++;
+    if (!parse_registry_type(p, 0)) return 0;
+    if (**p != '>') return 0;
+    (*p)++;
+    return 1;
+  }
+  if (consume_kw(p, "map")) {
+    if (**p != '<') return 0;
+    (*p)++;
+    if (!parse_registry_type(p, 0)) return 0;
+    if (**p != ',') return 0;
+    (*p)++;
+    if (!parse_registry_type(p, 0)) return 0;
+    if (**p != '>') return 0;
+    (*p)++;
+    return 1;
+  }
+  return 0;
+}
+
+static int registry_type_valid(const char *s, int allow_void) {
+  if (!s) return 0;
+  const char *p = s;
+  if (!parse_registry_type(&p, allow_void)) return 0;
+  skip_ws(&p);
+  return *p == '\0';
+}
+
+static ModuleRegistry *registry_load(void) {
+  const char *env = getenv("PS_MODULE_REGISTRY");
+  const char *candidates[] = {env, "modules/registry.json", "../modules/registry.json", NULL};
+  char *data = NULL;
+  size_t n = 0;
+  for (int i = 0; candidates[i]; i++) {
+    if (!candidates[i] || !*candidates[i]) continue;
+    data = read_file(candidates[i], &n);
+    if (data) break;
+  }
+  if (!data) return NULL;
+  const char *err = NULL;
+  PS_JsonValue *root = ps_json_parse(data, n, &err);
+  free(data);
+  if (!root) return NULL;
+  PS_JsonValue *mods = ps_json_obj_get(root, "modules");
+  if (!mods || mods->type != PS_JSON_ARRAY) {
+    ps_json_free(root);
+    return NULL;
+  }
+  ModuleRegistry *reg = (ModuleRegistry *)calloc(1, sizeof(ModuleRegistry));
+  if (!reg) {
+    ps_json_free(root);
+    return NULL;
+  }
+  for (size_t i = 0; i < mods->as.array_v.len; i++) {
+    PS_JsonValue *m = mods->as.array_v.items[i];
+    PS_JsonValue *name = ps_json_obj_get(m, "name");
+    if (!name || name->type != PS_JSON_STRING) continue;
+    RegMod *rm = (RegMod *)calloc(1, sizeof(RegMod));
+    if (!rm) continue;
+    rm->name = strdup(name->as.str_v);
+    rm->next = reg->mods;
+    reg->mods = rm;
+    PS_JsonValue *fns = ps_json_obj_get(m, "functions");
+    if (!fns || fns->type != PS_JSON_ARRAY) continue;
+    for (size_t j = 0; j < fns->as.array_v.len; j++) {
+      PS_JsonValue *f = fns->as.array_v.items[j];
+      PS_JsonValue *fn_name = ps_json_obj_get(f, "name");
+      PS_JsonValue *fn_ret = ps_json_obj_get(f, "ret");
+      PS_JsonValue *fn_params = ps_json_obj_get(f, "params");
+      if (!fn_name || fn_name->type != PS_JSON_STRING) continue;
+      RegFn *rf = (RegFn *)calloc(1, sizeof(RegFn));
+      if (!rf) continue;
+      rf->name = strdup(fn_name->as.str_v);
+      const char *ret_str = (fn_ret && fn_ret->type == PS_JSON_STRING) ? fn_ret->as.str_v : "void";
+      rf->ret_type = strdup(ret_str);
+      rf->param_count = (fn_params && fn_params->type == PS_JSON_ARRAY) ? (int)fn_params->as.array_v.len : 0;
+      rf->valid = registry_type_valid(ret_str, 1);
+      if (fn_params && fn_params->type == PS_JSON_ARRAY) {
+        for (size_t pi = 0; pi < fn_params->as.array_v.len; pi++) {
+          PS_JsonValue *pv = fn_params->as.array_v.items[pi];
+          if (!pv || pv->type != PS_JSON_STRING || !registry_type_valid(pv->as.str_v, 0)) {
+            rf->valid = 0;
+          }
+        }
+      } else if (fn_params && fn_params->type != PS_JSON_ARRAY) {
+        rf->valid = 0;
+      }
+      rf->next = rm->fns;
+      rm->fns = rf;
+    }
+  }
+  ps_json_free(root);
+  return reg;
+}
+
+static RegMod *registry_find_mod(ModuleRegistry *r, const char *name) {
+  for (RegMod *m = r ? r->mods : NULL; m; m = m->next) {
+    if (strcmp(m->name, name) == 0) return m;
+  }
+  return NULL;
+}
+
+static RegFn *registry_find_fn(ModuleRegistry *r, const char *mod, const char *name) {
+  RegMod *m = registry_find_mod(r, mod);
+  if (!m) return NULL;
+  for (RegFn *f = m->fns; f; f = f->next) {
+    if (strcmp(f->name, name) == 0) return f;
+  }
+  return NULL;
 }
 
 static char *canon_type(const char *in) {
@@ -1413,6 +1790,118 @@ static FnSig *find_fn(Analyzer *a, const char *name) {
   return NULL;
 }
 
+static ImportNamespace *find_namespace(Analyzer *a, const char *alias) {
+  for (ImportNamespace *n = a->namespaces; n; n = n->next) {
+    if (strcmp(n->alias, alias) == 0) return n;
+  }
+  return NULL;
+}
+
+static int add_imported_fn(Analyzer *a, const char *local, const char *ret_type, int param_count) {
+  FnSig *f = (FnSig *)calloc(1, sizeof(FnSig));
+  if (!f) return 0;
+  f->name = strdup(local ? local : "");
+  f->ret_type = canon_type(ret_type ? ret_type : "void");
+  if (!f->name || !f->ret_type) {
+    free(f->name);
+    free(f->ret_type);
+    free(f);
+    return 0;
+  }
+  f->param_count = param_count;
+  f->fixed_count = param_count;
+  f->variadic = 0;
+  f->next = a->fns;
+  a->fns = f;
+  return 1;
+}
+
+static const char *import_decl_alias(AstNode *imp) {
+  AstNode *a = ast_child_kind(imp, "Alias");
+  return a ? a->text : NULL;
+}
+
+static const char *import_item_alias(AstNode *item) {
+  AstNode *a = ast_child_kind(item, "Alias");
+  return a ? a->text : NULL;
+}
+
+static const char *last_segment(const char *mod) {
+  const char *dot = strrchr(mod, '.');
+  return dot ? dot + 1 : mod;
+}
+
+static int collect_imports(Analyzer *a, AstNode *root) {
+  size_t import_count = 0;
+  for (size_t i = 0; i < root->child_len; i++) {
+    if (strcmp(root->children[i]->kind, "ImportDecl") == 0) import_count += 1;
+  }
+  if (import_count == 0) return 1;
+  a->registry = registry_load();
+  if (!a->registry) {
+    AstNode *imp = NULL;
+    for (size_t i = 0; i < root->child_len; i++) {
+      if (strcmp(root->children[i]->kind, "ImportDecl") == 0) {
+        imp = root->children[i];
+        break;
+      }
+    }
+    if (!imp) return 0;
+    set_diag(a->diag, a->file, imp->line, imp->col, "E2001", "UNRESOLVED_NAME", "module registry not found");
+    return 0;
+  }
+  for (size_t i = 0; i < root->child_len; i++) {
+    AstNode *imp = root->children[i];
+    if (strcmp(imp->kind, "ImportDecl") != 0) continue;
+    const char *mod = imp->text ? imp->text : "";
+    RegMod *m = registry_find_mod(a->registry, mod);
+    if (!m) {
+      set_diag(a->diag, a->file, imp->line, imp->col, "E2001", "UNRESOLVED_NAME", "unknown module");
+      return 0;
+    }
+    int has_items = 0;
+    for (size_t j = 0; j < imp->child_len; j++) {
+      if (strcmp(imp->children[j]->kind, "ImportItem") == 0) has_items = 1;
+    }
+    if (has_items) {
+      for (size_t j = 0; j < imp->child_len; j++) {
+        AstNode *it = imp->children[j];
+        if (strcmp(it->kind, "ImportItem") != 0) continue;
+        const char *name = it->text ? it->text : "";
+        RegFn *rf = registry_find_fn(a->registry, mod, name);
+        if (!rf) {
+          set_diag(a->diag, a->file, it->line, it->col, "E2001", "UNRESOLVED_NAME", "unknown symbol in module");
+          return 0;
+        }
+        if (!rf->valid) {
+          set_diag(a->diag, a->file, it->line, it->col, "E2001", "UNRESOLVED_NAME", "invalid registry signature");
+          return 0;
+        }
+        const char *alias = import_item_alias(it);
+        const char *local = alias ? alias : name;
+        ImportSymbol *s = (ImportSymbol *)calloc(1, sizeof(ImportSymbol));
+        if (!s) return 0;
+        s->local = strdup(local);
+        s->module = strdup(mod);
+        s->name = strdup(name);
+        s->next = a->imports;
+        a->imports = s;
+        if (!add_imported_fn(a, local, rf->ret_type, rf->param_count)) return 0;
+      }
+    } else {
+      const char *alias = import_decl_alias(imp);
+      const char *ns = alias ? alias : last_segment(mod);
+      ImportNamespace *n = (ImportNamespace *)calloc(1, sizeof(ImportNamespace));
+      if (!n) return 0;
+      n->alias = strdup(ns);
+      n->module = strdup(mod);
+      n->next = a->namespaces;
+      a->namespaces = n;
+    }
+  }
+  return 1;
+}
+
 static int add_fn(Analyzer *a, AstNode *fn) {
   FnSig *f = (FnSig *)calloc(1, sizeof(FnSig));
   if (!f) return 0;
@@ -1441,6 +1930,16 @@ static int add_fn(Analyzer *a, AstNode *fn) {
 static int is_all_digits(const char *s) {
   if (!s || !*s) return 0;
   for (const char *p = s; *p; p++) if (!isdigit((unsigned char)*p)) return 0;
+  return 1;
+}
+
+static int is_hex_token(const char *s) {
+  if (!s || !*s) return 0;
+  if (strlen(s) < 3) return 0;
+  if (!(s[0] == '0' && (s[1] == 'x' || s[1] == 'X'))) return 0;
+  for (const char *p = s + 2; *p; p++) {
+    if (!isxdigit((unsigned char)*p)) return 0;
+  }
   return 1;
 }
 
@@ -1483,31 +1982,51 @@ static char *infer_call_type(Analyzer *a, AstNode *e, Scope *scope, int *ok) {
   (void)scope;
   if (e->child_len == 0) return strdup("unknown");
   AstNode *callee = e->children[0];
-  if (strcmp(callee->kind, "Identifier") != 0) return strdup("unknown");
-  FnSig *f = find_fn(a, callee->text ? callee->text : "");
-  if (!f) return strdup("unknown");
-  int argc = (int)e->child_len - 1;
-  if (!f->variadic) {
-    if (argc != f->param_count) {
-      set_diag(a->diag, a->file, e->line, e->col, "E3001", "TYPE_MISMATCH_ASSIGNMENT", "arity mismatch");
-      *ok = 0;
-      return NULL;
+  if (strcmp(callee->kind, "Identifier") == 0) {
+    FnSig *f = find_fn(a, callee->text ? callee->text : "");
+    if (!f) return strdup("unknown");
+    int argc = (int)e->child_len - 1;
+    if (!f->variadic) {
+      if (argc != f->param_count) {
+        set_diag(a->diag, a->file, e->line, e->col, "E3001", "TYPE_MISMATCH_ASSIGNMENT", "arity mismatch");
+        *ok = 0;
+        return NULL;
+      }
+    } else {
+      if (argc <= f->fixed_count) {
+        set_diag(a->diag, a->file, e->line, e->col, "E3002", "VARIADIC_EMPTY_CALL", "variadic argument list must be non-empty");
+        *ok = 0;
+        return NULL;
+      }
     }
-  } else {
-    if (argc <= f->fixed_count) {
-      set_diag(a->diag, a->file, e->line, e->col, "E3002", "VARIADIC_EMPTY_CALL", "variadic argument list must be non-empty");
-      *ok = 0;
-      return NULL;
+    return strdup(f->ret_type);
+  }
+  if (strcmp(callee->kind, "MemberExpr") == 0 && callee->child_len > 0) {
+    AstNode *target = callee->children[0];
+    if (strcmp(target->kind, "Identifier") == 0) {
+      ImportNamespace *ns = find_namespace(a, target->text ? target->text : "");
+      if (ns) {
+        RegFn *rf = registry_find_fn(a->registry, ns->module, callee->text ? callee->text : "");
+        if (!rf) return strdup("unknown");
+        int argc = (int)e->child_len - 1;
+        if (argc != rf->param_count) {
+          set_diag(a->diag, a->file, e->line, e->col, "E3001", "TYPE_MISMATCH_ASSIGNMENT", "arity mismatch");
+          *ok = 0;
+          return NULL;
+        }
+        return strdup(rf->ret_type);
+      }
     }
   }
-  return strdup(f->ret_type);
+  return strdup("unknown");
 }
 
 static char *infer_expr_type(Analyzer *a, AstNode *e, Scope *scope, int *ok) {
   if (!e) return strdup("unknown");
   if (strcmp(e->kind, "Literal") == 0) {
     if (e->text && (strcmp(e->text, "true") == 0 || strcmp(e->text, "false") == 0)) return strdup("bool");
-    if (e->text && (is_all_digits(e->text) || is_float_token(e->text))) return strdup(is_float_token(e->text) ? "float" : "int");
+    if (e->text && (is_all_digits(e->text) || is_hex_token(e->text) || is_float_token(e->text)))
+      return strdup(is_float_token(e->text) ? "float" : "int");
     return strdup("string");
   }
   if (strcmp(e->kind, "Identifier") == 0) return strdup(scope_lookup(scope, e->text ? e->text : ""));
@@ -1779,6 +2298,34 @@ static int analyze_stmt(Analyzer *a, AstNode *st, Scope *scope) {
     }
     return 1;
   }
+  if (strcmp(st->kind, "TryStmt") == 0) {
+    for (size_t i = 0; i < st->child_len; i++) {
+      AstNode *c = st->children[i];
+      if (strcmp(c->kind, "Block") == 0) {
+        if (!analyze_block(a, c, scope)) return 0;
+      } else if (strcmp(c->kind, "CatchClause") == 0) {
+        Scope s2;
+        memset(&s2, 0, sizeof(s2));
+        s2.parent = scope;
+        AstNode *tn = ast_child_kind(c, "Type");
+        char *tt = canon_type(tn ? tn->text : "unknown");
+        if (!scope_define(&s2, c->text ? c->text : "", tt ? tt : "unknown")) {
+          free(tt);
+          free_syms(s2.syms);
+          return 0;
+        }
+        free(tt);
+        AstNode *blk = ast_child_kind(c, "Block");
+        int ok = blk ? analyze_block(a, blk, &s2) : 1;
+        free_syms(s2.syms);
+        if (!ok) return 0;
+      } else if (strcmp(c->kind, "FinallyClause") == 0) {
+        AstNode *blk = ast_child_kind(c, "Block");
+        if (blk && !analyze_block(a, blk, scope)) return 0;
+      }
+    }
+    return 1;
+  }
   return 1;
 }
 
@@ -1904,6 +2451,8 @@ typedef struct {
   int label_id;
   IrVarTypeVec vars;
   IrFnSig *fn_sigs;
+  ImportSymbol *imports;
+  ImportNamespace *namespaces;
 } IrFnCtx;
 
 static void str_vec_free(StrVec *v) {
@@ -2000,6 +2549,20 @@ static const char *ir_get_var_type(IrFnCtx *ctx, const char *name) {
 static const IrFnSig *ir_find_fn_sig(IrFnCtx *ctx, const char *name) {
   for (const IrFnSig *f = ctx ? ctx->fn_sigs : NULL; f; f = f->next) {
     if (strcmp(f->name, name) == 0) return f;
+  }
+  return NULL;
+}
+
+static ImportSymbol *ir_find_import(IrFnCtx *ctx, const char *local) {
+  for (ImportSymbol *s = ctx ? ctx->imports : NULL; s; s = s->next) {
+    if (strcmp(s->local, local) == 0) return s;
+  }
+  return NULL;
+}
+
+static ImportNamespace *ir_find_namespace(IrFnCtx *ctx, const char *alias) {
+  for (ImportNamespace *n = ctx ? ctx->namespaces : NULL; n; n = n->next) {
+    if (strcmp(n->alias, alias) == 0) return n;
   }
   return NULL;
 }
@@ -2140,7 +2703,8 @@ static char *ir_guess_expr_type(AstNode *e, IrFnCtx *ctx) {
   if (!e) return strdup("unknown");
   if (strcmp(e->kind, "Literal") == 0) {
     if (e->text && (strcmp(e->text, "true") == 0 || strcmp(e->text, "false") == 0)) return strdup("bool");
-    if (e->text && (is_all_digits(e->text) || is_float_token(e->text))) return strdup(is_float_token(e->text) ? "float" : "int");
+    if (e->text && (is_all_digits(e->text) || is_hex_token(e->text) || is_float_token(e->text)))
+      return strdup(is_float_token(e->text) ? "float" : "int");
     return strdup("string");
   }
   if (strcmp(e->kind, "Identifier") == 0) {
@@ -2166,7 +2730,21 @@ static char *ir_guess_expr_type(AstNode *e, IrFnCtx *ctx) {
       const IrFnSig *f = ir_find_fn_sig(ctx, c->text ? c->text : "");
       return strdup(f ? f->ret_type : "unknown");
     }
-    if (strcmp(c->kind, "MemberExpr") == 0 && c->text && strcmp(c->text, "toString") == 0) return strdup("string");
+    if (strcmp(c->kind, "MemberExpr") == 0 && c->text) {
+      if (strcmp(c->text, "toString") == 0) return strdup("string");
+      if (strcmp(c->text, "toByte") == 0) return strdup("byte");
+      if (strcmp(c->text, "toInt") == 0) return strdup("int");
+      if (strcmp(c->text, "toFloat") == 0) return strdup("float");
+      if (strcmp(c->text, "substring") == 0) return strdup("string");
+      if (strcmp(c->text, "indexOf") == 0) return strdup("int");
+      if (strcmp(c->text, "startsWith") == 0 || strcmp(c->text, "endsWith") == 0) return strdup("bool");
+      if (strcmp(c->text, "split") == 0) return strdup("list<string>");
+      if (strcmp(c->text, "trim") == 0 || strcmp(c->text, "trimStart") == 0 || strcmp(c->text, "trimEnd") == 0) return strdup("string");
+      if (strcmp(c->text, "replace") == 0) return strdup("string");
+      if (strcmp(c->text, "toUpper") == 0 || strcmp(c->text, "toLower") == 0) return strdup("string");
+      if (strcmp(c->text, "toUtf8Bytes") == 0) return strdup("list<byte>");
+      if (strcmp(c->text, "toUtf8String") == 0) return strdup("string");
+    }
     return strdup("unknown");
   }
   if (strcmp(e->kind, "IndexExpr") == 0 && e->child_len > 0) {
@@ -2221,7 +2799,10 @@ static char *ir_lower_call(AstNode *e, IrFnCtx *ctx) {
 
   if (strcmp(callee->kind, "Identifier") == 0) {
     const IrFnSig *sig = ir_find_fn_sig(ctx, callee->text ? callee->text : "");
-    char *callee_esc = json_escape(callee->text ? callee->text : "");
+    ImportSymbol *imp = ir_find_import(ctx, callee->text ? callee->text : "");
+    char *full = NULL;
+    if (imp) full = str_printf("%s.%s", imp->module ? imp->module : "", imp->name ? imp->name : "");
+    char *callee_esc = json_escape(full ? full : (callee->text ? callee->text : ""));
     char *args_json = strdup("");
     for (size_t i = 0; i < argc; i++) {
       char *arg_esc = json_escape(args[i]);
@@ -2236,6 +2817,7 @@ static char *ir_lower_call(AstNode *e, IrFnCtx *ctx) {
         callee_esc ? callee_esc : "", args_json ? args_json : "", (sig && sig->variadic) ? "true" : "false");
     free(dst_esc);
     free(callee_esc);
+    free(full);
     free(args_json);
     if (!ir_emit(ctx, ins)) {
       free(dst);
@@ -2243,6 +2825,36 @@ static char *ir_lower_call(AstNode *e, IrFnCtx *ctx) {
     }
   } else if (strcmp(callee->kind, "MemberExpr") == 0 && callee->child_len > 0) {
     AstNode *recv_ast = callee->children[0];
+    if (strcmp(recv_ast->kind, "Identifier") == 0) {
+      ImportNamespace *ns = ir_find_namespace(ctx, recv_ast->text ? recv_ast->text : "");
+      if (ns) {
+        char *dst_esc = json_escape(dst);
+        char *callee_full = str_printf("%s.%s", ns->module ? ns->module : "", callee->text ? callee->text : "");
+        char *callee_esc = json_escape(callee_full ? callee_full : "");
+        char *args_json = strdup("");
+        for (size_t i = 0; i < argc; i++) {
+          char *arg_esc = json_escape(args[i]);
+          char *prev = args_json;
+          args_json = str_printf("%s%s\"%s\"", prev, (i == 0 ? "" : ","), arg_esc ? arg_esc : "");
+          free(prev);
+          free(arg_esc);
+        }
+        char *ins = str_printf(
+            "{\"op\":\"call_static\",\"dst\":\"%s\",\"callee\":\"%s\",\"args\":[%s],\"variadic\":false}",
+            dst_esc ? dst_esc : "", callee_esc ? callee_esc : "", args_json ? args_json : "");
+        free(dst_esc);
+        free(callee_full);
+        free(callee_esc);
+        free(args_json);
+        if (!ir_emit(ctx, ins)) {
+          free(dst);
+          dst = NULL;
+        }
+        for (size_t i = 0; i < argc; i++) free(args[i]);
+        free(args);
+        return dst;
+      }
+    }
     char *recv = ir_lower_expr(recv_ast, ctx);
     if (!recv) {
       free(dst);
@@ -2321,7 +2933,8 @@ static char *ir_lower_expr(AstNode *e, IrFnCtx *ctx) {
     char *val_esc = json_escape(e->text ? e->text : "");
     const char *lt = "string";
     if (e->text && (strcmp(e->text, "true") == 0 || strcmp(e->text, "false") == 0)) lt = "bool";
-    else if (e->text && (is_all_digits(e->text) || is_float_token(e->text))) lt = is_float_token(e->text) ? "float" : "int";
+    else if (e->text && (is_all_digits(e->text) || is_hex_token(e->text) || is_float_token(e->text)))
+      lt = is_float_token(e->text) ? "float" : "int";
     char *ins = NULL;
     if (strcmp(lt, "bool") == 0) {
       ins = str_printf("{\"op\":\"const\",\"dst\":\"%s\",\"literalType\":\"bool\",\"value\":%s}", dst_esc ? dst_esc : "",
@@ -2748,6 +3361,155 @@ static int ir_lower_stmt(AstNode *st, IrFnCtx *ctx) {
     }
     return ir_emit(ctx, strdup("{\"op\":\"throw\",\"value\":\"\"}"));
   }
+  if (strcmp(st->kind, "TryStmt") == 0) {
+    AstNode *try_block = NULL;
+    AstNode *catch_clause = NULL;
+    AstNode *finally_clause = NULL;
+    for (size_t i = 0; i < st->child_len; i++) {
+      AstNode *c = st->children[i];
+      if (strcmp(c->kind, "Block") == 0 && !try_block) try_block = c;
+      else if (strcmp(c->kind, "CatchClause") == 0 && !catch_clause) catch_clause = c;
+      else if (strcmp(c->kind, "FinallyClause") == 0 && !finally_clause) finally_clause = c;
+    }
+    if (!try_block) return 0;
+    char *try_label = ir_next_label(ctx, "try_body_");
+    char *catch_label = catch_clause ? ir_next_label(ctx, "try_catch_") : NULL;
+    char *finally_label = finally_clause ? ir_next_label(ctx, "try_finally_") : NULL;
+    char *finally_rethrow_label = (finally_clause && !catch_clause) ? ir_next_label(ctx, "try_finally_rethrow_") : NULL;
+    char *done_label = ir_next_label(ctx, "try_done_");
+    if (!try_label || !done_label || (catch_clause && !catch_label) || (finally_clause && !finally_label) ||
+        (finally_clause && !catch_clause && !finally_rethrow_label)) {
+      free(try_label); free(catch_label); free(finally_label); free(finally_rethrow_label); free(done_label);
+      return 0;
+    }
+    size_t try_idx = 0, catch_idx = 0, finally_idx = 0, done_idx = 0;
+    size_t finally_rethrow_idx = 0;
+    if (!ir_add_block(ctx, try_label, &try_idx) ||
+        (catch_label && !ir_add_block(ctx, catch_label, &catch_idx)) ||
+        (finally_label && !ir_add_block(ctx, finally_label, &finally_idx)) ||
+        (finally_rethrow_label && !ir_add_block(ctx, finally_rethrow_label, &finally_rethrow_idx)) ||
+        !ir_add_block(ctx, done_label, &done_idx)) {
+      free(try_label); free(catch_label); free(finally_label); free(finally_rethrow_label); free(done_label);
+      return 0;
+    }
+    const char *handler = catch_label ? catch_label : (finally_rethrow_label ? finally_rethrow_label : (finally_label ? finally_label : done_label));
+    char *h_esc = json_escape(handler);
+    char *push = str_printf("{\"op\":\"push_handler\",\"target\":\"%s\"}", h_esc ? h_esc : "");
+    free(h_esc);
+    if (!ir_emit(ctx, push)) {
+      free(try_label); free(catch_label); free(finally_label); free(finally_rethrow_label); free(done_label);
+      return 0;
+    }
+    char *tgt = json_escape(try_label);
+    char *jmp = str_printf("{\"op\":\"jump\",\"target\":\"%s\"}", tgt ? tgt : "");
+    free(tgt);
+    if (!ir_emit(ctx, jmp)) {
+      free(try_label); free(catch_label); free(finally_label); free(finally_rethrow_label); free(done_label);
+      return 0;
+    }
+    ctx->cur_block = try_idx;
+    if (!ir_lower_stmt(try_block, ctx)) {
+      free(try_label); free(catch_label); free(finally_label); free(finally_rethrow_label); free(done_label);
+      return 0;
+    }
+    if (!ir_emit(ctx, strdup("{\"op\":\"pop_handler\"}"))) {
+      free(try_label); free(catch_label); free(finally_label); free(finally_rethrow_label); free(done_label);
+      return 0;
+    }
+    char *after_try = json_escape(finally_label ? finally_label : done_label);
+    char *jmp2 = str_printf("{\"op\":\"jump\",\"target\":\"%s\"}", after_try ? after_try : "");
+    free(after_try);
+    if (!ir_emit(ctx, jmp2)) {
+      free(try_label); free(catch_label); free(finally_label); free(finally_rethrow_label); free(done_label);
+      return 0;
+    }
+    if (catch_clause) {
+      ctx->cur_block = catch_idx;
+      AstNode *tn = ast_child_kind(catch_clause, "Type");
+      char *type = ast_type_to_ir_name(tn);
+      if (!type) type = strdup("unknown");
+      if (!ir_set_var_type(ctx, catch_clause->text ? catch_clause->text : "", type ? type : "unknown")) {
+        free(type); free(try_label); free(catch_label); free(finally_label); free(finally_rethrow_label); free(done_label);
+        return 0;
+      }
+      char *name_esc = json_escape(catch_clause->text ? catch_clause->text : "");
+      char *type_esc = json_escape(type ? type : "unknown");
+      char *decl = str_printf("{\"op\":\"var_decl\",\"name\":\"%s\",\"type\":{\"kind\":\"IRType\",\"name\":\"%s\"}}", name_esc ? name_esc : "",
+                              type_esc ? type_esc : "");
+      free(name_esc); free(type_esc); free(type);
+      if (!ir_emit(ctx, decl)) {
+        free(try_label); free(catch_label); free(finally_label); free(finally_rethrow_label); free(done_label);
+        return 0;
+      }
+      char *ex = ir_next_tmp(ctx);
+      if (!ex) {
+        free(try_label); free(catch_label); free(finally_label); free(finally_rethrow_label); free(done_label);
+        return 0;
+      }
+      char *ex_esc = json_escape(ex);
+      char *get = str_printf("{\"op\":\"get_exception\",\"dst\":\"%s\"}", ex_esc ? ex_esc : "");
+      free(ex_esc);
+      if (!ir_emit(ctx, get)) {
+        free(ex); free(try_label); free(catch_label); free(finally_label); free(finally_rethrow_label); free(done_label);
+        return 0;
+      }
+      char *n_esc = json_escape(catch_clause->text ? catch_clause->text : "");
+      char *ex2 = json_escape(ex);
+      char *store = str_printf("{\"op\":\"store_var\",\"name\":\"%s\",\"src\":\"%s\",\"type\":{\"kind\":\"IRType\",\"name\":\"unknown\"}}",
+                               n_esc ? n_esc : "", ex2 ? ex2 : "");
+      free(n_esc); free(ex2); free(ex);
+      if (!ir_emit(ctx, store)) {
+        free(try_label); free(catch_label); free(finally_label); free(finally_rethrow_label); free(done_label);
+        return 0;
+      }
+      AstNode *cblk = ast_child_kind(catch_clause, "Block");
+      if (cblk && !ir_lower_stmt(cblk, ctx)) {
+        free(try_label); free(catch_label); free(finally_label); free(finally_rethrow_label); free(done_label);
+        return 0;
+      }
+      char *after_c = json_escape(finally_label ? finally_label : done_label);
+      char *jmpc = str_printf("{\"op\":\"jump\",\"target\":\"%s\"}", after_c ? after_c : "");
+      free(after_c);
+      if (!ir_emit(ctx, jmpc)) {
+        free(try_label); free(catch_label); free(finally_label); free(finally_rethrow_label); free(done_label);
+        return 0;
+      }
+    }
+    if (finally_clause) {
+      ctx->cur_block = finally_idx;
+      AstNode *fblk = ast_child_kind(finally_clause, "Block");
+      if (fblk && !ir_lower_stmt(fblk, ctx)) {
+        free(try_label); free(catch_label); free(finally_label); free(finally_rethrow_label); free(done_label);
+        return 0;
+      }
+      char *aft = json_escape(done_label);
+      char *jmpf = str_printf("{\"op\":\"jump\",\"target\":\"%s\"}", aft ? aft : "");
+      free(aft);
+      if (!ir_emit(ctx, jmpf)) {
+        free(try_label); free(catch_label); free(finally_label); free(finally_rethrow_label); free(done_label);
+        return 0;
+      }
+    }
+    if (finally_rethrow_label) {
+      ctx->cur_block = finally_rethrow_idx;
+      AstNode *fblk2 = ast_child_kind(finally_clause, "Block");
+      if (fblk2 && !ir_lower_stmt(fblk2, ctx)) {
+        free(try_label); free(catch_label); free(finally_label); free(finally_rethrow_label); free(done_label);
+        return 0;
+      }
+      if (!ir_emit(ctx, strdup("{\"op\":\"rethrow\"}"))) {
+        free(try_label); free(catch_label); free(finally_label); free(finally_rethrow_label); free(done_label);
+        return 0;
+      }
+    }
+    ctx->cur_block = done_idx;
+    if (!ir_emit(ctx, strdup("{\"op\":\"nop\"}"))) {
+      free(try_label); free(catch_label); free(finally_label); free(finally_rethrow_label); free(done_label);
+      return 0;
+    }
+    free(try_label); free(catch_label); free(finally_label); free(finally_rethrow_label); free(done_label);
+    return 1;
+  }
   if (strcmp(st->kind, "BreakStmt") == 0) return ir_emit(ctx, strdup("{\"op\":\"break\"}"));
   if (strcmp(st->kind, "ContinueStmt") == 0) return ir_emit(ctx, strdup("{\"op\":\"continue\"}"));
   if (strcmp(st->kind, "SwitchStmt") == 0) {
@@ -3090,6 +3852,19 @@ int ps_emit_ir_json(const char *file, PsDiag *out_diag, FILE *out) {
     return rc;
   }
 
+  Analyzer a;
+  memset(&a, 0, sizeof(a));
+  a.file = file;
+  a.diag = out_diag;
+  if (!collect_imports(&a, root)) {
+    ast_free(root);
+    free_fns(a.fns);
+    free_imports(a.imports);
+    free_namespaces(a.namespaces);
+    free_registry(a.registry);
+    return 1;
+  }
+
   fputs("{\n", out);
   fputs("  \"ir_version\": \"1.0.0\",\n", out);
   fputs("  \"format\": \"ProtoScriptIR\",\n", out);
@@ -3098,6 +3873,23 @@ int ps_emit_ir_json(const char *file, PsDiag *out_diag, FILE *out) {
   fputs("    \"functions\": [\n", out);
 
   IrFnSig *fn_sigs = NULL;
+  for (FnSig *f = a.fns; f; f = f->next) {
+    IrFnSig *s = (IrFnSig *)calloc(1, sizeof(IrFnSig));
+    if (!s) {
+      ast_free(root);
+      free_fns(a.fns);
+      free_imports(a.imports);
+      free_namespaces(a.namespaces);
+      free_registry(a.registry);
+      set_diag(out_diag, file, 1, 1, "E0002", "INTERNAL_ERROR", "IR signature allocation failure");
+      return 2;
+    }
+    s->name = strdup(f->name ? f->name : "");
+    s->ret_type = strdup(f->ret_type ? f->ret_type : "void");
+    s->variadic = f->variadic;
+    s->next = fn_sigs;
+    fn_sigs = s;
+  }
   for (size_t fi = 0; fi < root->child_len; fi++) {
     AstNode *fn = root->children[fi];
     if (strcmp(fn->kind, "FunctionDecl") != 0) continue;
@@ -3137,9 +3929,15 @@ int ps_emit_ir_json(const char *file, PsDiag *out_diag, FILE *out) {
     IrFnCtx ctx;
     memset(&ctx, 0, sizeof(ctx));
     ctx.fn_sigs = fn_sigs;
+    ctx.imports = a.imports;
+    ctx.namespaces = a.namespaces;
     if (!ir_add_block(&ctx, "entry", &ctx.cur_block)) {
       ast_free(root);
       ir_free_fn_sigs(fn_sigs);
+      free_fns(a.fns);
+      free_imports(a.imports);
+      free_namespaces(a.namespaces);
+      free_registry(a.registry);
       set_diag(out_diag, file, 1, 1, "E0002", "INTERNAL_ERROR", "IR block allocation failure");
       return 2;
     }
@@ -3231,6 +4029,10 @@ int ps_emit_ir_json(const char *file, PsDiag *out_diag, FILE *out) {
   fputs("}\n", out);
   ast_free(root);
   ir_free_fn_sigs(fn_sigs);
+  free_fns(a.fns);
+  free_imports(a.imports);
+  free_namespaces(a.namespaces);
+  free_registry(a.registry);
   return 0;
 }
 
@@ -3246,6 +4048,15 @@ int ps_check_file_static(const char *file, PsDiag *out_diag) {
   memset(&a, 0, sizeof(a));
   a.file = file;
   a.diag = out_diag;
+
+  if (!collect_imports(&a, root)) {
+    ast_free(root);
+    free_fns(a.fns);
+    free_imports(a.imports);
+    free_namespaces(a.namespaces);
+    free_registry(a.registry);
+    return 1;
+  }
 
   for (size_t i = 0; i < root->child_len; i++) {
     AstNode *fn = root->children[i];
@@ -3271,5 +4082,8 @@ int ps_check_file_static(const char *file, PsDiag *out_diag) {
 
   ast_free(root);
   free_fns(a.fns);
+  free_imports(a.imports);
+  free_namespaces(a.namespaces);
+  free_registry(a.registry);
   return 0;
 }

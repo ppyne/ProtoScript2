@@ -1,0 +1,6 @@
+import test.simple as simple;
+
+function main() : void {
+    int v = simple.add(3, 4);
+    Sys.print(v.toString());
+}

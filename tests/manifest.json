@@ -12,7 +12,10 @@
       "invalid/type/switch_no_termination",
       "invalid/type/string_index_write",
       "invalid/type/view_index_write",
-      "invalid/type/list_pop_empty_static"
+      "invalid/type/list_pop_empty_static",
+      "invalid/type/module_missing",
+      "invalid/type/module_symbol_missing",
+      "invalid/type/module_registry_invalid_type"
     ],
     "invalid/runtime": [
       "invalid/runtime/int_overflow_add",
@@ -24,7 +27,13 @@
       "invalid/runtime/index_set_list_oob",
       "invalid/runtime/index_get_string_oob_emoji",
       "invalid/runtime/index_get_string_oob_combining",
-      "invalid/runtime/list_pop_empty_runtime"
+      "invalid/runtime/list_pop_empty_runtime",
+      "invalid/runtime/string_substring_oob",
+      "invalid/runtime/utf8_invalid_bytes",
+      "invalid/runtime/module_noinit",
+      "invalid/runtime/module_badver",
+      "invalid/runtime/module_nosym",
+      "invalid/runtime/module_not_found"
     ],
     "edge": [
       "edge/overflow_int_add",
@@ -51,7 +60,22 @@
       "edge/switch_cfg_default",
       "edge/string_length_ascii",
       "edge/string_length_emoji",
-      "edge/string_length_combining"
+      "edge/string_length_combining",
+      "edge/string_indexof_emoji",
+      "edge/string_indexof_notfound",
+      "edge/string_starts_ends",
+      "edge/string_split_basic",
+      "edge/string_split_empty",
+      "edge/string_trim_basic",
+      "edge/string_trim_start_end",
+      "edge/string_replace_basic",
+      "edge/string_substring_emoji",
+      "edge/string_utf8_roundtrip",
+      "edge/module_import_simple_add",
+      "edge/module_namespace_call",
+      "edge/module_utf8_roundtrip",
+      "edge/module_try_catch",
+      "edge/module_try_finally_rethrow"
     ]
   }
 }

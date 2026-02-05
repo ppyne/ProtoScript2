@@ -1,0 +1,5 @@
+function main() : void {
+    string s = "a-b-a";
+    string t = s.replace("a", "x");
+    Sys.print(t);
+}

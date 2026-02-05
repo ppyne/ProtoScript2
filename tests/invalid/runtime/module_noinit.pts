@@ -1,0 +1,5 @@
+import test.noinit.{ping};
+
+function main() : void {
+    ping();
+}

@@ -1,0 +1,5 @@
+function main() : void {
+    string s = "  abc  ";
+    Sys.print("[".concat(s.trimStart()).concat("]"));
+    Sys.print("[".concat(s.trimEnd()).concat("]"));
+}

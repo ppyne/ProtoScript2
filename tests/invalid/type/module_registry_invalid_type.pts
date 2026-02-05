@@ -1,0 +1,5 @@
+import test.invalid.{bad};
+
+function main() : void {
+    bad(1);
+}

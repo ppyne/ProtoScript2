@@ -1,0 +1,10 @@
+{
+  "status": "reject-static",
+  "error_code": "E2001",
+  "category": "UNRESOLVED_NAME",
+  "position": {
+    "file": "invalid/type/module_registry_invalid_type.pts",
+    "line": 1,
+    "column": 22
+  }
+}

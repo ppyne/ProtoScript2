@@ -1,0 +1,5 @@
+import test.badver.{ping};
+
+function main() : void {
+    ping();
+}

@@ -1,0 +1,7 @@
+function main() : void {
+    string s = "hello";
+    bool a = s.startsWith("he");
+    bool b = s.endsWith("lo");
+    Sys.print(a.toString());
+    Sys.print(b.toString());
+}

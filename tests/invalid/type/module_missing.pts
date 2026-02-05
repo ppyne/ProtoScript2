@@ -1,0 +1,5 @@
+import test.ghost.{ping};
+
+function main() : void {
+    ping();
+}

@@ -1,0 +1,52 @@
+{
+  "modules": [
+    {
+      "name": "test.simple",
+      "functions": [
+        { "name": "add", "ret": "int", "params": ["int", "int"] }
+      ]
+    },
+    {
+      "name": "test.utf8",
+      "functions": [
+        { "name": "roundtrip", "ret": "string", "params": ["string"] }
+      ]
+    },
+    {
+      "name": "test.throw",
+      "functions": [
+        { "name": "fail", "ret": "void", "params": [] }
+      ]
+    },
+    {
+      "name": "test.noinit",
+      "functions": [
+        { "name": "ping", "ret": "int", "params": [] }
+      ]
+    },
+    {
+      "name": "test.badver",
+      "functions": [
+        { "name": "ping", "ret": "int", "params": [] }
+      ]
+    },
+    {
+      "name": "test.nosym",
+      "functions": [
+        { "name": "missing", "ret": "int", "params": [] }
+      ]
+    },
+    {
+      "name": "test.missing",
+      "functions": [
+        { "name": "ping", "ret": "int", "params": [] }
+      ]
+    },
+    {
+      "name": "test.invalid",
+      "functions": [
+        { "name": "bad", "ret": "badtype", "params": ["int"] }
+      ]
+    }
+  ]
+}

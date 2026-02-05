@@ -1,0 +1,5 @@
+import test.simple.{missing};
+
+function main() : void {
+    missing();
+}

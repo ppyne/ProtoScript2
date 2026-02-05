@@ -1,5 +1,8 @@
 "use strict";
 
+const fs = require("fs");
+const path = require("path");
+
 const KEYWORDS = new Set([
   "prototype",
   "function",
@@ -35,6 +38,8 @@ const KEYWORDS = new Set([
   "true",
   "false",
   "self",
+  "import",
+  "as",
 ]);
 
 class FrontendError extends Error {
@@ -50,6 +55,109 @@ function diag(file, line, col, code, category, message) {
 
 function formatDiag(d) {
   return `${d.file}:${d.line}:${d.col} ${d.code} ${d.category}: ${d.message}`;
+}
+
+function parseTypeString(s) {
+  if (!s) return { kind: "PrimitiveType", name: "void" };
+  const trim = s.trim();
+  const prim = ["int", "float", "bool", "byte", "glyph", "string", "void"];
+  if (prim.includes(trim)) return { kind: "PrimitiveType", name: trim };
+  if (trim.startsWith("list<") || trim.startsWith("slice<") || trim.startsWith("view<")) {
+    const name = trim.slice(0, trim.indexOf("<"));
+    const inner = trim.slice(name.length + 1, -1);
+    return { kind: "GenericType", name, args: [parseTypeString(inner)] };
+  }
+  if (trim.startsWith("map<")) {
+    const inside = trim.slice(4, -1);
+    const comma = inside.indexOf(",");
+    const left = inside.slice(0, comma);
+    const right = inside.slice(comma + 1);
+    return { kind: "GenericType", name: "map", args: [parseTypeString(left), parseTypeString(right)] };
+  }
+  return { kind: "NamedType", name: trim };
+}
+
+function stripWs(s) {
+  return s.replace(/\s+/g, "");
+}
+
+function splitTopLevelComma(s) {
+  let depth = 0;
+  for (let i = 0; i < s.length; i += 1) {
+    const c = s[i];
+    if (c === "<") depth += 1;
+    else if (c === ">") depth -= 1;
+    else if (c === "," && depth === 0) return [s.slice(0, i), s.slice(i + 1)];
+  }
+  return null;
+}
+
+function isValidRegistryType(s, allowVoid) {
+  if (typeof s !== "string") return false;
+  const t = stripWs(s);
+  if (allowVoid && t === "void") return true;
+  const prim = ["int", "float", "bool", "byte", "glyph", "string"];
+  if (prim.includes(t)) return true;
+  if (t.startsWith("list<") || t.startsWith("slice<") || t.startsWith("view<")) {
+    if (!t.endsWith(">")) return false;
+    const name = t.slice(0, t.indexOf("<"));
+    const inner = t.slice(name.length + 1, -1);
+    return inner.length > 0 && isValidRegistryType(inner, false);
+  }
+  if (t.startsWith("map<")) {
+    if (!t.endsWith(">")) return false;
+    const inside = t.slice(4, -1);
+    const parts = splitTopLevelComma(inside);
+    if (!parts) return false;
+    return isValidRegistryType(parts[0], false) && isValidRegistryType(parts[1], false);
+  }
+  return false;
+}
+
+function loadModuleRegistry() {
+  const env = process.env.PS_MODULE_REGISTRY;
+  const candidates = [];
+  if (env) candidates.push(env);
+  candidates.push(path.join(process.cwd(), "modules", "registry.json"));
+  candidates.push(path.join(__dirname, "..", "modules", "registry.json"));
+  let data = null;
+  for (const c of candidates) {
+    if (c && fs.existsSync(c)) {
+      data = fs.readFileSync(c, "utf8");
+      break;
+    }
+  }
+  if (!data) return null;
+  let doc = null;
+  try {
+    doc = JSON.parse(data);
+  } catch {
+    return null;
+  }
+  const modules = new Map();
+  const list = Array.isArray(doc.modules) ? doc.modules : [];
+  for (const m of list) {
+    if (!m || typeof m.name !== "string") continue;
+    const fns = new Map();
+    for (const f of m.functions || []) {
+      if (!f || typeof f.name !== "string") continue;
+      const paramsRaw = Array.isArray(f.params) ? f.params : [];
+      const validParams = paramsRaw.every((p) => isValidRegistryType(p, false));
+      const validRet = isValidRegistryType(f.ret ?? "void", true);
+      const params = paramsRaw.map(parseTypeString);
+      const retType = parseTypeString(f.ret);
+      const ast = {
+        kind: "FunctionDecl",
+        name: f.name,
+        params: params.map((t, i) => ({ kind: "Param", type: t, name: `p${i}`, variadic: false })),
+        retType,
+        body: { kind: "Block", stmts: [] },
+      };
+      fns.set(f.name, { name: f.name, params, retType, ast, valid: validParams && validRet });
+    }
+    modules.set(m.name, { functions: fns });
+  }
+  return { modules };
 }
 
 class Lexer {
@@ -290,8 +398,10 @@ class Parser {
 
   parseProgram() {
     const decls = [];
+    const imports = [];
     while (!this.at("eof")) {
-      if (this.at("kw", "function")) decls.push(this.parseFunctionDecl());
+      if (this.at("kw", "import")) imports.push(this.parseImportDecl());
+      else if (this.at("kw", "function")) decls.push(this.parseFunctionDecl());
       else {
         const tok = this.t();
         throw new FrontendError(
@@ -299,7 +409,54 @@ class Parser {
         );
       }
     }
-    return { kind: "Program", decls };
+    return { kind: "Program", imports, decls };
+  }
+
+  parseModulePath() {
+    const parts = [];
+    const first = this.eat("id");
+    parts.push(first.value);
+    while (this.at("sym", ".") && this.t(1).type === "id") {
+      this.eat("sym", ".");
+      const seg = this.eat("id");
+      parts.push(seg.value);
+    }
+    return parts;
+  }
+
+  parseImportDecl() {
+    const start = this.eat("kw", "import");
+    const modulePath = this.parseModulePath();
+    let alias = null;
+    let items = null;
+    if (this.at("kw", "as")) {
+      this.eat("kw", "as");
+      alias = this.eat("id").value;
+    } else if (this.at("sym", ".") && this.t(1).value === "{") {
+      this.eat("sym", ".");
+      this.eat("sym", "{");
+      items = [];
+      if (!this.at("sym", "}")) {
+        items.push(this.parseImportItem());
+        while (this.at("sym", ",")) {
+          this.eat("sym", ",");
+          items.push(this.parseImportItem());
+        }
+      }
+      this.eat("sym", "}");
+    }
+    this.eat("sym", ";");
+    return { kind: "ImportDecl", modulePath, alias, items, line: start.line, col: start.col };
+  }
+
+  parseImportItem() {
+    const name = this.eat("id");
+    let alias = null;
+    if (this.at("kw", "as")) {
+      this.eat("kw", "as");
+      alias = this.eat("id").value;
+    }
+    return { name: name.value, alias, line: name.line, col: name.col };
   }
 
   parseFunctionDecl() {
@@ -388,6 +545,7 @@ class Parser {
     if (this.looksLikeTypedVarDecl()) return this.parseVarDeclStmt();
     if (this.at("kw", "for")) return this.parseForStmt();
     if (this.at("kw", "switch")) return this.parseSwitchStmt();
+    if (this.at("kw", "try")) return this.parseTryStmt();
     if (this.at("kw", "return")) return this.parseReturnStmt();
     if (this.at("kw", "break")) return this.parseSimpleStmt("BreakStmt", "break");
     if (this.at("kw", "continue")) return this.parseSimpleStmt("ContinueStmt", "continue");
@@ -541,6 +699,30 @@ class Parser {
     const expr = this.parseExpr();
     this.eat("sym", ";");
     return { kind: "ThrowStmt", expr, line: t.line, col: t.col };
+  }
+
+  parseTryStmt() {
+    const t = this.eat("kw", "try");
+    const tryBlock = this.parseBlock();
+    const catches = [];
+    while (this.at("kw", "catch")) {
+      this.eat("kw", "catch");
+      this.eat("sym", "(");
+      const type = this.parseType();
+      const name = this.eat("id");
+      this.eat("sym", ")");
+      const block = this.parseBlock();
+      catches.push({ kind: "CatchClause", type, name: name.value, block, line: name.line, col: name.col });
+    }
+    let finallyBlock = null;
+    if (this.at("kw", "finally")) {
+      this.eat("kw", "finally");
+      finallyBlock = this.parseBlock();
+    }
+    if (catches.length === 0 && !finallyBlock) {
+      throw new FrontendError(diag(this.file, t.line, t.col, "E1001", "PARSE_UNEXPECTED_TOKEN", "catch or finally expected"));
+    }
+    return { kind: "TryStmt", tryBlock, catches, finallyBlock, line: t.line, col: t.col };
   }
 
   parseSimpleStmt(kind, kw) {
@@ -832,6 +1014,8 @@ class Analyzer {
     this.file = file;
     this.ast = ast;
     this.functions = new Map();
+    this.imported = new Map(); // local name -> { module, name, sig }
+    this.namespaces = new Map(); // alias -> module
     this.diags = [];
   }
 
@@ -840,6 +1024,7 @@ class Analyzer {
   }
 
   analyze() {
+    this.loadImports();
     for (const d of this.ast.decls) {
       if (d.kind === "FunctionDecl") this.functions.set(d.name, d);
     }
@@ -847,6 +1032,39 @@ class Analyzer {
       if (d.kind === "FunctionDecl") this.analyzeFunction(d);
     }
     return this.diags;
+  }
+
+  loadImports() {
+    const imports = this.ast.imports || [];
+    if (imports.length === 0) return;
+    const registry = loadModuleRegistry();
+    for (const imp of imports) {
+      const mod = imp.modulePath.join(".");
+      const modEntry = registry ? registry.modules.get(mod) : null;
+      if (!modEntry) {
+        this.addDiag(imp, "E2001", "UNRESOLVED_NAME", `unknown module '${mod}'`);
+        continue;
+      }
+      if (imp.items && imp.items.length > 0) {
+        for (const it of imp.items) {
+          const fn = modEntry.functions.get(it.name);
+          if (!fn) {
+            this.addDiag(it, "E2001", "UNRESOLVED_NAME", `unknown symbol '${it.name}' in module '${mod}'`);
+            continue;
+          }
+          if (!fn.valid) {
+            this.addDiag(it, "E2001", "UNRESOLVED_NAME", `invalid registry signature for '${mod}.${it.name}'`);
+            continue;
+          }
+          const local = it.alias || it.name;
+          this.imported.set(local, { module: mod, name: it.name, sig: fn });
+          this.functions.set(local, fn.ast);
+        }
+      } else {
+        const alias = imp.alias || imp.modulePath[imp.modulePath.length - 1];
+        this.namespaces.set(alias, mod);
+      }
+    }
   }
 
   analyzeFunction(fn) {
@@ -935,22 +1153,32 @@ class Analyzer {
           this.analyzeStmt(stmt.body, s2, fn);
         }
         break;
-      case "SwitchStmt":
-        this.typeOfExpr(stmt.expr, scope);
-        for (const c of stmt.cases) {
-          this.typeOfExpr(c.value, scope);
-          for (const st of c.stmts) this.analyzeStmt(st, new Scope(scope), fn);
-          if (!this.isTerminated(c.stmts)) {
-            this.addDiag(c, "E3003", "SWITCH_CASE_NO_TERMINATION", "case without explicit termination");
-          }
+    case "SwitchStmt":
+      this.typeOfExpr(stmt.expr, scope);
+      for (const c of stmt.cases) {
+        this.typeOfExpr(c.value, scope);
+        for (const st of c.stmts) this.analyzeStmt(st, new Scope(scope), fn);
+        if (!this.isTerminated(c.stmts)) {
+          this.addDiag(c, "E3003", "SWITCH_CASE_NO_TERMINATION", "case without explicit termination");
         }
-        if (stmt.defaultCase) {
-          for (const st of stmt.defaultCase.stmts) this.analyzeStmt(st, new Scope(scope), fn);
-          if (!this.isTerminated(stmt.defaultCase.stmts)) {
-            this.addDiag(stmt.defaultCase, "E3003", "SWITCH_CASE_NO_TERMINATION", "default without explicit termination");
-          }
+      }
+      if (stmt.defaultCase) {
+        for (const st of stmt.defaultCase.stmts) this.analyzeStmt(st, new Scope(scope), fn);
+        if (!this.isTerminated(stmt.defaultCase.stmts)) {
+          this.addDiag(stmt.defaultCase, "E3003", "SWITCH_CASE_NO_TERMINATION", "default without explicit termination");
         }
-        break;
+      }
+      break;
+    case "TryStmt": {
+      this.analyzeBlock(stmt.tryBlock, scope, fn);
+      for (const c of stmt.catches || []) {
+        const cs = new Scope(scope);
+        cs.define(c.name, c.type, true);
+        this.analyzeBlock(c.block, cs, fn);
+      }
+      if (stmt.finallyBlock) this.analyzeBlock(stmt.finallyBlock, scope, fn);
+      break;
+    }
       case "ReturnStmt":
         if (stmt.expr) this.typeOfExpr(stmt.expr, scope);
         break;
@@ -1007,6 +1235,7 @@ class Analyzer {
       case "Identifier": {
         const s = scope.lookup(expr.name);
         if (!s) {
+          if (expr.name === "Sys") return { kind: "BuiltinType", name: "Sys" };
           this.addDiag(expr, "E2001", "UNRESOLVED_NAME", `unknown identifier '${expr.name}'`);
           return null;
         }
@@ -1078,22 +1307,82 @@ class Analyzer {
   }
 
   typeOfCall(expr, scope) {
-    if (expr.callee.kind !== "Identifier") return null;
-    const name = expr.callee.name;
-    const fn = this.functions.get(name);
-    if (!fn) return null;
-    const variadic = fn.params.find((p) => p.variadic);
-    if (!variadic) {
-      if (expr.args.length !== fn.params.length) {
-        this.addDiag(expr, "E3001", "TYPE_MISMATCH_ASSIGNMENT", `arity mismatch for '${name}'`);
+    if (expr.callee.kind === "Identifier") {
+      const name = expr.callee.name;
+      const fn = this.functions.get(name);
+      if (!fn) return null;
+      const variadic = fn.params.find((p) => p.variadic);
+      if (!variadic) {
+        if (expr.args.length !== fn.params.length) {
+          this.addDiag(expr, "E3001", "TYPE_MISMATCH_ASSIGNMENT", `arity mismatch for '${name}'`);
+        }
+      } else {
+        const fixed = fn.params.filter((p) => !p.variadic).length;
+        if (expr.args.length <= fixed) {
+          this.addDiag(expr, "E3002", "VARIADIC_EMPTY_CALL", "variadic argument list must be non-empty");
+        }
       }
-    } else {
-      const fixed = fn.params.filter((p) => !p.variadic).length;
-      if (expr.args.length <= fixed) {
-        this.addDiag(expr, "E3002", "VARIADIC_EMPTY_CALL", "variadic argument list must be non-empty");
-      }
+      return fn.retType;
     }
-    return fn.retType;
+
+    if (expr.callee.kind === "MemberExpr") {
+      const member = expr.callee;
+      if (member.target && member.target.kind === "Identifier") {
+        const ns = this.namespaces.get(member.target.name);
+        if (ns) {
+          const registry = loadModuleRegistry();
+          const modEntry = registry ? registry.modules.get(ns) : null;
+          const fn = modEntry ? modEntry.functions.get(member.name) : null;
+          if (!fn) {
+            this.addDiag(member, "E2001", "UNRESOLVED_NAME", `unknown symbol '${member.name}' in module '${ns}'`);
+            return null;
+          }
+          if (expr.args.length !== fn.params.length) {
+            this.addDiag(expr, "E3001", "TYPE_MISMATCH_ASSIGNMENT", `arity mismatch for '${member.name}'`);
+          }
+          return fn.retType;
+        }
+      }
+      const targetType = this.typeOfExpr(member.target, scope);
+      if (!targetType) return null;
+      const t = typeToString(targetType);
+      const name = member.name;
+      const prim = (n) => ({ kind: "PrimitiveType", name: n });
+
+      if (t === "int") {
+        if (name === "toByte") return prim("byte");
+        if (name === "toFloat") return prim("float");
+        if (name === "toString") return prim("string");
+        if (name === "abs" || name === "sign") return prim("int");
+      }
+      if (t === "byte") {
+        if (name === "toInt") return prim("int");
+        if (name === "toFloat") return prim("float");
+        if (name === "toString") return prim("string");
+      }
+      if (t === "float") {
+        if (name === "toInt") return prim("int");
+        if (name === "toString") return prim("string");
+        if (name === "abs") return prim("float");
+        if (name === "isNaN" || name === "isInfinite" || name === "isFinite") return prim("bool");
+      }
+      if (t === "string") {
+        if (name === "length") return prim("int");
+        if (name === "isEmpty") return prim("bool");
+        if (name === "substring") return prim("string");
+        if (name === "indexOf") return prim("int");
+        if (name === "startsWith" || name === "endsWith") return prim("bool");
+        if (name === "split") return { kind: "GenericType", name: "list", args: [prim("string")] };
+        if (name === "trim" || name === "trimStart" || name === "trimEnd") return prim("string");
+        if (name === "replace") return prim("string");
+        if (name === "toUpper" || name === "toLower") return prim("string");
+        if (name === "toUtf8Bytes") return { kind: "GenericType", name: "list", args: [prim("byte")] };
+      }
+      if (t.startsWith("list<") && name === "toUtf8String") return prim("string");
+      return null;
+    }
+
+    return null;
   }
 
   checkListMethodEffects(expr, scope) {

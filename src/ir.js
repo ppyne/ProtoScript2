@@ -1,5 +1,8 @@
 "use strict";
 
+const fs = require("fs");
+const path = require("path");
+
 function typeToString(t) {
   if (!t) return "unknown";
   if (typeof t === "string") return t;
@@ -44,6 +47,58 @@ function isIntLike(t) {
   return n === "int" || n === "byte";
 }
 
+function loadModuleRegistry() {
+  const env = process.env.PS_MODULE_REGISTRY;
+  const candidates = [];
+  if (env) candidates.push(env);
+  candidates.push(path.join(process.cwd(), "modules", "registry.json"));
+  candidates.push(path.join(__dirname, "..", "modules", "registry.json"));
+  for (const c of candidates) {
+    if (c && fs.existsSync(c)) {
+      try {
+        return JSON.parse(fs.readFileSync(c, "utf8"));
+      } catch {
+        return null;
+      }
+    }
+  }
+  return null;
+}
+
+function buildImportMap(ast) {
+  const imported = new Map();
+  const namespaces = new Map();
+  const imports = ast.imports || [];
+  if (imports.length === 0) return { imported, namespaces };
+  const reg = loadModuleRegistry();
+  if (!reg || !Array.isArray(reg.modules)) return { imported, namespaces };
+  const modules = new Map();
+  for (const m of reg.modules) {
+    if (!m || typeof m.name !== "string") continue;
+    const fns = new Set();
+    for (const f of m.functions || []) {
+      if (f && typeof f.name === "string") fns.add(f.name);
+    }
+    modules.set(m.name, fns);
+  }
+  for (const imp of imports) {
+    const mod = imp.modulePath.join(".");
+    const mset = modules.get(mod);
+    if (!mset) continue;
+    if (imp.items && imp.items.length > 0) {
+      for (const it of imp.items) {
+        if (!mset.has(it.name)) continue;
+        const local = it.alias || it.name;
+        imported.set(local, `${mod}.${it.name}`);
+      }
+    } else {
+      const alias = imp.alias || imp.modulePath[imp.modulePath.length - 1];
+      namespaces.set(alias, mod);
+    }
+  }
+  return { imported, namespaces };
+}
+
 class Scope {
   constructor(parent = null) {
     this.parent = parent;
@@ -65,6 +120,9 @@ class IRBuilder {
     this.tempId = 0;
     this.blockId = 0;
     this.functions = new Map();
+    const imports = buildImportMap(ast);
+    this.importedSymbols = imports.imported;
+    this.importNamespaces = imports.namespaces;
   }
 
   nextTemp() {
@@ -161,6 +219,52 @@ class IRBuilder {
       case "Block":
         this.lowerBlock(stmt, block, irFn, scope);
         break;
+      case "TryStmt": {
+        const hasCatch = stmt.catches && stmt.catches.length > 0;
+        const catchClause = hasCatch ? stmt.catches[0] : null;
+        const hasFinally = !!stmt.finallyBlock;
+        const tryLabel = this.nextBlock("try_body_");
+        const catchLabel = hasCatch ? this.nextBlock("try_catch_") : null;
+        const finallyLabel = hasFinally ? this.nextBlock("try_finally_") : null;
+        const finallyRethrowLabel = hasFinally && !hasCatch ? this.nextBlock("try_finally_rethrow_") : null;
+        const doneLabel = this.nextBlock("try_done_");
+        const bTry = { kind: "Block", label: tryLabel, instrs: [] };
+        const bCatch = catchLabel ? { kind: "Block", label: catchLabel, instrs: [] } : null;
+        const bFinally = finallyLabel ? { kind: "Block", label: finallyLabel, instrs: [] } : null;
+        const bFinallyRethrow = finallyRethrowLabel ? { kind: "Block", label: finallyRethrowLabel, instrs: [] } : null;
+        const bDone = { kind: "Block", label: doneLabel, instrs: [] };
+        const handlerTarget = catchLabel || finallyRethrowLabel || finallyLabel || doneLabel;
+        this.emit(block, { op: "push_handler", target: handlerTarget });
+        this.emit(block, { op: "jump", target: tryLabel });
+        irFn.blocks.push(bTry);
+        if (bCatch) irFn.blocks.push(bCatch);
+        if (bFinally) irFn.blocks.push(bFinally);
+        if (bFinallyRethrow) irFn.blocks.push(bFinallyRethrow);
+        irFn.blocks.push(bDone);
+        this.lowerBlock(stmt.tryBlock, bTry, irFn, new Scope(scope));
+        this.emit(bTry, { op: "pop_handler" });
+        this.emit(bTry, { op: "jump", target: finallyLabel || doneLabel });
+        if (bCatch) {
+          const cs = new Scope(scope);
+          cs.define(catchClause.name, catchClause.type);
+          this.emit(bCatch, { op: "var_decl", name: catchClause.name, type: lowerType(catchClause.type) });
+          const ex = this.nextTemp();
+          this.emit(bCatch, { op: "get_exception", dst: ex });
+          this.emit(bCatch, { op: "store_var", name: catchClause.name, src: ex, type: lowerType(catchClause.type) });
+          this.lowerBlock(catchClause.block, bCatch, irFn, cs);
+          this.emit(bCatch, { op: "jump", target: finallyLabel || doneLabel });
+        }
+        if (bFinally) {
+          this.lowerBlock(stmt.finallyBlock, bFinally, irFn, new Scope(scope));
+          this.emit(bFinally, { op: "jump", target: doneLabel });
+        }
+        if (bFinallyRethrow) {
+          this.lowerBlock(stmt.finallyBlock, bFinallyRethrow, irFn, new Scope(scope));
+          this.emit(bFinallyRethrow, { op: "rethrow" });
+        }
+        this.emit(bDone, { op: "nop" });
+        break;
+      }
       case "BreakStmt":
         this.emit(block, { op: "break" });
         break;
@@ -385,9 +489,10 @@ class IRBuilder {
 
   lowerCallExpr(expr, block, irFn, scope) {
     if (expr.callee.kind === "Identifier") {
-      const callee = expr.callee.name;
+      const local = expr.callee.name;
+      const callee = this.importedSymbols.get(local) || local;
       const args = expr.args.map((a) => this.lowerExpr(a, block, irFn, scope));
-      const sig = this.functions.get(callee);
+      const sig = this.functions.get(local);
       const isVariadic = sig ? sig.params.some((p) => p.variadic) : false;
       const dst = this.nextTemp();
       this.emit(block, {
@@ -402,6 +507,21 @@ class IRBuilder {
 
     if (expr.callee.kind === "MemberExpr") {
       const method = expr.callee.name;
+      if (expr.callee.target.kind === "Identifier") {
+        const ns = this.importNamespaces.get(expr.callee.target.name);
+        if (ns) {
+          const args = expr.args.map((a) => this.lowerExpr(a, block, irFn, scope));
+          const dst = this.nextTemp();
+          this.emit(block, {
+            op: "call_static",
+            dst,
+            callee: `${ns}.${method}`,
+            args: args.map((a) => a.value),
+            variadic: false,
+          });
+          return { value: dst, type: { kind: "PrimitiveType", name: "unknown" } };
+        }
+      }
       if (expr.callee.target.kind === "Identifier" && expr.callee.target.name === "Sys" && method === "print") {
         const args = expr.args.map((a) => this.lowerExpr(a, block, irFn, scope));
         this.emit(block, { op: "call_builtin_print", args: args.map((a) => a.value) });
@@ -538,6 +658,14 @@ function formatInstr(i) {
       return `call_builtin_print(${i.args.join(", ")})`;
     case "call_builtin_tostring":
       return `${i.dst} = call_builtin_tostring(${i.value})`;
+    case "push_handler":
+      return `push_handler ${i.target}`;
+    case "pop_handler":
+      return "pop_handler";
+    case "get_exception":
+      return `${i.dst} = get_exception`;
+    case "rethrow":
+      return "rethrow";
     case "make_view":
       return `${i.dst} = make_${i.kind}(source=${i.source}, len=${i.len}, readonly=${i.readonly})`;
     case "index_get":
@@ -630,6 +758,10 @@ function validateSerializedIR(doc) {
     "call_unknown",
     "call_builtin_print",
     "call_builtin_tostring",
+    "push_handler",
+    "pop_handler",
+    "get_exception",
+    "rethrow",
     "make_view",
     "index_get",
     "index_set",

@@ -1,0 +1,5 @@
+function main() : void {
+    list<byte> bytes = [0xC0.toByte(), 0xAF.toByte()];
+    string s = bytes.toUtf8String();
+    Sys.print(s);
+}

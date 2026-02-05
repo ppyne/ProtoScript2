@@ -24,6 +24,8 @@ COMPILER="${COMPILER:-$ROOT_DIR/bin/protoscriptc}"
 CONFORMANCE_CHECK_CMD="${CONFORMANCE_CHECK_CMD:-$COMPILER --check}"
 CONFORMANCE_RUN_CMD="${CONFORMANCE_RUN_CMD:-$COMPILER --run}"
 FRONTEND_ONLY="${FRONTEND_ONLY:-0}"
+CONFORMANCE_MODULES="${CONFORMANCE_MODULES:-0}"
+MODULES_BUILT=0
 
 if ! command -v jq >/dev/null 2>&1; then
   if [[ -x "/usr/local/bin/jq" ]]; then
@@ -101,6 +103,28 @@ while IFS= read -r case_id; do
   category="$(jq -r '.category // empty' "$expect")"
   line="$(jq -r '.position.line // empty' "$expect")"
   col="$(jq -r '.position.column // empty' "$expect")"
+  requires_modules="$(jq -r '.requires | index("modules") // empty' "$expect")"
+  allow_no_diag="$(jq -r '.allow_no_diagnostics // false' "$expect")"
+
+  if [[ -n "$requires_modules" && "$CONFORMANCE_MODULES" != "1" ]]; then
+    echo "SKIP $case_id (modules not enabled)"
+    skip=$((skip + 1))
+    rm -f "$out"
+    continue
+  fi
+
+  if [[ -n "$requires_modules" && "$CONFORMANCE_MODULES" == "1" && "$MODULES_BUILT" == "0" ]]; then
+    if [[ -x "$TESTS_DIR/build_modules.sh" ]]; then
+      "$TESTS_DIR/build_modules.sh"
+      MODULES_BUILT=1
+    else
+      echo "FAIL $case_id"
+      echo "  module build script missing"
+      fail=$((fail + 1))
+      rm -f "$out"
+      continue
+    fi
+  fi
 
   if [[ -z "$status" ]]; then
     echo "FAIL $case_id"
@@ -109,7 +133,7 @@ while IFS= read -r case_id; do
     rm -f "$out"
     continue
   fi
-  if [[ "$status" != "accept-runtime" && ( -z "$error_code" || -z "$category" || -z "$line" || -z "$col" ) ]]; then
+  if [[ "$status" != "accept-runtime" && "$allow_no_diag" != "true" && ( -z "$error_code" || -z "$category" || -z "$line" || -z "$col" ) ]]; then
     echo "FAIL $case_id"
     echo "  malformed expectation file: missing error expectations"
     fail=$((fail + 1))
@@ -182,17 +206,17 @@ while IFS= read -r case_id; do
       reason="expected non-zero exit for $status"
     fi
 
-    if [[ "$ok" == true ]] && ! check_output_contains "$error_code" "$out"; then
+    if [[ "$ok" == true && "$allow_no_diag" != "true" ]] && ! check_output_contains "$error_code" "$out"; then
       ok=false
       reason="missing error_code '$error_code' in compiler output"
     fi
 
-    if [[ "$ok" == true ]] && ! check_output_contains "$category" "$out"; then
+    if [[ "$ok" == true && "$allow_no_diag" != "true" ]] && ! check_output_contains "$category" "$out"; then
       ok=false
       reason="missing category '$category' in compiler output"
     fi
 
-    if [[ "$ok" == true ]] && ! line_col_match "$line" "$col" "$out"; then
+    if [[ "$ok" == true && "$allow_no_diag" != "true" ]] && ! line_col_match "$line" "$col" "$out"; then
       ok=false
       reason="missing line:column '${line}:${col}' in compiler output"
     fi

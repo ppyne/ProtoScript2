@@ -1,0 +1,5 @@
+{
+  "status": "reject-runtime",
+  "requires": ["modules"],
+  "allow_no_diagnostics": true
+}

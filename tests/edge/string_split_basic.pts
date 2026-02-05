@@ -1,0 +1,7 @@
+function main() : void {
+    string s = "a,b,c";
+    list<string> parts = s.split(",");
+    Sys.print(parts[0]);
+    Sys.print(parts[1]);
+    Sys.print(parts[2]);
+}

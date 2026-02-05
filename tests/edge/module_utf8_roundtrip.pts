@@ -1,0 +1,7 @@
+import test.utf8.{roundtrip};
+
+function main() : void {
+    string s = "hé😊";
+    string t = roundtrip(s);
+    Sys.print(t);
+}

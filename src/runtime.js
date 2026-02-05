@@ -27,6 +27,41 @@ function rdiag(file, node, code, category, message) {
   };
 }
 
+function glyphsOf(s) {
+  return Array.from(s);
+}
+
+function trimAscii(s, mode = "both") {
+  const chars = glyphsOf(s);
+  let start = 0;
+  let end = chars.length;
+  const isWs = (c) => c === " " || c === "\t" || c === "\n" || c === "\r";
+  if (mode !== "end") {
+    while (start < end && isWs(chars[start])) start += 1;
+  }
+  if (mode !== "start") {
+    while (end > start && isWs(chars[end - 1])) end -= 1;
+  }
+  return chars.slice(start, end).join("");
+}
+
+function indexOfGlyphs(hay, needle) {
+  const h = glyphsOf(hay);
+  const n = glyphsOf(needle);
+  if (n.length === 0) return 0;
+  for (let i = 0; i + n.length <= h.length; i += 1) {
+    let ok = true;
+    for (let j = 0; j < n.length; j += 1) {
+      if (h[i + j] !== n[j]) {
+        ok = false;
+        break;
+      }
+    }
+    if (ok) return i;
+  }
+  return -1;
+}
+
 function isFloatLiteral(raw) {
   return raw.includes(".") || /[eE]/.test(raw);
 }
@@ -141,6 +176,27 @@ function execStmt(stmt, scope, functions, file, callFunction) {
     case "SwitchStmt":
       execSwitch(stmt, scope, functions, file, callFunction);
       return;
+    case "TryStmt": {
+      const hasCatch = stmt.catches && stmt.catches.length > 0;
+      const catchClause = hasCatch ? stmt.catches[0] : null;
+      let pending = null;
+      try {
+        execBlock(stmt.tryBlock, scope, functions, file, callFunction);
+      } catch (e) {
+        if (e instanceof ReturnSignal) throw e;
+        if (!hasCatch || !(e instanceof RuntimeError)) {
+          pending = e;
+        } else {
+          const cs = new Scope(scope);
+          cs.define(catchClause.name, e.message);
+          execBlock(catchClause.block, cs, functions, file, callFunction);
+        }
+      } finally {
+        if (stmt.finallyBlock) execBlock(stmt.finallyBlock, scope, functions, file, callFunction);
+      }
+      if (pending) throw pending;
+      return;
+    }
     case "BreakStmt":
     case "ContinueStmt":
       return;
@@ -175,6 +231,8 @@ function execFor(stmt, scope, functions, file, callFunction) {
   let items = null;
   if (Array.isArray(seq)) {
     items = seq;
+  } else if (typeof seq === "string") {
+    items = glyphsOf(seq);
   } else if (seq instanceof Map) {
     if (stmt.forKind === "in") {
       items = Array.from(seq.keys()).map(unmapKey);
@@ -348,7 +406,7 @@ function indexGet(file, targetNode, indexNode, target, idx) {
     return target[i];
   }
   if (typeof target === "string") {
-    const glyphs = Array.from(target);
+    const glyphs = glyphsOf(target);
     const i = Number(idx);
     if (!Number.isInteger(i) || i < 0 || i >= glyphs.length) {
       throw new RuntimeError(rdiag(file, targetNode, "R1002", "RUNTIME_INDEX_OOB", "index out of bounds"));
@@ -409,12 +467,69 @@ function evalCall(expr, scope, functions, file, callFunction) {
       if (typeof target === "boolean") return target ? "true" : "false";
       return String(target);
     }
+    if (m.name === "toByte") {
+      if (typeof target === "bigint") return target;
+      if (typeof target === "number") return BigInt(target);
+      return 0n;
+    }
 
     if (m.name === "length") {
       if (Array.isArray(target)) return BigInt(target.length);
       if (typeof target === "string") return BigInt(Array.from(target).length);
       if (target instanceof Map) return BigInt(target.size);
       return 0n;
+    }
+
+    if (typeof target === "string") {
+      if (m.name === "toUpper") return target.toUpperCase();
+      if (m.name === "toLower") return target.toLowerCase();
+      if (m.name === "concat") return String(target) + String(args[0] ?? "");
+      if (m.name === "substring") {
+        const start = Number(args[0]);
+        const length = Number(args[1]);
+        const gs = glyphsOf(target);
+        if (!Number.isInteger(start) || !Number.isInteger(length) || start < 0 || length < 0 || start + length > gs.length) {
+          throw new RuntimeError(rdiag(file, m, "R1002", "RUNTIME_INDEX_OOB", "index out of bounds"));
+        }
+        return gs.slice(start, start + length).join("");
+      }
+      if (m.name === "indexOf") {
+        const needle = String(args[0] ?? "");
+        return BigInt(indexOfGlyphs(target, needle));
+      }
+      if (m.name === "startsWith") return target.startsWith(String(args[0] ?? ""));
+      if (m.name === "endsWith") return target.endsWith(String(args[0] ?? ""));
+      if (m.name === "split") {
+        const sep = String(args[0] ?? "");
+        if (sep === "") return glyphsOf(target);
+        return target.split(sep);
+      }
+      if (m.name === "trim") return trimAscii(target, "both");
+      if (m.name === "trimStart") return trimAscii(target, "start");
+      if (m.name === "trimEnd") return trimAscii(target, "end");
+      if (m.name === "replace") return target.replace(String(args[0] ?? ""), String(args[1] ?? ""));
+      if (m.name === "toUtf8Bytes") {
+        const enc = new TextEncoder();
+        const bytes = enc.encode(target);
+        return Array.from(bytes, (b) => BigInt(b));
+      }
+    }
+
+    if (Array.isArray(target) && m.name === "toUtf8String") {
+      const bytes = [];
+      for (const v of target) {
+        const n = typeof v === "bigint" ? Number(v) : Number(v);
+        if (!Number.isInteger(n) || n < 0 || n > 255) {
+          throw new RuntimeError(rdiag(file, m, "R1007", "RUNTIME_INVALID_UTF8", "invalid UTF-8"));
+        }
+        bytes.push(n);
+      }
+      try {
+        const dec = new TextDecoder("utf-8", { fatal: true });
+        return dec.decode(Uint8Array.from(bytes));
+      } catch {
+        throw new RuntimeError(rdiag(file, m, "R1007", "RUNTIME_INVALID_UTF8", "invalid UTF-8"));
+      }
     }
 
     if (m.name === "pop" && Array.isArray(target)) {

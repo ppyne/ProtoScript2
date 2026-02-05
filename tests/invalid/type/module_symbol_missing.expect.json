@@ -1,0 +1,10 @@
+{
+  "status": "reject-static",
+  "error_code": "E2001",
+  "category": "UNRESOLVED_NAME",
+  "position": {
+    "file": "invalid/type/module_symbol_missing.pts",
+    "line": 1,
+    "column": 21
+  }
+}

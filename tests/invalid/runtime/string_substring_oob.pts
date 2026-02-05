@@ -1,0 +1,5 @@
+function main() : void {
+    string s = "abc";
+    string t = s.substring(2, 2);
+    Sys.print(t);
+}

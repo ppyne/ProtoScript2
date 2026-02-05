@@ -1,0 +1,11 @@
+import test.throw.{fail};
+
+function main() : void {
+    try {
+        fail();
+        Sys.print("no");
+    } catch (Exception e) {
+        Sys.print("caught");
+    }
+    Sys.print("after");
+}

@@ -1,0 +1,5 @@
+function main() : void {
+    string s = "abc";
+    int p = s.indexOf("z");
+    Sys.print(p.toString());
+}

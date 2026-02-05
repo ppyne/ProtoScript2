@@ -1,0 +1,13 @@
+import test.throw.{fail};
+
+function main() : void {
+    try {
+        try {
+            fail();
+        } finally {
+            Sys.print("cleanup");
+        }
+    } catch (Exception e) {
+        Sys.print("caught");
+    }
+}

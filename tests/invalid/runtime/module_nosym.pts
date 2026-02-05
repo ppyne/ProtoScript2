@@ -1,0 +1,5 @@
+import test.nosym.{missing};
+
+function main() : void {
+    missing();
+}

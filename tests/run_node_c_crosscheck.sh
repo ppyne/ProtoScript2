@@ -89,6 +89,12 @@ while IFS= read -r case_id; do
   expected_code="$(jq -r '.error_code // empty' "$expect")"
   expected_cat="$(jq -r '.category // empty' "$expect")"
   expected_stdout="$(jq -r '.expected_stdout // empty' "$expect")"
+  requires_modules="$(jq -r '.requires | index("modules") // empty' "$expect")"
+
+  if [[ -n "$requires_modules" ]]; then
+    echo "SKIP $case_id (modules not supported in crosscheck)"
+    continue
+  fi
 
   out_node="$(mktemp)"
   out_c="$(mktemp)"
