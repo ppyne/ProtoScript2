@@ -247,6 +247,7 @@ s.toUpper();
 s.toLower();
 
 s.concat(parts);     // concaténation explicite
+s.toUtf8Bytes();     // list<byte> (UTF-8 strict)
 
 string.format("%02i %.2f %x\n", 5, .2, 10);
 ```
@@ -258,6 +259,8 @@ Règles normatives d’accès indexé sur `string` :
 - si l’index est hors bornes, une exception runtime est levée (`RUNTIME_INDEX_OOB`)
 - toute écriture `string[index] = value` est une erreur statique (`IMMUTABLE_INDEX_WRITE`)
 - `string` est immuable et ne constitue pas une collection mutable
+- `string.toUtf8Bytes()` retourne une `list<byte>` en UTF-8 strict
+- `list<byte>.toUtf8String()` retourne une `string` en UTF-8 strict
 
 **list<T>**
 
@@ -271,6 +274,7 @@ list.pop();
 list.join(",");      // si T est string
 list.sort();         // si T est comparable
 list.contains(x);
+list.toUtf8String(); // si T est byte (UTF-8 strict)
 ```
 
 **map<K,V>**
@@ -2711,6 +2715,7 @@ Principe général (normatif) :
 | écriture `string[i] = v` | erreur statique | toute mutation indexée de `string` doit être rejetée | catégorie `IMMUTABLE_INDEX_WRITE`, position |
 | écriture `view[i] = v` | erreur statique | toute mutation indexée de `view<T>` doit être rejetée | catégorie `IMMUTABLE_INDEX_WRITE`, position |
 | `list.pop()` sur liste vide | erreur statique si prouvée vide, sinon exception runtime | l’appel doit être rejeté statiquement quand prouvable ; sinon lever une exception runtime | catégorie `STATIC_EMPTY_POP` ou `RUNTIME_EMPTY_POP`, position |
+| conversion UTF-8 invalide (`list<byte>.toUtf8String()`) | exception runtime | la conversion doit échouer si l’octetage n’est pas UTF-8 valide | catégorie `RUNTIME_INVALID_UTF8`, position |
 | accès `map[k]` avec clé absente | exception runtime | l’accès doit lever une exception | catégorie `RUNTIME_MISSING_KEY`, position |
 | écriture `map[k] = v` avec clé absente | autorisé | l’opération doit insérer une entrée `(k, v)` | pas d’exception |
 | mutation structurelle pendant itération (`list`/`map`) | exception runtime | l’itération doit détecter la mutation et lever une exception au plus tard au prochain pas | catégorie `RUNTIME_CONCURRENT_MUTATION`, position |

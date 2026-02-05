@@ -782,10 +782,36 @@ Pas de closures/fonctions anonymes comme valeurs de premier ordre. Les appels so
 
 ## 10. Prototypes et objets
 
+ProtoScript V2 n'est pas un langage class-based. Il n'y a pas de classes, d'instances de classes, ni de mécanisme de construction dynamique.
+
+Le modèle est prototype-based :
+
+- un objet est créé par clonage d'un prototype explicite
+- la structure est figée à la compilation
+- la résolution des champs et méthodes est statique
+
+Conceptuellement, un prototype est un gabarit concret, pas une classe abstraite.
+On parle donc de **délégation statique** plutôt que d'héritage dynamique.
+
 ### 10.1 Modèle prototype-based
 
 Pas de classes.
 Les objets sont créés par clonage de prototypes.
+
+Exemple :
+
+```c
+prototype Point {
+    int x;
+    int y;
+}
+
+function main() : void {
+    Point p = Point.clone();
+    p.x = 1;
+    p.y = 2;
+}
+```
 
 ### 10.2 Déclaration, champs, méthodes, self
 
@@ -815,6 +841,52 @@ Un `ColoredPoint` peut être utilisé là où `Point` est attendu, selon les rè
 
 L'override conserve une signature compatible selon la spécification.
 
+En pratique :
+
+- le nom et la liste des paramètres doivent être identiques
+- le type de retour doit être identique
+- il n'y a pas de surcharge par nombre ou type de paramètres
+
+Exemple valide :
+
+```c
+prototype Point {
+    function move(int dx, int dy) : void {
+        self.x = self.x + dx;
+        self.y = self.y + dy;
+    }
+}
+
+prototype ColoredPoint : Point {
+    function move(int dx, int dy) : void {
+        // spécialisation avec même signature
+        self.x = self.x + dx;
+        self.y = self.y + dy;
+    }
+}
+```
+
+Contre-exemples :
+
+```c
+prototype Bad1 : Point {
+    // invalide : signature différente (paramètres)
+    function move(int dx) : void { }
+}
+
+prototype Bad2 : Point {
+    // invalide : type de retour différent
+    function move(int dx, int dy) : int { return 0; }
+}
+```
+
+Note :
+
+Les propriétés (champs) ne se "surchargent" pas et ne peuvent pas être redéfinies avec un autre type.
+Il n'existe pas de mécanisme `super` implicite dans ProtoScript V2.
+Un appel explicite au parent n'est pas normativement défini à ce stade.
+En revanche, une méthode héritée non redéfinie reste disponible : un enfant peut appeler `self.jump()` si `jump()` est défini dans un parent.
+
 ### 10.5 Ce qui n'existe pas
 
 - Pas de classes, interfaces, traits.
@@ -834,6 +906,7 @@ Le modèle prototype-based de ProtoScript V2 conserve un layout stable et une r�
 - Mutable et possédante.
 - `list[i] = x` est une écriture stricte : l'index doit exister.
 - Pas de redimensionnement implicite via indexation.
+- `T` est un type explicite ; il peut aussi désigner un type prototype (objet), la substitution parent/enfant est validée statiquement.
 
 Exemple :
 
@@ -852,6 +925,8 @@ list<int> xs = [1];
 ```
 
 ### 11.2 `map<K,V>` : lecture stricte, écriture constructive
+
+- `K` et `V` sont des types explicites ; ils peuvent aussi désigner des types prototypes (objets), la substitution parent/enfant est validée statiquement.
 
 ```c
 map<string, int> m = {};
@@ -964,6 +1039,19 @@ Supposer que `string[i]` modifie la chaîne. Toute mutation indexée de `string`
 ### 13.7 Pourquoi ?
 
 Immutabilité + sémantique glyphique = comportement stable, coûts visibles, pas de magie cachant des copies.
+
+### 13.8 UTF-8 explicite (bytes)
+
+Si vous devez manipuler des octets, utilisez une `list<byte>`.
+La conversion est explicite et strictement validée.
+
+```c
+string s = "ok";
+list<byte> bytes = s.toUtf8Bytes();
+string back = bytes.toUtf8String();
+```
+
+Si la liste de bytes n'est pas un UTF-8 valide, `toUtf8String()` lève une exception runtime.
 
 ---
 
