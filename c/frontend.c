@@ -1,6 +1,7 @@
 #include "frontend.h"
 
 #include <ctype.h>
+#include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -1828,6 +1829,673 @@ int ps_parse_file_ast(const char *file, PsDiag *out_diag, FILE *out) {
   }
   ast_print_json(out, root, 0);
   fputc('\n', out);
+  ast_free(root);
+  return 0;
+}
+
+typedef struct {
+  char **items;
+  size_t len;
+  size_t cap;
+} StrVec;
+
+typedef struct {
+  StrVec instrs;
+  int temp_id;
+} IrFnCtx;
+
+static void str_vec_free(StrVec *v) {
+  for (size_t i = 0; i < v->len; i++) free(v->items[i]);
+  free(v->items);
+  v->items = NULL;
+  v->len = 0;
+  v->cap = 0;
+}
+
+static int str_vec_push(StrVec *v, char *s) {
+  if (v->len == v->cap) {
+    size_t nc = (v->cap == 0) ? 32 : v->cap * 2;
+    char **ni = (char **)realloc(v->items, nc * sizeof(char *));
+    if (!ni) return 0;
+    v->items = ni;
+    v->cap = nc;
+  }
+  v->items[v->len++] = s;
+  return 1;
+}
+
+static char *str_printf(const char *fmt, ...) {
+  va_list ap;
+  va_start(ap, fmt);
+  int n = vsnprintf(NULL, 0, fmt, ap);
+  va_end(ap);
+  if (n < 0) return NULL;
+  char *out = (char *)malloc((size_t)n + 1);
+  if (!out) return NULL;
+  va_start(ap, fmt);
+  vsnprintf(out, (size_t)n + 1, fmt, ap);
+  va_end(ap);
+  return out;
+}
+
+static char *json_escape(const char *s) {
+  if (!s) return strdup("");
+  size_t cap = strlen(s) * 2 + 8;
+  char *out = (char *)malloc(cap);
+  if (!out) return NULL;
+  size_t j = 0;
+  for (const unsigned char *p = (const unsigned char *)s; *p; p++) {
+    if (j + 8 >= cap) {
+      cap *= 2;
+      char *ni = (char *)realloc(out, cap);
+      if (!ni) {
+        free(out);
+        return NULL;
+      }
+      out = ni;
+    }
+    if (*p == '"' || *p == '\\') {
+      out[j++] = '\\';
+      out[j++] = (char)*p;
+    } else if (*p == '\n') {
+      out[j++] = '\\';
+      out[j++] = 'n';
+    } else if (*p == '\r') {
+      out[j++] = '\\';
+      out[j++] = 'r';
+    } else if (*p == '\t') {
+      out[j++] = '\\';
+      out[j++] = 't';
+    } else {
+      out[j++] = (char)*p;
+    }
+  }
+  out[j] = '\0';
+  return out;
+}
+
+static int ir_emit(IrFnCtx *c, char *json_obj) {
+  if (!json_obj) return 0;
+  if (!str_vec_push(&c->instrs, json_obj)) {
+    free(json_obj);
+    return 0;
+  }
+  return 1;
+}
+
+static char *ir_next_tmp(IrFnCtx *c) { return str_printf("%%t%d", ++c->temp_id); }
+
+static char *ast_type_to_ir_name(AstNode *type_node) {
+  if (!type_node || !type_node->text) return strdup("unknown");
+  return canon_type(type_node->text);
+}
+
+static char *ir_lower_expr(AstNode *e, IrFnCtx *ctx);
+
+static char *ir_lower_call(AstNode *e, IrFnCtx *ctx) {
+  if (e->child_len == 0) return NULL;
+  AstNode *callee = e->children[0];
+  size_t argc = (e->child_len > 0) ? (e->child_len - 1) : 0;
+  char **args = (char **)calloc(argc ? argc : 1, sizeof(char *));
+  if (!args) return NULL;
+  for (size_t i = 0; i < argc; i++) {
+    args[i] = ir_lower_expr(e->children[i + 1], ctx);
+    if (!args[i]) {
+      for (size_t j = 0; j < i; j++) free(args[j]);
+      free(args);
+      return NULL;
+    }
+  }
+  char *dst = ir_next_tmp(ctx);
+  if (!dst) {
+    for (size_t i = 0; i < argc; i++) free(args[i]);
+    free(args);
+    return NULL;
+  }
+
+  if (strcmp(callee->kind, "Identifier") == 0) {
+    char *callee_esc = json_escape(callee->text ? callee->text : "");
+    char *args_json = strdup("");
+    for (size_t i = 0; i < argc; i++) {
+      char *arg_esc = json_escape(args[i]);
+      char *prev = args_json;
+      args_json = str_printf("%s%s\"%s\"", prev, (i == 0 ? "" : ","), arg_esc ? arg_esc : "");
+      free(prev);
+      free(arg_esc);
+    }
+    char *dst_esc = json_escape(dst);
+    char *ins = str_printf(
+        "{\"op\":\"call_static\",\"dst\":\"%s\",\"callee\":\"%s\",\"args\":[%s],\"variadic\":false}", dst_esc ? dst_esc : "",
+        callee_esc ? callee_esc : "", args_json ? args_json : "");
+    free(dst_esc);
+    free(callee_esc);
+    free(args_json);
+    if (!ir_emit(ctx, ins)) {
+      free(dst);
+      dst = NULL;
+    }
+  } else if (strcmp(callee->kind, "MemberExpr") == 0 && callee->child_len > 0) {
+    AstNode *recv_ast = callee->children[0];
+    char *recv = ir_lower_expr(recv_ast, ctx);
+    if (!recv) {
+      free(dst);
+      dst = NULL;
+    } else {
+      char *recv_esc = json_escape(recv);
+      char *dst_esc = json_escape(dst);
+      char *method_esc = json_escape(callee->text ? callee->text : "");
+      if (strcmp(callee->text ? callee->text : "", "toString") == 0) {
+        char *ins = str_printf("{\"op\":\"call_builtin_tostring\",\"dst\":\"%s\",\"value\":\"%s\"}", dst_esc ? dst_esc : "",
+                               recv_esc ? recv_esc : "");
+        if (!ir_emit(ctx, ins)) {
+          free(dst);
+          dst = NULL;
+        }
+      } else if (strcmp(callee->text ? callee->text : "", "print") == 0 && strcmp(recv_ast->kind, "Identifier") == 0 &&
+                 recv_ast->text && strcmp(recv_ast->text, "Sys") == 0) {
+        char *args_json = strdup("");
+        for (size_t i = 0; i < argc; i++) {
+          char *arg_esc = json_escape(args[i]);
+          char *prev = args_json;
+          args_json = str_printf("%s%s\"%s\"", prev, (i == 0 ? "" : ","), arg_esc ? arg_esc : "");
+          free(prev);
+          free(arg_esc);
+        }
+        char *ins = str_printf("{\"op\":\"call_builtin_print\",\"args\":[%s]}", args_json ? args_json : "");
+        free(args_json);
+        if (!ir_emit(ctx, ins)) {
+          free(dst);
+          dst = NULL;
+        }
+      } else {
+        char *args_json = strdup("");
+        for (size_t i = 0; i < argc; i++) {
+          char *arg_esc = json_escape(args[i]);
+          char *prev = args_json;
+          args_json = str_printf("%s%s\"%s\"", prev, (i == 0 ? "" : ","), arg_esc ? arg_esc : "");
+          free(prev);
+          free(arg_esc);
+        }
+        char *ins = str_printf(
+            "{\"op\":\"call_method_static\",\"dst\":\"%s\",\"receiver\":\"%s\",\"method\":\"%s\",\"args\":[%s]}",
+            dst_esc ? dst_esc : "", recv_esc ? recv_esc : "", method_esc ? method_esc : "", args_json ? args_json : "");
+        free(args_json);
+        if (!ir_emit(ctx, ins)) {
+          free(dst);
+          dst = NULL;
+        }
+      }
+      free(recv_esc);
+      free(dst_esc);
+      free(method_esc);
+      free(recv);
+    }
+  } else {
+    char *dst_esc = json_escape(dst);
+    char *ins = str_printf("{\"op\":\"call_unknown\",\"dst\":\"%s\"}", dst_esc ? dst_esc : "");
+    free(dst_esc);
+    if (!ir_emit(ctx, ins)) {
+      free(dst);
+      dst = NULL;
+    }
+  }
+
+  for (size_t i = 0; i < argc; i++) free(args[i]);
+  free(args);
+  return dst;
+}
+
+static char *ir_lower_expr(AstNode *e, IrFnCtx *ctx) {
+  if (!e) return NULL;
+  if (strcmp(e->kind, "Literal") == 0) {
+    char *dst = ir_next_tmp(ctx);
+    if (!dst) return NULL;
+    char *dst_esc = json_escape(dst);
+    char *val_esc = json_escape(e->text ? e->text : "");
+    const char *lt = "string";
+    if (e->text && (strcmp(e->text, "true") == 0 || strcmp(e->text, "false") == 0)) lt = "bool";
+    else if (e->text && (is_all_digits(e->text) || is_float_token(e->text))) lt = is_float_token(e->text) ? "float" : "int";
+    char *ins = NULL;
+    if (strcmp(lt, "bool") == 0) {
+      ins = str_printf("{\"op\":\"const\",\"dst\":\"%s\",\"literalType\":\"bool\",\"value\":%s}", dst_esc ? dst_esc : "",
+                       (e->text && strcmp(e->text, "true") == 0) ? "true" : "false");
+    } else {
+      ins = str_printf("{\"op\":\"const\",\"dst\":\"%s\",\"literalType\":\"%s\",\"value\":\"%s\"}", dst_esc ? dst_esc : "", lt,
+                       val_esc ? val_esc : "");
+    }
+    free(dst_esc);
+    free(val_esc);
+    if (!ir_emit(ctx, ins)) {
+      free(dst);
+      return NULL;
+    }
+    return dst;
+  }
+  if (strcmp(e->kind, "Identifier") == 0) {
+    char *dst = ir_next_tmp(ctx);
+    if (!dst) return NULL;
+    char *dst_esc = json_escape(dst);
+    char *name_esc = json_escape(e->text ? e->text : "");
+    char *ins = str_printf("{\"op\":\"load_var\",\"dst\":\"%s\",\"name\":\"%s\",\"type\":{\"kind\":\"IRType\",\"name\":\"unknown\"}}",
+                           dst_esc ? dst_esc : "", name_esc ? name_esc : "");
+    free(dst_esc);
+    free(name_esc);
+    if (!ir_emit(ctx, ins)) {
+      free(dst);
+      return NULL;
+    }
+    return dst;
+  }
+  if (strcmp(e->kind, "BinaryExpr") == 0 && e->child_len >= 2) {
+    char *l = ir_lower_expr(e->children[0], ctx);
+    char *r = ir_lower_expr(e->children[1], ctx);
+    char *dst = ir_next_tmp(ctx);
+    if (!l || !r || !dst) {
+      free(l);
+      free(r);
+      free(dst);
+      return NULL;
+    }
+    char *l_esc = json_escape(l), *r_esc = json_escape(r), *d_esc = json_escape(dst), *op_esc = json_escape(e->text ? e->text : "");
+    char *ins =
+        str_printf("{\"op\":\"bin_op\",\"dst\":\"%s\",\"operator\":\"%s\",\"left\":\"%s\",\"right\":\"%s\"}", d_esc ? d_esc : "",
+                   op_esc ? op_esc : "", l_esc ? l_esc : "", r_esc ? r_esc : "");
+    free(l_esc);
+    free(r_esc);
+    free(d_esc);
+    free(op_esc);
+    free(l);
+    free(r);
+    if (!ir_emit(ctx, ins)) {
+      free(dst);
+      return NULL;
+    }
+    return dst;
+  }
+  if ((strcmp(e->kind, "UnaryExpr") == 0 || strcmp(e->kind, "PostfixExpr") == 0) && e->child_len >= 1) {
+    char *s = ir_lower_expr(e->children[0], ctx);
+    char *dst = ir_next_tmp(ctx);
+    if (!s || !dst) {
+      free(s);
+      free(dst);
+      return NULL;
+    }
+    char *s_esc = json_escape(s), *d_esc = json_escape(dst), *op_esc = json_escape(e->text ? e->text : "");
+    char *ins = NULL;
+    if (strcmp(e->kind, "UnaryExpr") == 0)
+      ins = str_printf("{\"op\":\"unary_op\",\"dst\":\"%s\",\"operator\":\"%s\",\"src\":\"%s\"}", d_esc ? d_esc : "", op_esc ? op_esc : "",
+                       s_esc ? s_esc : "");
+    else
+      ins = str_printf("{\"op\":\"postfix_op\",\"dst\":\"%s\",\"operator\":\"%s\",\"src\":\"%s\"}", d_esc ? d_esc : "", op_esc ? op_esc : "",
+                       s_esc ? s_esc : "");
+    free(s_esc);
+    free(d_esc);
+    free(op_esc);
+    free(s);
+    if (!ir_emit(ctx, ins)) {
+      free(dst);
+      return NULL;
+    }
+    return dst;
+  }
+  if (strcmp(e->kind, "MemberExpr") == 0 && e->child_len >= 1) {
+    char *base = ir_lower_expr(e->children[0], ctx);
+    char *dst = ir_next_tmp(ctx);
+    if (!base || !dst) {
+      free(base);
+      free(dst);
+      return NULL;
+    }
+    char *b_esc = json_escape(base), *d_esc = json_escape(dst), *n_esc = json_escape(e->text ? e->text : "");
+    char *ins =
+        str_printf("{\"op\":\"member_get\",\"dst\":\"%s\",\"target\":\"%s\",\"name\":\"%s\"}", d_esc ? d_esc : "", b_esc ? b_esc : "",
+                   n_esc ? n_esc : "");
+    free(b_esc);
+    free(d_esc);
+    free(n_esc);
+    free(base);
+    if (!ir_emit(ctx, ins)) {
+      free(dst);
+      return NULL;
+    }
+    return dst;
+  }
+  if (strcmp(e->kind, "IndexExpr") == 0 && e->child_len >= 2) {
+    char *t = ir_lower_expr(e->children[0], ctx);
+    char *i = ir_lower_expr(e->children[1], ctx);
+    char *dst = ir_next_tmp(ctx);
+    if (!t || !i || !dst) {
+      free(t);
+      free(i);
+      free(dst);
+      return NULL;
+    }
+    char *t_esc = json_escape(t), *i_esc = json_escape(i), *d_esc = json_escape(dst);
+    char *ins = str_printf("{\"op\":\"index_get\",\"dst\":\"%s\",\"target\":\"%s\",\"index\":\"%s\"}", d_esc ? d_esc : "", t_esc ? t_esc : "",
+                           i_esc ? i_esc : "");
+    free(t_esc);
+    free(i_esc);
+    free(d_esc);
+    free(t);
+    free(i);
+    if (!ir_emit(ctx, ins)) {
+      free(dst);
+      return NULL;
+    }
+    return dst;
+  }
+  if (strcmp(e->kind, "CallExpr") == 0) return ir_lower_call(e, ctx);
+  if (strcmp(e->kind, "ConditionalExpr") == 0 && e->child_len >= 3) {
+    char *c = ir_lower_expr(e->children[0], ctx);
+    char *t = ir_lower_expr(e->children[1], ctx);
+    char *f = ir_lower_expr(e->children[2], ctx);
+    char *dst = ir_next_tmp(ctx);
+    if (!c || !t || !f || !dst) {
+      free(c);
+      free(t);
+      free(f);
+      free(dst);
+      return NULL;
+    }
+    char *c_esc = json_escape(c), *t_esc = json_escape(t), *f_esc = json_escape(f), *d_esc = json_escape(dst);
+    char *ins = str_printf("{\"op\":\"select\",\"dst\":\"%s\",\"cond\":\"%s\",\"thenValue\":\"%s\",\"elseValue\":\"%s\"}", d_esc ? d_esc : "",
+                           c_esc ? c_esc : "", t_esc ? t_esc : "", f_esc ? f_esc : "");
+    free(c_esc);
+    free(t_esc);
+    free(f_esc);
+    free(d_esc);
+    free(c);
+    free(t);
+    free(f);
+    if (!ir_emit(ctx, ins)) {
+      free(dst);
+      return NULL;
+    }
+    return dst;
+  }
+  if (strcmp(e->kind, "ListLiteral") == 0) {
+    char *dst = ir_next_tmp(ctx);
+    if (!dst) return NULL;
+    char *items = strdup("");
+    if (!items) {
+      free(dst);
+      return NULL;
+    }
+    for (size_t i = 0; i < e->child_len; i++) {
+      char *v = ir_lower_expr(e->children[i], ctx);
+      char *v_esc = json_escape(v ? v : "");
+      char *prev = items;
+      items = str_printf("%s%s\"%s\"", prev, (i == 0 ? "" : ","), v_esc ? v_esc : "");
+      free(prev);
+      free(v_esc);
+      free(v);
+      if (!items) {
+        free(dst);
+        return NULL;
+      }
+    }
+    char *d_esc = json_escape(dst);
+    char *ins = str_printf("{\"op\":\"make_list\",\"dst\":\"%s\",\"items\":[%s]}", d_esc ? d_esc : "", items);
+    free(d_esc);
+    free(items);
+    if (!ir_emit(ctx, ins)) {
+      free(dst);
+      return NULL;
+    }
+    return dst;
+  }
+  if (strcmp(e->kind, "MapLiteral") == 0) {
+    char *dst = ir_next_tmp(ctx);
+    if (!dst) return NULL;
+    char *pairs = strdup("");
+    if (!pairs) {
+      free(dst);
+      return NULL;
+    }
+    for (size_t i = 0; i < e->child_len; i++) {
+      AstNode *p = e->children[i];
+      if (!p || strcmp(p->kind, "MapPair") != 0 || p->child_len < 2) continue;
+      char *k = ir_lower_expr(p->children[0], ctx);
+      char *v = ir_lower_expr(p->children[1], ctx);
+      char *k_esc = json_escape(k ? k : "");
+      char *v_esc = json_escape(v ? v : "");
+      char *prev = pairs;
+      pairs = str_printf("%s%s{\"key\":\"%s\",\"value\":\"%s\"}", prev, (strlen(prev) == 0 ? "" : ","), k_esc ? k_esc : "",
+                         v_esc ? v_esc : "");
+      free(prev);
+      free(k_esc);
+      free(v_esc);
+      free(k);
+      free(v);
+      if (!pairs) {
+        free(dst);
+        return NULL;
+      }
+    }
+    char *d_esc = json_escape(dst);
+    char *ins = str_printf("{\"op\":\"make_map\",\"dst\":\"%s\",\"pairs\":[%s]}", d_esc ? d_esc : "", pairs);
+    free(d_esc);
+    free(pairs);
+    if (!ir_emit(ctx, ins)) {
+      free(dst);
+      return NULL;
+    }
+    return dst;
+  }
+  char *dst = ir_next_tmp(ctx);
+  if (!dst) return NULL;
+  char *d_esc = json_escape(dst), *k_esc = json_escape(e->kind);
+  char *ins = str_printf("{\"op\":\"unknown_expr\",\"dst\":\"%s\",\"kind\":\"%s\"}", d_esc ? d_esc : "", k_esc ? k_esc : "");
+  free(d_esc);
+  free(k_esc);
+  if (!ir_emit(ctx, ins)) {
+    free(dst);
+    return NULL;
+  }
+  return dst;
+}
+
+static int ir_lower_stmt(AstNode *st, IrFnCtx *ctx) {
+  if (!st) return 1;
+  if (strcmp(st->kind, "Block") == 0) {
+    for (size_t i = 0; i < st->child_len; i++) {
+      if (!ir_lower_stmt(st->children[i], ctx)) return 0;
+    }
+    return 1;
+  }
+  if (strcmp(st->kind, "VarDecl") == 0) {
+    AstNode *tn = ast_child_kind(st, "Type");
+    char *type = ast_type_to_ir_name(tn);
+    char *name_esc = json_escape(st->text ? st->text : "");
+    char *type_esc = json_escape(type ? type : "unknown");
+    char *ins = str_printf("{\"op\":\"var_decl\",\"name\":\"%s\",\"type\":{\"kind\":\"IRType\",\"name\":\"%s\"}}", name_esc ? name_esc : "",
+                           type_esc ? type_esc : "");
+    free(name_esc);
+    free(type_esc);
+    free(type);
+    if (!ir_emit(ctx, ins)) return 0;
+    AstNode *last = ast_last_child(st);
+    if (last && (!tn || last != tn)) {
+      char *v = ir_lower_expr(last, ctx);
+      if (!v) return 0;
+      char *v_esc = json_escape(v);
+      char *n_esc = json_escape(st->text ? st->text : "");
+      char *ins2 = str_printf("{\"op\":\"store_var\",\"name\":\"%s\",\"src\":\"%s\",\"type\":{\"kind\":\"IRType\",\"name\":\"unknown\"}}",
+                              n_esc ? n_esc : "", v_esc ? v_esc : "");
+      free(v_esc);
+      free(n_esc);
+      free(v);
+      if (!ir_emit(ctx, ins2)) return 0;
+    }
+    return 1;
+  }
+  if (strcmp(st->kind, "AssignStmt") == 0 && st->child_len >= 2) {
+    AstNode *lhs = st->children[0];
+    AstNode *rhs = st->children[1];
+    char *v = ir_lower_expr(rhs, ctx);
+    if (!v) return 0;
+    if (strcmp(lhs->kind, "Identifier") == 0) {
+      char *n_esc = json_escape(lhs->text ? lhs->text : "");
+      char *v_esc = json_escape(v);
+      char *ins = str_printf("{\"op\":\"store_var\",\"name\":\"%s\",\"src\":\"%s\",\"type\":{\"kind\":\"IRType\",\"name\":\"unknown\"}}",
+                             n_esc ? n_esc : "", v_esc ? v_esc : "");
+      free(n_esc);
+      free(v_esc);
+      free(v);
+      return ir_emit(ctx, ins);
+    }
+    if (strcmp(lhs->kind, "IndexExpr") == 0 && lhs->child_len >= 2) {
+      char *t = ir_lower_expr(lhs->children[0], ctx);
+      char *i = ir_lower_expr(lhs->children[1], ctx);
+      if (!t || !i) {
+        free(v);
+        free(t);
+        free(i);
+        return 0;
+      }
+      char *t_esc = json_escape(t), *i_esc = json_escape(i), *v_esc = json_escape(v);
+      char *ins = str_printf("{\"op\":\"index_set\",\"target\":\"%s\",\"index\":\"%s\",\"src\":\"%s\"}", t_esc ? t_esc : "",
+                             i_esc ? i_esc : "", v_esc ? v_esc : "");
+      free(t_esc);
+      free(i_esc);
+      free(v_esc);
+      free(v);
+      free(t);
+      free(i);
+      return ir_emit(ctx, ins);
+    }
+    free(v);
+    return ir_emit(ctx, strdup("{\"op\":\"unhandled_stmt\",\"kind\":\"AssignStmt\"}"));
+  }
+  if (strcmp(st->kind, "ExprStmt") == 0) {
+    if (st->child_len > 0) {
+      char *tmp = ir_lower_expr(st->children[0], ctx);
+      free(tmp);
+    }
+    return 1;
+  }
+  if (strcmp(st->kind, "ReturnStmt") == 0) {
+    if (st->child_len == 0) return ir_emit(ctx, strdup("{\"op\":\"ret_void\"}"));
+    char *v = ir_lower_expr(st->children[0], ctx);
+    if (!v) return 0;
+    char *v_esc = json_escape(v);
+    char *ins = str_printf("{\"op\":\"ret\",\"value\":\"%s\",\"type\":{\"kind\":\"IRType\",\"name\":\"unknown\"}}", v_esc ? v_esc : "");
+    free(v_esc);
+    free(v);
+    return ir_emit(ctx, ins);
+  }
+  if (strcmp(st->kind, "ThrowStmt") == 0) {
+    char *v = st->child_len > 0 ? ir_lower_expr(st->children[0], ctx) : NULL;
+    if (v) {
+      char *v_esc = json_escape(v);
+      char *ins = str_printf("{\"op\":\"throw\",\"value\":\"%s\"}", v_esc ? v_esc : "");
+      free(v_esc);
+      free(v);
+      return ir_emit(ctx, ins);
+    }
+    return ir_emit(ctx, strdup("{\"op\":\"throw\",\"value\":\"\"}"));
+  }
+  if (strcmp(st->kind, "BreakStmt") == 0) return ir_emit(ctx, strdup("{\"op\":\"break\"}"));
+  if (strcmp(st->kind, "ContinueStmt") == 0) return ir_emit(ctx, strdup("{\"op\":\"continue\"}"));
+  if (strcmp(st->kind, "ForStmt") == 0 || strcmp(st->kind, "SwitchStmt") == 0)
+    return ir_emit(ctx, str_printf("{\"op\":\"unhandled_stmt\",\"kind\":\"%s\"}", st->kind));
+  return ir_emit(ctx, str_printf("{\"op\":\"unhandled_stmt\",\"kind\":\"%s\"}", st->kind));
+}
+
+static int ir_fn_terminated(IrFnCtx *ctx) {
+  if (ctx->instrs.len == 0) return 0;
+  const char *s = ctx->instrs.items[ctx->instrs.len - 1];
+  return strstr(s, "\"op\":\"ret\"") || strstr(s, "\"op\":\"ret_void\"") || strstr(s, "\"op\":\"throw\"");
+}
+
+int ps_emit_ir_json(const char *file, PsDiag *out_diag, FILE *out) {
+  AstNode *root = NULL;
+  int rc = parse_file_internal(file, out_diag, &root);
+  if (rc != 0) {
+    ast_free(root);
+    return rc;
+  }
+
+  fputs("{\n", out);
+  fputs("  \"ir_version\": \"1.0.0\",\n", out);
+  fputs("  \"format\": \"ProtoScriptIR\",\n", out);
+  fputs("  \"module\": {\n", out);
+  fputs("    \"kind\": \"Module\",\n", out);
+  fputs("    \"functions\": [\n", out);
+
+  int first_fn = 1;
+  for (size_t fi = 0; fi < root->child_len; fi++) {
+    AstNode *fn = root->children[fi];
+    if (strcmp(fn->kind, "FunctionDecl") != 0) continue;
+    if (!first_fn) fputs(",\n", out);
+    first_fn = 0;
+
+    IrFnCtx ctx;
+    memset(&ctx, 0, sizeof(ctx));
+    AstNode *blk = ast_child_kind(fn, "Block");
+    if (blk && !ir_lower_stmt(blk, &ctx)) {
+      str_vec_free(&ctx.instrs);
+      ast_free(root);
+      set_diag(out_diag, file, 1, 1, "E0002", "INTERNAL_ERROR", "IR lowering allocation failure");
+      return 2;
+    }
+    AstNode *rt = ast_child_kind(fn, "ReturnType");
+    char *ret = ast_type_to_ir_name(rt);
+    if (!ir_fn_terminated(&ctx)) {
+      if (ret && strcmp(ret, "void") == 0)
+        ir_emit(&ctx, strdup("{\"op\":\"ret_void\"}"));
+      else
+        ir_emit(&ctx, strdup("{\"op\":\"ret\",\"value\":\"0\",\"type\":{\"kind\":\"IRType\",\"name\":\"unknown\"}}"));
+    }
+
+    char *fn_name = json_escape(fn->text ? fn->text : "");
+    char *ret_esc = json_escape(ret ? ret : "void");
+    fprintf(out, "      {\n");
+    fprintf(out, "        \"kind\": \"Function\",\n");
+    fprintf(out, "        \"name\": \"%s\",\n", fn_name ? fn_name : "");
+    fputs("        \"params\": [", out);
+    int first_p = 1;
+    for (size_t pi = 0; pi < fn->child_len; pi++) {
+      AstNode *p = fn->children[pi];
+      if (strcmp(p->kind, "Param") != 0) continue;
+      AstNode *pt = ast_child_kind(p, "Type");
+      AstNode *pv = ast_child_kind(p, "Variadic");
+      char *pn = json_escape(p->text ? p->text : "");
+      char *ptn_raw = ast_type_to_ir_name(pt);
+      char *ptn = json_escape(ptn_raw ? ptn_raw : "unknown");
+      if (!first_p) fputs(",", out);
+      first_p = 0;
+      fprintf(out,
+              "{\"name\":\"%s\",\"type\":{\"kind\":\"IRType\",\"name\":\"%s\"},\"variadic\":%s}",
+              pn ? pn : "", ptn ? ptn : "", pv ? "true" : "false");
+      free(pn);
+      free(ptn_raw);
+      free(ptn);
+    }
+    fputs("],\n", out);
+    fprintf(out, "        \"returnType\": {\"kind\": \"IRType\", \"name\": \"%s\"},\n", ret_esc ? ret_esc : "void");
+    fputs("        \"blocks\": [\n", out);
+    fputs("          {\n", out);
+    fputs("            \"kind\": \"Block\",\n", out);
+    fputs("            \"label\": \"entry\",\n", out);
+    fputs("            \"instrs\": [\n", out);
+    for (size_t ii = 0; ii < ctx.instrs.len; ii++) {
+      fprintf(out, "              %s%s\n", ctx.instrs.items[ii], (ii + 1 < ctx.instrs.len) ? "," : "");
+    }
+    fputs("            ]\n", out);
+    fputs("          }\n", out);
+    fputs("        ]\n", out);
+    fputs("      }", out);
+
+    free(fn_name);
+    free(ret_esc);
+    free(ret);
+    str_vec_free(&ctx.instrs);
+  }
+
+  fputs("\n    ]\n", out);
+  fputs("  }\n", out);
+  fputs("}\n", out);
   ast_free(root);
   return 0;
 }

@@ -136,6 +136,7 @@ make -C c
 ./c/pscc --check-c path/to/file.pts
 ./c/pscc --check-c-static path/to/file.pts
 ./c/pscc --ast-c path/to/file.pts
+./c/pscc --emit-ir-c-json path/to/file.pts
 ```
 
 Règle d’or du projet : le compilateur est considéré correct uniquement s’il passe 100 % des tests normatifs.

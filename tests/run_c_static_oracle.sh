@@ -27,6 +27,10 @@ extract_category() {
   local f="$1"
   sed -nE 's/.*(E[0-9]{4}|R[0-9]{4}) ([A-Z0-9_]+):.*/\2/p' "$f" | head -n1 || true
 }
+extract_line_col() {
+  local f="$1"
+  sed -nE 's/^.*:([0-9]+):([0-9]+) (E[0-9]{4}|R[0-9]{4}) .*/\1:\2/p' "$f" | head -n1 || true
+}
 
 pass=0
 fail=0
@@ -62,11 +66,14 @@ while IFS= read -r case_id; do
 
   node_code="$(extract_code "$out_node")"
   node_cat="$(extract_category "$out_node")"
+  node_pos="$(extract_line_col "$out_node")"
   c_code="$(extract_code "$out_c")"
   c_cat="$(extract_category "$out_c")"
+  c_pos="$(extract_line_col "$out_c")"
 
   if [[ "$ok" == true && "$node_code" != "$c_code" ]]; then ok=false; reason="diagnostic code mismatch ($node_code vs $c_code)"; fi
   if [[ "$ok" == true && "$node_cat" != "$c_cat" ]]; then ok=false; reason="diagnostic category mismatch ($node_cat vs $c_cat)"; fi
+  if [[ "$ok" == true && "$node_pos" != "$c_pos" ]]; then ok=false; reason="diagnostic position mismatch ($node_pos vs $c_pos)"; fi
 
   if [[ "$ok" == true ]]; then
     echo "PASS $case_id"
