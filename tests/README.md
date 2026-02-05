@@ -27,6 +27,7 @@ Champs attendus dans `*.expect.json`:
 ## Exécution
 
 Runner fourni: `tests/run_conformance.sh`
+Pré-requis: `jq`
 
 Exemples :
 

@@ -24,8 +24,8 @@ COMPILER="${COMPILER:-protoscriptc}"
 CONFORMANCE_CHECK_CMD="${CONFORMANCE_CHECK_CMD:-$COMPILER --check}"
 CONFORMANCE_RUN_CMD="${CONFORMANCE_RUN_CMD:-$COMPILER --run}"
 
-if ! command -v python3 >/dev/null 2>&1; then
-  echo "ERROR: python3 is required." >&2
+if ! command -v jq >/dev/null 2>&1; then
+  echo "ERROR: jq is required." >&2
   exit 2
 fi
 
@@ -70,9 +70,8 @@ echo "Check command: $CONFORMANCE_CHECK_CMD"
 echo "Run command:   $CONFORMANCE_RUN_CMD"
 echo
 
-while IFS='|' read -r case_id status error_code category file_rel line col; do
+while IFS= read -r case_id; do
   [[ -z "$case_id" ]] && continue
-
   src="$TESTS_DIR/$case_id.pts"
   expect="$TESTS_DIR/$case_id.expect.json"
   out="$(mktemp)"
@@ -80,6 +79,20 @@ while IFS='|' read -r case_id status error_code category file_rel line col; do
   if [[ ! -f "$src" || ! -f "$expect" ]]; then
     echo "FAIL $case_id"
     echo "  missing source or expectation file"
+    fail=$((fail + 1))
+    rm -f "$out"
+    continue
+  fi
+
+  status="$(jq -r '.status // empty' "$expect")"
+  error_code="$(jq -r '.error_code // empty' "$expect")"
+  category="$(jq -r '.category // empty' "$expect")"
+  line="$(jq -r '.position.line // empty' "$expect")"
+  col="$(jq -r '.position.column // empty' "$expect")"
+
+  if [[ -z "$status" || -z "$error_code" || -z "$category" || -z "$line" || -z "$col" ]]; then
+    echo "FAIL $case_id"
+    echo "  malformed expectation file: missing required field(s)"
     fail=$((fail + 1))
     rm -f "$out"
     continue
@@ -145,39 +158,7 @@ while IFS='|' read -r case_id status error_code category file_rel line col; do
   fi
 
   rm -f "$out"
-done < <(
-  python3 - <<'PY' "$MANIFEST" "$TESTS_DIR"
-import json
-import pathlib
-import sys
-
-manifest = pathlib.Path(sys.argv[1])
-tests_dir = pathlib.Path(sys.argv[2])
-data = json.loads(manifest.read_text())
-
-for suite_name, cases in data.get("suites", {}).items():
-    for case_id in cases:
-        expect_path = tests_dir / f"{case_id}.expect.json"
-        if not expect_path.exists():
-            print(f"{case_id}|MISSING||||||")
-            continue
-        expect = json.loads(expect_path.read_text())
-        pos = expect.get("position", {})
-        print(
-            "|".join(
-                [
-                    case_id,
-                    expect.get("status", ""),
-                    expect.get("error_code", ""),
-                    expect.get("category", ""),
-                    pos.get("file", ""),
-                    str(pos.get("line", "")),
-                    str(pos.get("column", "")),
-                ]
-            )
-        )
-PY
-)
+done < <(jq -r '.suites | to_entries[] | .value[]' "$MANIFEST")
 
 echo
 echo "Summary: PASS=$pass FAIL=$fail TOTAL=$((pass + fail))"
