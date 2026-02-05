@@ -1,3 +1,5 @@
+![ProtoScript2](header.png)
+
 # ProtoScript2
 
 ProtoScript2 est un projet de langage avec spécification normative et chaîne de compilation de référence.
@@ -22,6 +24,8 @@ Implémenté :
 
 - frontend minimal (lexer + parser + AST + analyse statique)  
   - `src/frontend.js`
+- runtime de référence (interpréteur AST pour `--run`)
+  - `src/runtime.js`
 - diagnostics normatifs `file:line:column` avec codes `E1xxx–E4xxx`
 - IR normatif minimal (`Module`, `Function`, `Block`, `Instr`, `Type`)  
   - `src/ir.js`
@@ -48,6 +52,12 @@ bin/protoscriptc --check path/to/file.pts
 
 # ou via CLI native C
 c/pscc --check path/to/file.pts
+```
+
+Exécution (runtime de référence) :
+
+```bash
+bin/protoscriptc --run path/to/file.pts
 ```
 
 Affichage IR :
@@ -94,6 +104,20 @@ Runner opt-safety :
 ```bash
 BACKEND_C_STABLE=1 tests/run_opt_safety.sh
 ```
+
+Validation du format IR sérialisé :
+
+```bash
+tests/run_ir_format.sh
+```
+
+Validation croisée runtime (oracle Node vs backend C compilé) :
+
+```bash
+tests/run_runtime_crosscheck.sh
+```
+
+Le runner écrit `tests/.runtime_crosscheck_passed` si la parité runtime est validée.
 
 ## Build de la CLI C
 

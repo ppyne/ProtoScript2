@@ -1,3 +1,5 @@
+![ProtoScript2](header.png)
+
 ## Glossaire des acronymes et termes techniques
 
 Cette section regroupe les acronymes et termes techniques utilisés dans la spécification, avec une définition opérationnelle et un exemple.

@@ -1,3 +1,5 @@
+![ProtoScript2](header.png)
+
 # ProtoScript V2 — Implementation Strategy
 
 Ce document fixe la stratégie d’implémentation pour éviter les régressions de sémantique pendant la transition vers une CLI native en C.

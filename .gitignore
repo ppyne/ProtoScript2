@@ -1,2 +1,4 @@
 .DS_Store
+tests/.conformance_passed
+tests/.runtime_crosscheck_passed
 *.o

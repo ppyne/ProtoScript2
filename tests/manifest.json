@@ -20,7 +20,10 @@
       "edge/overflow_int_add",
       "edge/oob_list_index",
       "edge/variadic_empty_call",
-      "edge/switch_no_termination"
+      "edge/switch_no_termination",
+      "edge/map_key_present",
+      "edge/map_iteration_in",
+      "edge/map_iteration_of"
     ]
   }
 }

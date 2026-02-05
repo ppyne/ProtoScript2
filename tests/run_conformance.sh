@@ -102,9 +102,16 @@ while IFS= read -r case_id; do
   line="$(jq -r '.position.line // empty' "$expect")"
   col="$(jq -r '.position.column // empty' "$expect")"
 
-  if [[ -z "$status" || -z "$error_code" || -z "$category" || -z "$line" || -z "$col" ]]; then
+  if [[ -z "$status" ]]; then
     echo "FAIL $case_id"
     echo "  malformed expectation file: missing required field(s)"
+    fail=$((fail + 1))
+    rm -f "$out"
+    continue
+  fi
+  if [[ "$status" != "accept-runtime" && ( -z "$error_code" || -z "$category" || -z "$line" || -z "$col" ) ]]; then
+    echo "FAIL $case_id"
+    echo "  malformed expectation file: missing error expectations"
     fail=$((fail + 1))
     rm -f "$out"
     continue
@@ -132,6 +139,19 @@ while IFS= read -r case_id; do
         rc=$?
       fi
       ;;
+    accept-runtime)
+      if [[ "$FRONTEND_ONLY" == "1" ]]; then
+        echo "SKIP $case_id (accept-runtime, frontend-only)"
+        skip=$((skip + 1))
+        rm -f "$out"
+        continue
+      fi
+      if run_with_prefix "$CONFORMANCE_RUN_CMD" "$src" "$out"; then
+        rc=0
+      else
+        rc=$?
+      fi
+      ;;
     *)
       echo "FAIL $case_id"
       echo "  unsupported status in expect: $status"
@@ -143,25 +163,39 @@ while IFS= read -r case_id; do
 
   ok=true
 
-  # All current normative cases are rejection cases: non-zero is required.
-  if [[ "$rc" -eq 0 ]]; then
-    ok=false
-    reason="expected non-zero exit for $status"
-  fi
+  if [[ "$status" == "accept-runtime" ]]; then
+    expected_stdout="$(jq -r '.expected_stdout // empty' "$expect")"
+    if [[ "$rc" -ne 0 ]]; then
+      ok=false
+      reason="expected zero exit for accept-runtime"
+    fi
+    if [[ "$ok" == true && -n "$expected_stdout" ]]; then
+      actual_stdout="$(cat "$out")"
+      if [[ "$actual_stdout" != "$expected_stdout" ]]; then
+        ok=false
+        reason="stdout mismatch for accept-runtime"
+      fi
+    fi
+  else
+    if [[ "$rc" -eq 0 ]]; then
+      ok=false
+      reason="expected non-zero exit for $status"
+    fi
 
-  if [[ "$ok" == true ]] && ! check_output_contains "$error_code" "$out"; then
-    ok=false
-    reason="missing error_code '$error_code' in compiler output"
-  fi
+    if [[ "$ok" == true ]] && ! check_output_contains "$error_code" "$out"; then
+      ok=false
+      reason="missing error_code '$error_code' in compiler output"
+    fi
 
-  if [[ "$ok" == true ]] && ! check_output_contains "$category" "$out"; then
-    ok=false
-    reason="missing category '$category' in compiler output"
-  fi
+    if [[ "$ok" == true ]] && ! check_output_contains "$category" "$out"; then
+      ok=false
+      reason="missing category '$category' in compiler output"
+    fi
 
-  if [[ "$ok" == true ]] && ! line_col_match "$line" "$col" "$out"; then
-    ok=false
-    reason="missing line:column '${line}:${col}' in compiler output"
+    if [[ "$ok" == true ]] && ! line_col_match "$line" "$col" "$out"; then
+      ok=false
+      reason="missing line:column '${line}:${col}' in compiler output"
+    fi
   fi
 
   if [[ "$ok" == true ]]; then

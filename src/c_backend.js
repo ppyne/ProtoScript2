@@ -20,6 +20,8 @@ function cScalarType(typeName) {
       return "ps_string";
     case "void":
       return "void";
+    case "iter_cursor":
+      return "ps_iter_cursor";
     default:
       return null;
   }
@@ -29,6 +31,35 @@ function parseContainer(typeName) {
   const m = /^([a-zA-Z_][a-zA-Z0-9_]*)<(.*)>$/.exec(typeName);
   if (!m) return null;
   return { kind: m[1], inner: m[2] };
+}
+
+function splitTypeArgs(inner) {
+  const parts = [];
+  let depth = 0;
+  let start = 0;
+  for (let i = 0; i < inner.length; i += 1) {
+    const ch = inner[i];
+    if (ch === "<") depth += 1;
+    else if (ch === ">") depth -= 1;
+    else if (ch === "," && depth === 0) {
+      parts.push(inner.slice(start, i).trim());
+      start = i + 1;
+    }
+  }
+  parts.push(inner.slice(start).trim());
+  return parts.filter((p) => p.length > 0);
+}
+
+function parseMapType(typeName) {
+  const c = parseContainer(typeName);
+  if (!c || c.kind !== "map") return null;
+  const args = splitTypeArgs(c.inner);
+  if (args.length !== 2) return null;
+  return {
+    keyType: args[0],
+    valueType: args[1],
+    base: baseName(c.inner),
+  };
 }
 
 function cTypeFromName(typeName) {
@@ -71,6 +102,7 @@ function inferTempTypes(ir) {
               changed = true;
             }
           };
+          const getType = (k) => tempTypes.get(k) || varTypes.get(k) || null;
           switch (i.op) {
             case "var_decl":
               varTypes.set(i.name, i.type.name);
@@ -101,27 +133,64 @@ function inferTempTypes(ir) {
             case "call_static":
               if (fnRet.has(i.callee)) set(i.dst, fnRet.get(i.callee));
               break;
+            case "call_method_static":
+              set(i.dst, "int");
+              break;
+            case "call_unknown":
+              set(i.dst, "int");
+              break;
+            case "call_builtin_tostring":
+              set(i.dst, "string");
+              break;
             case "select":
               if (tempTypes.has(i.thenValue)) set(i.dst, tempTypes.get(i.thenValue));
               break;
             case "make_view":
-              if (i.kind === "view") set(i.dst, "view<int>");
-              if (i.kind === "slice") set(i.dst, "slice<int>");
+              if (getType(i.source)) {
+                const src = getType(i.source);
+                const p = parseContainer(src);
+                if (src === "string") {
+                  if (i.kind === "view") set(i.dst, "view<glyph>");
+                  if (i.kind === "slice") set(i.dst, "slice<glyph>");
+                } else if (p && ["list", "slice", "view"].includes(p.kind)) {
+                  if (i.kind === "view") set(i.dst, `view<${p.inner}>`);
+                  if (i.kind === "slice") set(i.dst, `slice<${p.inner}>`);
+                }
+              }
               break;
             case "iter_begin":
               set(i.dst, "iter_cursor");
               break;
             case "iter_next":
-              if (tempTypes.has(i.iter)) set(i.dst, "int");
+              if (getType(i.source)) {
+                const src = getType(i.source);
+                if (src === "string") set(i.dst, "glyph");
+                const p = parseContainer(src);
+                if (p && ["list", "slice", "view"].includes(p.kind)) set(i.dst, p.inner);
+                if (p && p.kind === "map") {
+                  const args = splitTypeArgs(p.inner);
+                  if (args.length === 2) set(i.dst, i.mode === "in" ? args[0] : args[1]);
+                }
+              }
               break;
             case "make_list":
               if (i.items.length > 0 && tempTypes.has(i.items[0])) set(i.dst, `list<${tempTypes.get(i.items[0])}>`);
               break;
+            case "make_map":
+              if (i.pairs.length > 0) {
+                const first = i.pairs[0];
+                if (getType(first.key) && getType(first.value)) set(i.dst, `map<${getType(first.key)},${getType(first.value)}>`);
+              }
+              break;
             case "index_get":
-              if (tempTypes.has(i.target)) {
-                const t = tempTypes.get(i.target);
+              if (getType(i.target)) {
+                const t = getType(i.target);
                 const p = parseContainer(t);
-                if (p && ["list", "slice", "view", "map"].includes(p.kind)) set(i.dst, p.inner);
+                if (p && ["list", "slice", "view"].includes(p.kind)) set(i.dst, p.inner);
+                if (p && p.kind === "map") {
+                  const args = splitTypeArgs(p.inner);
+                  if (args.length === 2) set(i.dst, args[1]);
+                }
                 if (t === "string") set(i.dst, "glyph");
               }
               break;
@@ -164,8 +233,68 @@ function emitTypeDecls(typeNames) {
     } else if (p.kind === "slice") {
       out.push(`typedef struct { ${innerC}* ptr; size_t len; } ps_slice_${bn};`);
     } else if (p.kind === "map") {
-      out.push(`typedef struct { void* impl; size_t len; } ps_map_${bn};`);
+      const m = parseMapType(t);
+      if (m) {
+        out.push(
+          `typedef struct { ${cTypeFromName(m.keyType)}* keys; ${cTypeFromName(m.valueType)}* values; size_t len; size_t cap; } ps_map_${bn};`
+        );
+      }
     }
+  }
+  return out;
+}
+
+function keyEqExpr(a, b, keyType) {
+  if (keyType === "string") return `(${a}.len == ${b}.len && memcmp(${a}.ptr, ${b}.ptr, ${a}.len) == 0)`;
+  return `(${a} == ${b})`;
+}
+
+function emitContainerHelpers(typeNames) {
+  const out = [];
+  const seenMaps = new Set();
+  for (const t of typeNames) {
+    const m = parseMapType(t);
+    if (!m || seenMaps.has(m.base)) continue;
+    seenMaps.add(m.base);
+    const mapC = `ps_map_${m.base}`;
+    const keyC = cTypeFromName(m.keyType);
+    const valC = cTypeFromName(m.valueType);
+    const eq = keyEqExpr("m->keys[i]", "key", m.keyType);
+    out.push(`static bool ps_map_find_${m.base}(const ${mapC}* m, ${keyC} key, size_t* out_idx) {`);
+    out.push("  for (size_t i = 0; i < m->len; i += 1) {");
+    out.push(`    if ${eq} {`);
+    out.push("      if (out_idx) *out_idx = i;");
+    out.push("      return true;");
+    out.push("    }");
+    out.push("  }");
+    out.push("  return false;");
+    out.push("}");
+    out.push(`static bool ps_map_has_key_${m.base}(const ${mapC}* m, ${keyC} key) {`);
+    out.push(`  return ps_map_find_${m.base}(m, key, NULL);`);
+    out.push("}");
+    out.push(`static ${valC} ps_map_get_${m.base}(const ${mapC}* m, ${keyC} key) {`);
+    out.push("  size_t idx = 0;");
+    out.push(`  bool ok = ps_map_find_${m.base}(m, key, &idx);`);
+    out.push('  if (!ok) ps_panic("R1003", "RUNTIME_MISSING_KEY", "missing map key");');
+    out.push("  return m->values[idx];");
+    out.push("}");
+    out.push(`static void ps_map_set_${m.base}(${mapC}* m, ${keyC} key, ${valC} value) {`);
+    out.push("  size_t idx = 0;");
+    out.push(`  if (ps_map_find_${m.base}(m, key, &idx)) {`);
+    out.push("    m->values[idx] = value;");
+    out.push("    return;");
+    out.push("  }");
+    out.push("  if (m->len == m->cap) {");
+    out.push("    size_t new_cap = (m->cap == 0) ? 4 : (m->cap * 2);");
+    out.push("    m->keys = realloc(m->keys, sizeof(*m->keys) * new_cap);");
+    out.push("    m->values = realloc(m->values, sizeof(*m->values) * new_cap);");
+    out.push("    if (!m->keys || !m->values) ps_panic(\"R1998\", \"RUNTIME_OOM\", \"out of memory\");");
+    out.push("    m->cap = new_cap;");
+    out.push("  }");
+    out.push("  m->keys[m->len] = key;");
+    out.push("  m->values[m->len] = value;");
+    out.push("  m->len += 1;");
+    out.push("}");
   }
   return out;
 }
@@ -213,12 +342,19 @@ function emitFunctionPrototypes(ir) {
 }
 
 function emitInstr(i, fnInf) {
-  const t = (v) => fnInf.tempTypes.get(v) || "int";
+  const t = (v) => fnInf.tempTypes.get(v) || fnInf.varTypes.get(v) || "int";
   const n = (v) => cIdent(v);
   const out = [];
   switch (i.op) {
     case "const":
-      out.push(`${n(i.dst)} = ${i.value};`);
+      if (i.literalType === "string") {
+        out.push(`${n(i.dst)}.ptr = ${JSON.stringify(String(i.value))};`);
+        out.push(`${n(i.dst)}.len = strlen(${n(i.dst)}.ptr);`);
+      } else if (i.literalType === "bool") {
+        out.push(`${n(i.dst)} = ${(String(i.value) === "true") ? "true" : "false"};`);
+      } else {
+        out.push(`${n(i.dst)} = ${i.value};`);
+      }
       break;
     case "var_decl":
       out.push(`/* var_decl ${n(i.name)}:${i.type.name} */`);
@@ -244,7 +380,11 @@ function emitInstr(i, fnInf) {
       out.push(`ps_check_index_bounds(${n(i.target)}.len, ${n(i.index)});`);
       break;
     case "check_map_has_key":
-      out.push(`/* map lookup check */ ps_check_map_has_key(0);`);
+      {
+        const m = parseMapType(t(i.map));
+        if (m) out.push(`ps_check_map_has_key(ps_map_has_key_${m.base}(&${n(i.map)}, ${n(i.key)}));`);
+        else out.push("ps_check_map_has_key(0);");
+      }
       break;
     case "bin_op":
       out.push(`${n(i.dst)} = (${n(i.left)} ${i.operator} ${n(i.right)});`);
@@ -264,15 +404,39 @@ function emitInstr(i, fnInf) {
     case "call_method_static":
       out.push(`/* static method call */ ${n(i.dst)} = 0; /* ${i.method} */`);
       break;
+    case "call_builtin_print":
+      if (i.args.length > 0) out.push(`printf("%s\\n", ${n(i.args[0])}.ptr);`);
+      else out.push('printf("\\n");');
+      break;
+    case "call_builtin_tostring":
+      out.push(`${n(i.dst)}.ptr = "<toString>";`);
+      out.push(`${n(i.dst)}.len = 10;`);
+      break;
     case "make_view":
       out.push(`${n(i.dst)}.ptr = ${n(i.source)}.ptr;`);
       out.push(`${n(i.dst)}.len = ${n(i.len)};`);
       break;
     case "index_get":
-      out.push(`${n(i.dst)} = ${n(i.target)}.ptr[${n(i.index)}];`);
+      {
+        const tt = t(i.target);
+        const m = parseMapType(tt);
+        if (m) {
+          out.push(`${n(i.dst)} = ps_map_get_${m.base}(&${n(i.target)}, ${n(i.index)});`);
+        } else {
+          out.push(`${n(i.dst)} = ${n(i.target)}.ptr[${n(i.index)}];`);
+        }
+      }
       break;
     case "index_set":
-      out.push(`${n(i.target)}.ptr[${n(i.index)}] = ${n(i.src)};`);
+      {
+        const tt = t(i.target);
+        const m = parseMapType(tt);
+        if (m) {
+          out.push(`ps_map_set_${m.base}(&${n(i.target)}, ${n(i.index)}, ${n(i.src)});`);
+        } else {
+          out.push(`${n(i.target)}.ptr[${n(i.index)}] = ${n(i.src)};`);
+        }
+      }
       break;
     case "make_list":
       out.push(`${n(i.dst)}.len = ${i.items.length};`);
@@ -283,8 +447,16 @@ function emitInstr(i, fnInf) {
       i.items.forEach((it, idx) => out.push(`${n(i.dst)}.ptr[${idx}] = ${n(it)};`));
       break;
     case "make_map":
-      out.push(`${n(i.dst)}.impl = NULL;`);
-      out.push(`${n(i.dst)}.len = ${i.pairs.length};`);
+      out.push(`${n(i.dst)}.keys = NULL;`);
+      out.push(`${n(i.dst)}.values = NULL;`);
+      out.push(`${n(i.dst)}.len = 0;`);
+      out.push(`${n(i.dst)}.cap = 0;`);
+      {
+        const m = parseMapType(t(i.dst));
+        if (m) {
+          i.pairs.forEach((p) => out.push(`ps_map_set_${m.base}(&${n(i.dst)}, ${n(p.key)}, ${n(p.value)});`));
+        }
+      }
       break;
     case "member_get":
       out.push(`/* member_get ${i.name} */ ${n(i.dst)} = 0;`);
@@ -312,7 +484,14 @@ function emitInstr(i, fnInf) {
       out.push(`if (${n(i.iter)}.i < ${n(i.iter)}.n) goto ${i.then}; else goto ${i.else};`);
       break;
     case "iter_next":
-      out.push(`${n(i.dst)} = 0; /* iterator element extraction backend TODO */`);
+      {
+        const srcType = t(i.source);
+        const m = parseMapType(srcType);
+        if (m && i.mode === "in") out.push(`${n(i.dst)} = ${n(i.source)}.keys[${n(i.iter)}.i];`);
+        else if (m && i.mode === "of") out.push(`${n(i.dst)} = ${n(i.source)}.values[${n(i.iter)}.i];`);
+        else if (srcType === "string") out.push(`${n(i.dst)} = (uint8_t)${n(i.source)}.ptr[${n(i.iter)}.i];`);
+        else out.push(`${n(i.dst)} = ${n(i.source)}.ptr[${n(i.iter)}.i];`);
+      }
       out.push(`${n(i.iter)}.i += 1;`);
       break;
     case "select":
@@ -380,10 +559,13 @@ function generateC(ir) {
   out.push("#include <stdint.h>");
   out.push("#include <stdio.h>");
   out.push("#include <stdlib.h>");
+  out.push("#include <string.h>");
   out.push("");
   out.push(...emitTypeDecls(typeNames));
   out.push("");
   out.push(...emitRuntimeHelpers());
+  out.push("");
+  out.push(...emitContainerHelpers(typeNames));
   out.push("");
   out.push(...emitFunctionPrototypes(ir));
   out.push("");

@@ -1,3 +1,5 @@
+![ProtoScript2](../header.png)
+
 # ProtoScript V2 Conformance Kit (WIP)
 
 Règle d'or: le compilateur est correct uniquement s'il passe 100 % des tests normatifs.
@@ -18,11 +20,16 @@ Chaque cas contient:
 
 Champs attendus dans `*.expect.json`:
 
-- `status`: `reject-parse` | `reject-static` | `reject-runtime`
+- `status`: `reject-parse` | `reject-static` | `reject-runtime` | `accept-runtime`
 - `error_family`: `E1xxx` | `E2xxx` | `E3xxx` | `E4xxx` | `Rxxxx`
 - `error_code`: code canonique stable
 - `category`: catégorie d'erreur normative
 - `position`: `file`, `line`, `column`
+
+Pour les cas positifs runtime :
+
+- `status`: `accept-runtime`
+- `expected_stdout`: sortie standard exacte attendue
 
 ## Exécution
 
@@ -37,6 +44,9 @@ Exemples :
 - `CONFORMANCE_CHECK_CMD=\"./myc check\" CONFORMANCE_RUN_CMD=\"./myc run\" tests/run_conformance.sh`
 
 Le runner écrit `tests/.conformance_passed` uniquement si la suite complète passe sans skip.
+
+Runner runtime crosscheck: `tests/run_runtime_crosscheck.sh`
+Le runner écrit `tests/.runtime_crosscheck_passed` si la parité runtime Node/C est validée.
 
 ## Opt Safety
 

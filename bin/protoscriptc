@@ -4,6 +4,7 @@
 const fs = require("fs");
 const path = require("path");
 const { check, parseAndAnalyze, formatDiag, FrontendError } = require("../src/frontend");
+const { runProgram, RuntimeError } = require("../src/runtime");
 const { buildIR, printIR, serializeIR, validateSerializedIR } = require("../src/ir");
 const { generateC } = require("../src/c_backend");
 const { optimizeIR } = require("../src/optimizer");
@@ -11,6 +12,7 @@ const { optimizeIR } = require("../src/optimizer");
 function usage() {
   console.error("Usage:");
   console.error("  protoscriptc --check <file.pts>");
+  console.error("  protoscriptc --run <file.pts>");
   console.error("  protoscriptc --emit-ir <file.pts>");
   console.error("  protoscriptc --emit-ir-json <file.pts> [--opt]");
   console.error("  protoscriptc --validate-ir <file.json>");
@@ -27,6 +29,7 @@ const optEnabled = args.includes("--opt");
 
 if (
   mode !== "--check" &&
+  mode !== "--run" &&
   mode !== "--emit-ir" &&
   mode !== "--emit-ir-json" &&
   mode !== "--validate-ir" &&
@@ -70,6 +73,16 @@ try {
     process.exit(0);
   }
 
+  if (mode === "--run") {
+    const { ast, diags } = parseAndAnalyze(file, src);
+    if (diags.length > 0) {
+      for (const d of diags) console.error(formatDiag(d));
+      process.exit(1);
+    }
+    runProgram(ast, file);
+    process.exit(0);
+  }
+
   const { ast, diags } = parseAndAnalyze(file, src);
   if (diags.length > 0) {
     for (const d of diags) console.error(formatDiag(d));
@@ -91,6 +104,10 @@ try {
   process.stdout.write(generateC(ir));
   process.exit(0);
 } catch (e) {
+  if (e instanceof RuntimeError && e.diag) {
+    console.error(formatDiag(e.diag));
+    process.exit(1);
+  }
   if (e instanceof FrontendError && e.diag) {
     console.error(formatDiag(e.diag));
     process.exit(1);
@@ -102,9 +119,15 @@ try {
 function enforceOptimizationGate() {
   const repoRoot = path.resolve(__dirname, "..");
   const conformanceStamp = path.join(repoRoot, "tests", ".conformance_passed");
+  const runtimeCrosscheckStamp = path.join(repoRoot, "tests", ".runtime_crosscheck_passed");
   if (!fs.existsSync(conformanceStamp)) {
     console.error("error: optimization gate closed (missing tests/.conformance_passed).");
     console.error("run full conformance first (no skips).");
+    process.exit(2);
+  }
+  if (!fs.existsSync(runtimeCrosscheckStamp)) {
+    console.error("error: optimization gate closed (missing tests/.runtime_crosscheck_passed).");
+    console.error("run runtime crosscheck first (tests/run_runtime_crosscheck.sh).");
     process.exit(2);
   }
   if (process.env.BACKEND_C_STABLE !== "1") {

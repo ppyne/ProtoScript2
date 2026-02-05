@@ -1,3 +1,5 @@
+![ProtoScript2](header.png)
+
 # ProtoScript V2 — Spécification
 
 # 1. Objectifs

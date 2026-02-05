@@ -1,3 +1,5 @@
+![ProtoScript2](header.png)
+
 # ProtoScript V2 — IR Serialized Format
 
 Version courante : `1.0.0`

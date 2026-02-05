@@ -1,3 +1,5 @@
+![ProtoScript2](header.png)
+
 # ProtoScript V2 — Rationale
 
 Ce document explique les décisions de conception qui peuvent paraître restrictives à première vue.

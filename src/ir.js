@@ -203,23 +203,26 @@ class IRBuilder {
       return;
     }
 
-    const iter = this.nextBlock(`for_${stmt.forKind}_iter_`);
+    const init = this.nextBlock(`for_${stmt.forKind}_init_`);
+    const cond = this.nextBlock(`for_${stmt.forKind}_cond_`);
     const body = this.nextBlock(`for_${stmt.forKind}_body_`);
     const done = this.nextBlock(`for_${stmt.forKind}_done_`);
-    const bIter = { kind: "Block", label: iter, instrs: [] };
+    const bInit = { kind: "Block", label: init, instrs: [] };
+    const bCond = { kind: "Block", label: cond, instrs: [] };
     const bBody = { kind: "Block", label: body, instrs: [] };
     const bDone = { kind: "Block", label: done, instrs: [] };
-    irFn.blocks.push(bIter, bBody, bDone);
+    irFn.blocks.push(bInit, bCond, bBody, bDone);
 
-    const seq = this.lowerExpr(stmt.iterExpr, bIter, irFn, scope);
+    const seq = this.lowerExpr(stmt.iterExpr, bInit, irFn, scope);
     const cursor = this.nextTemp();
-    this.emit(block, { op: "jump", target: iter });
-    this.emit(bIter, { op: "iter_begin", dst: cursor, source: seq.value, mode: stmt.forKind });
-    this.emit(bIter, { op: "branch_iter_has_next", iter: cursor, then: body, else: done });
+    this.emit(block, { op: "jump", target: init });
+    this.emit(bInit, { op: "iter_begin", dst: cursor, source: seq.value, mode: stmt.forKind });
+    this.emit(bInit, { op: "jump", target: cond });
+    this.emit(bCond, { op: "branch_iter_has_next", iter: cursor, then: body, else: done });
 
     const sBody = new Scope(scope);
     const elem = this.nextTemp();
-    this.emit(bBody, { op: "iter_next", dst: elem, iter: cursor, mode: stmt.forKind });
+    this.emit(bBody, { op: "iter_next", dst: elem, iter: cursor, source: seq.value, mode: stmt.forKind });
     if (stmt.iterVar) {
       const vt = stmt.iterVar.declaredType || this.elementTypeForIter(seq.type, stmt.forKind);
       sBody.define(stmt.iterVar.name, vt);
@@ -227,7 +230,7 @@ class IRBuilder {
       this.emit(bBody, { op: "store_var", name: stmt.iterVar.name, src: elem, type: lowerType(vt) });
     }
     this.lowerStmt(stmt.body, bBody, irFn, sBody);
-    this.emit(bBody, { op: "jump", target: iter });
+    this.emit(bBody, { op: "jump", target: cond });
     this.emit(bDone, { op: "nop" });
   }
 
@@ -398,9 +401,19 @@ class IRBuilder {
     }
 
     if (expr.callee.kind === "MemberExpr") {
-      const recv = this.lowerExpr(expr.callee.target, block, irFn, scope);
       const method = expr.callee.name;
+      if (expr.callee.target.kind === "Identifier" && expr.callee.target.name === "Sys" && method === "print") {
+        const args = expr.args.map((a) => this.lowerExpr(a, block, irFn, scope));
+        this.emit(block, { op: "call_builtin_print", args: args.map((a) => a.value) });
+        return { value: this.nextTemp(), type: { kind: "PrimitiveType", name: "void" } };
+      }
+      const recv = this.lowerExpr(expr.callee.target, block, irFn, scope);
       const args = expr.args.map((a) => this.lowerExpr(a, block, irFn, scope));
+      if (method === "toString") {
+        const dst = this.nextTemp();
+        this.emit(block, { op: "call_builtin_tostring", dst, value: recv.value });
+        return { value: dst, type: { kind: "PrimitiveType", name: "string" } };
+      }
       if (method === "view" || method === "slice") {
         const dst = this.nextTemp();
         const len = args.length >= 2 ? args[1].value : `len(${recv.value})`;
@@ -520,6 +533,10 @@ function formatInstr(i) {
       return `${i.dst} = call_static ${i.callee}(${i.args.join(", ")})`;
     case "call_method_static":
       return `${i.dst} = call_method_static ${i.receiver}.${i.method}(${i.args.join(", ")})`;
+    case "call_builtin_print":
+      return `call_builtin_print(${i.args.join(", ")})`;
+    case "call_builtin_tostring":
+      return `${i.dst} = call_builtin_tostring(${i.value})`;
     case "make_view":
       return `${i.dst} = make_${i.kind}(source=${i.source}, len=${i.len}, readonly=${i.readonly})`;
     case "index_get":
@@ -610,6 +627,8 @@ function validateSerializedIR(doc) {
     "call_static",
     "call_method_static",
     "call_unknown",
+    "call_builtin_print",
+    "call_builtin_tostring",
     "make_view",
     "index_get",
     "index_set",
