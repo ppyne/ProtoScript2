@@ -4,8 +4,6 @@
 
 ProtoScript2 est un projet de langage avec spécification normative et chaîne de compilation de référence.
 
-![La magie cache les coûts. ProtoScript les rend visibles.](slogan.png)
-
 ## Positionnement
 
 ProtoScript2 suit ces choix structurants :
@@ -19,6 +17,8 @@ ProtoScript2 suit ces choix structurants :
 
 La spécification de référence est dans `SPECIFICATION.md`.
 Format IR sérialisé : `IR_FORMAT.md`.
+
+![La magie cache les coûts. ProtoScript les rend visibles.](slogan.png)
 
 ## État actuel du dépôt
 
