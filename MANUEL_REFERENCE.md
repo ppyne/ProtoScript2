@@ -128,9 +128,55 @@ Contre-exemple :
 // string s = null;
 ```
 
+### 3.3.1 Alternative idiomatique : prototype "nullable"
+
+Quand un type "vide" est nécessaire, on utilise un prototype explicite avec un indicateur statique.
+
+Exemple (chaîne nullable) :
+
+```c
+prototype NullableString {
+    bool is_null;
+    string value;
+
+    function isNull() : bool {
+        return self.is_null;
+    }
+}
+
+function main() : void {
+    NullableString a = NullableString.clone();
+    a.is_null = true;
+
+    NullableString b = NullableString.clone();
+    b.is_null = false;
+    b.value = "ok";
+
+    if (a.isNull()) {
+        Sys.print("empty");
+    }
+    if (!b.isNull()) {
+        Sys.print(b.value);
+    }
+}
+```
+
+Pourquoi ?
+
+Cette approche rend l'absence explicite et statiquement typée, sans introduire de nullité implicite.
+
 ### 3.4 Valeurs par défaut
 
 Une variable locale doit être assignée avant lecture.
+
+Exemple :
+
+```c
+function main() : void {
+    int x = 1;
+    Sys.print(x.toString());
+}
+```
 
 Contre-exemple :
 
@@ -222,6 +268,24 @@ var n = 10;
 int x = 20;
 ```
 
+`var` déclenche une inférence locale du type à partir de l'initialiseur.
+Le type reste statique et connu à la compilation.
+Une déclaration `var` doit donc toujours avoir une valeur d'initialisation.
+
+Exemple :
+
+```c
+var s = "ok";  // s : string
+var n = 12;    // n : int
+```
+
+Contre-exemple :
+
+```c
+// invalide : `var` sans initialiseur
+// var x;
+```
+
 ### 5.2 Portée lexicale et shadowing
 
 ```c
@@ -239,14 +303,37 @@ function main() : void {
 
 Une variable non assignée ne peut pas être lue.
 
+Exemple :
+
+```c
+function main() : void {
+    int x = 1;
+    int y = x + 1;
+    Sys.print(y.toString());
+}
+```
+
+Contre-exemple :
+
+```c
+function main() : void {
+    int x;
+    Sys.print(x.toString()); // invalide : x non initialisée
+}
+```
+
+Erreur attendue :
+
+- erreur statique (famille `E4xxx`) liée à l'absence d'assignation définitive
+
 ### 5.4 Ce qui n'existe pas
 
-- Pas de variables dynamiques nommées à l'exécution.
-- Pas de superglobales.
+- Pas de variable dynamique nommée à l'exécution.
+- Pas de superglobale (variable globale prédéfinie, accessible partout sans déclaration explicite).
 
 ### 5.5 Comparaison utile (PHP/JS)
 
-En JS/PHP, des accès à des noms dynamiques peuvent exister. Ici, la résolution est compile-time.
+En JS/PHP, des accès à des noms dynamiques peuvent exister. Ici, la résolution est réalisée à la compilation (compile-time).
 
 ---
 
@@ -307,7 +394,68 @@ Interdire l'affectation en expression supprime une source classique d'effets de 
 - Logiques : `&& || !`
 - Bitwise : `& | ^ ~ << >>`
 - Affectation : `= += -= *= /=`
-- Increment/decrement : `++ --`
+- Incrémentation / décrémentation : `++ --`
+
+#### 7.1.1 Opérateurs arithmétiques
+
+| Exemple | Nom | Résultat |
+|---|---|---|
+| `a + b` | Addition | Somme de `a` et `b`. |
+| `a - b` | Soustraction | Différence de `a` et `b`. |
+| `a * b` | Multiplication | Produit de `a` et `b`. |
+| `a / b` | Division | Quotient de `a` et `b`. |
+| `a % b` | Modulo | Reste de `a / b`. |
+
+#### 7.1.2 Opérateurs de comparaison
+
+| Exemple | Nom | Résultat |
+|---|---|---|
+| `a == b` | Égal | `true` si `a` est égal à `b` (types compatibles, pas de conversion implicite). |
+| `a != b` | Différent | `true` si `a` est différent de `b` (types compatibles, pas de conversion implicite). |
+| `a < b` | Plus petit que | `true` si `a` est strictement plus petit que `b`. |
+| `a > b` | Plus grand que | `true` si `a` est strictement plus grand que `b`. |
+| `a <= b` | Inférieur ou égal | `true` si `a` est plus petit ou égal à `b`. |
+| `a >= b` | Supérieur ou égal | `true` si `a` est plus grand ou égal à `b`. |
+
+#### 7.1.3 Opérateurs logiques
+
+| Exemple | Nom | Résultat |
+|---|---|---|
+| `!a` | Not (Non) | `true` si `a` n'est pas `true`. |
+| `a && b` | And (Et) | `true` si `a` ET `b` sont `true` (court-circuit). |
+| `a || b` | Or (Ou) | `true` si `a` OU `b` est `true` (court-circuit). |
+
+#### 7.1.4 Opérateurs sur les bits
+
+| Exemple | Nom | Résultat |
+|---|---|---|
+| `a & b` | And (Et) | Bits à 1 dans `a` ET dans `b` restent à 1. |
+| `a | b` | Or (Ou) | Bits à 1 dans `a` OU dans `b` restent à 1. |
+| `a ^ b` | Xor (Ou exclusif) | Bits à 1 dans `a` OU dans `b` mais pas dans les deux. |
+| `~a` | Not (Non) | Inversion bit à bit de `a`. |
+| `a << b` | Décalage à gauche | Décale les bits de `a` de `b` positions vers la gauche. |
+| `a >> b` | Décalage à droite | Décale les bits de `a` de `b` positions vers la droite. |
+
+#### 7.1.5 Opérateurs d'affectation
+
+| Exemple | Équivalent | Opération |
+|---|---|---|
+| `a = b` | `a = b` | Affectation simple. |
+| `a += b` | `a = a + b` | Addition. |
+| `a -= b` | `a = a - b` | Soustraction. |
+| `a *= b` | `a = a * b` | Multiplication. |
+| `a /= b` | `a = a / b` | Division. |
+
+#### 7.1.6 Incrémentation et décrémentation
+
+| Exemple | Équivalent | Opération |
+|---|---|---|
+| `++a` | Pré-incrémente | Incrémente `a` de 1, puis retourne `a`. |
+| `a++` | Post-incrémente | Retourne `a`, puis incrémente `a` de 1. |
+| `--a` | Pré-décrémente | Décrémente `a` de 1, puis retourne `a`. |
+| `a--` | Post-décrémente | Retourne `a`, puis décrémente `a` de 1. |
+
+En contexte d'expression, la forme pré/post indique si la modification intervient avant ou après l'utilisation de la valeur.
 
 ### 7.2 Exemples
 
@@ -330,9 +478,17 @@ Contre-exemple :
 
 Utiliser la concaténation explicite disponible par API/méthode.
 
+Exemple correct de concaténation explicite :
+
+```c
+string a = "Hello ";
+string b = "world";
+string c = a.concat(b);
+```
+
 ### 7.4 Erreur fréquente
 
-Traiter `+` comme concaténation universelle (réflexe JS/PHP). En ProtoScript V2, le code doit rester explicite.
+Traiter `+` ou `.` comme concaténation universelle (réflexe JS/PHP). En ProtoScript V2, le code doit rester explicite.
 
 ---
 
@@ -348,19 +504,169 @@ if (x > 0) {
 }
 ```
 
-### 8.2 Boucles
+Le bloc est optionnel si la branche contient une seule instruction.
 
 ```c
-while (cond) { ... }
-do { ... } while (cond);
-for (int i = 0; i < 10; i = i + 1) { ... }
-for (int v of xs) { ... }
-for (string k in mm) { ... }
+if (x > 0)
+    Sys.print("pos");
 ```
+
+Exemple avec `else if` :
+
+```c
+if (x > 0) {
+    Sys.print("pos");
+} else if (x < 0) {
+    Sys.print("neg");
+} else {
+    Sys.print("zero");
+}
+```
+
+### 8.2 Boucles
+
+ProtoScript V2 propose des boucles classiques et des boucles d'itération.
+
+#### 8.2.1 while
+
+```c
+while (cond) {
+    // ...
+}
+```
+
+#### 8.2.2 do / while
+
+```c
+do {
+    // ...
+} while (cond);
+```
+
+#### 8.2.3 for classique
+
+```c
+for (int i = 0; i < 10; i++) {
+    // ...
+}
+```
+
+Exemples d'itération indexée :
+
+```c
+list<int> xs = [10, 20, 30];
+for (int i = 0; i < xs.length(); i = i + 1) {
+    Sys.print(xs[i].toString());
+}
+```
+
+```c
+string s = "abc";
+for (int i = 0; i < s.length(); ++i) {
+    glyph g = s[i];
+    Sys.print(g.toString());
+}
+```
+
+Note :
+
+`map<K,V>` ne s'itère pas par index. Utiliser `for ... of` (valeurs) ou `for ... in` (clés).
+Alternative explicite : récupérer les clés puis itérer sur la liste de clés.
+
+```c
+map<string, int> m = {"a": 1, "b": 2};
+list<string> ks = m.keys();
+for (int i = 0; i < ks.length(); i++) {
+    int v = m[ks[i]];
+    Sys.print(v.toString());
+}
+```
+
+#### 8.2.4 for ... of (itération sur les valeurs)
+
+`for ... of` itère sur les valeurs d'une structure itérable.
+
+```c
+list<int> xs = [1, 2, 3];
+for (int v of xs) {
+    Sys.print(v.toString());
+}
+```
+
+Sur `string`, `for ... of` itère sur les glyphes :
+
+```c
+string s = "a😀b";
+for (glyph g of s) {
+    Sys.print(g.toString());
+}
+```
+
+Sur `map<K,V>`, `for ... of` itère sur les valeurs `V` :
+
+```c
+map<string, int> m = {"a": 1, "b": 2};
+for (int v of m) {
+    Sys.print(v.toString());
+}
+```
+
+#### 8.2.5 for ... in (itération sur les clés)
+
+`for ... in` itère sur les clés d'une map (et uniquement une map).
+
+```c
+map<string, int> m = {"a": 1, "b": 2};
+for (string k in m) {
+    Sys.print(k);
+}
+```
+
+Contre-exemple :
+
+```c
+list<int> xs = [1, 2, 3];
+// invalide : `for ... in` ne s'applique pas à `list<T>`
+// for (int v in xs) { ... }
+
+string s = "abc";
+// invalide : `for ... in` ne s'applique pas à `string`
+// for (glyph g in s) { ... }
+```
+
+Erreur fréquente :
+
+Confondre `for ... of` (valeurs) et `for ... in` (clés).
 
 ### 8.3 break / continue
 
-Supportées dans les boucles.
+`break` et `continue` sont disponibles dans les boucles :
+
+- `break` sort immédiatement de la boucle courante.
+- `continue` passe directement à l'itération suivante.
+
+Exemple `break` :
+
+```c
+list<int> xs = [1, 2, 3, 4];
+for (int v of xs) {
+    if (v == 3) {
+        break;
+    }
+    Sys.print(v.toString());
+}
+```
+
+Exemple `continue` :
+
+```c
+for (int i = 0; i < 5; i++) {
+    if (i == 2) {
+        continue;
+    }
+    Sys.print(i.toString());
+}
+```
 
 ### 8.4 switch sans fallthrough implicite
 
@@ -375,12 +681,32 @@ default:
 }
 ```
 
+Chaque `case` / `default` doit se terminer par une instruction de terminaison explicite :
+
+- `break` : quitte le `switch`
+- `return` : quitte la fonction
+- `throw` : lève une exception
+
 Contre-exemple :
 
 ```c
 switch (x) {
 case 1:
     Sys.print("one"); // invalide sans terminaison explicite
+default:
+    Sys.print("other");
+    break;
+}
+```
+
+Contre-exemple (fallthrough implicite) :
+
+```c
+switch (x) {
+case 1:
+case 2:
+    Sys.print("one and two"); // invalide : fallthrough implicite
+    break;
 default:
     Sys.print("other");
     break;
@@ -408,6 +734,15 @@ function add(int a, int b) : int {
 - Paramètres explicitement typés.
 - Type de retour explicite.
 - Pas de paramètres optionnels implicites.
+
+Contre-exemple :
+
+```c
+// invalide : paramètres par défaut non supportés
+// function greet(string name = "world") : void {
+//     Sys.print(name);
+// }
+```
 
 ### 9.3 Variadique
 
