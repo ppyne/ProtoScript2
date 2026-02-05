@@ -14,5 +14,6 @@ typedef struct {
 
 int ps_parse_file_syntax(const char *file, PsDiag *out_diag);
 int ps_parse_file_ast(const char *file, PsDiag *out_diag, FILE *out);
+int ps_check_file_static(const char *file, PsDiag *out_diag);
 
 #endif

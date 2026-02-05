@@ -50,8 +50,10 @@ Le runner écrit `tests/.runtime_crosscheck_passed` si la parité runtime Node/C
 
 Runner de validation croisée complète (diagnostics + comportement): `tests/run_node_c_crosscheck.sh`
 Option stricte AST intégrée: `tests/run_node_c_crosscheck.sh --strict-ast`
+Option stricte statique C intégrée: `tests/run_node_c_crosscheck.sh --strict-static-c`
 
 Runner dédié frontend C vs oracle Node (`--check`): `tests/run_c_frontend_oracle.sh`
+Runner dédié statique C vs oracle Node (`--check-c-static`): `tests/run_c_static_oracle.sh`
 
 Runner dédié comparaison structurelle AST (Node vs C): `tests/run_ast_structural_crosscheck.sh`
 

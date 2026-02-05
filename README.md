@@ -134,6 +134,7 @@ tests/run_ast_structural_crosscheck.sh
 make -C c
 ./c/pscc --check path/to/file.pts
 ./c/pscc --check-c path/to/file.pts
+./c/pscc --check-c-static path/to/file.pts
 ./c/pscc --ast-c path/to/file.pts
 ```
 

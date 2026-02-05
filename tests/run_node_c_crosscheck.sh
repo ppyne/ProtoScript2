@@ -7,14 +7,18 @@ MANIFEST="$TESTS_DIR/manifest.json"
 COMPILER="${COMPILER:-$ROOT_DIR/bin/protoscriptc}"
 C_COMPILER="${C_COMPILER:-$ROOT_DIR/c/pscc}"
 STRICT_AST=0
+STRICT_STATIC_C=0
 
 for arg in "$@"; do
   case "$arg" in
     --strict-ast)
       STRICT_AST=1
       ;;
+    --strict-static-c)
+      STRICT_STATIC_C=1
+      ;;
     *)
-      echo "ERROR: unsupported option '$arg' (supported: --strict-ast)" >&2
+      echo "ERROR: unsupported option '$arg' (supported: --strict-ast, --strict-static-c)" >&2
       exit 2
       ;;
   esac
@@ -54,6 +58,7 @@ echo "== Node/C Crosscheck (diagnostics + comportement) =="
 echo "Compiler: $COMPILER"
 echo "C compiler: $C_COMPILER"
 echo "Strict AST: $STRICT_AST"
+echo "Strict Static C: $STRICT_STATIC_C"
 echo
 
 while IFS= read -r case_id; do
@@ -198,6 +203,12 @@ if [[ "$STRICT_AST" == "1" ]]; then
   echo
   echo "== Strict AST check =="
   NODE_COMPILER="$COMPILER" C_COMPILER="$C_COMPILER" "$TESTS_DIR/run_ast_structural_crosscheck.sh"
+fi
+
+if [[ "$STRICT_STATIC_C" == "1" ]]; then
+  echo
+  echo "== Strict Static C check =="
+  NODE_COMPILER="$COMPILER" C_COMPILER="$C_COMPILER" "$TESTS_DIR/run_c_static_oracle.sh"
 fi
 
 echo "Node/C crosscheck PASSED."

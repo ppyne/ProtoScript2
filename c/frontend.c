@@ -634,12 +634,13 @@ static int parse_switch_stmt(Parser *p) {
   if (!p_eat(p, TK_SYM, "{")) return 0;
   while (!p_at(p, TK_SYM, "}")) {
     if (p_at(p, TK_KW, "case")) {
+      Token *case_kw = p_t(p, 0);
       p_eat(p, TK_KW, "case");
       AstNode *case_value = NULL;
       if (!parse_expr(p, &case_value)) return 0;
       if (!p_eat(p, TK_SYM, ":")) return 0;
       AstNode *case_node = NULL;
-      if (!p_ast_add(p, "CaseClause", NULL, p_t(p, -1)->line, p_t(p, -1)->col, &case_node)) return 0;
+      if (!p_ast_add(p, "CaseClause", NULL, case_kw->line, case_kw->col, &case_node)) return 0;
       if (!p_ast_push(p, case_node)) return 0;
       if (case_value && !ast_add_child(case_node, case_value)) {
         ast_free(case_value);
@@ -652,10 +653,11 @@ static int parse_switch_stmt(Parser *p) {
       continue;
     }
     if (p_at(p, TK_KW, "default")) {
+      Token *def_kw = p_t(p, 0);
       p_eat(p, TK_KW, "default");
       if (!p_eat(p, TK_SYM, ":")) return 0;
       AstNode *def_node = NULL;
-      if (!p_ast_add(p, "DefaultClause", NULL, p_t(p, -1)->line, p_t(p, -1)->col, &def_node)) return 0;
+      if (!p_ast_add(p, "DefaultClause", NULL, def_kw->line, def_kw->col, &def_node)) return 0;
       if (!p_ast_push(p, def_node)) return 0;
       while (!p_at(p, TK_KW, "case") && !p_at(p, TK_SYM, "}")) {
         if (!parse_stmt(p)) return 0;
@@ -1295,6 +1297,484 @@ static char *read_file(const char *path, size_t *out_n) {
   return buf;
 }
 
+typedef struct Sym {
+  char *name;
+  char *type;
+  struct Sym *next;
+} Sym;
+
+typedef struct Scope {
+  Sym *syms;
+  struct Scope *parent;
+} Scope;
+
+typedef struct FnSig {
+  char *name;
+  char *ret_type;
+  int param_count;
+  int fixed_count;
+  int variadic;
+  struct FnSig *next;
+} FnSig;
+
+typedef struct {
+  const char *file;
+  PsDiag *diag;
+  FnSig *fns;
+} Analyzer;
+
+static void free_syms(Sym *s) {
+  while (s) {
+    Sym *n = s->next;
+    free(s->name);
+    free(s->type);
+    free(s);
+    s = n;
+  }
+}
+
+static void free_fns(FnSig *f) {
+  while (f) {
+    FnSig *n = f->next;
+    free(f->name);
+    free(f->ret_type);
+    free(f);
+    f = n;
+  }
+}
+
+static char *canon_type(const char *in) {
+  if (!in) return strdup("unknown");
+  size_t n = strlen(in);
+  char *out = (char *)malloc(n + 1);
+  if (!out) return NULL;
+  size_t j = 0;
+  for (size_t i = 0; i < n; i++) {
+    if (in[i] != ' ' && in[i] != '\t' && in[i] != '\r' && in[i] != '\n') out[j++] = in[i];
+  }
+  out[j] = '\0';
+  return out;
+}
+
+static AstNode *ast_child_kind(AstNode *n, const char *kind) {
+  if (!n) return NULL;
+  for (size_t i = 0; i < n->child_len; i++) {
+    if (strcmp(n->children[i]->kind, kind) == 0) return n->children[i];
+  }
+  return NULL;
+}
+
+static AstNode *ast_last_child(AstNode *n) {
+  if (!n || n->child_len == 0) return NULL;
+  return n->children[n->child_len - 1];
+}
+
+static int ast_is_terminator(AstNode *n) {
+  if (!n) return 0;
+  return strcmp(n->kind, "BreakStmt") == 0 || strcmp(n->kind, "ReturnStmt") == 0 || strcmp(n->kind, "ThrowStmt") == 0;
+}
+
+static int scope_define(Scope *s, const char *name, const char *type) {
+  Sym *e = (Sym *)calloc(1, sizeof(Sym));
+  if (!e) return 0;
+  e->name = strdup(name ? name : "");
+  e->type = strdup(type ? type : "unknown");
+  if (!e->name || !e->type) {
+    free(e->name);
+    free(e->type);
+    free(e);
+    return 0;
+  }
+  e->next = s->syms;
+  s->syms = e;
+  return 1;
+}
+
+static const char *scope_lookup(Scope *s, const char *name) {
+  for (Scope *cur = s; cur; cur = cur->parent) {
+    for (Sym *e = cur->syms; e; e = e->next) {
+      if (strcmp(e->name, name) == 0) return e->type;
+    }
+  }
+  return "unknown";
+}
+
+static FnSig *find_fn(Analyzer *a, const char *name) {
+  for (FnSig *f = a->fns; f; f = f->next) {
+    if (strcmp(f->name, name) == 0) return f;
+  }
+  return NULL;
+}
+
+static int add_fn(Analyzer *a, AstNode *fn) {
+  FnSig *f = (FnSig *)calloc(1, sizeof(FnSig));
+  if (!f) return 0;
+  f->name = strdup(fn->text ? fn->text : "");
+  AstNode *rt = ast_child_kind(fn, "ReturnType");
+  char *rt_c = canon_type(rt ? rt->text : "void");
+  f->ret_type = rt_c ? rt_c : strdup("void");
+  if (!f->name || !f->ret_type) {
+    free(f->name);
+    free(f->ret_type);
+    free(f);
+    return 0;
+  }
+  for (size_t i = 0; i < fn->child_len; i++) {
+    AstNode *c = fn->children[i];
+    if (strcmp(c->kind, "Param") != 0) continue;
+    f->param_count += 1;
+    if (ast_child_kind(c, "Variadic")) f->variadic = 1;
+    else f->fixed_count += 1;
+  }
+  f->next = a->fns;
+  a->fns = f;
+  return 1;
+}
+
+static int is_all_digits(const char *s) {
+  if (!s || !*s) return 0;
+  for (const char *p = s; *p; p++) if (!isdigit((unsigned char)*p)) return 0;
+  return 1;
+}
+
+static int is_float_token(const char *s) {
+  if (!s || !*s) return 0;
+  int i = 0;
+  int seen_digit = 0;
+  int seen_dot = 0;
+  while (s[i] && isdigit((unsigned char)s[i])) {
+    seen_digit = 1;
+    i++;
+  }
+  if (s[i] == '.') {
+    seen_dot = 1;
+    i++;
+    while (s[i] && isdigit((unsigned char)s[i])) {
+      seen_digit = 1;
+      i++;
+    }
+  }
+  if (s[i] == 'e' || s[i] == 'E') {
+    if (!seen_digit) return 0;
+    i++;
+    if (s[i] == '+' || s[i] == '-') i++;
+    int exp_digit = 0;
+    while (s[i] && isdigit((unsigned char)s[i])) {
+      exp_digit = 1;
+      i++;
+    }
+    if (!exp_digit) return 0;
+    return s[i] == '\0';
+  }
+  if (!seen_dot) return 0;
+  return s[i] == '\0' && seen_digit;
+}
+
+static char *infer_expr_type(Analyzer *a, AstNode *e, Scope *scope, int *ok);
+
+static char *infer_call_type(Analyzer *a, AstNode *e, Scope *scope, int *ok) {
+  (void)scope;
+  if (e->child_len == 0) return strdup("unknown");
+  AstNode *callee = e->children[0];
+  if (strcmp(callee->kind, "Identifier") != 0) return strdup("unknown");
+  FnSig *f = find_fn(a, callee->text ? callee->text : "");
+  if (!f) return strdup("unknown");
+  int argc = (int)e->child_len - 1;
+  if (!f->variadic) {
+    if (argc != f->param_count) {
+      set_diag(a->diag, a->file, e->line, e->col, "E3001", "TYPE_MISMATCH_ASSIGNMENT", "arity mismatch");
+      *ok = 0;
+      return NULL;
+    }
+  } else {
+    if (argc <= f->fixed_count) {
+      set_diag(a->diag, a->file, e->line, e->col, "E3002", "VARIADIC_EMPTY_CALL", "variadic argument list must be non-empty");
+      *ok = 0;
+      return NULL;
+    }
+  }
+  return strdup(f->ret_type);
+}
+
+static char *infer_expr_type(Analyzer *a, AstNode *e, Scope *scope, int *ok) {
+  if (!e) return strdup("unknown");
+  if (strcmp(e->kind, "Literal") == 0) {
+    if (e->text && (strcmp(e->text, "true") == 0 || strcmp(e->text, "false") == 0)) return strdup("bool");
+    if (e->text && (is_all_digits(e->text) || is_float_token(e->text))) return strdup(is_float_token(e->text) ? "float" : "int");
+    return strdup("string");
+  }
+  if (strcmp(e->kind, "Identifier") == 0) return strdup(scope_lookup(scope, e->text ? e->text : ""));
+  if (strcmp(e->kind, "UnaryExpr") == 0 || strcmp(e->kind, "PostfixExpr") == 0 || strcmp(e->kind, "MemberExpr") == 0) {
+    if (e->child_len > 0) return infer_expr_type(a, e->children[0], scope, ok);
+    return strdup("unknown");
+  }
+  if (strcmp(e->kind, "BinaryExpr") == 0) {
+    if (e->text && (strcmp(e->text, "==") == 0 || strcmp(e->text, "!=") == 0 || strcmp(e->text, "<") == 0 ||
+                    strcmp(e->text, "<=") == 0 || strcmp(e->text, ">") == 0 || strcmp(e->text, ">=") == 0 ||
+                    strcmp(e->text, "&&") == 0 || strcmp(e->text, "||") == 0)) {
+      return strdup("bool");
+    }
+    if (e->child_len > 0) return infer_expr_type(a, e->children[0], scope, ok);
+    return strdup("unknown");
+  }
+  if (strcmp(e->kind, "ConditionalExpr") == 0) {
+    if (e->child_len >= 2) return infer_expr_type(a, e->children[1], scope, ok);
+    return strdup("unknown");
+  }
+  if (strcmp(e->kind, "CallExpr") == 0) return infer_call_type(a, e, scope, ok);
+  if (strcmp(e->kind, "IndexExpr") == 0) {
+    char *tt = infer_expr_type(a, e->child_len > 0 ? e->children[0] : NULL, scope, ok);
+    if (!tt) return NULL;
+    char *out = NULL;
+    if (strncmp(tt, "list<", 5) == 0 || strncmp(tt, "slice<", 6) == 0 || strncmp(tt, "view<", 5) == 0) {
+      char *lt = strchr(tt, '<');
+      char *gt = strrchr(tt, '>');
+      if (lt && gt && gt > lt + 1) out = dup_range(tt, (size_t)(lt - tt + 1), (size_t)(gt - tt));
+    } else if (strncmp(tt, "map<", 4) == 0) {
+      char *comma = strchr(tt, ',');
+      char *gt = strrchr(tt, '>');
+      if (comma && gt && gt > comma + 1) out = dup_range(tt, (size_t)(comma - tt + 1), (size_t)(gt - tt));
+    } else if (strcmp(tt, "string") == 0) {
+      out = strdup("glyph");
+    }
+    free(tt);
+    return out ? out : strdup("unknown");
+  }
+  if (strcmp(e->kind, "ListLiteral") == 0) {
+    if (e->child_len == 0) return strdup("list<void>");
+    char *it = infer_expr_type(a, e->children[0], scope, ok);
+    if (!it) return NULL;
+    size_t n = strlen(it) + 8;
+    char *out = (char *)malloc(n);
+    if (out) snprintf(out, n, "list<%s>", it);
+    free(it);
+    return out ? out : strdup("unknown");
+  }
+  if (strcmp(e->kind, "MapLiteral") == 0) {
+    if (e->child_len == 0) return strdup("map<void,void>");
+    AstNode *pair = e->children[0];
+    if (!pair || pair->child_len < 2) return strdup("map<void,void>");
+    char *k = infer_expr_type(a, pair->children[0], scope, ok);
+    char *v = infer_expr_type(a, pair->children[1], scope, ok);
+    if (!k || !v) {
+      free(k);
+      free(v);
+      return NULL;
+    }
+    size_t n = strlen(k) + strlen(v) + 8;
+    char *out = (char *)malloc(n);
+    if (out) snprintf(out, n, "map<%s,%s>", k, v);
+    free(k);
+    free(v);
+    return out ? out : strdup("unknown");
+  }
+  return strdup("unknown");
+}
+
+static char *infer_assignable_type(Analyzer *a, AstNode *lhs, Scope *scope, int *ok) {
+  if (!lhs) return strdup("unknown");
+  if (strcmp(lhs->kind, "Identifier") == 0) return strdup(scope_lookup(scope, lhs->text ? lhs->text : ""));
+  if (strcmp(lhs->kind, "IndexExpr") == 0) return infer_expr_type(a, lhs, scope, ok);
+  return strdup("unknown");
+}
+
+static int analyze_stmt(Analyzer *a, AstNode *st, Scope *scope);
+
+static int analyze_block(Analyzer *a, AstNode *blk, Scope *parent) {
+  Scope local;
+  memset(&local, 0, sizeof(local));
+  local.parent = parent;
+  for (size_t i = 0; i < blk->child_len; i++) {
+    if (!analyze_stmt(a, blk->children[i], &local)) {
+      free_syms(local.syms);
+      return 0;
+    }
+  }
+  free_syms(local.syms);
+  return 1;
+}
+
+static int analyze_switch_termination(Analyzer *a, AstNode *sw) {
+  for (size_t i = 0; i < sw->child_len; i++) {
+    AstNode *c = sw->children[i];
+    if (strcmp(c->kind, "CaseClause") != 0 && strcmp(c->kind, "DefaultClause") != 0) continue;
+    size_t start = (strcmp(c->kind, "CaseClause") == 0 && c->child_len > 0) ? 1 : 0;
+    if (c->child_len <= start) {
+      set_diag(a->diag, a->file, c->line, c->col, "E3003", "SWITCH_CASE_NO_TERMINATION", "case without explicit termination");
+      return 0;
+    }
+    AstNode *last = c->children[c->child_len - 1];
+    if (!ast_is_terminator(last)) {
+      set_diag(a->diag, a->file, c->line, c->col, "E3003", "SWITCH_CASE_NO_TERMINATION", "case without explicit termination");
+      return 0;
+    }
+  }
+  return 1;
+}
+
+static int analyze_stmt(Analyzer *a, AstNode *st, Scope *scope) {
+  if (strcmp(st->kind, "Block") == 0) return analyze_block(a, st, scope);
+  if (strcmp(st->kind, "VarDecl") == 0) {
+    AstNode *tn = ast_child_kind(st, "Type");
+    AstNode *init = ast_last_child(st);
+    if (tn && init && strcmp(init->kind, "Type") != 0) {
+      int ok = 1;
+      char *lhs = canon_type(tn->text);
+      char *rhs = infer_expr_type(a, init, scope, &ok);
+      if (!ok) {
+        free(lhs);
+        free(rhs);
+        return 0;
+      }
+      if (lhs && rhs && strcmp(lhs, rhs) != 0) {
+        char msg[160];
+        snprintf(msg, sizeof(msg), "cannot assign %s to %s", rhs, lhs);
+        set_diag(a->diag, a->file, st->line, st->col, "E3001", "TYPE_MISMATCH_ASSIGNMENT", msg);
+        free(lhs);
+        free(rhs);
+        return 0;
+      }
+      if (lhs) {
+        if (!scope_define(scope, st->text ? st->text : "", lhs)) {
+          free(lhs);
+          free(rhs);
+          return 0;
+        }
+      }
+      free(lhs);
+      free(rhs);
+      return 1;
+    }
+    if (tn) {
+      char *lhs = canon_type(tn->text);
+      if (!lhs || !scope_define(scope, st->text ? st->text : "", lhs)) {
+        free(lhs);
+        return 0;
+      }
+      free(lhs);
+    } else if (init && strcmp(init->kind, "Type") != 0) {
+      int ok = 1;
+      char *rhs = infer_expr_type(a, init, scope, &ok);
+      if (!ok) {
+        free(rhs);
+        return 0;
+      }
+      if (!scope_define(scope, st->text ? st->text : "", rhs ? rhs : "unknown")) {
+        free(rhs);
+        return 0;
+      }
+      free(rhs);
+    }
+    return 1;
+  }
+  if (strcmp(st->kind, "AssignStmt") == 0 && st->child_len >= 2) {
+    int ok = 1;
+    char *lhs = infer_assignable_type(a, st->children[0], scope, &ok);
+    char *rhs = infer_expr_type(a, st->children[1], scope, &ok);
+    if (!ok) {
+      free(lhs);
+      free(rhs);
+      return 0;
+    }
+    if (lhs && rhs && strcmp(lhs, rhs) != 0) {
+      char msg[160];
+      snprintf(msg, sizeof(msg), "cannot assign %s to %s", rhs, lhs);
+      set_diag(a->diag, a->file, st->line, st->col, "E3001", "TYPE_MISMATCH_ASSIGNMENT", msg);
+      free(lhs);
+      free(rhs);
+      return 0;
+    }
+    free(lhs);
+    free(rhs);
+    return 1;
+  }
+  if (strcmp(st->kind, "ExprStmt") == 0 && st->child_len > 0) {
+    int ok = 1;
+    char *t = infer_expr_type(a, st->children[0], scope, &ok);
+    free(t);
+    return ok;
+  }
+  if (strcmp(st->kind, "ReturnStmt") == 0 && st->child_len > 0) {
+    int ok = 1;
+    char *t = infer_expr_type(a, st->children[0], scope, &ok);
+    free(t);
+    return ok;
+  }
+  if (strcmp(st->kind, "ThrowStmt") == 0 && st->child_len > 0) {
+    int ok = 1;
+    char *t = infer_expr_type(a, st->children[0], scope, &ok);
+    free(t);
+    return ok;
+  }
+  if (strcmp(st->kind, "ForStmt") == 0) {
+    Scope s2;
+    memset(&s2, 0, sizeof(s2));
+    s2.parent = scope;
+    for (size_t i = 0; i < st->child_len; i++) {
+      AstNode *c = st->children[i];
+      if (strcmp(c->kind, "IterVar") == 0) {
+        AstNode *tn = ast_child_kind(c, "Type");
+        char *tt = canon_type(tn ? tn->text : "unknown");
+        int okd = scope_define(&s2, c->text ? c->text : "", tt ? tt : "unknown");
+        free(tt);
+        if (!okd) {
+          free_syms(s2.syms);
+          return 0;
+        }
+      } else if (strcmp(c->kind, "Block") == 0) {
+        int ok = analyze_block(a, c, &s2);
+        free_syms(s2.syms);
+        return ok;
+      } else {
+        int ok = 1;
+        char *t = infer_expr_type(a, c, &s2, &ok);
+        free(t);
+        if (!ok) {
+          free_syms(s2.syms);
+          return 0;
+        }
+      }
+    }
+    free_syms(s2.syms);
+    return 1;
+  }
+  if (strcmp(st->kind, "SwitchStmt") == 0) {
+    if (!analyze_switch_termination(a, st)) return 0;
+    for (size_t i = 0; i < st->child_len; i++) {
+      AstNode *c = st->children[i];
+      if (strcmp(c->kind, "CaseClause") != 0 && strcmp(c->kind, "DefaultClause") != 0) continue;
+      size_t start = (strcmp(c->kind, "CaseClause") == 0 && c->child_len > 0) ? 1 : 0;
+      for (size_t j = start; j < c->child_len; j++) {
+        if (!analyze_stmt(a, c->children[j], scope)) return 0;
+      }
+    }
+    return 1;
+  }
+  return 1;
+}
+
+static int analyze_function(Analyzer *a, AstNode *fn) {
+  Scope root;
+  memset(&root, 0, sizeof(root));
+  root.parent = NULL;
+  for (size_t i = 0; i < fn->child_len; i++) {
+    AstNode *c = fn->children[i];
+    if (strcmp(c->kind, "Param") != 0) continue;
+    AstNode *tn = ast_child_kind(c, "Type");
+    char *tt = canon_type(tn ? tn->text : "unknown");
+    if (!tt || !scope_define(&root, c->text ? c->text : "", tt)) {
+      free(tt);
+      free_syms(root.syms);
+      return 0;
+    }
+    free(tt);
+  }
+  AstNode *blk = ast_child_kind(fn, "Block");
+  int ok = blk ? analyze_block(a, blk, &root) : 1;
+  free_syms(root.syms);
+  return ok;
+}
+
 static int parse_file_internal(const char *file, PsDiag *out_diag, AstNode **out_root) {
   memset(out_diag, 0, sizeof(*out_diag));
   size_t n = 0;
@@ -1349,5 +1829,45 @@ int ps_parse_file_ast(const char *file, PsDiag *out_diag, FILE *out) {
   ast_print_json(out, root, 0);
   fputc('\n', out);
   ast_free(root);
+  return 0;
+}
+
+int ps_check_file_static(const char *file, PsDiag *out_diag) {
+  AstNode *root = NULL;
+  int rc = parse_file_internal(file, out_diag, &root);
+  if (rc != 0) {
+    ast_free(root);
+    return rc;
+  }
+
+  Analyzer a;
+  memset(&a, 0, sizeof(a));
+  a.file = file;
+  a.diag = out_diag;
+
+  for (size_t i = 0; i < root->child_len; i++) {
+    AstNode *fn = root->children[i];
+    if (strcmp(fn->kind, "FunctionDecl") == 0) {
+      if (!add_fn(&a, fn)) {
+        ast_free(root);
+        free_fns(a.fns);
+        set_diag(out_diag, file, 1, 1, "E0002", "INTERNAL_ERROR", "analyzer allocation failure");
+        return 2;
+      }
+    }
+  }
+
+  for (size_t i = 0; i < root->child_len; i++) {
+    AstNode *fn = root->children[i];
+    if (strcmp(fn->kind, "FunctionDecl") != 0) continue;
+    if (!analyze_function(&a, fn)) {
+      ast_free(root);
+      free_fns(a.fns);
+      return 1;
+    }
+  }
+
+  ast_free(root);
+  free_fns(a.fns);
   return 0;
 }
