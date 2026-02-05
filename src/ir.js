@@ -573,7 +573,142 @@ function buildIR(ast) {
   return new IRBuilder(ast).build();
 }
 
+const IR_VERSION = "1.0.0";
+
+function serializeIR(moduleIR) {
+  return {
+    ir_version: IR_VERSION,
+    format: "ProtoScriptIR",
+    module: moduleIR,
+  };
+}
+
+function validateSerializedIR(doc) {
+  const errors = [];
+  const err = (msg) => errors.push(msg);
+
+  if (!doc || typeof doc !== "object") return ["root must be an object"];
+  if (doc.format !== "ProtoScriptIR") err("format must be 'ProtoScriptIR'");
+  if (doc.ir_version !== IR_VERSION) err(`ir_version must be '${IR_VERSION}'`);
+  if (!doc.module || typeof doc.module !== "object") err("module must be an object");
+  if (errors.length > 0) return errors;
+
+  const m = doc.module;
+  if (m.kind !== "Module") err("module.kind must be 'Module'");
+  if (!Array.isArray(m.functions)) err("module.functions must be an array");
+  if (errors.length > 0) return errors;
+
+  const knownOps = new Set([
+    "var_decl",
+    "load_var",
+    "store_var",
+    "const",
+    "copy",
+    "unary_op",
+    "bin_op",
+    "postfix_op",
+    "call_static",
+    "call_method_static",
+    "call_unknown",
+    "make_view",
+    "index_get",
+    "index_set",
+    "check_int_overflow",
+    "check_int_overflow_unary_minus",
+    "check_div_zero",
+    "check_shift_range",
+    "check_index_bounds",
+    "check_map_has_key",
+    "ret",
+    "ret_void",
+    "throw",
+    "branch_if",
+    "jump",
+    "iter_begin",
+    "branch_iter_has_next",
+    "iter_next",
+    "select",
+    "make_list",
+    "make_map",
+    "member_get",
+    "break",
+    "continue",
+    "nop",
+    "unknown_expr",
+    "unhandled_stmt",
+  ]);
+
+  for (let fi = 0; fi < m.functions.length; fi += 1) {
+    const fn = m.functions[fi];
+    if (!fn || typeof fn !== "object") {
+      err(`functions[${fi}] must be an object`);
+      continue;
+    }
+    if (fn.kind !== "Function") err(`functions[${fi}].kind must be 'Function'`);
+    if (typeof fn.name !== "string" || fn.name.length === 0) err(`functions[${fi}].name must be non-empty string`);
+    if (!fn.returnType || fn.returnType.kind !== "IRType" || typeof fn.returnType.name !== "string") {
+      err(`functions[${fi}].returnType must be IRType`);
+    }
+    if (!Array.isArray(fn.params)) err(`functions[${fi}].params must be array`);
+    if (!Array.isArray(fn.blocks) || fn.blocks.length === 0) err(`functions[${fi}].blocks must be non-empty array`);
+    if (!Array.isArray(fn.blocks) || fn.blocks.length === 0) continue;
+
+    const labels = new Set();
+    for (let bi = 0; bi < fn.blocks.length; bi += 1) {
+      const b = fn.blocks[bi];
+      if (!b || typeof b !== "object") {
+        err(`functions[${fi}].blocks[${bi}] must be object`);
+        continue;
+      }
+      if (b.kind !== "Block") err(`functions[${fi}].blocks[${bi}].kind must be 'Block'`);
+      if (typeof b.label !== "string" || b.label.length === 0) err(`functions[${fi}].blocks[${bi}].label must be non-empty string`);
+      if (labels.has(b.label)) err(`functions[${fi}] duplicated block label '${b.label}'`);
+      labels.add(b.label);
+      if (!Array.isArray(b.instrs)) {
+        err(`functions[${fi}].blocks[${bi}].instrs must be array`);
+        continue;
+      }
+      for (let ii = 0; ii < b.instrs.length; ii += 1) {
+        const ins = b.instrs[ii];
+        if (!ins || typeof ins !== "object") {
+          err(`functions[${fi}].blocks[${bi}].instrs[${ii}] must be object`);
+          continue;
+        }
+        if (typeof ins.op !== "string" || ins.op.length === 0) {
+          err(`functions[${fi}].blocks[${bi}].instrs[${ii}].op must be non-empty string`);
+          continue;
+        }
+        if (!knownOps.has(ins.op)) err(`functions[${fi}].blocks[${bi}].instrs[${ii}].op unknown '${ins.op}'`);
+      }
+    }
+
+    // Validate branch/jump targets exist.
+    for (let bi = 0; bi < fn.blocks.length; bi += 1) {
+      const b = fn.blocks[bi];
+      for (let ii = 0; ii < b.instrs.length; ii += 1) {
+        const ins = b.instrs[ii];
+        if (ins.op === "jump" && typeof ins.target === "string" && !labels.has(ins.target)) {
+          err(`functions[${fi}] jump target '${ins.target}' does not exist`);
+        }
+        if (ins.op === "branch_if") {
+          if (typeof ins.then === "string" && !labels.has(ins.then)) err(`functions[${fi}] branch_if then target '${ins.then}' does not exist`);
+          if (typeof ins.else === "string" && !labels.has(ins.else)) err(`functions[${fi}] branch_if else target '${ins.else}' does not exist`);
+        }
+        if (ins.op === "branch_iter_has_next") {
+          if (typeof ins.then === "string" && !labels.has(ins.then)) err(`functions[${fi}] branch_iter_has_next then target '${ins.then}' does not exist`);
+          if (typeof ins.else === "string" && !labels.has(ins.else)) err(`functions[${fi}] branch_iter_has_next else target '${ins.else}' does not exist`);
+        }
+      }
+    }
+  }
+
+  return errors;
+}
+
 module.exports = {
+  IR_VERSION,
   buildIR,
   printIR,
+  serializeIR,
+  validateSerializedIR,
 };

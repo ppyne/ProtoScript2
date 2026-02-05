@@ -4,7 +4,7 @@
 const fs = require("fs");
 const path = require("path");
 const { check, parseAndAnalyze, formatDiag, FrontendError } = require("../src/frontend");
-const { buildIR, printIR } = require("../src/ir");
+const { buildIR, printIR, serializeIR, validateSerializedIR } = require("../src/ir");
 const { generateC } = require("../src/c_backend");
 const { optimizeIR } = require("../src/optimizer");
 
@@ -12,6 +12,8 @@ function usage() {
   console.error("Usage:");
   console.error("  protoscriptc --check <file.pts>");
   console.error("  protoscriptc --emit-ir <file.pts>");
+  console.error("  protoscriptc --emit-ir-json <file.pts> [--opt]");
+  console.error("  protoscriptc --validate-ir <file.json>");
   console.error("  protoscriptc --emit-c <file.pts> [--opt]");
   process.exit(2);
 }
@@ -23,13 +25,19 @@ const mode = args[0];
 const file = args[1];
 const optEnabled = args.includes("--opt");
 
-if (mode !== "--check" && mode !== "--emit-ir" && mode !== "--emit-c") {
+if (
+  mode !== "--check" &&
+  mode !== "--emit-ir" &&
+  mode !== "--emit-ir-json" &&
+  mode !== "--validate-ir" &&
+  mode !== "--emit-c"
+) {
   console.error("error: unsupported mode");
   process.exit(2);
 }
 
-if (mode !== "--emit-c" && mode !== "--emit-ir" && optEnabled) {
-  console.error("error: --opt is only valid with --emit-c or --emit-ir");
+if (mode !== "--emit-c" && mode !== "--emit-ir" && mode !== "--emit-ir-json" && optEnabled) {
+  console.error("error: --opt is only valid with --emit-c, --emit-ir or --emit-ir-json");
   process.exit(2);
 }
 
@@ -43,6 +51,16 @@ try {
 }
 
 try {
+  if (mode === "--validate-ir") {
+    const doc = JSON.parse(src);
+    const errs = validateSerializedIR(doc);
+    if (errs.length > 0) {
+      for (const e of errs) console.error(`${file}:1:1 E1001 IR_INVALID: ${e}`);
+      process.exit(1);
+    }
+    process.exit(0);
+  }
+
   if (mode === "--check") {
     const diags = check(file, src);
     if (diags.length > 0) {
@@ -58,12 +76,16 @@ try {
     process.exit(1);
   }
   let ir = buildIR(ast);
-  if ((mode === "--emit-c" || mode === "--emit-ir") && optEnabled) {
+  if ((mode === "--emit-c" || mode === "--emit-ir" || mode === "--emit-ir-json") && optEnabled) {
     enforceOptimizationGate();
     ir = optimizeIR(ir);
   }
   if (mode === "--emit-ir") {
     process.stdout.write(printIR(ir));
+    process.exit(0);
+  }
+  if (mode === "--emit-ir-json") {
+    process.stdout.write(`${JSON.stringify(serializeIR(ir), null, 2)}\n`);
     process.exit(0);
   }
   process.stdout.write(generateC(ir));

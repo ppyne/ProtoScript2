@@ -14,6 +14,7 @@ ProtoScript2 suit ces choix structurants :
 - compilation possible vers C
 
 La spécification de référence est dans `SPECIFICATION.md`.
+Format IR sérialisé : `IR_FORMAT.md`.
 
 ## État actuel du dépôt
 
@@ -53,6 +54,12 @@ Affichage IR :
 
 ```bash
 bin/protoscriptc --emit-ir path/to/file.pts
+
+# IR JSON sérialisé (versionné)
+bin/protoscriptc --emit-ir-json path/to/file.pts
+
+# validation d'un IR JSON
+bin/protoscriptc --validate-ir path/to/file.ir.json
 ```
 
 Génération C de référence :
