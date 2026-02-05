@@ -249,6 +249,14 @@ s.toLower();
 s.concat(parts);     // concaténation explicite
 s.toUtf8Bytes();     // list<byte> (UTF-8 strict)
 s.substring(start, length); // sous-chaîne (glyphes)
+s.indexOf(needle);   // position en glyphes (ou -1)
+s.startsWith(prefix);
+s.endsWith(suffix);
+s.split(sep);        // list<string>
+s.trim();
+s.trimStart();
+s.trimEnd();
+s.replace(old, new); // remplace la première occurrence
 
 string.format("%02i %.2f %x\n", 5, .2, 10);
 ```
@@ -264,6 +272,13 @@ Règles normatives d’accès indexé sur `string` :
 - `list<byte>.toUtf8String()` retourne une `string` en UTF-8 strict
 - `string.substring(start, length)` retourne une nouvelle `string` extraite en glyphes
 - `string.substring` n’expose ni vue ni référence partagée
+- les indices et positions retournés par les méthodes de recherche sont exprimés en **glyphes**
+- `string.indexOf(needle)` retourne l’index (en glyphes) de la première occurrence, ou `-1` si absent
+- `string.startsWith(prefix)` et `string.endsWith(suffix)` retournent `bool`
+- `string.split(sep)` retourne une `list<string>` et ne fait **aucun** traitement regex
+- si `sep` est une chaîne vide, `split` retourne une liste de chaînes d’un glyphe chacune
+- `string.trim*` retire uniquement les espaces ASCII (`' '`, `'\t'`, `'\n'`, `'\r'`) en début/fin selon la variante
+- `string.replace(old, new)` remplace la **première** occurrence exacte (pas de regex) et retourne une nouvelle `string`
 
 **list<T>**
 

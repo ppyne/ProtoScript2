@@ -1043,11 +1043,31 @@ string t = s.concat("x"); // s reste inchangée
 
 Supposer que `string[i]` modifie la chaîne. Toute mutation indexée de `string` est interdite.
 
-### 13.7 Pourquoi ?
+### 13.7 Méthodes principales
+
+Exemples :
+
+```c
+string s = "  abc  ";
+bool a = s.startsWith("  ");
+bool b = s.endsWith("  ");
+int p = s.indexOf("bc"); // index en glyphes
+string t = s.trim();     // retire espaces ASCII en début/fin
+string u = s.replace("a", "A"); // première occurrence
+list<string> parts = "a,b,c".split(",");
+```
+
+Notes :
+
+- `split` ne fait aucun traitement regex
+- les indices de `indexOf` sont exprimés en glyphes
+- `trim`, `trimStart`, `trimEnd` retirent uniquement `' '`, `'\t'`, `'\n'`, `'\r'`
+
+### 13.8 Pourquoi ?
 
 Immutabilité + sémantique glyphique = comportement stable, coûts visibles, pas de magie cachant des copies.
 
-### 13.8 UTF-8 explicite (bytes)
+### 13.9 UTF-8 explicite (bytes)
 
 Si vous devez manipuler des octets, utilisez une `list<byte>`.
 La conversion est explicite et strictement validée.
@@ -1060,7 +1080,7 @@ string back = bytes.toUtf8String();
 
 Si la liste de bytes n'est pas un UTF-8 valide, `toUtf8String()` lève une exception runtime.
 
-### 13.9 Sous-chaînes (substring)
+### 13.10 Sous-chaînes (substring)
 
 `substring(start, length)` extrait une sous-chaîne en indices de glyphes.
 Elle retourne une **nouvelle** chaîne et ne crée pas de vue partagée.
