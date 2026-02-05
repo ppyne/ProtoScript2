@@ -6,9 +6,13 @@
 #include <sys/stat.h>
 #include <unistd.h>
 
+#include "frontend.h"
+
 static void usage(void) {
   fprintf(stderr, "Usage:\n");
   fprintf(stderr, "  pscc --check <file.pts>\n");
+  fprintf(stderr, "  pscc --check-c <file.pts>\n");
+  fprintf(stderr, "  pscc --ast-c <file.pts>\n");
   fprintf(stderr, "  pscc --emit-ir <file.pts> [--opt]\n");
   fprintf(stderr, "  pscc --emit-c <file.pts> [--opt]\n");
   fprintf(stderr, "\n");
@@ -67,6 +71,7 @@ int main(int argc, char **argv) {
   }
 
   const char *mode = argv[1];
+  const char *input = argv[2];
   int opt_count = 0;
   for (int i = 1; i < argc; i++) {
     if (strcmp(argv[i], "--opt") == 0) opt_count++;
@@ -76,16 +81,40 @@ int main(int argc, char **argv) {
     return 2;
   }
 
-  if (!(strcmp(mode, "--check") == 0 || strcmp(mode, "--emit-ir") == 0 || strcmp(mode, "--emit-c") == 0)) {
+  if (!(strcmp(mode, "--check") == 0 || strcmp(mode, "--check-c") == 0 || strcmp(mode, "--ast-c") == 0 ||
+        strcmp(mode, "--emit-ir") == 0 ||
+        strcmp(mode, "--emit-c") == 0)) {
     usage();
     return 2;
   }
 
-  if (strcmp(mode, "--check") == 0 && opt_count > 0) {
+  if ((strcmp(mode, "--check") == 0 || strcmp(mode, "--check-c") == 0 || strcmp(mode, "--ast-c") == 0) &&
+      opt_count > 0) {
     fprintf(stderr, "pscc: --opt is only valid with --emit-ir or --emit-c\n");
     return 2;
   }
 
+  if (strcmp(mode, "--ast-c") == 0) {
+    PsDiag d;
+    int rc = ps_parse_file_ast(input, &d, stdout);
+    if (rc != 0) {
+      fprintf(stderr, "%s:%d:%d %s %s: %s\n", d.file ? d.file : input, d.line, d.col, d.code ? d.code : "E0001",
+              d.category ? d.category : "FRONTEND_ERROR", d.message);
+      return (rc == 2) ? 2 : 1;
+    }
+    return 0;
+  }
+
+  if (strcmp(mode, "--check-c") == 0 || strcmp(mode, "--check") == 0) {
+    PsDiag d;
+    int rc = ps_parse_file_syntax(input, &d);
+    if (rc != 0) {
+      fprintf(stderr, "%s:%d:%d %s %s: %s\n", d.file ? d.file : input, d.line, d.col, d.code ? d.code : "E0001",
+              d.category ? d.category : "FRONTEND_ERROR", d.message);
+      return (rc == 2) ? 2 : 1;
+    }
+    if (strcmp(mode, "--check-c") == 0) return 0;
+  }
+
   return forward_to_reference(argc, argv);
 }
-

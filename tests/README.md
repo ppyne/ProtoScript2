@@ -48,6 +48,13 @@ Le runner écrit `tests/.conformance_passed` uniquement si la suite complète pa
 Runner runtime crosscheck: `tests/run_runtime_crosscheck.sh`
 Le runner écrit `tests/.runtime_crosscheck_passed` si la parité runtime Node/C est validée.
 
+Runner de validation croisée complète (diagnostics + comportement): `tests/run_node_c_crosscheck.sh`
+Option stricte AST intégrée: `tests/run_node_c_crosscheck.sh --strict-ast`
+
+Runner dédié frontend C vs oracle Node (`--check`): `tests/run_c_frontend_oracle.sh`
+
+Runner dédié comparaison structurelle AST (Node vs C): `tests/run_ast_structural_crosscheck.sh`
+
 ## Opt Safety
 
 Runner dédié: `tests/run_opt_safety.sh`

@@ -1096,9 +1096,16 @@ function parseAndAnalyze(file, src) {
   return { tokens, ast, diags };
 }
 
+function parseOnly(file, src) {
+  const tokens = new Lexer(file, src).lex();
+  const ast = new Parser(file, tokens).parseProgram();
+  return { tokens, ast };
+}
+
 module.exports = {
   check,
   parseAndAnalyze,
+  parseOnly,
   formatDiag,
   FrontendError,
 };

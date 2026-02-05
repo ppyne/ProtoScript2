@@ -23,7 +23,8 @@
       "edge/switch_no_termination",
       "edge/map_key_present",
       "edge/map_iteration_in",
-      "edge/map_iteration_of"
+      "edge/map_iteration_of",
+      "edge/map_update_then_lookup"
     ]
   }
 }

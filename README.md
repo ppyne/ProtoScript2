@@ -34,7 +34,7 @@ Implémenté :
 - CLI compilateur  
   - `bin/protoscriptc`
 - CLI native C (bootstrap)  
-  - `c/pscc` (forwarder vers la référence actuelle)
+  - `c/pscc` (lexer/parser C + oracle Node pour la sémantique)
 - conformance kit + runners  
   - `tests/`
 
@@ -64,6 +64,7 @@ Affichage IR :
 
 ```bash
 bin/protoscriptc --emit-ir path/to/file.pts
+bin/protoscriptc --emit-ast-json path/to/file.pts
 
 # IR JSON sérialisé (versionné)
 bin/protoscriptc --emit-ir-json path/to/file.pts
@@ -119,11 +120,19 @@ tests/run_runtime_crosscheck.sh
 
 Le runner écrit `tests/.runtime_crosscheck_passed` si la parité runtime est validée.
 
+Validation structurelle AST (Node AST vs AST C) :
+
+```bash
+tests/run_ast_structural_crosscheck.sh
+```
+
 ## Build de la CLI C
 
 ```bash
 make -C c
 ./c/pscc --check path/to/file.pts
+./c/pscc --check-c path/to/file.pts
+./c/pscc --ast-c path/to/file.pts
 ```
 
 Règle d’or du projet : le compilateur est considéré correct uniquement s’il passe 100 % des tests normatifs.

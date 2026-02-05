@@ -2,7 +2,7 @@ CC ?= cc
 CFLAGS ?= -std=c11 -Wall -Wextra -Werror -O2
 
 TARGET = pscc
-SRC = pscc.c
+SRC = pscc.c frontend.c
 
 .PHONY: all clean
 
@@ -13,4 +13,3 @@ $(TARGET): $(SRC)
 
 clean:
 	rm -f $(TARGET)
-

@@ -3,7 +3,7 @@
 
 const fs = require("fs");
 const path = require("path");
-const { check, parseAndAnalyze, formatDiag, FrontendError } = require("../src/frontend");
+const { check, parseAndAnalyze, parseOnly, formatDiag, FrontendError } = require("../src/frontend");
 const { runProgram, RuntimeError } = require("../src/runtime");
 const { buildIR, printIR, serializeIR, validateSerializedIR } = require("../src/ir");
 const { generateC } = require("../src/c_backend");
@@ -14,6 +14,7 @@ function usage() {
   console.error("  protoscriptc --check <file.pts>");
   console.error("  protoscriptc --run <file.pts>");
   console.error("  protoscriptc --emit-ir <file.pts>");
+  console.error("  protoscriptc --emit-ast-json <file.pts>");
   console.error("  protoscriptc --emit-ir-json <file.pts> [--opt]");
   console.error("  protoscriptc --validate-ir <file.json>");
   console.error("  protoscriptc --emit-c <file.pts> [--opt]");
@@ -31,6 +32,7 @@ if (
   mode !== "--check" &&
   mode !== "--run" &&
   mode !== "--emit-ir" &&
+  mode !== "--emit-ast-json" &&
   mode !== "--emit-ir-json" &&
   mode !== "--validate-ir" &&
   mode !== "--emit-c"
@@ -80,6 +82,12 @@ try {
       process.exit(1);
     }
     runProgram(ast, file);
+    process.exit(0);
+  }
+
+  if (mode === "--emit-ast-json") {
+    const { ast } = parseOnly(file, src);
+    process.stdout.write(`${JSON.stringify(ast, null, 2)}\n`);
     process.exit(0);
   }
 

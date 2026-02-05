@@ -1,0 +1,6 @@
+function main() : void {
+    map<string, string> m = {"a": "x"};
+    m["a"] = "z";
+    string v = m["a"];
+    Sys.print(v);
+}
