@@ -85,14 +85,15 @@ Types scalaires intégrés :
 
 Les littéraux entiers peuvent être écrits sous les formes suivantes :
 
-- **décimale** : `12`, `0`, `-5`
+- **décimale** : `12`, `0`, `5`
 - **hexadécimale** : `0xFF`, `0xab`
 - **octale** : `0644`
 - **binaire** : `0b01100110`
 
 Règles :
 
-- le signe (`-`) s’applique au littéral entier
+- les littéraux entiers ne portent pas de signe
+- toute valeur négative résulte de l’application de l’opérateur unaire `-`
 - les littéraux entiers non suffixés sont de type `int`
 - l’affectation à `byte` exige que la valeur soit dans l’intervalle valide
 
@@ -431,7 +432,7 @@ p.color = 3;    // erreur de compilation
 
 ### Restrictions explicites
 
-ProtoScript V2 ne permet pas, dans les collections : внутренних
+ProtoScript V2 ne permet pas, dans les collections :
 
 - de tests dynamiques de type (`instanceof`, RTTI)
 - de downcast explicite ou implicite
@@ -602,7 +603,7 @@ prototype Point {
     int x;
     int y;
 
-    function move(int dx, int dy) {
+    function move(int dx, int dy) : void {
         self.x = self.x + dx;
         self.y = self.y + dy;
     }
@@ -677,7 +678,7 @@ Un prototype enfant peut **redéfinir** une méthode du parent.
 
 ```c
 prototype ColoredPoint : Point {
-    function move(int dx, int dy) {
+    function move(int dx, int dy) : void {
         // comportement spécialisé
         self.x = self.x + dx;
         self.y = self.y + dy;
@@ -1094,7 +1095,7 @@ prototype Point {
     int x;
     int y;
 
-    function move(int dx, int dy) {
+    function move(int dx, int dy) : void {
         self.x = self.x + dx;
         self.y = self.y + dy;
     }
@@ -1182,7 +1183,7 @@ Règles :
 
 ---
 
-## 4.6 Contraintes et garanties
+## 4.7 Contraintes et garanties
 
 Le modèle objet garantit :
 
@@ -1376,6 +1377,17 @@ Le type `T` de `list<T>` peut être :
 - toutes les valeurs passées dans la partie variadique doivent être de type `T`
 - aucune hétérogénéité n’est autorisée
 
+Clarification normative :
+
+- `list<T> ...` est une **syntaxe de déclaration** pour un paramètre variadique homogène
+- le **type canonique interne** du paramètre variadique est `view<T>` (lecture seule)
+- la transformation `list<T> ...` → `view<T>` est **implicite** et normativement définie
+- `view_of(...)` est un **intrinsic de compilation** et n’est pas exposé comme API utilisateur
+- la vue créée n’entraîne **aucune allocation**
+- la vue créée a une durée de vie **strictement limitée à l’appel**
+- la vue créée ne peut pas être stockée, retournée ni prolongée
+- toute opération nécessitant une collection possédante (`push`, `pop`, redimensionnement, etc.) sur ce paramètre est une erreur de compilation
+
 Exemples :
 
 ```c
@@ -1528,7 +1540,7 @@ Exemple valide :
 prototype Logger {
     function log(list<string> messages...) : void {
         for (string s of messages)
-            Sys.print("[LOG] " + s);
+            Sys.print("[LOG] ".concat(s));
     }
 }
 
@@ -1598,7 +1610,16 @@ Cette section définit l’ensemble des opérateurs du langage, leurs catégorie
 
 ### 5.11.2 Opérateurs arithmétiques
 
-Opérateurs supportés : `+`, `-`, `*`, `/`, `%`
+Opérateurs supportés : `+`, `-`, `*`, `/`
+
+Opérateurs arithmétiques additionnels :
+
+| Opérateur | Description            |
+| --------- | ---------------------- |
+| `%`       | reste entier           |
+| `++`      | incrémentation         |
+| `--`      | décrémentation         |
+| `-`       | négation unaire        |
 
 Types autorisés :
 
@@ -1648,12 +1669,15 @@ Opérateur principal : `=`
 Règles :
 
 - le type de l’expression assignée doit être strictement identique au type de la variable
+- l’affectation est une instruction, sans valeur de retour
 - aucune affectation chaînée n’est autorisée
 
 Opérateurs composés (`+=`, `-=`, `*=`, `/=`) :
 
 - définis uniquement lorsque l’opérateur arithmétique correspondant est valide
 - équivalents à une écriture explicite sans effet de bord
+
+L’interdiction de l’affectation chaînée garantit l’absence d’effets de bord implicites, simplifie l’analyse statique et renforce la lisibilité.
 
 ---
 
@@ -1754,6 +1778,7 @@ Règles :
 - la condition est de type `bool`
 - les deux branches doivent avoir un type compatible
 - l’expression résultante est typée statiquement
+- l’opérateur conditionnel est une expression pure : il ne peut introduire ni affectation implicite, ni effet de bord non explicitement visible
 
 ---
 
@@ -1851,6 +1876,7 @@ switch (x) {
         break;
     default:
         y = -1;
+        break;
 }
 ```
 
@@ -1858,8 +1884,12 @@ Règles :
 
 - l’expression du `switch` est évaluée une seule fois
 - les `case` sont comparés par égalité stricte
-- `break` est obligatoire pour éviter la chute implicite
+- le fallthrough implicite est interdit
+- chaque clause `case` et `default` doit se terminer explicitement par `break`, `return`, `throw` ou toute autre instruction qui quitte le `switch`
+- l’absence de terminaison explicite est une erreur statique
 - `default` est optionnel
+
+ProtoScript V2 rejette le fallthrough implicite afin que chaque branche de contrôle ait un effet local, explicite et immédiatement lisible.
 
 ---
 
@@ -2359,15 +2389,25 @@ Règles :
 - `finally` est toujours exécuté
 - l’exception est propagée si elle n’est pas interceptée
 
+Clarification normative (RTTI et exceptions) :
+
+- l’interdiction de RTTI concerne les valeurs utilisateur : objets/prototypes, collections et vues
+- aucune forme de `instanceof`, de downcast dynamique ou d’introspection de type n’est autorisée pour les valeurs utilisateur
+- le mécanisme d’exception repose sur une métadonnée de type interne au runtime, utilisée exclusivement pour la propagation et l’interception des exceptions
+- cette métadonnée n’est pas introspectable par le langage et n’est accessible que dans le mécanisme `catch`
+- `catch (T e)` intercepte une exception si son type dynamique est `T` ou dérive de `T`
+- ce mécanisme n’introduit aucun RTTI général, ne permet aucun test de type dynamique hors exceptions et ne modifie pas le coût du chemin nominal
+
 ---
 
 ## 10.6 Exceptions et performances
 
 Le modèle d’exception garantit :
 
-- aucun coût en l’absence d’erreur
-- aucune allocation implicite sur le chemin nominal
-- un coût explicite et localisé lors de la levée d’une exception
+- le mécanisme de propagation des exceptions (`unwind`, dispatch) n’introduit aucun coût tant qu’aucune exception n’est levée
+- un coût explicite et localisé existe lors de la levée et de la propagation d’une exception
+- les vérifications runtime exigées par la spécification font partie de l’exécution normale
+- un backend peut éliminer une vérification runtime uniquement s’il prouve statiquement qu’elle est inutile
 
 Les exceptions sont considérées comme un **mécanisme de contrôle de flux exceptionnel**, et non comme un substitut aux retours de fonction.
 
@@ -2552,3 +2592,513 @@ ProtoScript V2 est fondé sur une conviction simple :
 En rendant explicites les types, les coûts, les allocations et les erreurs, ProtoScript V2 vise à restaurer une relation de confiance entre le développeur et son outil.
 
 Il ne promet pas la facilité immédiate, mais la maîtrise à long terme.
+
+# Partie normative
+
+Les sections 13 à 18 et les annexes A à C sont **normatives**.
+
+Interprétation des termes normatifs :
+
+- **doit** / **MUST** : exigence obligatoire
+- **ne doit pas** / **MUST NOT** : interdiction absolue
+- **devrait** / **SHOULD** : recommandation forte, dérogation motivée
+- **peut** / **MAY** : option autorisée
+
+En cas de conflit d’interprétation :
+
+- les sections normatives prévalent sur les sections descriptives
+- les annexes A, B, C prévalent sur les exemples informatifs
+
+# 13. Grammaire formelle
+
+Cette section définit la grammaire normative de ProtoScript V2.
+
+- une implémentation conforme doit accepter tout programme valide selon l’annexe B
+- une implémentation conforme doit rejeter tout programme invalide selon l’annexe B
+- aucun parseur ne doit dépendre d’une interprétation implicite non décrite ici
+
+## 13.1 Références normatives
+
+- Annexe A : grammaire lexicale complète
+- Annexe B : grammaire syntaxique EBNF complète
+- Annexe C : précédence, associativité, ordre d’évaluation
+
+## 13.2 Désambiguïsation syntaxique
+
+Les règles suivantes sont obligatoires :
+
+- le `else` est rattaché au `if` non fermé le plus proche
+- une déclaration variadique est reconnue uniquement sous la forme `list<T> ident...`
+- un paramètre variadique représente une séquence non vide d’arguments
+- `for (... of ...)` et `for (... in ...)` sont distincts de `for (init; cond; step)`
+- `:` dans une signature de fonction introduit exclusivement le type de retour
+- les littéraux `map` utilisent `{ key : value }` et ne sont jamais des blocs
+
+## 13.3 Précédence, associativité et effets de bord
+
+- la précédence et l’associativité sont définies exclusivement par l’annexe C
+- l’ordre d’évaluation des sous-expressions est strictement de gauche à droite
+- `&&` et `||` doivent court-circuiter
+- les effets de bord doivent être observables dans l’ordre d’évaluation défini
+- l’affectation est une instruction sans valeur ; `a = b = c` est grammaticalement invalide
+
+## 13.4 Validité grammaticale minimale
+
+Un programme est grammaticalement valide si et seulement si :
+
+- son flux de tokens est valide selon l’annexe A
+- il dérive de la règle `Program` de l’annexe B
+- il respecte les règles de désambiguïsation de la section 13.2
+
+# 14. Sémantique opérationnelle des cas limites
+
+Cette section définit les comportements obligatoires sur cas limites.
+
+- aucun comportement ne peut être laissé dépendant de l’implémentation
+- tout cas non statiquement rejeté doit avoir un comportement runtime défini
+
+## 14.1 Principes
+
+- une violation détectable à la compilation doit produire une erreur statique
+- une violation non détectable statiquement doit lever une exception runtime
+- le mode release ne doit pas modifier le résultat observable d’un programme valide
+
+## 14.2 Tableau normatif des cas limites
+
+| Cas | Statut | Comportement normatif | Diagnostic minimal |
+| --- | --- | --- | --- |
+| overflow `int` (add/sub/mul, négation de la valeur minimale) | exception runtime | l’opération doit lever une exception avant publication d’un résultat invalide | catégorie `RUNTIME_INT_OVERFLOW`, `file:line:column` |
+| overflow `byte` (hors `[0,255]`) | erreur statique si constant, sinon exception runtime | assignation/conversion doit échouer | catégorie `STATIC_BYTE_RANGE` ou `RUNTIME_BYTE_RANGE`, position |
+| division entière `a / b` avec `b == 0` | exception runtime | l’évaluation doit lever une exception | catégorie `RUNTIME_DIVIDE_BY_ZERO`, position |
+| reste entier `a % b` avec `b == 0` | exception runtime | l’évaluation doit lever une exception | catégorie `RUNTIME_DIVIDE_BY_ZERO`, position |
+| division flottante par zéro | autorisé | comportement IEEE-754 (`+Inf`, `-Inf`, `NaN`) | pas d’exception |
+| décalage `<<`/`>>` avec décalage négatif ou `>= largeur(type)` | exception runtime | l’évaluation doit lever une exception | catégorie `RUNTIME_SHIFT_RANGE`, position |
+| index hors bornes `list`, `string`, `slice`, `view` | exception runtime | accès lecture/écriture doit lever une exception | catégorie `RUNTIME_INDEX_OOB`, position |
+| accès `map[k]` avec clé absente | exception runtime | l’accès doit lever une exception | catégorie `RUNTIME_MISSING_KEY`, position |
+| mutation structurelle pendant itération (`list`/`map`) | exception runtime | l’itération doit détecter la mutation et lever une exception au plus tard au prochain pas | catégorie `RUNTIME_CONCURRENT_MUTATION`, position |
+
+## 14.3 Debug / release
+
+Règles obligatoires :
+
+- le mode debug peut ajouter des vérifications supplémentaires
+- le mode release peut supprimer certaines vérifications redondantes prouvées
+- debug et release doivent préserver la même sémantique observable
+- seule la qualité des diagnostics peut varier (message plus ou moins détaillé)
+
+# 15. Sémantique statique
+
+Cette section définit l’analyse statique normative.
+
+## 15.1 Portée lexicale et résolution des noms
+
+Règles :
+
+- la portée est lexicale et hiérarchique par blocs
+- la résolution d’un identifiant local suit l’ordre : bloc courant, blocs englobants, paramètres, champs via `self`, symboles globaux
+- un nom doit être déclaré avant usage dans son bloc
+- les types et prototypes doivent être résolus sans ambiguïté à la compilation
+
+## 15.2 Shadowing
+
+Règles :
+
+- un identifiant local peut masquer un identifiant d’un bloc englobant
+- un paramètre ne peut pas être redéclaré dans le même bloc
+- deux déclarations homonymes dans le même bloc sont interdites
+- un champ de prototype peut être masqué localement, mais l’accès au champ doit alors être explicite via `self.<field>`
+
+## 15.3 Initialisation obligatoire (definite assignment)
+
+Règles :
+
+- toute variable locale doit être définitivement assignée avant toute lecture
+- une variable est considérée définitivement assignée uniquement si toutes les branches atteignables l’assignent
+- la vérification s’applique aux flux `if/else`, `switch`, boucles et `try/catch/finally`
+- l’utilisation d’une variable potentiellement non initialisée est une erreur statique
+
+## 15.4 Compatibilité des types
+
+Règles :
+
+- aucun typage implicite n’est autorisé hors règles explicitement définies
+- les opérations binaires exigent des opérandes de types compatibles selon la section 5.11
+- les collections sont invariantes sur leurs paramètres (`list<T>`, `map<K,V>`, `slice<T>`, `view<T>`)
+- la substitution parent/enfant est autorisée pour les valeurs de prototypes selon les règles de la section 4
+- toute conversion doit être explicite via une opération/méthode définie par la spec
+
+## 15.5 Contraintes statiques de contrôle et d’appel
+
+Règles :
+
+- un `case` ou `default` sans terminaison explicite (`break`, `return`, `throw` ou instruction équivalente quittant le `switch`) est invalide
+- un paramètre variadique déclaré `list<T> ident...` doit être lié à au moins une valeur à l’appel
+- un appel fournissant zéro argument pour un paramètre variadique est invalide
+- une affectation ne peut pas être utilisée comme valeur d’expression
+- l’affectation chaînée est invalide
+
+Un paramètre variadique n’est pas une liste optionnelle : c’est une forme d’argumentation répétée obligatoire.
+
+## 15.6 Erreurs statiques normatives
+
+Une implémentation conforme doit classifier ses diagnostics statiques avec des codes stables.
+
+Familles minimales :
+
+- `E1xxx` : erreurs lexicales/syntaxiques
+- `E2xxx` : erreurs de nommage/résolution
+- `E3xxx` : erreurs de typage/compatibilité
+- `E4xxx` : erreurs de flux d’initialisation
+
+Exigences minimales de diagnostic :
+
+- code canonique (ex. `E3007`)
+- catégorie
+- position `file:line:column`
+- message descriptif
+
+# 16. Modèle mémoire normatif
+
+Le modèle mémoire décrit ici est abstrait et observable.
+
+- la spec ne fixe pas d’ABI
+- la spec fixe les garanties comportementales visibles par le programmeur
+
+## 16.1 Représentations abstraites
+
+Représentations conceptuelles minimales :
+
+- `list<T>` : `(ptr, len, cap)`
+- `slice<T>` / `view<T>` : `(ptr, len)`
+- `map<K,V>` : table associative avec ordre d’insertion stable
+- objet de prototype : bloc mémoire à layout figé, offsets connus statiquement
+
+## 16.2 Ownership et durées de vie
+
+Règles :
+
+- `list<T>` et `map<K,V>` sont possédants
+- `slice<T>` et `view<T>` sont non possédants
+- toute vue doit référencer un stockage vivant pendant toute sa durée d’utilisation
+- une vue ne doit pas survivre au stockage source qu’elle référence
+
+## 16.3 Invalidation des vues et itérateurs internes
+
+Règles :
+
+- toute réallocation de `list<T>` invalide les vues/pointeurs dérivés sur son buffer
+- toute mutation structurelle de `map<K,V>` peut invalider les vues/états d’itération dérivés
+- l’usage d’une vue invalidée est interdit : erreur statique si prouvable, sinon exception runtime
+
+## 16.4 Aliasing
+
+Règles :
+
+- l’aliasing est autorisé tant qu’il ne viole pas les règles de validité mémoire
+- l’implémentation doit préserver l’ordre observable des lectures/écritures défini par le langage
+- aucune optimisation backend ne peut supposer l’absence d’aliasing non prouvée
+
+## 16.5 Debug / release
+
+Règles :
+
+- debug peut instrumenter des contrôles supplémentaires (bornes, validité de vues, mutation durant itération)
+- release peut retirer des contrôles démontrés redondants
+- aucune différence de résultat observable n’est autorisée
+
+# 17. IR normatif
+
+Cette section définit le contrat normatif entre source, frontend IR et backend.
+
+## 17.1 Entités IR
+
+L’IR doit définir au minimum les entités :
+
+- `Module`
+- `Function`
+- `Block`
+- `Instruction`
+- `Type`
+
+## 17.2 Typage IR
+
+Règles :
+
+- chaque valeur IR doit avoir un type statique unique
+- aucune conversion implicite n’est autorisée
+- toute conversion explicite doit être représentée par une instruction IR dédiée
+
+## 17.3 Invariants obligatoires
+
+Une unité IR valide doit respecter :
+
+- CFG valide (blocs terminés par une terminaison explicite)
+- définition avant usage sur tous les chemins
+- appels résolus statiquement (cible connue à la compilation)
+- accès mémoire typés (lecture/écriture cohérentes avec le type adressé)
+- absence d’instruction sémantiquement non définie par la spec
+
+## 17.4 Obligations du frontend
+
+Le frontend qui produit l’IR doit :
+
+- rejeter tout programme source invalide selon sections 13 à 16
+- matérialiser explicitement les contrôles runtime exigés par la spec
+- préserver la correspondance source -> IR pour diagnostics (`file:line:column`)
+- ne générer aucun comportement hors spec (pas d’UB caché)
+
+## 17.5 Garanties backend
+
+Un backend conforme peut supposer :
+
+- IR bien typé et conforme aux invariants 17.3
+- sémantique explicite de chaque instruction
+- absence de dépendance à un RTTI utilisateur
+
+Un backend conforme doit :
+
+- préserver strictement la sémantique observable
+- ne pas supprimer un contrôle runtime normatif non prouvé redondant
+
+## 17.6 Correspondance normative source <-> IR
+
+Règles :
+
+- chaque construction source doit avoir une traduction IR définie
+- chaque erreur runtime normative doit correspondre à un point IR identifiable
+- la chaîne source -> IR -> backend doit conserver les garanties des sections 14, 15 et 16
+
+# 18. Conformité et test suite
+
+La conformité d’une implémentation est définie par cette section et ses annexes normatives.
+
+## 18.1 Structure normative de la suite
+
+La suite de conformité doit contenir au minimum :
+
+- `valid/` : programmes valides avec sortie/résultat attendu
+- `invalid/parse` : programmes invalides lexicalement/syntaxiquement
+- `invalid/type` : programmes invalides statiquement
+- `invalid/runtime` : programmes valides qui déclenchent une exception normative
+- `edge/` : cas limites obligatoires
+- `invalid/type/switch-no-termination` : `case`/`default` sans terminaison explicite
+- `invalid/type/variadic-empty-call` : appel variadique avec zéro argument
+
+## 18.2 Format minimal d’un test
+
+Chaque test doit définir :
+
+- le fichier source
+- le statut attendu (`accept`, `reject-static`, `reject-runtime`)
+- la sortie attendue ou l’exception attendue
+- les exigences minimales de diagnostic :
+  - catégorie d’erreur
+  - position `file:line:column`
+  - code d’erreur canonique
+
+## 18.3 Exigence de conformité
+
+Règles :
+
+- une implémentation conforme doit réussir 100 % des tests normatifs
+- un échec sur un test normatif rend l’implémentation non conforme
+- des tests supplémentaires non normatifs peuvent exister, mais ne remplacent pas les tests normatifs
+
+## 18.4 Stabilité des codes de diagnostic
+
+Règles :
+
+- les codes canoniques normatifs (familles `E*` et `R*`) doivent être stables entre versions mineures de la spec
+- le texte du message peut évoluer, pas la signification du code
+
+# Annexe A (normative) — Grammaire lexicale
+
+## A.1 Encodage et caractères
+
+- le texte source doit être en UTF-8 valide
+- les fins de ligne `LF` et `CRLF` sont acceptées
+- un caractère invalide UTF-8 est une erreur lexicale
+
+## A.2 Espaces et commentaires
+
+- espaces, tabulations et fins de ligne sont des séparateurs
+- commentaire ligne : `// ...` jusqu’à la fin de ligne
+- commentaire bloc : `/* ... */` non imbriqué
+
+## A.3 Tokens
+
+Catégories :
+
+- identifiants
+- mots-clés réservés
+- littéraux
+- opérateurs
+- ponctuation
+
+## A.4 Mots-clés réservés
+
+`prototype`, `function`, `var`, `int`, `float`, `bool`, `byte`, `glyph`, `string`, `list`, `map`, `slice`, `view`, `void`, `if`, `else`, `for`, `of`, `in`, `while`, `do`, `switch`, `case`, `default`, `break`, `continue`, `return`, `try`, `catch`, `finally`, `throw`, `true`, `false`, `self`
+
+## A.5 Littéraux
+
+- entier décimal, hexadécimal (`0x`), binaire (`0b`), octal (`0` préfixé)
+- flottant décimal/scientifique
+- chaîne UTF-8 entre guillemets doubles
+- les littéraux entiers sont non signés lexicalement ; le signe `-` est un opérateur unaire
+
+## A.6 Identifiants
+
+- regex normative : `[A-Za-z_][A-Za-z0-9_]*`
+- un mot-clé réservé ne peut pas être utilisé comme identifiant
+
+# Annexe B (normative) — EBNF complète
+
+```ebnf
+Program          = { TopDecl } ;
+
+TopDecl          = PrototypeDecl | FunctionDecl | VarDecl ";" ;
+
+PrototypeDecl    = "prototype" Identifier [ ":" TypeName ] "{" { ProtoMember } "}" ;
+ProtoMember      = FieldDecl | MethodDecl ;
+FieldDecl        = Type Identifier ";" ;
+MethodDecl       = FunctionDecl ;
+
+FunctionDecl     = "function" Identifier "(" [ ParamList ] ")" ":" Type Block ;
+ParamList        = Param { "," Param } ;
+Param            = Type Identifier | "list" "<" Type ">" Identifier "..." ;
+
+VarDecl          = "var" Identifier "=" Expr
+                 | Type Identifier [ "=" Expr ] ;
+
+Type             = PrimitiveType
+                 | TypeName
+                 | "list" "<" Type ">"
+                 | "map" "<" Type "," Type ">"
+                 | "slice" "<" Type ">"
+                 | "view" "<" Type ">" ;
+
+PrimitiveType    = "int" | "float" | "bool" | "byte" | "glyph" | "string" | "void" ;
+TypeName         = Identifier ;
+
+Block            = "{" { Stmt } "}" ;
+
+Stmt             = Block
+                 | IfStmt
+                 | ForStmt
+                 | WhileStmt
+                 | DoWhileStmt
+                 | SwitchStmt
+                 | TryStmt
+                 | ReturnStmt
+                 | BreakStmt
+                 | ContinueStmt
+                 | ThrowStmt
+                 | VarDecl ";"
+                 | AssignStmt
+                 | ExprStmt ;
+
+IfStmt           = "if" "(" Expr ")" Stmt [ "else" Stmt ] ;
+ForStmt          = "for" "(" ( ForClassic | ForOf | ForIn ) ")" Stmt ;
+ForClassic       = [ ForInit ] ";" [ Expr ] ";" [ ForStep ] ;
+ForInit          = VarDecl | AssignNoValue | Expr ;
+ForStep          = AssignNoValue | Expr ;
+ForOf            = ( Type Identifier | "var" Identifier ) "of" Expr ;
+ForIn            = ( Type Identifier | "var" Identifier ) "in" Expr ;
+WhileStmt        = "while" "(" Expr ")" Stmt ;
+DoWhileStmt      = "do" Stmt "while" "(" Expr ")" ";" ;
+
+SwitchStmt       = "switch" "(" Expr ")" "{"
+                   { "case" Expr ":" { Stmt } }
+                   [ "default" ":" { Stmt } ]
+                   "}" ;
+
+TryStmt          = "try" Block { CatchClause } [ FinallyClause ] ;
+CatchClause      = "catch" "(" Type Identifier ")" Block ;
+FinallyClause    = "finally" Block ;
+
+ReturnStmt       = "return" [ Expr ] ";" ;
+BreakStmt        = "break" ";" ;
+ContinueStmt     = "continue" ";" ;
+ThrowStmt        = "throw" Expr ";" ;
+AssignStmt       = AssignNoValue ";" ;
+ExprStmt         = Expr ";" ;
+
+Expr             = ConditionalExpr ;
+AssignNoValue    = PostfixExpr AssignOp ConditionalExpr ;
+AssignOp         = "=" | "+=" | "-=" | "*=" | "/=" ;
+
+ConditionalExpr  = OrExpr [ "?" ConditionalExpr ":" ConditionalExpr ] ;
+OrExpr           = AndExpr { "||" AndExpr } ;
+AndExpr          = EqExpr { "&&" EqExpr } ;
+EqExpr           = RelExpr { ( "==" | "!=" ) RelExpr } ;
+RelExpr          = ShiftExpr { ( "<" | "<=" | ">" | ">=" ) ShiftExpr } ;
+ShiftExpr        = AddExpr { ( "<<" | ">>" ) AddExpr } ;
+AddExpr          = MulExpr { ( "+" | "-" | "|" | "^" ) MulExpr } ;
+MulExpr          = UnaryExpr { ( "*" | "/" | "%" | "&" ) UnaryExpr } ;
+UnaryExpr        = [ "!" | "~" | "-" | "++" | "--" ] PostfixExpr ;
+PostfixExpr      = PrimaryExpr { PostfixPart } ;
+PostfixPart      = "(" [ ArgList ] ")"
+                 | "[" Expr "]"
+                 | "." Identifier
+                 | "++"
+                 | "--" ;
+ArgList          = Expr { "," Expr } ;
+
+PrimaryExpr      = Literal
+                 | Identifier
+                 | "self"
+                 | "(" Expr ")"
+                 | ListLiteral
+                 | MapLiteral ;
+
+ListLiteral      = "[" [ Expr { "," Expr } ] "]" ;
+MapLiteral       = "{" [ MapPair { "," MapPair } ] "}" ;
+MapPair          = Expr ":" Expr ;
+
+Literal          = IntLiteral | FloatLiteral | StringLiteral | BoolLiteral ;
+BoolLiteral      = "true" | "false" ;
+```
+
+# Annexe C (normative) — Précédence, associativité, ordre d’évaluation
+
+## C.1 Table de précédence (du plus fort au plus faible)
+
+| Niveau | Opérateurs | Associativité |
+| --- | --- | --- |
+| 1 | postfix `()`, `[]`, `.`, `x++`, `x--` | gauche |
+| 2 | préfixe `!`, `~`, `-`, `++x`, `--x` | droite |
+| 3 | `*`, `/`, `%`, `&` | gauche |
+| 4 | `+`, `-`, `|`, `^` | gauche |
+| 5 | `<<`, `>>` | gauche |
+| 6 | `<`, `<=`, `>`, `>=` | gauche |
+| 7 | `==`, `!=` | gauche |
+| 8 | `&&` | gauche |
+| 9 | `||` | gauche |
+| 10 | `?:` | droite |
+
+## C.2 Ordre d’évaluation
+
+Règles obligatoires :
+
+- les opérandes sont évalués de gauche à droite
+- les arguments d’appel sont évalués de gauche à droite
+- le receveur d’un accès membre/index est évalué avant le membre/index
+- pour `cond ? a : b`, la condition est évaluée avant la branche sélectionnée ; seule la branche sélectionnée est évaluée
+- pour `a op= b`, `a` est évalué une seule fois
+- `&&` et `||` court-circuitent
+
+## C.3 Effets de bord
+
+- les effets de bord doivent être visibles dans l’ordre défini en C.2
+- une implémentation ne doit pas réordonner des effets de bord observables
+
+# Annexe D (informative) — Exemples commentés
+
+Cette annexe est informative et ne modifie pas les exigences normatives.
+
+Exemples recommandés :
+
+- exemples de parsing ambigu levé par les règles de la section 13.2
+- exemples de diagnostics `E*` et `R*`
+- exemples de cas limites de la section 14
+- exemples de correspondance source -> IR de la section 17
