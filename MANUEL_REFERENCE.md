@@ -1,3 +1,5 @@
+![ProtoScript2](header.png)
+
 # Manuel de reference ProtoScript V2
 
 Ce document est le manuel utilisateur de ProtoScript V2.
