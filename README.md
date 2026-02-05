@@ -32,7 +32,8 @@ Ce dépôt fournit :
 
 - une spécification normative complète
 - une implémentation oracle Node.js (`bin/protoscriptc`)
-- un chemin CLI C (`c/pscc`) pour la crédibilité système
+- un CLI C de référence (`c/ps`) pour l’exécution
+- un chemin CLI C (`c/pscc`) pour la validation frontend
 - une validation croisée Node/C pour éviter les divergences silencieuses
 
 Node.js sert de **spec exécutable**.
@@ -65,6 +66,11 @@ CLI C :
 
 ```bash
 make -C c
+./c/ps --help
+./c/ps run file.pts
+./c/ps check file.pts
+./c/ps ast file.pts
+./c/ps ir file.pts
 ./c/pscc --check file.pts
 ./c/pscc --check-c file.pts
 ./c/pscc --check-c-static file.pts
@@ -78,6 +84,9 @@ ProtoScript V2 autorise des modules tiers via API native normative (section 20 d
 - résolution compile-time uniquement
 - symboles importés explicitement et typés statiquement
 - aucun chargement dynamique, aucune RTTI, aucune réflexion
+
+Documentation officielle pour écrire un module natif :
+[`docs/native-modules.md`](docs/native-modules.md)
 
 ## État
 
