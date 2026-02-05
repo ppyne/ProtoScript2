@@ -2959,6 +2959,21 @@ Règles :
 - les codes canoniques normatifs (familles `E*` et `R*`) doivent être stables entre versions mineures de la spec
 - le texte du message peut évoluer, pas la signification du code
 
+# 19. Versioning et gouvernance de la spécification
+
+Cette spécification définit **ProtoScript Language Specification v2.0**.
+
+Règles normatives :
+
+- la version publiée de cette spécification constitue la référence normative unique pour ProtoScript V2
+- la suite de conformité normative (section 18) fait partie intégrante du contrat de conformité
+- aucun changement sémantique n’est autorisé sans incrément de version majeure de la spécification
+- les modifications éditoriales non sémantiques peuvent être publiées sans changement de version majeure
+
+Déclaration de statut :
+
+> **ProtoScript V2 est un langage spécifié au sens de cette spécification.**
+
 # Annexe A (normative) — Grammaire lexicale
 
 ## A.1 Encodage et caractères
