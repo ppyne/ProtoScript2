@@ -11,7 +11,8 @@
       "invalid/type/variadic_empty_call",
       "invalid/type/switch_no_termination",
       "invalid/type/string_index_write",
-      "invalid/type/view_index_write"
+      "invalid/type/view_index_write",
+      "invalid/type/list_pop_empty_static"
     ],
     "invalid/runtime": [
       "invalid/runtime/int_overflow_add",
@@ -20,7 +21,10 @@
       "invalid/runtime/list_index_oob",
       "invalid/runtime/map_missing_key",
       "invalid/runtime/index_get_string_oob",
-      "invalid/runtime/index_set_list_oob"
+      "invalid/runtime/index_set_list_oob",
+      "invalid/runtime/index_get_string_oob_emoji",
+      "invalid/runtime/index_get_string_oob_combining",
+      "invalid/runtime/list_pop_empty_runtime"
     ],
     "edge": [
       "edge/overflow_int_add",
@@ -44,7 +48,10 @@
       "edge/iter_list_of",
       "edge/iter_list_in",
       "edge/switch_cfg_case",
-      "edge/switch_cfg_default"
+      "edge/switch_cfg_default",
+      "edge/string_length_ascii",
+      "edge/string_length_emoji",
+      "edge/string_length_combining"
     ]
   }
 }

@@ -1,0 +1,4 @@
+function main() : void {
+    list<int> xs = [];
+    xs.pop();
+}

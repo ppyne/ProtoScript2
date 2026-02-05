@@ -1,0 +1,5 @@
+function main() : void {
+    string s = "é";
+    glyph g = s[2];
+    Sys.print(g.toString());
+}

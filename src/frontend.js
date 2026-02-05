@@ -866,6 +866,7 @@ class Analyzer {
     switch (stmt.kind) {
       case "VarDecl": {
         let t = stmt.declaredType;
+        let knownListLen = null;
         if (stmt.init) {
           const initType = this.typeOfExpr(stmt.init, scope);
           const emptyMapInit =
@@ -877,8 +878,9 @@ class Analyzer {
             this.addDiag(stmt, "E3001", "TYPE_MISMATCH_ASSIGNMENT", `cannot assign ${typeToString(initType)} to ${typeToString(t)}`);
           }
           if (!t) t = initType;
+          if (stmt.init.kind === "ListLiteral") knownListLen = stmt.init.items.length;
         }
-        scope.define(stmt.name, t || { kind: "PrimitiveType", name: "void" }, true);
+        scope.define(stmt.name, t || { kind: "PrimitiveType", name: "void" }, true, knownListLen);
         break;
       }
       case "AssignStmt": {
@@ -900,10 +902,18 @@ class Analyzer {
         if (lhsType && rhsType && !sameType(lhsType, rhsType) && !emptyMapAssign) {
           this.addDiag(stmt, "E3001", "TYPE_MISMATCH_ASSIGNMENT", `cannot assign ${typeToString(rhsType)} to ${typeToString(lhsType)}`);
         }
+        if (stmt.target && stmt.target.kind === "Identifier") {
+          const s = scope.lookup(stmt.target.name);
+          if (s) {
+            if (stmt.expr && stmt.expr.kind === "ListLiteral") s.knownListLen = stmt.expr.items.length;
+            else s.knownListLen = null;
+          }
+        }
         break;
       }
       case "ExprStmt":
         this.typeOfExpr(stmt.expr, scope);
+        this.checkListMethodEffects(stmt.expr, scope);
         break;
       case "ForStmt":
         if (stmt.forKind === "classic") {
@@ -1085,6 +1095,31 @@ class Analyzer {
     }
     return fn.retType;
   }
+
+  checkListMethodEffects(expr, scope) {
+    if (!expr || expr.kind !== "CallExpr" || !expr.callee || expr.callee.kind !== "MemberExpr") return;
+    const member = expr.callee;
+    if (!member.target || member.target.kind !== "Identifier") return;
+    const s = scope.lookup(member.target.name);
+    if (!s || !s.type) return;
+    const ts = typeToString(s.type);
+    if (!ts.startsWith("list<")) return;
+
+    if (member.name === "pop") {
+      if (s.knownListLen === 0) {
+        this.addDiag(member.target, "E3005", "STATIC_EMPTY_POP", "pop on statically empty list");
+        return;
+      }
+      if (typeof s.knownListLen === "number" && s.knownListLen > 0) s.knownListLen -= 1;
+      else s.knownListLen = null;
+      return;
+    }
+
+    if (member.name === "push") {
+      if (typeof s.knownListLen === "number") s.knownListLen += 1;
+      else s.knownListLen = null;
+    }
+  }
 }
 
 class Scope {
@@ -1092,8 +1127,8 @@ class Scope {
     this.parent = parent;
     this.syms = new Map();
   }
-  define(name, type, initialized) {
-    this.syms.set(name, { type, initialized });
+  define(name, type, initialized, knownListLen = null) {
+    this.syms.set(name, { type, initialized, knownListLen });
   }
   lookup(name) {
     if (this.syms.has(name)) return this.syms.get(name);

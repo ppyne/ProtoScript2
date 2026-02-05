@@ -1,0 +1,11 @@
+{
+  "status": "reject-static",
+  "error_family": "E3xxx",
+  "error_code": "E3005",
+  "category": "STATIC_EMPTY_POP",
+  "position": {
+    "file": "invalid/type/list_pop_empty_static.pts",
+    "line": 3,
+    "column": 5
+  }
+}

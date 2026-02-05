@@ -348,11 +348,12 @@ function indexGet(file, targetNode, indexNode, target, idx) {
     return target[i];
   }
   if (typeof target === "string") {
+    const glyphs = Array.from(target);
     const i = Number(idx);
-    if (!Number.isInteger(i) || i < 0 || i >= target.length) {
+    if (!Number.isInteger(i) || i < 0 || i >= glyphs.length) {
       throw new RuntimeError(rdiag(file, targetNode, "R1002", "RUNTIME_INDEX_OOB", "index out of bounds"));
     }
-    return target[i];
+    return glyphs[i];
   }
   if (target instanceof Map) {
     const k = mapKey(idx);
@@ -410,9 +411,17 @@ function evalCall(expr, scope, functions, file, callFunction) {
     }
 
     if (m.name === "length") {
-      if (Array.isArray(target) || typeof target === "string") return BigInt(target.length);
+      if (Array.isArray(target)) return BigInt(target.length);
+      if (typeof target === "string") return BigInt(Array.from(target).length);
       if (target instanceof Map) return BigInt(target.size);
       return 0n;
+    }
+
+    if (m.name === "pop" && Array.isArray(target)) {
+      if (target.length === 0) {
+        throw new RuntimeError(rdiag(file, m.target, "R1006", "RUNTIME_EMPTY_POP", "pop on empty list"));
+      }
+      return target.pop();
     }
   }
 

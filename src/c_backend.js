@@ -62,6 +62,12 @@ function parseMapType(typeName) {
   };
 }
 
+function isAliasTrackedType(typeName) {
+  if (parseMapType(typeName)) return true;
+  const c = parseContainer(typeName);
+  return !!(c && c.kind === "list");
+}
+
 function cTypeFromName(typeName) {
   const scalar = cScalarType(typeName);
   if (scalar) return scalar;
@@ -330,6 +336,56 @@ function emitRuntimeHelpers() {
     "static void ps_check_map_has_key(int has_key) {",
     "  if (!has_key) ps_panic(\"R1003\", \"RUNTIME_MISSING_KEY\", \"missing map key\");",
     "}",
+    "static size_t ps_utf8_glyph_len(ps_string s) {",
+    "  size_t n = 0;",
+    "  for (size_t i = 0; i < s.len; i += 1) {",
+    "    unsigned char c = (unsigned char)s.ptr[i];",
+    "    if ((c & 0xC0) != 0x80) n += 1;",
+    "  }",
+    "  return n;",
+    "}",
+    "static uint32_t ps_string_index_glyph(ps_string s, int64_t idx) {",
+    "  if (idx < 0) ps_panic(\"R1002\", \"RUNTIME_INDEX_OOB\", \"index out of bounds\");",
+    "  size_t want = (size_t)idx;",
+    "  size_t g = 0;",
+    "  for (size_t i = 0; i < s.len; ) {",
+    "    unsigned char c0 = (unsigned char)s.ptr[i];",
+    "    if ((c0 & 0xC0) == 0x80) { i += 1; continue; }",
+    "    if (g == want) {",
+    "      if ((c0 & 0x80) == 0) return c0;",
+      "      if ((c0 & 0xE0) == 0xC0 && i + 1 < s.len) return ((uint32_t)(c0 & 0x1F) << 6) | ((uint32_t)s.ptr[i + 1] & 0x3F);",
+      "      if ((c0 & 0xF0) == 0xE0 && i + 2 < s.len) return ((uint32_t)(c0 & 0x0F) << 12) | (((uint32_t)s.ptr[i + 1] & 0x3F) << 6) | ((uint32_t)s.ptr[i + 2] & 0x3F);",
+      "      if ((c0 & 0xF8) == 0xF0 && i + 3 < s.len) return ((uint32_t)(c0 & 0x07) << 18) | (((uint32_t)s.ptr[i + 1] & 0x3F) << 12) | (((uint32_t)s.ptr[i + 2] & 0x3F) << 6) | ((uint32_t)s.ptr[i + 3] & 0x3F);",
+      "      return c0;",
+    "    }",
+    "    g += 1;",
+    "    if ((c0 & 0x80) == 0) i += 1;",
+    "    else if ((c0 & 0xE0) == 0xC0) i += 2;",
+    "    else if ((c0 & 0xF0) == 0xE0) i += 3;",
+    "    else if ((c0 & 0xF8) == 0xF0) i += 4;",
+    "    else i += 1;",
+    "  }",
+    "  ps_panic(\"R1002\", \"RUNTIME_INDEX_OOB\", \"index out of bounds\");",
+    "  return 0;",
+    "}",
+    "static ps_string ps_i64_to_string(int64_t v) {",
+    "  static char buf[4][64];",
+    "  static int slot = 0;",
+    "  slot = (slot + 1) & 3;",
+    "  int n = snprintf(buf[slot], sizeof(buf[slot]), \"%lld\", (long long)v);",
+    "  if (n < 0) n = 0;",
+    "  ps_string s = { buf[slot], (size_t)n };",
+    "  return s;",
+    "}",
+    "static ps_string ps_u32_to_string(uint32_t v) {",
+    "  static char buf[4][64];",
+    "  static int slot = 0;",
+    "  slot = (slot + 1) & 3;",
+    "  int n = snprintf(buf[slot], sizeof(buf[slot]), \"%u\", (unsigned)v);",
+    "  if (n < 0) n = 0;",
+    "  ps_string s = { buf[slot], (size_t)n };",
+    "  return s;",
+    "}",
   ];
 }
 
@@ -382,15 +438,15 @@ function emitInstr(i, fnInf, state) {
       }
       break;
     case "var_decl":
-      if (parseMapType(i.type.name)) setVarAlias(i.name, i.name);
+      if (isAliasTrackedType(i.type.name)) setVarAlias(i.name, i.name);
       out.push(`/* var_decl ${n(i.name)}:${i.type.name} */`);
       break;
     case "load_var":
-      setAlias(i.dst, parseMapType(i.type.name) ? resolveVarAlias(i.name) : null);
+      setAlias(i.dst, isAliasTrackedType(i.type.name) ? resolveVarAlias(i.name) : null);
       out.push(`${n(i.dst)} = ${n(i.name)};`);
       break;
     case "store_var":
-      if (parseMapType(i.type.name || t(i.name))) setVarAlias(i.name, aliasOf(i.src) || null);
+      if (isAliasTrackedType(i.type.name || t(i.name))) setVarAlias(i.name, aliasOf(i.src) || null);
       out.push(`${n(i.name)} = ${n(i.src)};`);
       break;
     case "check_int_overflow":
@@ -405,7 +461,8 @@ function emitInstr(i, fnInf, state) {
       out.push(`ps_check_shift_range(${n(i.shift)}, ${i.width});`);
       break;
     case "check_index_bounds":
-      out.push(`ps_check_index_bounds(${n(i.target)}.len, ${n(i.index)});`);
+      if (t(i.target) === "string") out.push(`ps_check_index_bounds(ps_utf8_glyph_len(${n(i.target)}), ${n(i.index)});`);
+      else out.push(`ps_check_index_bounds(${n(i.target)}.len, ${n(i.index)});`);
       break;
     case "check_map_has_key":
       {
@@ -429,18 +486,46 @@ function emitInstr(i, fnInf, state) {
       out.push(`${n(i.dst)} = ${n(i.src)}${i.operator};`);
       break;
     case "call_static":
-      out.push(`${n(i.dst)} = ${cIdent(i.callee)}(${i.args.map(n).join(", ")});`);
+      if (t(i.dst) === "void") out.push(`${cIdent(i.callee)}(${i.args.map(n).join(", ")});`);
+      else out.push(`${n(i.dst)} = ${cIdent(i.callee)}(${i.args.map(n).join(", ")});`);
       break;
     case "call_method_static":
-      out.push(`/* static method call */ ${n(i.dst)} = 0; /* ${i.method} */`);
+      {
+        const rt = t(i.receiver);
+        const rc = parseContainer(rt);
+        if (i.method === "length") {
+          if (rt === "string") out.push(`${n(i.dst)} = (int64_t)ps_utf8_glyph_len(${n(i.receiver)});`);
+          else if (rc && ["list", "slice", "view"].includes(rc.kind)) out.push(`${n(i.dst)} = (int64_t)${n(i.receiver)}.len;`);
+          else if (rc && rc.kind === "map") out.push(`${n(i.dst)} = (int64_t)${n(i.receiver)}.len;`);
+          else out.push(`${n(i.dst)} = 0;`);
+        } else if (i.method === "pop" && rc && rc.kind === "list") {
+          const recv = aliasOf(i.receiver) || i.receiver;
+          out.push(`if (${n(recv)}.len == 0) ps_panic("R1006", "RUNTIME_EMPTY_POP", "pop on empty list");`);
+          out.push(`${n(recv)}.len -= 1;`);
+          out.push(`${n(i.dst)} = ${n(recv)}.ptr[${n(recv)}.len];`);
+        } else {
+          out.push(`/* static method call */ ${n(i.dst)} = 0; /* ${i.method} */`);
+        }
+      }
       break;
     case "call_builtin_print":
       if (i.args.length > 0) out.push(`printf("%s\\n", ${n(i.args[0])}.ptr);`);
       else out.push('printf("\\n");');
       break;
     case "call_builtin_tostring":
-      out.push(`${n(i.dst)}.ptr = "<toString>";`);
-      out.push(`${n(i.dst)}.len = 10;`);
+      {
+        const vt = t(i.value);
+        if (vt === "string") out.push(`${n(i.dst)} = ${n(i.value)};`);
+        else if (vt === "int") out.push(`${n(i.dst)} = ps_i64_to_string(${n(i.value)});`);
+        else if (vt === "byte" || vt === "glyph") out.push(`${n(i.dst)} = ps_u32_to_string((uint32_t)${n(i.value)});`);
+        else if (vt === "bool") {
+          out.push(`${n(i.dst)}.ptr = ${n(i.value)} ? "true" : "false";`);
+          out.push(`${n(i.dst)}.len = ${n(i.value)} ? 4 : 5;`);
+        } else {
+          out.push(`${n(i.dst)}.ptr = "<toString>";`);
+          out.push(`${n(i.dst)}.len = 10;`);
+        }
+      }
       break;
     case "make_view":
       out.push(`${n(i.dst)}.ptr = ${n(i.source)}.ptr;`);
@@ -453,6 +538,8 @@ function emitInstr(i, fnInf, state) {
         const mapRefName = aliasOf(i.target) || i.target;
         if (m) {
           out.push(`${n(i.dst)} = ps_map_get_${m.base}(&${n(mapRefName)}, ${n(i.index)});`);
+        } else if (tt === "string") {
+          out.push(`${n(i.dst)} = ps_string_index_glyph(${n(i.target)}, ${n(i.index)});`);
         } else {
           out.push(`${n(i.dst)} = ${n(i.target)}.ptr[${n(i.index)}];`);
         }
@@ -560,6 +647,7 @@ function emitFunctionBody(fn, fnInf) {
   const tempDecls = [];
   const temps = Array.from(fnInf.tempTypes.entries()).sort((a, b) => a[0].localeCompare(b[0]));
   for (const [name, typeName] of temps) {
+    if (typeName === "void") continue;
     tempDecls.push(`  ${cTypeFromName(typeName)} ${cIdent(name)};`);
   }
   if (tempDecls.length > 0) out.push(...tempDecls);

@@ -310,6 +310,7 @@ int x = b[0];
 - accès indexé via l’opérateur `[]` avec un index de type `int`
 - initialisation possible par **littéral de liste** avec `[]`
 - l’ordre des éléments est celui du littéral
+- le littéral vide `[]` doit être typé par le contexte ; hors contexte typé explicite, il est invalide
 
 ---
 
@@ -355,6 +356,7 @@ int v = values["a"];
 - initialisation possible par **littéral de map** avec `{ key : value }`
 - les clés doivent être de type `K`
 - les valeurs doivent être de type `V`
+- le littéral vide `{}` doit être typé par le contexte ; hors contexte typé explicite, il est invalide
 - l’ordre d’itération est l’ordre d’insertion
 - les clés dupliquées dans un littéral sont interdites
 - accès par clé via l’opérateur `[]`
@@ -2763,6 +2765,7 @@ Règles :
 - la substitution parent/enfant est autorisée pour les valeurs de prototypes selon les règles de la section 4
 - toute conversion doit être explicite via une opération/méthode définie par la spec
 - toute écriture indexée sur un type immuable (`string`, `view<T>`) est une erreur statique
+- les littéraux vides `[]` et `{}` exigent un typage contextuel explicite
 
 ## 15.5 Contraintes statiques de contrôle et d’appel
 
@@ -2786,6 +2789,14 @@ Familles minimales :
 - `E2xxx` : erreurs de nommage/résolution
 - `E3xxx` : erreurs de typage/compatibilité
 - `E4xxx` : erreurs de flux d’initialisation
+
+Codes canoniques minimaux :
+
+- `E3001` : `TYPE_MISMATCH_ASSIGNMENT`
+- `E3002` : `VARIADIC_EMPTY_CALL`
+- `E3003` : `SWITCH_CASE_NO_TERMINATION`
+- `E3004` : `IMMUTABLE_INDEX_WRITE`
+- `E3005` : `STATIC_EMPTY_POP`
 
 Exigences minimales de diagnostic :
 

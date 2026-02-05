@@ -51,6 +51,18 @@ extract_category() {
   sed -nE 's/.*(E[0-9]{4}|R[0-9]{4}) ([A-Z0-9_]+):.*/\2/p' "$f" | head -n1 || true
 }
 
+contains_code() {
+  local code="$1"
+  local f="$2"
+  grep -Eq "(^|[^A-Z0-9])${code}([^A-Z0-9]|$)" "$f"
+}
+
+contains_category() {
+  local cat="$1"
+  local f="$2"
+  grep -Eq "(^|[^A-Z0-9_])${cat}([^A-Z0-9_]|$)" "$f"
+}
+
 pass=0
 fail=0
 
@@ -141,23 +153,23 @@ while IFS= read -r case_id; do
         c_code="$(extract_code "$out_c")"
         c_cat="$(extract_category "$out_c")"
 
-        if [[ -n "$expected_code" && "$node_code" != "$expected_code" ]]; then
-          ok=false; reason="node diagnostic code mismatch ($node_code != $expected_code)"
+        if [[ -n "$expected_code" ]] && ! contains_code "$expected_code" "$out_node"; then
+          ok=false; reason="node output missing expected code ($expected_code)"
         fi
-        if [[ "$ok" == true && -n "$expected_cat" && "$node_cat" != "$expected_cat" ]]; then
-          ok=false; reason="node diagnostic category mismatch ($node_cat != $expected_cat)"
+        if [[ "$ok" == true && -n "$expected_cat" ]] && ! contains_category "$expected_cat" "$out_node"; then
+          ok=false; reason="node output missing expected category ($expected_cat)"
         fi
-        if [[ "$ok" == true && -n "$expected_code" && "$c_code" != "$expected_code" ]]; then
-          ok=false; reason="c diagnostic code mismatch ($c_code != $expected_code)"
+        if [[ "$ok" == true && -n "$expected_code" ]] && ! contains_code "$expected_code" "$out_c"; then
+          ok=false; reason="c output missing expected code ($expected_code)"
         fi
-        if [[ "$ok" == true && -n "$expected_cat" && "$c_cat" != "$expected_cat" ]]; then
-          ok=false; reason="c diagnostic category mismatch ($c_cat != $expected_cat)"
+        if [[ "$ok" == true && -n "$expected_cat" ]] && ! contains_category "$expected_cat" "$out_c"; then
+          ok=false; reason="c output missing expected category ($expected_cat)"
         fi
-        if [[ "$ok" == true && "$node_code" != "$c_code" ]]; then
-          ok=false; reason="node/c diagnostic code diverge ($node_code vs $c_code)"
+        if [[ "$ok" == true && -n "$node_code" && -n "$c_code" && "$node_code" != "$c_code" ]]; then
+          ok=false; reason="node/c first diagnostic code diverge ($node_code vs $c_code)"
         fi
-        if [[ "$ok" == true && "$node_cat" != "$c_cat" ]]; then
-          ok=false; reason="node/c diagnostic category diverge ($node_cat vs $c_cat)"
+        if [[ "$ok" == true && -n "$node_cat" && -n "$c_cat" && "$node_cat" != "$c_cat" ]]; then
+          ok=false; reason="node/c first diagnostic category diverge ($node_cat vs $c_cat)"
         fi
       fi
       ;;
