@@ -13,7 +13,7 @@ ProtoScript2 suit ces choix structurants :
 - pas de généricité des fonctions
 - compilation possible vers C
 
-La spécification de référence est dans `specification.md`.
+La spécification de référence est dans `SPECIFICATION.md`.
 
 ## État actuel du dépôt
 
@@ -28,6 +28,8 @@ Implémenté :
   - `src/c_backend.js`
 - CLI compilateur  
   - `bin/protoscriptc`
+- CLI native C (bootstrap)  
+  - `c/pscc` (forwarder vers la référence actuelle)
 - conformance kit + runners  
   - `tests/`
 
@@ -42,6 +44,9 @@ Vérification statique :
 
 ```bash
 bin/protoscriptc --check path/to/file.pts
+
+# ou via CLI native C
+c/pscc --check path/to/file.pts
 ```
 
 Affichage IR :
@@ -81,6 +86,13 @@ Runner opt-safety :
 
 ```bash
 BACKEND_C_STABLE=1 tests/run_opt_safety.sh
+```
+
+## Build de la CLI C
+
+```bash
+make -C c
+./c/pscc --check path/to/file.pts
 ```
 
 Règle d’or du projet : le compilateur est considéré correct uniquement s’il passe 100 % des tests normatifs.
