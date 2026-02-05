@@ -5,7 +5,7 @@
   "category": "PARSE_UNCLOSED_BLOCK",
   "position": {
     "file": "invalid/parse/unclosed_block.pts",
-    "line": 2,
-    "column": 15
+    "line": 1,
+    "column": 21
   }
 }

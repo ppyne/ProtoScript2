@@ -20,12 +20,22 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 TESTS_DIR="$ROOT_DIR/tests"
 MANIFEST="$TESTS_DIR/manifest.json"
 
-COMPILER="${COMPILER:-protoscriptc}"
+COMPILER="${COMPILER:-$ROOT_DIR/bin/protoscriptc}"
 CONFORMANCE_CHECK_CMD="${CONFORMANCE_CHECK_CMD:-$COMPILER --check}"
 CONFORMANCE_RUN_CMD="${CONFORMANCE_RUN_CMD:-$COMPILER --run}"
+FRONTEND_ONLY="${FRONTEND_ONLY:-0}"
+
+if ! command -v jq >/dev/null 2>&1; then
+  if [[ -x "/usr/local/bin/jq" ]]; then
+    PATH="/usr/local/bin:$PATH"
+  elif [[ -x "/opt/local/bin/jq" ]]; then
+    PATH="/opt/local/bin:$PATH"
+  fi
+fi
 
 if ! command -v jq >/dev/null 2>&1; then
   echo "ERROR: jq is required." >&2
+  echo "Tried PATH and fallback locations: /usr/local/bin, /opt/local/bin" >&2
   exit 2
 fi
 
@@ -68,6 +78,7 @@ echo "== ProtoScript V2 Conformance Runner =="
 echo "Rule: compiler is correct only if 100% normative tests pass."
 echo "Check command: $CONFORMANCE_CHECK_CMD"
 echo "Run command:   $CONFORMANCE_RUN_CMD"
+echo "Frontend only: $FRONTEND_ONLY"
 echo
 
 while IFS= read -r case_id; do
@@ -108,6 +119,11 @@ while IFS= read -r case_id; do
       fi
       ;;
     reject-runtime)
+      if [[ "$FRONTEND_ONLY" == "1" ]]; then
+        echo "SKIP $case_id (reject-runtime, frontend-only)"
+        rm -f "$out"
+        continue
+      fi
       if run_with_prefix "$CONFORMANCE_RUN_CMD" "$src" "$out"; then
         rc=0
       else
