@@ -1,0 +1,9 @@
+function inc(int x) : int {
+    return x + 1;
+}
+
+function main() : int {
+    int a = 2;
+    int b = inc(a);
+    return b;
+}

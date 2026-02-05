@@ -408,7 +408,7 @@ class IRBuilder {
           op: "make_view",
           dst,
           kind: method,
-          ptr: `ptr(${recv.value})`,
+          source: recv.value,
           len,
           readonly: method === "view",
         });
@@ -512,6 +512,8 @@ function formatInstr(i) {
       return `${i.dst} = ${i.left} ${i.operator} ${i.right}`;
     case "unary_op":
       return `${i.dst} = ${i.operator}${i.src}`;
+    case "copy":
+      return `${i.dst} = copy ${i.src}`;
     case "postfix_op":
       return `${i.dst} = ${i.src}${i.operator}`;
     case "call_static":
@@ -519,7 +521,7 @@ function formatInstr(i) {
     case "call_method_static":
       return `${i.dst} = call_method_static ${i.receiver}.${i.method}(${i.args.join(", ")})`;
     case "make_view":
-      return `${i.dst} = make_${i.kind}(ptr=${i.ptr}, len=${i.len}, readonly=${i.readonly})`;
+      return `${i.dst} = make_${i.kind}(source=${i.source}, len=${i.len}, readonly=${i.readonly})`;
     case "index_get":
       return `${i.dst} = index_get ${i.target}[${i.index}]`;
     case "index_set":
@@ -575,4 +577,3 @@ module.exports = {
   buildIR,
   printIR,
 };
-

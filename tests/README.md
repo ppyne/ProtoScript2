@@ -35,3 +35,18 @@ Exemples :
 - `FRONTEND_ONLY=1 tests/run_conformance.sh`
 - `COMPILER=./bin/protoscriptc tests/run_conformance.sh`
 - `CONFORMANCE_CHECK_CMD=\"./myc check\" CONFORMANCE_RUN_CMD=\"./myc run\" tests/run_conformance.sh`
+
+Le runner écrit `tests/.conformance_passed` uniquement si la suite complète passe sans skip.
+
+## Opt Safety
+
+Runner dédié: `tests/run_opt_safety.sh`
+
+Préconditions :
+
+- `tests/.conformance_passed` présent
+- `BACKEND_C_STABLE=1`
+
+Exemple :
+
+- `BACKEND_C_STABLE=1 tests/run_opt_safety.sh`

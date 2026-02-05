@@ -1,0 +1,32 @@
+{
+  "cases": [
+    {
+      "id": "inline_const_main",
+      "kind": "accept",
+      "expected_exit": 3,
+      "ir_before_must_contain": ["call_static inc"],
+      "ir_after_must_not_contain": ["call_static inc"]
+    },
+    {
+      "id": "const_fold_main",
+      "kind": "accept",
+      "expected_exit": 20,
+      "ir_before_must_contain": ["check_int_overflow %t3 * %t4"],
+      "ir_after_must_contain": ["const int \"20\""]
+    },
+    {
+      "id": "invalid_variadic_empty",
+      "kind": "reject-static",
+      "source": "invalid/type/variadic_empty_call.pts",
+      "expected_error_code": "E3002",
+      "expected_category": "VARIADIC_EMPTY_CALL"
+    },
+    {
+      "id": "invalid_switch_no_termination",
+      "kind": "reject-static",
+      "source": "invalid/type/switch_no_termination.pts",
+      "expected_error_code": "E3003",
+      "expected_category": "SWITCH_CASE_NO_TERMINATION"
+    }
+  ]
+}

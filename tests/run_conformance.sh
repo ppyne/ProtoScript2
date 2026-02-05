@@ -73,6 +73,7 @@ line_col_match() {
 
 pass=0
 fail=0
+skip=0
 
 echo "== ProtoScript V2 Conformance Runner =="
 echo "Rule: compiler is correct only if 100% normative tests pass."
@@ -121,6 +122,7 @@ while IFS= read -r case_id; do
     reject-runtime)
       if [[ "$FRONTEND_ONLY" == "1" ]]; then
         echo "SKIP $case_id (reject-runtime, frontend-only)"
+        skip=$((skip + 1))
         rm -f "$out"
         continue
       fi
@@ -177,11 +179,19 @@ while IFS= read -r case_id; do
 done < <(jq -r '.suites | to_entries[] | .value[]' "$MANIFEST")
 
 echo
-echo "Summary: PASS=$pass FAIL=$fail TOTAL=$((pass + fail))"
+echo "Summary: PASS=$pass FAIL=$fail SKIP=$skip TOTAL=$((pass + fail + skip))"
 
 if [[ "$fail" -ne 0 ]]; then
+  rm -f "$TESTS_DIR/.conformance_passed"
   echo "Conformance FAILED (must be 100%)." >&2
   exit 1
 fi
 
+if [[ "$skip" -ne 0 ]]; then
+  rm -f "$TESTS_DIR/.conformance_passed"
+  echo "Conformance incomplete (skipped tests present)." >&2
+  exit 1
+fi
+
+date -u +"%Y-%m-%dT%H:%M:%SZ" > "$TESTS_DIR/.conformance_passed"
 echo "Conformance PASSED (100%)."

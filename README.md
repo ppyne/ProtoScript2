@@ -1,47 +1,86 @@
 # ProtoScript2
 
-ProtoScript2 is an experimental scripting language focused on **simplicity, explicitness, and performance**.
+ProtoScript2 est un projet de langage avec spécification normative et chaîne de compilation de référence.
 
-It is inspired by the **original prototype-based model of early JavaScript (ES1)**, before classes, syntax sugar, and complex abstractions obscured the core concepts. ProtoScript2 deliberately avoids class-based inheritance and favors **objects, delegation, and explicit construction**.
+## Positionnement
 
-The language is designed with the following principles:
+ProtoScript2 suit ces choix structurants :
 
-- **Prototype-based object model** (no classes, no hidden inheritance)
+- typage statique strict
+- modèle objet prototype-based (sans classes)
+- pas de RTTI utilisateur
+- pas de fonctions comme valeurs
+- pas de généricité des fonctions
+- compilation possible vers C
 
-- **Explicit semantics**: what is not written does not exist
+La spécification de référence est dans `specification.md`.
 
-- **Minimal runtime**, predictable behavior
+## État actuel du dépôt
 
-- **Performance-oriented design**, close to C-level representations
+Implémenté :
 
-- **Simple, readable syntax**, without framework-like abstractions
+- frontend minimal (lexer + parser + AST + analyse statique)  
+  - `src/frontend.js`
+- diagnostics normatifs `file:line:column` avec codes `E1xxx–E4xxx`
+- IR normatif minimal (`Module`, `Function`, `Block`, `Instr`, `Type`)  
+  - `src/ir.js`
+- backend C de référence non optimisé (oracle sémantique)  
+  - `src/c_backend.js`
+- CLI compilateur  
+  - `bin/protoscriptc`
+- conformance kit + runners  
+  - `tests/`
 
-- **Designed to be compiled or transpiled to C** (long-term goal)
+Non implémenté à ce stade :
 
-ProtoScript2 is not meant to compete with modern JavaScript ecosystems.  
-It is a **language for understanding, experimenting, and building small, efficient systems**, where control over execution and memory matters.
+- exécution runtime complète (`--run`)
+- backend natif/IR finalisé pour tous les cas du langage
 
----
+## Commandes principales
 
-## Key goals
+Vérification statique :
 
-- Reclaim the original ideas of prototype-based programming
+```bash
+bin/protoscriptc --check path/to/file.pts
+```
 
-- Provide a clean semantic model suitable for compilation
+Affichage IR :
 
-- Serve as a research and learning platform for language design
+```bash
+bin/protoscriptc --emit-ir path/to/file.pts
+```
 
-- Explore efficient representations of objects, strings, and collections
+Génération C de référence :
 
----
+```bash
+bin/protoscriptc --emit-c path/to/file.pts
+```
 
-## Non-goals
+Optimisations (gated) :
 
-- No DOM, no browser APIs
+```bash
+BACKEND_C_STABLE=1 bin/protoscriptc --emit-c path/to/file.pts --opt
+```
 
-- No class syntax
+## Tests
 
-- No dependency on existing JS runtimes
+Conformance kit :
 
-- No attempt to follow ECMAScript evolution
+- `tests/invalid/parse`
+- `tests/invalid/type`
+- `tests/invalid/runtime`
+- `tests/edge`
 
+Runner principal :
+
+```bash
+tests/run_conformance.sh
+```
+
+Runner opt-safety :
+
+```bash
+BACKEND_C_STABLE=1 tests/run_opt_safety.sh
+```
+
+Règle d’or du projet : le compilateur est considéré correct uniquement s’il passe 100 % des tests normatifs.

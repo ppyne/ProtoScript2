@@ -5,22 +5,31 @@ const fs = require("fs");
 const path = require("path");
 const { check, parseAndAnalyze, formatDiag, FrontendError } = require("../src/frontend");
 const { buildIR, printIR } = require("../src/ir");
+const { generateC } = require("../src/c_backend");
+const { optimizeIR } = require("../src/optimizer");
 
 function usage() {
   console.error("Usage:");
   console.error("  protoscriptc --check <file.pts>");
   console.error("  protoscriptc --emit-ir <file.pts>");
+  console.error("  protoscriptc --emit-c <file.pts> [--opt]");
   process.exit(2);
 }
 
 const args = process.argv.slice(2);
-if (args.length !== 2) usage();
+if (args.length < 2 || args.length > 3) usage();
 
 const mode = args[0];
 const file = args[1];
+const optEnabled = args.includes("--opt");
 
-if (mode !== "--check" && mode !== "--emit-ir") {
+if (mode !== "--check" && mode !== "--emit-ir" && mode !== "--emit-c") {
   console.error("error: unsupported mode");
+  process.exit(2);
+}
+
+if (mode !== "--emit-c" && mode !== "--emit-ir" && optEnabled) {
+  console.error("error: --opt is only valid with --emit-c or --emit-ir");
   process.exit(2);
 }
 
@@ -48,8 +57,16 @@ try {
     for (const d of diags) console.error(formatDiag(d));
     process.exit(1);
   }
-  const ir = buildIR(ast);
-  process.stdout.write(printIR(ir));
+  let ir = buildIR(ast);
+  if ((mode === "--emit-c" || mode === "--emit-ir") && optEnabled) {
+    enforceOptimizationGate();
+    ir = optimizeIR(ir);
+  }
+  if (mode === "--emit-ir") {
+    process.stdout.write(printIR(ir));
+    process.exit(0);
+  }
+  process.stdout.write(generateC(ir));
   process.exit(0);
 } catch (e) {
   if (e instanceof FrontendError && e.diag) {
@@ -58,4 +75,18 @@ try {
   }
   console.error(`internal error: ${e && e.message ? e.message : String(e)}`);
   process.exit(1);
+}
+
+function enforceOptimizationGate() {
+  const repoRoot = path.resolve(__dirname, "..");
+  const conformanceStamp = path.join(repoRoot, "tests", ".conformance_passed");
+  if (!fs.existsSync(conformanceStamp)) {
+    console.error("error: optimization gate closed (missing tests/.conformance_passed).");
+    console.error("run full conformance first (no skips).");
+    process.exit(2);
+  }
+  if (process.env.BACKEND_C_STABLE !== "1") {
+    console.error("error: optimization gate closed (BACKEND_C_STABLE=1 required).");
+    process.exit(2);
+  }
 }
