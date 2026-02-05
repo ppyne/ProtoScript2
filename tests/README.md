@@ -56,6 +56,7 @@ Runner dédié frontend C vs oracle Node (`--check`): `tests/run_c_frontend_orac
 Runner dédié statique C vs oracle Node (`--check-c-static`): `tests/run_c_static_oracle.sh`
 
 Runner dédié comparaison structurelle AST (Node vs C): `tests/run_ast_structural_crosscheck.sh`
+Runner dédié crosscheck IR Node/C (structure + invariants): `tests/run_ir_node_c_crosscheck.sh`
 
 ## Opt Safety
 

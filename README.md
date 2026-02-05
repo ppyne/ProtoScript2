@@ -128,6 +128,12 @@ Validation structurelle AST (Node AST vs AST C) :
 tests/run_ast_structural_crosscheck.sh
 ```
 
+Validation IR Node/C (structure + invariants) :
+
+```bash
+tests/run_ir_node_c_crosscheck.sh
+```
+
 ## Build de la CLI C
 
 ```bash
