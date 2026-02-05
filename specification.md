@@ -248,6 +248,7 @@ s.toLower();
 
 s.concat(parts);     // concaténation explicite
 s.toUtf8Bytes();     // list<byte> (UTF-8 strict)
+s.substring(start, length); // sous-chaîne (glyphes)
 
 string.format("%02i %.2f %x\n", 5, .2, 10);
 ```
@@ -261,6 +262,8 @@ Règles normatives d’accès indexé sur `string` :
 - `string` est immuable et ne constitue pas une collection mutable
 - `string.toUtf8Bytes()` retourne une `list<byte>` en UTF-8 strict
 - `list<byte>.toUtf8String()` retourne une `string` en UTF-8 strict
+- `string.substring(start, length)` retourne une nouvelle `string` extraite en glyphes
+- `string.substring` n’expose ni vue ni référence partagée
 
 **list<T>**
 
@@ -2716,6 +2719,7 @@ Principe général (normatif) :
 | écriture `view[i] = v` | erreur statique | toute mutation indexée de `view<T>` doit être rejetée | catégorie `IMMUTABLE_INDEX_WRITE`, position |
 | `list.pop()` sur liste vide | erreur statique si prouvée vide, sinon exception runtime | l’appel doit être rejeté statiquement quand prouvable ; sinon lever une exception runtime | catégorie `STATIC_EMPTY_POP` ou `RUNTIME_EMPTY_POP`, position |
 | conversion UTF-8 invalide (`list<byte>.toUtf8String()`) | exception runtime | la conversion doit échouer si l’octetage n’est pas UTF-8 valide | catégorie `RUNTIME_INVALID_UTF8`, position |
+| sous-chaîne hors bornes (`string.substring`) | exception runtime | l’extraction doit échouer si `start` ou `length` est invalide | catégorie `RUNTIME_INDEX_OOB`, position |
 | accès `map[k]` avec clé absente | exception runtime | l’accès doit lever une exception | catégorie `RUNTIME_MISSING_KEY`, position |
 | écriture `map[k] = v` avec clé absente | autorisé | l’opération doit insérer une entrée `(k, v)` | pas d’exception |
 | mutation structurelle pendant itération (`list`/`map`) | exception runtime | l’itération doit détecter la mutation et lever une exception au plus tard au prochain pas | catégorie `RUNTIME_CONCURRENT_MUTATION`, position |

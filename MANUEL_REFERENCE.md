@@ -1027,6 +1027,13 @@ string s = "abc";
 // s[0] = "x"[0]; // invalide
 ```
 
+Exemple d'approche correcte (création d'une nouvelle chaîne) :
+
+```c
+string s = "abc";
+string t = s.concat("x"); // s reste inchangée
+```
+
 ### 13.5 Comparaison utile (PHP/JS/C)
 
 - JS/PHP/C confondent souvent octets, code units et caractères utilisateurs.
@@ -1046,12 +1053,30 @@ Si vous devez manipuler des octets, utilisez une `list<byte>`.
 La conversion est explicite et strictement validée.
 
 ```c
-string s = "ok";
+string s = "Le cœur déçu mais l'âme plutôt naïve, Louÿs rêva de crapaüter en canoë au delà des îles, près du mälström où brûlent les novæ.";
 list<byte> bytes = s.toUtf8Bytes();
 string back = bytes.toUtf8String();
 ```
 
 Si la liste de bytes n'est pas un UTF-8 valide, `toUtf8String()` lève une exception runtime.
+
+### 13.9 Sous-chaînes (substring)
+
+`substring(start, length)` extrait une sous-chaîne en indices de glyphes.
+Elle retourne une **nouvelle** chaîne et ne crée pas de vue partagée.
+
+```c
+string s = "a😀b";
+string t = s.substring(1, 1); // "😀"
+```
+
+Erreurs :
+
+- `start` ou `length` hors bornes lève une exception runtime
+
+Note :
+
+Il n'existe pas d'API de slicing/view pour `string`. L'extraction est explicite et copie la sous-chaîne.
 
 ---
 
