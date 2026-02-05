@@ -98,6 +98,35 @@ cc -std=c11 -O2 -fPIC -dynamiclib -I/path/to/include \
 
 Placez le fichier dans un dossier chargeable par le runtime (voir section 7).
 
+### Template "module skeleton" (copier/coller)
+
+```c
+#include "ps/ps_api.h"
+
+// TODO: remplacer par votre logique.
+static PS_Status mod_fn(PS_Context *ctx, int argc, PS_Value **argv, PS_Value **out) {
+  (void)argc;
+  (void)argv;
+  // Exemple: retourne 0
+  PS_Value *v = ps_make_int(ctx, 0);
+  if (!v) return PS_ERR;
+  *out = v;
+  return PS_OK;
+}
+
+PS_Status ps_module_init(PS_Context *ctx, PS_Module *out) {
+  (void)ctx;
+  static PS_NativeFnDesc fns[] = {
+      {.name = "fn", .fn = mod_fn, .arity = 0, .ret_type = PS_T_INT, .param_types = NULL, .flags = 0},
+  };
+  out->module_name = "my.module";
+  out->api_version = PS_API_VERSION;
+  out->fn_count = 1;
+  out->fns = fns;
+  return PS_OK;
+}
+```
+
 ## 5) API C (ps_api.h)
 
 ### Types opaques
@@ -188,6 +217,18 @@ Le runtime charge le module a l'execution via :
 - `PS_MODULE_PATH` (liste de dossiers, separes par `:`), puis
 - `./modules`, puis `./lib`.
 
+### Exemple de build + PS_MODULE_PATH
+
+```sh
+# build
+cc -std=c11 -O2 -fPIC -shared -I/path/to/include \
+  test_simple.c -o /abs/path/to/modules/psmod_test_simple.so
+
+# execution (macOS/Linux)
+export PS_MODULE_PATH=/abs/path/to/modules
+./c/ps run examples/use_module.pts
+```
+
 Erreurs d'import possibles :
 - module introuvable
 - symbole manquant
@@ -220,4 +261,3 @@ Erreurs d'import possibles :
 - Liberer systematiquement via `ps_value_release`.
 - Utiliser `ps_throw` pour toute erreur detectee.
 - Versionner vos modules (nom logique stable + compatibilite ABI).
-

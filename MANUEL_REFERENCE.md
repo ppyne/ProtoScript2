@@ -1130,6 +1130,7 @@ Aucun chargement dynamique.
 ### 14.4 Modules natifs
 
 Les modules natifs étendent l'environnement de noms, pas la sémantique du langage.
+Documentation officielle : `docs/native-modules.md`.
 
 ### 14.5 Ce que les modules ne peuvent pas faire
 
