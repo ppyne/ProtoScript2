@@ -2974,6 +2974,90 @@ Déclaration de statut :
 
 > **ProtoScript V2 est un langage spécifié au sens de cette spécification.**
 
+# 20. Modules et extensions natives
+
+Cette section est normative.
+
+Un module étend l’environnement de compilation (symboles disponibles) et ne modifie jamais la sémantique du langage.
+
+## 20.1 Principes normatifs
+
+- un module doit exporter uniquement des symboles statiquement typés (fonctions, constantes)
+- un module ne doit pas définir de nouveaux mots-clés, opérateurs, règles de typage ou comportements runtime hors spec
+- la résolution des modules et symboles est exclusivement statique (compilation)
+- un programme doit être rejeté si un import ne peut pas être résolu de manière unique
+- tout symbole importé doit avoir une signature complète connue à la compilation
+- le linking des modules natifs est statique
+- aucun chargement dynamique, aucune RTTI, aucune réflexion, aucune extension syntaxique
+
+## 20.2 Syntaxe `import` (normative)
+
+```ebnf
+ImportDecl   = "import" ModulePath [ "as" Identifier ] ";"
+             | "import" ModulePath "." "{" ImportItem { "," ImportItem } "}" ";" ;
+
+ModulePath   = Identifier { "." Identifier } ;
+ImportItem   = Identifier [ "as" Identifier ] ;
+```
+
+Exemples :
+
+```c
+import std.io as io;
+import math.core.{abs, clamp as clip};
+```
+
+## 20.3 Visibilité et espace de noms
+
+- `import A.B as X;` introduit un espace de noms local `X`; l’accès se fait via `X.symbol`
+- `import A.B.{s1, s2 as y};` introduit uniquement les symboles listés dans la portée locale
+- les imports wildcard (`*`) sont interdits
+- deux imports produisant le même nom local sans alias explicite sont une erreur statique
+- les symboles importés suivent les règles normales de portée et shadowing de la section 15
+
+## 20.4 Résolution à la compilation
+
+- le compilateur résout `(module, symbole)` contre un registre de modules fourni au build
+- toute ambiguïté, absence de symbole ou incompatibilité de type est une erreur statique
+- aucun fallback runtime n’est autorisé
+- les appels importés restent des appels statiques (`call_static` ou équivalent IR)
+
+## 20.5 Contrat backend minimal (API C normative)
+
+```c
+typedef enum {
+  PS_T_INT, PS_T_FLOAT, PS_T_BOOL, PS_T_BYTE, PS_T_GLYPH, PS_T_STRING, PS_T_VOID
+} ps_type_tag;
+
+typedef struct {
+  const char* name;
+  ps_type_tag ret_type;
+  size_t param_count;
+  const ps_type_tag* param_types;
+  const char* c_symbol;   // symbole C lié statiquement
+} ps_native_fn_sig;
+
+typedef struct {
+  const char* module_name;      // ex: "std.io"
+  size_t fn_count;
+  const ps_native_fn_sig* fns;
+} ps_native_module_desc;
+
+// API du compilateur/backend (phase compilation)
+int ps_register_native_module(const ps_native_module_desc* module);
+```
+
+Règles :
+
+- `ps_register_native_module` est appelé avant compilation
+- le backend doit émettre des appels vers `c_symbol` connus au linking statique
+- aucune découverte dynamique de symboles n’est autorisée
+
+Encadré de cohérence :
+
+- les modules étendent l’environnement de noms, pas le langage
+- ProtoScript V2 conserve un modèle déterministe : tout est résolu, typé et vérifié à la compilation
+
 # Annexe A (normative) — Grammaire lexicale
 
 ## A.1 Encodage et caractères
