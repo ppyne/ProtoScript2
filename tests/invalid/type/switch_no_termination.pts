@@ -1,0 +1,10 @@
+function classify(int x) : int {
+    switch (x) {
+        case 0:
+            return 0;
+        case 1:
+            x = x + 1;
+        default:
+            return -1;
+    }
+}

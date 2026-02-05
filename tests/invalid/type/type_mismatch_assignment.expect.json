@@ -1,0 +1,11 @@
+{
+  "status": "reject-static",
+  "error_family": "E3xxx",
+  "error_code": "E3001",
+  "category": "TYPE_MISMATCH_ASSIGNMENT",
+  "position": {
+    "file": "invalid/type/type_mismatch_assignment.pts",
+    "line": 3,
+    "column": 5
+  }
+}

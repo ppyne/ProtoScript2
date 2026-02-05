@@ -1,0 +1,5 @@
+function main() : void {
+    int x = 9223372036854775807;
+    int y = x + 1;
+    Sys.print(y.toString());
+}

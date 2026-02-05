@@ -1,0 +1,26 @@
+{
+  "version": "v2.0",
+  "rule": "Le compilateur n'est correct que s'il passe 100% des tests normatifs.",
+  "suites": {
+    "invalid/parse": [
+      "invalid/parse/unexpected_token_comma",
+      "invalid/parse/unclosed_block"
+    ],
+    "invalid/type": [
+      "invalid/type/type_mismatch_assignment",
+      "invalid/type/variadic_empty_call",
+      "invalid/type/switch_no_termination"
+    ],
+    "invalid/runtime": [
+      "invalid/runtime/int_overflow_add",
+      "invalid/runtime/list_index_oob",
+      "invalid/runtime/map_missing_key"
+    ],
+    "edge": [
+      "edge/overflow_int_add",
+      "edge/oob_list_index",
+      "edge/variadic_empty_call",
+      "edge/switch_no_termination"
+    ]
+  }
+}

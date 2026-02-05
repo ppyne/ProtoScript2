@@ -1,0 +1,11 @@
+{
+  "status": "reject-runtime",
+  "error_family": "Rxxxx",
+  "error_code": "R1002",
+  "category": "RUNTIME_INDEX_OOB",
+  "position": {
+    "file": "invalid/runtime/list_index_oob.pts",
+    "line": 3,
+    "column": 13
+  }
+}

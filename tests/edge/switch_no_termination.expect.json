@@ -1,0 +1,11 @@
+{
+  "status": "reject-static",
+  "error_family": "E3xxx",
+  "error_code": "E3003",
+  "category": "SWITCH_CASE_NO_TERMINATION",
+  "position": {
+    "file": "edge/switch_no_termination.pts",
+    "line": 4,
+    "column": 9
+  }
+}

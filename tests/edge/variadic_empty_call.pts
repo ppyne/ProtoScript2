@@ -1,0 +1,8 @@
+function logAll(list<string> items...) : void {
+    for (string s of items)
+        Sys.print(s);
+}
+
+function main() : void {
+    logAll();
+}

@@ -1,0 +1,5 @@
+function main() : void {
+    map<string, int> m = {"a": 1};
+    int x = m["missing"];
+    Sys.print(x.toString());
+}

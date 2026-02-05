@@ -1,0 +1,8 @@
+function f(int x) : int {
+    switch (x) {
+        case 0:
+            x = x + 1;
+        default:
+            return x;
+    }
+}

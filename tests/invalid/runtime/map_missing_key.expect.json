@@ -1,0 +1,11 @@
+{
+  "status": "reject-runtime",
+  "error_family": "Rxxxx",
+  "error_code": "R1003",
+  "category": "RUNTIME_MISSING_KEY",
+  "position": {
+    "file": "invalid/runtime/map_missing_key.pts",
+    "line": 3,
+    "column": 13
+  }
+}

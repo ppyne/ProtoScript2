@@ -1,0 +1,11 @@
+{
+  "status": "reject-runtime",
+  "error_family": "Rxxxx",
+  "error_code": "R1001",
+  "category": "RUNTIME_INT_OVERFLOW",
+  "position": {
+    "file": "edge/overflow_int_add.pts",
+    "line": 3,
+    "column": 13
+  }
+}

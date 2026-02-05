@@ -1,0 +1,5 @@
+function main() : void {
+    list<int> values = [1, 2, 3];
+    int x = values[5];
+    Sys.print(x.toString());
+}

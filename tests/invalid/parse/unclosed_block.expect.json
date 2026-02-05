@@ -1,0 +1,11 @@
+{
+  "status": "reject-parse",
+  "error_family": "E1xxx",
+  "error_code": "E1002",
+  "category": "PARSE_UNCLOSED_BLOCK",
+  "position": {
+    "file": "invalid/parse/unclosed_block.pts",
+    "line": 2,
+    "column": 15
+  }
+}

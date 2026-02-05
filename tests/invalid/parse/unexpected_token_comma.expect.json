@@ -1,0 +1,11 @@
+{
+  "status": "reject-parse",
+  "error_family": "E1xxx",
+  "error_code": "E1001",
+  "category": "PARSE_UNEXPECTED_TOKEN",
+  "position": {
+    "file": "invalid/parse/unexpected_token_comma.pts",
+    "line": 2,
+    "column": 16
+  }
+}
