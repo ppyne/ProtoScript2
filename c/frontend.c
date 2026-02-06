@@ -2889,6 +2889,8 @@ static char *ir_guess_expr_type(AstNode *e, IrFnCtx *ctx) {
       if (strcmp(c->text, "toUpper") == 0 || strcmp(c->text, "toLower") == 0) return strdup("string");
       if (strcmp(c->text, "toUtf8Bytes") == 0) return strdup("list<byte>");
       if (strcmp(c->text, "toUtf8String") == 0) return strdup("string");
+      if (strcmp(c->text, "join") == 0) return strdup("string");
+      if (strcmp(c->text, "concat") == 0) return strdup("string");
       if (strcmp(c->text, "isNull") == 0 || strcmp(c->text, "isBool") == 0 || strcmp(c->text, "isNumber") == 0 ||
           strcmp(c->text, "isString") == 0 || strcmp(c->text, "isArray") == 0 || strcmp(c->text, "isObject") == 0)
         return strdup("bool");

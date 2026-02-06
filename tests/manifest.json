@@ -84,6 +84,7 @@
       "edge/string_substring_emoji",
       "edge/string_utf8_roundtrip",
       "edge/glyph_basic",
+      "edge/list_join_concat",
       "edge/module_import_simple_add",
       "edge/module_namespace_call",
       "edge/module_utf8_roundtrip",

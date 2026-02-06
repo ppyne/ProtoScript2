@@ -1004,6 +1004,19 @@ function evalCall(expr, scope, functions, moduleEnv, file, callFunction) {
         throw new RuntimeError(rdiag(file, m, "R1007", "RUNTIME_INVALID_UTF8", "invalid UTF-8"));
       }
     }
+    if (Array.isArray(target) && (m.name === "join" || m.name === "concat")) {
+      for (const v of target) {
+        if (typeof v !== "string") {
+          throw new RuntimeError(rdiag(file, m, "R1010", "RUNTIME_TYPE_ERROR", "join expects list<string>"));
+        }
+      }
+      if (m.name === "concat") return target.join("");
+      const sep = args.length > 0 ? args[0] : "";
+      if (typeof sep !== "string") {
+        throw new RuntimeError(rdiag(file, m, "R1010", "RUNTIME_TYPE_ERROR", "join separator must be string"));
+      }
+      return target.join(sep);
+    }
 
     if (target instanceof IoFile) {
       if (m.name === "close") {

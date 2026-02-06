@@ -174,6 +174,8 @@ function inferTempTypes(ir) {
                   else if (["substring", "trim", "trimStart", "trimEnd", "replace", "toUpper", "toLower", "concat"].includes(i.method)) set(i.dst, "string");
                 } else if (rc && rc.kind === "list" && rc.inner === "byte" && i.method === "toUtf8String") {
                   set(i.dst, "string");
+                } else if (rc && rc.kind === "list" && rc.inner === "string" && (i.method === "join" || i.method === "concat")) {
+                  set(i.dst, "string");
                 } else if (i.method === "length") {
                   set(i.dst, "int");
                 } else {
@@ -556,6 +558,38 @@ function emitRuntimeHelpers() {
     "  ps_string out = { buf, out_len };",
     "  return out;",
     "}",
+    "static ps_string ps_list_string_join(ps_list_string l, ps_string sep) {",
+    "  size_t total = 0;",
+    "  if (l.len == 0) {",
+    "    char* buf = (char*)malloc(1);",
+    "    if (!buf) ps_panic(\"R1998\", \"RUNTIME_OOM\", \"out of memory\");",
+    "    buf[0] = 0;",
+    "    ps_string out = { buf, 0 };",
+    "    return out;",
+    "  }",
+    "  for (size_t i = 0; i < l.len; i += 1) total += l.ptr[i].len;",
+    "  total += sep.len * (l.len > 0 ? (l.len - 1) : 0);",
+    "  char* buf = (char*)malloc(total + 1);",
+    "  if (!buf && total > 0) ps_panic(\"R1998\", \"RUNTIME_OOM\", \"out of memory\");",
+    "  size_t off = 0;",
+    "  for (size_t i = 0; i < l.len; i += 1) {",
+    "    if (i > 0 && sep.len > 0) {",
+    "      memcpy(buf + off, sep.ptr, sep.len);",
+    "      off += sep.len;",
+    "    }",
+    "    if (l.ptr[i].len > 0) {",
+    "      memcpy(buf + off, l.ptr[i].ptr, l.ptr[i].len);",
+    "      off += l.ptr[i].len;",
+    "    }",
+    "  }",
+    "  buf[off] = 0;",
+    "  ps_string out = { buf, off };",
+    "  return out;",
+    "}",
+    "static ps_string ps_list_string_concat(ps_list_string l) {",
+    "  ps_string sep = { \"\", 0 };",
+    "  return ps_list_string_join(l, sep);",
+    "}",
     "static ps_string ps_string_to_upper(ps_string s) {",
     "  char* buf = (char*)malloc(s.len + 1);",
     "  if (!buf && s.len > 0) ps_panic(\"R1998\", \"RUNTIME_OOM\", \"out of memory\");",
@@ -579,6 +613,11 @@ function emitRuntimeHelpers() {
     "  buf[s.len] = 0;",
     "  ps_string out = { buf, s.len };",
     "  return out;",
+    "}",
+    "static bool ps_string_eq(ps_string a, ps_string b) {",
+    "  if (a.len != b.len) return false;",
+    "  if (a.len == 0) return true;",
+    "  return memcmp(a.ptr, b.ptr, a.len) == 0;",
     "}",
     "static void ps_list_string_push(ps_list_string* l, ps_string v) {",
     "  if (l->len == l->cap) {",
@@ -809,6 +848,9 @@ function emitInstr(i, fnInf, state) {
           } else {
             out.push('ps_panic("R1010", "RUNTIME_TYPE_ERROR", "invalid glyph operation");');
           }
+        } else if ((i.operator === "==" || i.operator === "!=") && lt === "string" && rt === "string") {
+          const cmp = `ps_string_eq(${n(i.left)}, ${n(i.right)})`;
+          out.push(`${n(i.dst)} = ${i.operator === "==" ? cmp : `!(${cmp})`};`);
         } else {
           out.push(`${n(i.dst)} = (${n(i.left)} ${i.operator} ${n(i.right)});`);
         }
@@ -884,6 +926,10 @@ function emitInstr(i, fnInf, state) {
           out.push(`${n(i.dst)} = ps_glyph_to_utf8_bytes(${n(i.receiver)});`);
         } else if (rc && rc.kind === "list" && rc.inner === "byte" && i.method === "toUtf8String") {
           out.push(`${n(i.dst)} = ps_list_byte_to_utf8_string(${n(i.receiver)});`);
+        } else if (rc && rc.kind === "list" && rc.inner === "string" && i.method === "join") {
+          out.push(`${n(i.dst)} = ps_list_string_join(${n(i.receiver)}, ${n(i.args[0])});`);
+        } else if (rc && rc.kind === "list" && rc.inner === "string" && i.method === "concat") {
+          out.push(`${n(i.dst)} = ps_list_string_concat(${n(i.receiver)});`);
         } else if (i.method === "pop" && rc && rc.kind === "list") {
           const recv = aliasOf(i.receiver) || i.receiver;
           out.push(`if (${n(recv)}.len == 0) ps_panic("R1006", "RUNTIME_EMPTY_POP", "pop on empty list");`);

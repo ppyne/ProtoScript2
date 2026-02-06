@@ -317,6 +317,7 @@ list.push(x);
 list.pop();
 
 list.join(",");      // si T est string
+list.concat();       // si T est string (concaténation sans séparateur)
 list.sort();         // si T est comparable
 list.contains(x);
 list.toUtf8String(); // si T est byte (UTF-8 strict)

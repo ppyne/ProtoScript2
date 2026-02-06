@@ -1446,6 +1446,10 @@ class Analyzer {
         if (name === "write") return prim("void");
         if (name === "close") return prim("void");
       }
+      if (t.startsWith("list<") && t === "list<string>") {
+        if (name === "join") return prim("string");
+        if (name === "concat") return prim("string");
+      }
       if (t === "JSONValue") {
         if (name === "isNull" || name === "isBool" || name === "isNumber" || name === "isString" || name === "isArray" || name === "isObject") {
           return prim("bool");
