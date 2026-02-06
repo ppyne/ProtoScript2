@@ -12,7 +12,7 @@ Le projet est désormais spécifié, gouverné, et testable de façon indépenda
 ## Ce que ProtoScript V2 assume
 
 - typage statique strict
-- modèle prototype-based (sans classes)
+- modèle prototype-based (orienté objet sans classes)
 - pas de RTTI utilisateur
 - pas de fonctions comme valeurs
 - pas de généricité de fonctions
