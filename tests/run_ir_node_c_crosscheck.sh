@@ -6,6 +6,7 @@ TESTS_DIR="$ROOT_DIR/tests"
 MANIFEST="$TESTS_DIR/manifest.json"
 NODE_COMPILER="${NODE_COMPILER:-$ROOT_DIR/bin/protoscriptc}"
 C_COMPILER="${C_COMPILER:-$ROOT_DIR/c/pscc}"
+REGISTRY_PATH="${PS_MODULE_REGISTRY:-$ROOT_DIR/modules/registry.json}"
 
 if ! command -v jq >/dev/null 2>&1; then
   if [[ -x "/usr/local/bin/jq" ]]; then
@@ -61,7 +62,7 @@ while IFS= read -r case_id; do
   set +e
   "$NODE_COMPILER" --emit-ir-json "$src" >"$node_ir" 2>"$node_err"
   rc_node=$?
-  "$C_COMPILER" --emit-ir-c-json "$src" >"$c_ir" 2>"$c_err"
+  PS_MODULE_REGISTRY="$REGISTRY_PATH" "$C_COMPILER" --emit-ir-c-json "$src" >"$c_ir" 2>"$c_err"
   rc_c=$?
   set -e
 

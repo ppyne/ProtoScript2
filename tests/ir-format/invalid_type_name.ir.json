@@ -1,0 +1,24 @@
+{
+  "ir_version": "1.0.0",
+  "format": "ProtoScriptIR",
+  "module": {
+    "kind": "Module",
+    "functions": [
+      {
+        "kind": "Function",
+        "name": "main",
+        "params": [],
+        "returnType": { "kind": "IRType", "name": "map<int>" },
+        "blocks": [
+          {
+            "kind": "Block",
+            "label": "entry",
+            "instrs": [
+              { "op": "ret_void" }
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}

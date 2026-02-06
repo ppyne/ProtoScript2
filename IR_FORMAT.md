@@ -57,6 +57,11 @@ Le validateur structurel vérifie :
 - labels de blocs uniques par fonction
 - cibles de `jump`/`branch_if`/`branch_iter_has_next` existantes
 - `op` connue pour chaque instruction
+- présence d’un bloc `entry`
+- instructions non vides par bloc
+- paramètres : noms non vides, uniques, types `IRType`
+- `IRType.name` valide (identifiant simple ou `list<T>`, `view<T>`, `slice<T>`, `map<K,V>`)
+- présence des champs obligatoires par instruction (ex. `jump.target`, `branch_if.cond/then/else`, `call_static.callee`, etc.)
 
 ## 4. Outils CLI
 

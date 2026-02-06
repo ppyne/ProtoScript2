@@ -1007,6 +1007,42 @@ function validateSerializedIR(doc) {
   if (!doc.module || typeof doc.module !== "object") err("module must be an object");
   if (errors.length > 0) return errors;
 
+  const isNonEmptyString = (v) => typeof v === "string" && v.length > 0;
+  const isIRType = (t) => t && typeof t === "object" && t.kind === "IRType" && isNonEmptyString(t.name);
+  const isIdent = (s) => /^[A-Za-z_][A-Za-z0-9_]*$/.test(s);
+  const splitTypeArgs = (inner) => {
+    const out = [];
+    let depth = 0;
+    let start = 0;
+    for (let i = 0; i < inner.length; i += 1) {
+      const ch = inner[i];
+      if (ch === "<") depth += 1;
+      else if (ch === ">") depth -= 1;
+      else if (ch === "," && depth === 0) {
+        out.push(inner.slice(start, i).trim());
+        start = i + 1;
+      }
+    }
+    out.push(inner.slice(start).trim());
+    return out.filter((p) => p.length > 0);
+  };
+  const isValidTypeName = (name) => {
+    if (!isNonEmptyString(name)) return false;
+    if (!name.includes("<")) return isIdent(name);
+    const m = /^([A-Za-z_][A-Za-z0-9_]*)<(.*)>$/.exec(name);
+    if (!m) return false;
+    const kind = m[1];
+    const inner = m[2];
+    if (!["list", "view", "slice", "map"].includes(kind)) return false;
+    const args = splitTypeArgs(inner);
+    if (kind === "map") {
+      if (args.length !== 2) return false;
+      return args.every(isValidTypeName);
+    }
+    if (args.length !== 1) return false;
+    return isValidTypeName(args[0]);
+  };
+
   const m = doc.module;
   if (m.kind !== "Module") err("module.kind must be 'Module'");
   if (!Array.isArray(m.functions)) err("module.functions must be an array");
@@ -1069,13 +1105,31 @@ function validateSerializedIR(doc) {
       continue;
     }
     if (fn.kind !== "Function") err(`functions[${fi}].kind must be 'Function'`);
-    if (typeof fn.name !== "string" || fn.name.length === 0) err(`functions[${fi}].name must be non-empty string`);
-    if (!fn.returnType || fn.returnType.kind !== "IRType" || typeof fn.returnType.name !== "string") {
+    if (!isNonEmptyString(fn.name)) err(`functions[${fi}].name must be non-empty string`);
+    if (!isIRType(fn.returnType) || !isValidTypeName(fn.returnType.name)) {
       err(`functions[${fi}].returnType must be IRType`);
     }
     if (!Array.isArray(fn.params)) err(`functions[${fi}].params must be array`);
     if (!Array.isArray(fn.blocks) || fn.blocks.length === 0) err(`functions[${fi}].blocks must be non-empty array`);
     if (!Array.isArray(fn.blocks) || fn.blocks.length === 0) continue;
+
+    const paramNames = new Set();
+    for (let pi = 0; pi < fn.params.length; pi += 1) {
+      const p = fn.params[pi];
+      if (!p || typeof p !== "object") {
+        err(`functions[${fi}].params[${pi}] must be object`);
+        continue;
+      }
+      if (!isNonEmptyString(p.name)) err(`functions[${fi}].params[${pi}].name must be non-empty string`);
+      if (paramNames.has(p.name)) err(`functions[${fi}] duplicated param name '${p.name}'`);
+      paramNames.add(p.name);
+      if (!isIRType(p.type) || !isValidTypeName(p.type.name)) {
+        err(`functions[${fi}].params[${pi}].type must be IRType`);
+      }
+      if (p.variadic !== undefined && typeof p.variadic !== "boolean") {
+        err(`functions[${fi}].params[${pi}].variadic must be boolean`);
+      }
+    }
 
     const labels = new Set();
     for (let bi = 0; bi < fn.blocks.length; bi += 1) {
@@ -1085,26 +1139,161 @@ function validateSerializedIR(doc) {
         continue;
       }
       if (b.kind !== "Block") err(`functions[${fi}].blocks[${bi}].kind must be 'Block'`);
-      if (typeof b.label !== "string" || b.label.length === 0) err(`functions[${fi}].blocks[${bi}].label must be non-empty string`);
+      if (!isNonEmptyString(b.label)) err(`functions[${fi}].blocks[${bi}].label must be non-empty string`);
       if (labels.has(b.label)) err(`functions[${fi}] duplicated block label '${b.label}'`);
       labels.add(b.label);
       if (!Array.isArray(b.instrs)) {
         err(`functions[${fi}].blocks[${bi}].instrs must be array`);
         continue;
       }
+      if (b.instrs.length === 0) err(`functions[${fi}].blocks[${bi}] must contain at least one instruction`);
       for (let ii = 0; ii < b.instrs.length; ii += 1) {
         const ins = b.instrs[ii];
         if (!ins || typeof ins !== "object") {
           err(`functions[${fi}].blocks[${bi}].instrs[${ii}] must be object`);
           continue;
         }
-        if (typeof ins.op !== "string" || ins.op.length === 0) {
+        if (!isNonEmptyString(ins.op)) {
           err(`functions[${fi}].blocks[${bi}].instrs[${ii}].op must be non-empty string`);
           continue;
         }
         if (!knownOps.has(ins.op)) err(`functions[${fi}].blocks[${bi}].instrs[${ii}].op unknown '${ins.op}'`);
+        const requireFields = (fields) => {
+          for (const f of fields) {
+            if (!(f in ins)) err(`functions[${fi}].blocks[${bi}].instrs[${ii}] missing '${f}'`);
+          }
+        };
+        switch (ins.op) {
+          case "var_decl":
+            requireFields(["name", "type"]);
+            if (ins.type && (!isIRType(ins.type) || !isValidTypeName(ins.type.name))) {
+              err(`functions[${fi}].blocks[${bi}].instrs[${ii}] invalid IRType`);
+            }
+            break;
+          case "load_var":
+            requireFields(["name", "type", "dst"]);
+            if (ins.type && (!isIRType(ins.type) || !isValidTypeName(ins.type.name))) {
+              err(`functions[${fi}].blocks[${bi}].instrs[${ii}] invalid IRType`);
+            }
+            break;
+          case "store_var":
+            requireFields(["name", "src"]);
+            break;
+          case "const":
+            requireFields(["dst", "literalType"]);
+            break;
+          case "copy":
+            requireFields(["dst", "src"]);
+            break;
+          case "unary_op":
+            requireFields(["dst", "src", "operator"]);
+            break;
+          case "bin_op":
+            requireFields(["dst", "left", "right", "operator"]);
+            break;
+          case "postfix_op":
+            requireFields(["dst", "target", "operator"]);
+            break;
+          case "call_static":
+            requireFields(["dst", "callee", "args"]);
+            break;
+          case "call_method_static":
+            requireFields(["dst", "receiver", "method", "args"]);
+            break;
+          case "call_unknown":
+            requireFields(["dst", "callee", "args"]);
+            break;
+          case "call_builtin_print":
+            requireFields(["args"]);
+            break;
+          case "call_builtin_tostring":
+            requireFields(["dst", "value"]);
+            break;
+          case "push_handler":
+            requireFields(["target"]);
+            break;
+          case "get_exception":
+            requireFields(["dst"]);
+            break;
+          case "exception_is":
+            requireFields(["dst", "value", "type"]);
+            break;
+          case "make_view":
+            requireFields(["dst", "source", "offset", "len", "readonly"]);
+            break;
+          case "index_get":
+            requireFields(["dst", "target", "index"]);
+            break;
+          case "index_set":
+            requireFields(["target", "index", "src"]);
+            break;
+          case "check_int_overflow":
+            requireFields(["left", "right", "operator"]);
+            break;
+          case "check_int_overflow_unary_minus":
+            requireFields(["value"]);
+            break;
+          case "check_div_zero":
+            requireFields(["divisor"]);
+            break;
+          case "check_shift_range":
+            requireFields(["shift", "width"]);
+            break;
+          case "check_index_bounds":
+            requireFields(["target", "index"]);
+            break;
+          case "check_view_bounds":
+            requireFields(["target", "offset", "len"]);
+            break;
+          case "check_map_has_key":
+            requireFields(["map", "key"]);
+            break;
+          case "ret":
+            requireFields(["value"]);
+            break;
+          case "throw":
+            requireFields(["value"]);
+            break;
+          case "branch_if":
+            requireFields(["cond", "then", "else"]);
+            break;
+          case "jump":
+            requireFields(["target"]);
+            break;
+          case "iter_begin":
+            requireFields(["dst", "source", "mode"]);
+            break;
+          case "branch_iter_has_next":
+            requireFields(["iter", "then", "else"]);
+            break;
+          case "iter_next":
+            requireFields(["dst", "iter", "source", "mode"]);
+            break;
+          case "select":
+            requireFields(["dst", "cond", "thenValue", "elseValue"]);
+            break;
+          case "make_list":
+            requireFields(["dst", "items"]);
+            break;
+          case "make_map":
+            requireFields(["dst", "pairs"]);
+            break;
+          case "make_object":
+            requireFields(["dst", "proto"]);
+            break;
+          case "member_get":
+            requireFields(["dst", "target", "name"]);
+            break;
+          case "member_set":
+            requireFields(["target", "name", "src"]);
+            break;
+          default:
+            break;
+        }
       }
     }
+
+    if (!labels.has("entry")) err(`functions[${fi}] missing entry block`);
 
     // Validate branch/jump targets exist.
     for (let bi = 0; bi < fn.blocks.length; bi += 1) {

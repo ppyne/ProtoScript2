@@ -43,6 +43,11 @@ echo "== IR Format Validation =="
 run_expect_ok "$IR_DIR/valid_minimal.ir.json"
 run_expect_fail "$IR_DIR/invalid_version.ir.json" "ir_version must be '1.0.0'"
 run_expect_fail "$IR_DIR/invalid_missing_jump_target.ir.json" "jump target 'missing_block' does not exist"
+run_expect_fail "$IR_DIR/invalid_missing_entry.ir.json" "missing entry block"
+run_expect_fail "$IR_DIR/invalid_empty_block.ir.json" "must contain at least one instruction"
+run_expect_fail "$IR_DIR/invalid_param_type.ir.json" "params[0].type must be IRType"
+run_expect_fail "$IR_DIR/invalid_type_name.ir.json" "returnType must be IRType"
+run_expect_fail "$IR_DIR/invalid_missing_field.ir.json" "missing 'target'"
 
 echo
 echo "Summary: PASS=$pass FAIL=$fail TOTAL=$((pass + fail))"
@@ -50,4 +55,3 @@ if [[ "$fail" -ne 0 ]]; then
   exit 1
 fi
 echo "IR format checks PASSED."
-
