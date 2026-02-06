@@ -647,6 +647,12 @@ function emitRuntimeHelpers() {
     "  ps_string out = { buf, b.len };",
     "  return out;",
     "}",
+    "static void Io_print(ps_string s) {",
+    "  printf(\"%s\", s.ptr);",
+    "}",
+    "static void Io_printLine(ps_string s) {",
+    "  printf(\"%s\\n\", s.ptr);",
+    "}",
     "static ps_string ps_i64_to_string(int64_t v) {",
     "  static char buf[4][64];",
     "  static int slot = 0;",
@@ -765,8 +771,13 @@ function emitInstr(i, fnInf, state) {
       out.push(`${n(i.dst)} = ${n(i.src)}${i.operator};`);
       break;
     case "call_static":
-      if (t(i.dst) === "void") out.push(`${cIdent(i.callee)}(${i.args.map(n).join(", ")});`);
-      else out.push(`${n(i.dst)} = ${cIdent(i.callee)}(${i.args.map(n).join(", ")});`);
+      if (i.callee === "Io.print" || i.callee === "Io.printLine" || i.callee === "Io_print" || i.callee === "Io_printLine") {
+        out.push(`${cIdent(i.callee)}(${i.args.map(n).join(", ")});`);
+      } else if (t(i.dst) === "void") {
+        out.push(`${cIdent(i.callee)}(${i.args.map(n).join(", ")});`);
+      } else {
+        out.push(`${n(i.dst)} = ${cIdent(i.callee)}(${i.args.map(n).join(", ")});`);
+      }
       break;
     case "call_method_static":
       {
