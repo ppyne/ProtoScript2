@@ -3016,6 +3016,26 @@ Règles :
 - les codes canoniques normatifs (familles `E*` et `R*`) doivent être stables entre versions mineures de la spec
 - le texte du message peut évoluer, pas la signification du code
 
+## 18.5 Convention d’exécution (entrée `main` et codes de retour)
+
+Règles normatives :
+
+- le point d’entrée d’un programme exécutable est la fonction `main`
+- seules les signatures suivantes sont autorisées :
+  - `function main() : void`
+  - `function main() : int`
+  - `function main(list<string> args) : void`
+  - `function main(list<string> args) : int`
+- toute autre signature de `main` est une erreur statique
+- si `main` retourne un `int`, cette valeur devient le code de sortie du processus
+- si `main` retourne `void`, le code de sortie est déterminé par l’état d’exécution :
+  - `0` si l’exécution se termine sans erreur
+  - `2` pour une erreur utilisateur (syntaxique, statique, ou runtime)
+  - `1` pour une erreur interne (assertion, panne interne, OOM)
+- si `main` accepte `list<string> args`, il reçoit **l’argumentation brute du système** (argv), sans filtrage :
+  - la liste contient le binaire (`argv[0]`) et tous les arguments suivants
+  - aucun argument n’est consommé par l’outil avant transmission au langage
+
 # 19. Versioning et gouvernance de la spécification
 
 Cette spécification définit **ProtoScript Language Specification v2.0**.

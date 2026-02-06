@@ -81,7 +81,7 @@ try {
       for (const d of diags) console.error(formatDiag(d));
       process.exit(1);
     }
-    runProgram(ast, file);
+    runProgram(ast, file, process.argv);
     process.exit(0);
   }
 

@@ -1202,7 +1202,39 @@ Exécution déterministe selon l'ordre d'évaluation défini.
 - Pas de réflexion.
 - Pas de comportement implicite dépendant de l'environnement runtime.
 
-### 16.3 Comparaison utile (JS/PHP)
+### 16.3 Entrée `main` et codes de sortie
+
+Signatures autorisées :
+
+```c
+function main() : void { }
+function main() : int { return 0; }
+function main(list<string> args) : void { }
+function main(list<string> args) : int { return 0; }
+```
+
+`args` reçoit **tous** les arguments tels que fournis par le système, sans filtrage, y compris le binaire et la sous‑commande.
+Exemple avec le CLI :
+
+```
+./ps run fichier.pts a b
+```
+
+`args` vaut :
+
+```
+["./ps", "run", "fichier.pts", "a", "b"]
+```
+
+Codes de sortie par défaut :
+
+- `0` : succès
+- `2` : erreur utilisateur (syntaxique, statique, runtime)
+- `1` : erreur interne (assert/bug/OOM)
+
+Si `main` retourne un `int`, cette valeur devient le code de sortie.
+
+### 16.4 Comparaison utile (JS/PHP)
 
 Pas d'ajout dynamique de membres/fonctions à chaud. L'exécution suit un contrat statique.
 

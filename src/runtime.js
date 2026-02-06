@@ -581,7 +581,7 @@ function buildModuleEnv(ast, file) {
   return { modules, namespaces, importedFunctions };
 }
 
-function runProgram(ast, file) {
+function runProgram(ast, file, argv) {
   const functions = new Map();
   for (const d of ast.decls) {
     if (d.kind === "FunctionDecl") functions.set(d.name, d);
@@ -610,7 +610,9 @@ function runProgram(ast, file) {
     }
   };
 
-  callFunction(main, []);
+  const argList = Array.isArray(argv) ? argv.slice() : [];
+  const mainArgs = main.params && main.params.length === 1 ? [argList] : [];
+  callFunction(main, mainArgs);
 }
 
 function execBlock(block, scope, functions, moduleEnv, file, callFunction) {

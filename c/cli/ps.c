@@ -124,7 +124,7 @@ int main(int argc, char **argv) {
   int exit_code = 0;
   PS_Value *ret = NULL;
   if (strcmp(argv[1], "run") == 0 && argc >= 3) {
-    PS_Value *args_list = build_args_list(ctx, argc, argv, 3);
+    PS_Value *args_list = build_args_list(ctx, argc, argv, 0);
     rc = run_file(ctx, argv[2], args_list, &ret);
     if (args_list) ps_value_release(args_list);
   } else if (strcmp(argv[1], "-e") == 0 && argc >= 3) {
@@ -133,7 +133,7 @@ int main(int argc, char **argv) {
       fprintf(stderr, "ps: failed to write temp source\n");
       rc = 2;
     } else {
-      PS_Value *args_list = build_args_list(ctx, argc, argv, 3);
+      PS_Value *args_list = build_args_list(ctx, argc, argv, 0);
       rc = run_file(ctx, path, args_list, &ret);
       if (args_list) ps_value_release(args_list);
     }
