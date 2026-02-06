@@ -1462,6 +1462,15 @@ class Analyzer {
         if (name === "contains") return prim("bool");
         if (name === "sort") return prim("int");
       }
+      if (targetType.kind === "GenericType" && targetType.name === "map" && targetType.args.length === 2) {
+        const kt = targetType.args[0];
+        const vt = targetType.args[1];
+        if (name === "length") return prim("int");
+        if (name === "isEmpty") return prim("bool");
+        if (name === "containsKey") return prim("bool");
+        if (name === "keys") return { kind: "GenericType", name: "list", args: [kt] };
+        if (name === "values") return { kind: "GenericType", name: "list", args: [vt] };
+      }
       if (t === "JSONValue") {
         if (name === "isNull" || name === "isBool" || name === "isNumber" || name === "isString" || name === "isArray" || name === "isObject") {
           return prim("bool");

@@ -541,6 +541,16 @@ static int is_truthy(PS_Value *v) {
   return 0;
 }
 
+static PS_Value *map_first_key(PS_Value *map) {
+  if (!map || map->tag != PS_V_MAP) return NULL;
+  PS_Map *m = &map->as.map_v;
+  if (m->len == 0 || m->cap == 0) return NULL;
+  for (size_t i = 0; i < m->cap; i++) {
+    if (m->used[i]) return m->keys[i];
+  }
+  return NULL;
+}
+
 static int exec_function(PS_Context *ctx, PS_IR_Module *m, IRFunction *f, PS_Value **args, size_t argc, PS_Value **out);
 
 static int exec_call_static(PS_Context *ctx, PS_IR_Module *m, const char *callee, PS_Value **args, size_t argc, PS_Value **out) {
@@ -1450,6 +1460,46 @@ static int exec_function(PS_Context *ctx, PS_IR_Module *m, IRFunction *f, PS_Val
             PS_Value *v = ps_make_bool(ctx, recv->as.map_v.len == 0);
             bindings_set(&temps, ins->dst, v);
             ps_value_release(v);
+          } else if (strcmp(ins->method, "containsKey") == 0) {
+            PS_Value *key = get_value(&temps, &vars, ins->args[0]);
+            if (recv->as.map_v.len > 0) {
+              PS_Value *first = map_first_key(recv);
+              if (first && key && first->tag != key->tag) {
+                ps_throw(ctx, PS_ERR_TYPE, "map key type mismatch");
+                goto raise;
+              }
+            }
+            int ok = ps_map_has_key(ctx, recv, key);
+            if (ctx->has_error) goto raise;
+            PS_Value *v = ps_make_bool(ctx, ok);
+            bindings_set(&temps, ins->dst, v);
+            ps_value_release(v);
+          } else if (strcmp(ins->method, "keys") == 0) {
+            PS_Value *out = ps_list_new(ctx);
+            if (!out) goto raise;
+            PS_Map *m = &recv->as.map_v;
+            for (size_t i = 0; i < m->cap; i++) {
+              if (!m->used[i]) continue;
+              if (!ps_list_push_internal(ctx, out, m->keys[i])) {
+                ps_value_release(out);
+                goto raise;
+              }
+            }
+            bindings_set(&temps, ins->dst, out);
+            ps_value_release(out);
+          } else if (strcmp(ins->method, "values") == 0) {
+            PS_Value *out = ps_list_new(ctx);
+            if (!out) goto raise;
+            PS_Map *m = &recv->as.map_v;
+            for (size_t i = 0; i < m->cap; i++) {
+              if (!m->used[i]) continue;
+              if (!ps_list_push_internal(ctx, out, m->values[i])) {
+                ps_value_release(out);
+                goto raise;
+              }
+            }
+            bindings_set(&temps, ins->dst, out);
+            ps_value_release(out);
           }
         } else if (recv->tag == PS_V_LIST && strcmp(ins->method, "pop") == 0) {
           if (recv->as.list_v.len == 0) {

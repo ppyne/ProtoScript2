@@ -1051,6 +1051,21 @@ function evalCall(expr, scope, functions, moduleEnv, file, callFunction) {
       if (target instanceof Map) return target.size === 0;
       return false;
     }
+    if (target instanceof Map) {
+      if (m.name === "containsKey") {
+        if (target.size > 0) {
+          const firstKey = target.keys().next().value;
+          const expected = String(firstKey).split(":", 1)[0];
+          const actual = mapKey(args[0]).split(":", 1)[0];
+          if (expected !== actual) {
+            throw new RuntimeError(rdiag(file, m, "R1010", "RUNTIME_TYPE_ERROR", "map key type mismatch"));
+          }
+        }
+        return target.has(mapKey(args[0]));
+      }
+      if (m.name === "keys") return Array.from(target.keys()).map(unmapKey);
+      if (m.name === "values") return Array.from(target.values());
+    }
 
     if (typeof target === "string") {
       if (m.name === "toUpper") return target.toUpperCase();

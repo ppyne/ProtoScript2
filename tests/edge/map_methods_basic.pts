@@ -1,0 +1,15 @@
+import Io;
+
+function main() : void {
+    map<string, int> m = {"a": 1, "b": 2};
+    bool e0 = m.isEmpty();
+    int len = m.length();
+    bool hasA = m.containsKey("a");
+    bool hasC = m.containsKey("c");
+    list<string> ks = m.keys();
+    list<int> vs = m.values();
+    bool ok = !e0 && len == 2 && hasA && !hasC &&
+        ks.length() == 2 && ks.contains("a") && ks.contains("b") &&
+        vs.length() == 2 && vs.contains(1) && vs.contains(2);
+    Io.printLine(ok.toString());
+}

@@ -188,6 +188,13 @@ function inferTempTypes(ir) {
                   set(i.dst, "bool");
                 } else if (rc && rc.kind === "list" && i.method === "sort") {
                   set(i.dst, "int");
+                } else if (rc && rc.kind === "map") {
+                  const m = parseMapType(rt);
+                  if (i.method === "containsKey") set(i.dst, "bool");
+                  else if (i.method === "keys" && m) set(i.dst, `list<${m.keyType}>`);
+                  else if (i.method === "values" && m) set(i.dst, `list<${m.valueType}>`);
+                  else if (i.method === "length") set(i.dst, "int");
+                  else if (i.method === "isEmpty") set(i.dst, "bool");
                 } else if (i.method === "length") {
                   set(i.dst, "int");
                 } else {
@@ -312,6 +319,7 @@ function keyEqExpr(a, b, keyType) {
 
 function emitContainerHelpers(typeNames) {
   const out = [];
+  const typeSet = new Set(typeNames);
   const seenMaps = new Set();
   for (const t of typeNames) {
     const m = parseMapType(t);
@@ -356,6 +364,34 @@ function emitContainerHelpers(typeNames) {
     out.push("  m->values[m->len] = value;");
     out.push("  m->len += 1;");
     out.push("}");
+    const needKeyList = typeSet.has(`list<${m.keyType}>`);
+    const needValList = typeSet.has(`list<${m.valueType}>`);
+    if (needKeyList) {
+      const keyList = `ps_list_${baseName(m.keyType)}`;
+      out.push(`static ${keyList} ps_map_keys_${m.base}(const ${mapC}* m) {`);
+      out.push(`  ${keyList} out = { NULL, 0, 0 };`);
+      out.push("  if (!m || m->len == 0) return out;");
+      out.push("  out.len = m->len;");
+      out.push("  out.cap = m->len;");
+      out.push(`  out.ptr = (${cTypeFromName(m.keyType)}*)malloc(sizeof(*out.ptr) * m->len);`);
+      out.push('  if (!out.ptr) ps_panic("R1998", "RUNTIME_OOM", "out of memory");');
+      out.push("  for (size_t i = 0; i < m->len; i += 1) out.ptr[i] = m->keys[i];");
+      out.push("  return out;");
+      out.push("}");
+    }
+    if (needValList) {
+      const valList = `ps_list_${baseName(m.valueType)}`;
+      out.push(`static ${valList} ps_map_values_${m.base}(const ${mapC}* m) {`);
+      out.push(`  ${valList} out = { NULL, 0, 0 };`);
+      out.push("  if (!m || m->len == 0) return out;");
+      out.push("  out.len = m->len;");
+      out.push("  out.cap = m->len;");
+      out.push(`  out.ptr = (${cTypeFromName(m.valueType)}*)malloc(sizeof(*out.ptr) * m->len);`);
+      out.push('  if (!out.ptr) ps_panic("R1998", "RUNTIME_OOM", "out of memory");');
+      out.push("  for (size_t i = 0; i < m->len; i += 1) out.ptr[i] = m->values[i];");
+      out.push("  return out;");
+      out.push("}");
+    }
   }
   return out;
 }
@@ -1011,6 +1047,18 @@ function emitInstr(i, fnInf, state) {
           else if (rc && ["list", "slice", "view"].includes(rc.kind)) out.push(`${n(i.dst)} = ${n(i.receiver)}.len == 0;`);
           else if (rc && rc.kind === "map") out.push(`${n(i.dst)} = ${n(i.receiver)}.len == 0;`);
           else out.push(`${n(i.dst)} = 0;`);
+        } else if (rc && rc.kind === "map" && i.method === "containsKey") {
+          const m = parseMapType(rt);
+          if (m) out.push(`${n(i.dst)} = ps_map_has_key_${m.base}(&${n(i.receiver)}, ${n(i.args[0])});`);
+          else out.push(`${n(i.dst)} = 0;`);
+        } else if (rc && rc.kind === "map" && i.method === "keys") {
+          const m = parseMapType(rt);
+          if (m) out.push(`${n(i.dst)} = ps_map_keys_${m.base}(&${n(i.receiver)});`);
+          else out.push(`${n(i.dst)}.len = 0; ${n(i.dst)}.cap = 0; ${n(i.dst)}.ptr = NULL;`);
+        } else if (rc && rc.kind === "map" && i.method === "values") {
+          const m = parseMapType(rt);
+          if (m) out.push(`${n(i.dst)} = ps_map_values_${m.base}(&${n(i.receiver)});`);
+          else out.push(`${n(i.dst)}.len = 0; ${n(i.dst)}.cap = 0; ${n(i.dst)}.ptr = NULL;`);
         } else if (rt === "int" && i.method === "toByte") {
           out.push(`if (${n(i.receiver)} < 0 || ${n(i.receiver)} > 255) ps_panic("R1008", "RUNTIME_BYTE_RANGE", "byte out of range");`);
           out.push(`${n(i.dst)} = (uint8_t)${n(i.receiver)};`);

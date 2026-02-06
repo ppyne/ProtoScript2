@@ -2798,6 +2798,22 @@ static int ir_is_int_like(const char *t) { return t && (strcmp(t, "int") == 0 ||
 
 static int ir_type_is_map(const char *t) { return t && strncmp(t, "map<", 4) == 0; }
 
+static char *ir_type_map_key(const char *t) {
+  if (!t || strncmp(t, "map<", 4) != 0) return strdup("unknown");
+  const char *lt = strchr(t, '<');
+  const char *comma = strchr(t, ',');
+  if (!lt || !comma || comma <= lt + 1) return strdup("unknown");
+  return dup_range(t, (size_t)(lt - t + 1), (size_t)(comma - t));
+}
+
+static char *ir_type_map_value(const char *t) {
+  if (!t || strncmp(t, "map<", 4) != 0) return strdup("unknown");
+  const char *comma = strchr(t, ',');
+  const char *gt = strrchr(t, '>');
+  if (!comma || !gt || gt <= comma + 1) return strdup("unknown");
+  return dup_range(t, (size_t)(comma - t + 1), (size_t)(gt - t));
+}
+
 static char *ir_type_elem_for_index(const char *t) {
   if (!t) return strdup("unknown");
   if (strncmp(t, "list<", 5) == 0 || strncmp(t, "slice<", 6) == 0 || strncmp(t, "view<", 5) == 0) {
@@ -2936,6 +2952,19 @@ static char *ir_guess_expr_type(AstNode *e, IrFnCtx *ctx) {
         } else if (strncmp(recv_t, "map<", 4) == 0) {
           if (strcmp(m, "length") == 0) return strdup("int");
           if (strcmp(m, "isEmpty") == 0) return strdup("bool");
+          if (strcmp(m, "containsKey") == 0) return strdup("bool");
+          if (strcmp(m, "keys") == 0) {
+            char *kt = ir_type_map_key(recv_t);
+            char *out = str_printf("list<%s>", kt ? kt : "unknown");
+            if (kt) free(kt);
+            return out ? out : strdup("unknown");
+          }
+          if (strcmp(m, "values") == 0) {
+            char *vt = ir_type_map_value(recv_t);
+            char *out = str_printf("list<%s>", vt ? vt : "unknown");
+            if (vt) free(vt);
+            return out ? out : strdup("unknown");
+          }
         } else if (strcmp(recv_t, "JSONValue") == 0) {
           if (strcmp(m, "isNull") == 0 || strcmp(m, "isBool") == 0 || strcmp(m, "isNumber") == 0 ||
               strcmp(m, "isString") == 0 || strcmp(m, "isArray") == 0 || strcmp(m, "isObject") == 0)
