@@ -112,9 +112,10 @@ Règles :
 
 - tout littéral contenant un point décimal ou un exposant est de type `float`
 - les opérations sur `float` suivent la sémantique **IEEE‑754 double précision**
-- les valeurs `NaN`, `+Infinity` et `-Infinity` peuvent être produites
-- aucune exception implicite n’est levée lors des opérations arithmétiques
-- la détection de ces valeurs est **explicite** via des méthodes dédiées
+- les valeurs `NaN`, `+Infinity`, `-Infinity` et `-0` peuvent être produites
+- aucune exception implicite n’est levée lors des opérations arithmétiques sur `float`
+- les comparaisons avec `NaN` suivent IEEE‑754 : `NaN != NaN` est `true` et toute comparaison ordonnée avec `NaN` est `false`
+- `+0` et `-0` sont distincts au niveau IEEE‑754, mais restent égaux via `==`
 
 ---
 
@@ -1324,7 +1325,7 @@ Une fonction sans valeur de retour explicite retourne `void`.
 
 ```c
 function log(string s) : void {
-    Sys.print(s);
+    Io.printLine(s);
 }
 ```
 
@@ -1499,7 +1500,7 @@ Une méthode variadique est déclarée en utilisant un paramètre `list<T> ...` 
 prototype Logger {
     function log(list<string> messages...) : void {
         for (string s of messages)
-            Sys.print(s);
+            Io.printLine(s);
     }
 }
 ```
@@ -1588,13 +1589,13 @@ Exemple valide :
 prototype Logger {
     function log(list<string> messages...) : void {
         for (string s of messages)
-            Sys.print("[LOG] ".concat(s));
+            Io.printLine("[LOG] ".concat(s));
     }
 }
 
 prototype DebugLogger : Logger {
     function log(list<string> messages...) : void {
-        Sys.print("[DEBUG]");
+        Io.printLine("[DEBUG]");
         Logger.log(self, messages);
     }
 }
@@ -3076,6 +3077,40 @@ Règles :
 - `ps_register_native_module` est appelé avant compilation
 - le backend doit émettre des appels vers `c_symbol` connus au linking statique
 - aucune découverte dynamique de symboles n’est autorisée
+
+## 20.6 Module standard `Io` (normatif)
+
+Le module `Io` fait partie de l’environnement standard et doit être résolu statiquement via le registre de modules.
+
+Symboles requis (minimum) :
+
+- `Io.print(value)` : écrit `value` sur la sortie standard, sans ajout implicite de fin de ligne.
+- `Io.printLine(value)` : équivalent à `Io.print(value)` suivi de l’écriture de `Io.EOL`.
+- `Io.EOL` : constante de fin de ligne (`"\n"`).
+
+Aucune conversion implicite texte ↔ binaire n’est autorisée. Le comportement complet du module `Io` est normatif et défini dans `docs/module_io_specification.md`.
+
+## 20.7 Module standard `Math` (normatif)
+
+Le module `Math` fait partie de l’environnement standard et doit être résolu statiquement via le registre de modules.
+
+Symboles requis (minimum) :
+
+- constantes : `PI`, `E`, `LN2`, `LN10`, `LOG2E`, `LOG10E`, `SQRT1_2`, `SQRT2`
+- fonctions : `abs`, `min`, `max`, `floor`, `ceil`, `round`, `trunc`, `sign`, `fround`, `sqrt`, `cbrt`, `pow`,
+  `sin`, `cos`, `tan`, `asin`, `acos`, `atan`, `atan2`,
+  `sinh`, `cosh`, `tanh`, `asinh`, `acosh`, `atanh`,
+  `exp`, `expm1`, `log`, `log1p`, `log2`, `log10`,
+  `hypot`, `clz32`, `imul`, `random`
+
+Règles :
+
+- tous les paramètres et retours sont de type `float`
+- la promotion implicite `int → float` est autorisée à l’appel
+- les fonctions suivent la sémantique IEEE‑754 (NaN, ±Infinity, −0)
+- aucune exception n’est levée pour des valeurs hors domaine : le résultat est `NaN` ou `±Infinity`
+
+Le comportement complet du module `Math` est normatif et défini dans `docs/module_math_specification.md`.
 
 Encadré de cohérence :
 

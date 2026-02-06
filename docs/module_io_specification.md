@@ -1,3 +1,5 @@
+![ProtoScript2](header.png)
+
 # ProtoScript2 — Module Io (Specification v2)
 
 ## Statut

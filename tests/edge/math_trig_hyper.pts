@@ -1,0 +1,22 @@
+import Io;
+import Math;
+
+function main() : void {
+    float s0 = Math.sin(0.0);
+    float c0 = Math.cos(0.0);
+    float t0 = Math.tan(0.0);
+    float as0 = Math.asin(0.0);
+    float ac0 = Math.acos(1.0);
+    float at0 = Math.atan(0.0);
+    float at2 = Math.atan2(0.0, 1.0);
+    float sh0 = Math.sinh(0.0);
+    float ch0 = Math.cosh(0.0);
+    float th0 = Math.tanh(0.0);
+    float ash0 = Math.asinh(0.0);
+    float ach0 = Math.acosh(1.0);
+    float ath0 = Math.atanh(0.0);
+    bool ok = (s0 == 0.0) && (c0 == 1.0) && (t0 == 0.0) && (as0 == 0.0) && (ac0 == 0.0)
+           && (at0 == 0.0) && (at2 == 0.0) && (sh0 == 0.0) && (ch0 == 1.0) && (th0 == 0.0)
+           && (ash0 == 0.0) && (ach0 == 0.0) && (ath0 == 0.0);
+    Io.printLine(ok.toString());
+}

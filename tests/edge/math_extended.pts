@@ -1,0 +1,19 @@
+import Io;
+import Math;
+
+function main() : void {
+    float a = Math.trunc(-1.9);
+    float b = Math.sign(-5.0);
+    float c = Math.fround(1.5);
+    float d = Math.clz32(1.0);
+    float e = Math.imul(2.0, 3.0);
+    float f = Math.log2(8.0);
+    float g = Math.log10(1000.0);
+    float h = Math.log1p(0.0);
+    float i = Math.expm1(0.0);
+    float j = Math.hypot(3.0, 4.0);
+    float k = Math.cbrt(27.0);
+    bool ok = (a == -1.0) && (b == -1.0) && (c == 1.5) && (d == 31.0) && (e == 6.0)
+           && (f == 3.0) && (g == 3.0) && (h == 0.0) && (i == 0.0) && (j == 5.0) && (k == 3.0);
+    Io.printLine(ok.toString());
+}

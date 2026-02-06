@@ -1,8 +1,10 @@
 import Io;
-
 import Math;
 
 function main() : void {
-    bool ok = (Math.PI > 3.14) && (Math.E > 2.71);
+    bool ok = (Math.PI > 3.14) && (Math.E > 2.71)
+           && (Math.LN2 > 0.69) && (Math.LN10 > 2.3)
+           && (Math.LOG2E > 1.44) && (Math.LOG10E > 0.43)
+           && (Math.SQRT1_2 > 0.7) && (Math.SQRT2 > 1.4);
     Io.printLine(ok.toString());
 }
