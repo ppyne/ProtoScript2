@@ -41,6 +41,26 @@ Le C sert de **preuve d’implémentabilité bas niveau**.
 
 ## Commandes essentielles
 
+### Prérequis
+
+- Node.js (pour l’oracle `bin/protoscriptc`)
+- Compilateur C (clang ou gcc) + make
+- POSIX (macOS / Linux)
+- `jq` (pour la suite de tests)
+
+### Compilation
+
+Compiler les binaires C :
+
+```bash
+make -C c
+```
+
+Cela produit :
+
+- `c/ps` (CLI d’exécution)
+- `c/pscc` (frontend C)
+
 Vérification de conformité :
 
 ```bash
@@ -53,7 +73,13 @@ Validation croisée Node/C (strict) :
 tests/run_node_c_crosscheck.sh --strict-ast --strict-static-c
 ```
 
-Compilation/contrôle côté oracle :
+Runner complet (build + conformance + crosscheck + CLI) :
+
+```bash
+tests/run_all.sh
+```
+
+Compilation/contrôle côté oracle (Node) :
 
 ```bash
 bin/protoscriptc --check file.pts
@@ -62,7 +88,12 @@ bin/protoscriptc --emit-ir-json file.pts
 bin/protoscriptc --emit-c file.pts
 ```
 
-CLI C :
+Notes :
+
+- `bin/protoscriptc` (Node) est **le seul** qui produit du C (`--emit-c`) et de l’IR complet (`--emit-ir`).
+- `c/pscc` (C) fournit un frontend partiel et **redirige** vers `bin/protoscriptc` pour `--emit-c` / `--emit-ir`.
+
+CLI C (exécution) :
 
 ```bash
 make -C c
@@ -71,11 +102,19 @@ make -C c
 ./c/ps check file.pts
 ./c/ps ast file.pts
 ./c/ps ir file.pts
+```
+
+Frontend C (pscc) :
+
+```bash
 ./c/pscc --check file.pts
 ./c/pscc --check-c file.pts
 ./c/pscc --check-c-static file.pts
+./c/pscc --ast-c file.pts
+./c/pscc --emit-ir-c-json file.pts
+./c/pscc --emit-ir file.pts      # forward vers bin/protoscriptc
+./c/pscc --emit-c file.pts       # forward vers bin/protoscriptc
 ```
-
 ## Extension sans compromission
 
 ProtoScript V2 autorise des modules tiers via API native normative (section 20 de la spec) avec contraintes strictes :
