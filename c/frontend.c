@@ -1352,13 +1352,14 @@ static int parse_function_decl(Parser *p) {
 
 static char *parse_module_path(Parser *p) {
   Token *t = p_t(p, 0);
-  if (!p_eat(p, TK_ID, NULL)) return NULL;
+  if (!t || (t->kind != TK_ID && t->kind != TK_KW)) return NULL;
+  if (!p_eat(p, t->kind, NULL)) return NULL;
   char *out = strdup(t->text ? t->text : "");
   if (!out) return NULL;
-  while (p_at(p, TK_SYM, ".") && p_t(p, 1) && p_t(p, 1)->kind == TK_ID) {
+  while (p_at(p, TK_SYM, ".") && p_t(p, 1) && (p_t(p, 1)->kind == TK_ID || p_t(p, 1)->kind == TK_KW)) {
     p_eat(p, TK_SYM, ".");
     Token *seg = p_t(p, 0);
-    if (!p_eat(p, TK_ID, NULL)) {
+    if (!p_eat(p, seg->kind, NULL)) {
       free(out);
       return NULL;
     }

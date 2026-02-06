@@ -2,7 +2,8 @@ import Io;
 
 function main() : void {
     var f = Io.open("io_text.txt", "w");
-    f.write("Hello\n");
+    f.write("Hello");
+    f.write(Io.EOL);
     f.close();
 
     var r = Io.open("io_text.txt", "r");

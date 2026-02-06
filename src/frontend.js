@@ -430,11 +430,17 @@ class Parser {
 
   parseModulePath() {
     const parts = [];
-    const first = this.eat("id");
+    const first = this.at("id") || this.at("kw") ? this.eat(this.t().type) : null;
+    if (!first) {
+      const tok = this.t();
+      throw new FrontendError(
+        diag(this.file, tok.line, tok.col, "E1001", "PARSE_UNEXPECTED_TOKEN", `unexpected token '${tok.value}', expecting 'id'`)
+      );
+    }
     parts.push(first.value);
-    while (this.at("sym", ".") && this.t(1).type === "id") {
+    while (this.at("sym", ".") && (this.t(1).type === "id" || this.t(1).type === "kw")) {
       this.eat("sym", ".");
-      const seg = this.eat("id");
+      const seg = this.eat(this.t().type);
       parts.push(seg.value);
     }
     return parts;
@@ -1272,7 +1278,13 @@ class Analyzer {
         const lt = this.typeOfExpr(expr.left, scope);
         const rt = this.typeOfExpr(expr.right, scope);
         if (!lt || !rt) return null;
+        const ls = typeToString(lt);
+        const rs = typeToString(rt);
+        const isEq = ["==", "!="].includes(expr.op);
         if (!sameType(lt, rt)) {
+          if (isEq && (ls === "EOF" || rs === "EOF")) {
+            return { kind: "PrimitiveType", name: "bool" };
+          }
           this.addDiag(expr, "E3001", "TYPE_MISMATCH_ASSIGNMENT", `incompatible operands ${typeToString(lt)} and ${typeToString(rt)}`);
           return lt;
         }
@@ -1407,6 +1419,14 @@ class Analyzer {
         if (name === "replace") return prim("string");
         if (name === "toUpper" || name === "toLower") return prim("string");
         if (name === "toUtf8Bytes") return { kind: "GenericType", name: "list", args: [prim("byte")] };
+      }
+      if (t === "File") {
+        if (name === "read") {
+          if (expr.args.length > 0) return { kind: "NamedType", name: "EOF" };
+          return prim("string");
+        }
+        if (name === "write") return prim("void");
+        if (name === "close") return prim("void");
       }
       if (t.startsWith("list<") && name === "toUtf8String") return prim("string");
       return null;

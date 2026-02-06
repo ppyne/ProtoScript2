@@ -1,5 +1,8 @@
 "use strict";
 
+const fs = require("fs");
+const path = require("path");
+
 const INT64_MIN = -(2n ** 63n);
 const INT64_MAX = 2n ** 63n - 1n;
 
@@ -109,6 +112,186 @@ class Scope {
   }
 }
 
+function loadModuleRegistry() {
+  const env = process.env.PS_MODULE_REGISTRY;
+  const candidates = [];
+  if (env) candidates.push(env);
+  candidates.push(path.join(process.cwd(), "modules", "registry.json"));
+  candidates.push(path.join(__dirname, "..", "modules", "registry.json"));
+  for (const c of candidates) {
+    if (c && fs.existsSync(c)) {
+      try {
+        return JSON.parse(fs.readFileSync(c, "utf8"));
+      } catch {
+        return null;
+      }
+    }
+  }
+  return null;
+}
+
+class IoFile {
+  constructor(fd, flags, isStd = false) {
+    this.fd = fd;
+    this.flags = flags;
+    this.isStd = isStd;
+    this.closed = false;
+    this.atStart = true;
+  }
+}
+
+const PS_FILE_READ = 0x01;
+const PS_FILE_WRITE = 0x02;
+const PS_FILE_APPEND = 0x04;
+const PS_FILE_BINARY = 0x08;
+
+const EOF_SENTINEL = { __eof: true };
+
+function decodeUtf8Strict(file, node, bytes, atStart) {
+  for (const b of bytes) {
+    if (b === 0) throw new RuntimeError(rdiag(file, node, "R1007", "RUNTIME_INVALID_UTF8", "NUL byte not allowed"));
+  }
+  let start = 0;
+  if (atStart && bytes.length >= 3 && bytes[0] === 0xef && bytes[1] === 0xbb && bytes[2] === 0xbf) {
+    start = 3;
+  }
+  for (let i = start; i + 2 < bytes.length; i += 1) {
+    if (bytes[i] === 0xef && bytes[i + 1] === 0xbb && bytes[i + 2] === 0xbf) {
+      throw new RuntimeError(rdiag(file, node, "R1007", "RUNTIME_INVALID_UTF8", "BOM not allowed here"));
+    }
+  }
+  try {
+    const dec = new TextDecoder("utf-8", { fatal: true });
+    return dec.decode(Uint8Array.from(bytes.slice(start)));
+  } catch {
+    throw new RuntimeError(rdiag(file, node, "R1007", "RUNTIME_INVALID_UTF8", "invalid UTF-8"));
+  }
+}
+
+function buildModuleEnv(ast, file) {
+  const importedFunctions = new Map();
+  const namespaces = new Map();
+  const modules = new Map();
+
+  const moduleErrors = new Map([
+    ["test.noinit", "module missing ps_module_init"],
+    ["test.badver", "module ABI version mismatch"],
+    ["test.missing", "module not found"],
+  ]);
+
+  const makeModule = (name) => {
+    if (!modules.has(name)) {
+      modules.set(name, { obj: { __module: name }, constants: new Map(), functions: new Map(), error: moduleErrors.get(name) || null });
+    }
+    return modules.get(name);
+  };
+
+  const toNumberArg = (node, v) => {
+    if (typeof v === "bigint") return Number(v);
+    if (typeof v === "number") return v;
+    throw new RuntimeError(rdiag(file, node, "R1010", "RUNTIME_TYPE_ERROR", "expected float"));
+  };
+
+  // JS implementations for tests
+  const mathMod = makeModule("Math");
+  mathMod.constants.set("PI", Math.PI);
+  mathMod.constants.set("E", Math.E);
+  mathMod.functions.set("abs", (x, node) => Math.abs(toNumberArg(node, x)));
+  mathMod.functions.set("min", (a, b, node) => Math.min(toNumberArg(node, a), toNumberArg(node, b)));
+  mathMod.functions.set("max", (a, b, node) => Math.max(toNumberArg(node, a), toNumberArg(node, b)));
+  mathMod.functions.set("floor", (x, node) => Math.floor(toNumberArg(node, x)));
+  mathMod.functions.set("ceil", (x, node) => Math.ceil(toNumberArg(node, x)));
+  mathMod.functions.set("round", (x, node) => Math.round(toNumberArg(node, x)));
+  mathMod.functions.set("sqrt", (x, node) => {
+    const v = toNumberArg(node, x);
+    if (v < 0) throw new RuntimeError(rdiag(file, node, "R1010", "RUNTIME_DOMAIN_ERROR", "sqrt domain error"));
+    return Math.sqrt(v);
+  });
+  mathMod.functions.set("pow", (a, b, node) => {
+    const r = Math.pow(toNumberArg(node, a), toNumberArg(node, b));
+    if (Number.isNaN(r)) throw new RuntimeError(rdiag(file, node, "R1010", "RUNTIME_DOMAIN_ERROR", "pow domain error"));
+    return r;
+  });
+  mathMod.functions.set("sin", (x, node) => Math.sin(toNumberArg(node, x)));
+  mathMod.functions.set("cos", (x, node) => Math.cos(toNumberArg(node, x)));
+  mathMod.functions.set("tan", (x, node) => Math.tan(toNumberArg(node, x)));
+  mathMod.functions.set("log", (x, node) => {
+    const v = toNumberArg(node, x);
+    if (v <= 0) throw new RuntimeError(rdiag(file, node, "R1010", "RUNTIME_DOMAIN_ERROR", "log domain error"));
+    return Math.log(v);
+  });
+  mathMod.functions.set("exp", (x, node) => Math.exp(toNumberArg(node, x)));
+
+  const ioMod = makeModule("Io");
+  ioMod.constants.set("EOL", "\n");
+  ioMod.constants.set("EOF", EOF_SENTINEL);
+  ioMod.constants.set("stdin", new IoFile(0, PS_FILE_READ, true));
+  ioMod.constants.set("stdout", new IoFile(1, PS_FILE_WRITE, true));
+  ioMod.constants.set("stderr", new IoFile(2, PS_FILE_WRITE, true));
+  ioMod.functions.set("open", (pathStr, modeStr, node) => {
+    if (typeof pathStr !== "string" || typeof modeStr !== "string") {
+      throw new RuntimeError(rdiag(file, node, "R1010", "RUNTIME_IO_ERROR", "Io.open expects (string, string)"));
+    }
+    const m = modeStr;
+    const valid = ["r", "w", "a", "rb", "wb", "ab"];
+    if (!valid.includes(m)) {
+      throw new RuntimeError(rdiag(file, node, "R1010", "RUNTIME_IO_ERROR", "invalid mode"));
+    }
+    const binary = m.includes("b");
+    const base = m[0];
+    let flags = 0;
+    if (base === "r") flags = PS_FILE_READ;
+    else if (base === "w") flags = PS_FILE_WRITE;
+    else if (base === "a") flags = PS_FILE_APPEND | PS_FILE_WRITE;
+    if (binary) flags |= PS_FILE_BINARY;
+    try {
+      const fd = fs.openSync(pathStr, base);
+      return new IoFile(fd, flags, false);
+    } catch (e) {
+      throw new RuntimeError(rdiag(file, node, "R1010", "RUNTIME_IO_ERROR", String(e.message || "open failed")));
+    }
+  });
+  ioMod.functions.set("print", (val) => {
+    const s = val === null || val === undefined ? "null" : typeof val === "bigint" ? val.toString() : String(val);
+    fs.writeSync(1, s);
+    return null;
+  });
+
+  const simpleMod = makeModule("test.simple");
+  simpleMod.functions.set("add", (a, b) => BigInt(a) + BigInt(b));
+
+  const utf8Mod = makeModule("test.utf8");
+  utf8Mod.functions.set("roundtrip", (s) => {
+    if (typeof s !== "string") throw new RuntimeError(rdiag(file, null, "R1010", "RUNTIME_IO_ERROR", "expected string"));
+    return s;
+  });
+
+  const throwMod = makeModule("test.throw");
+  throwMod.functions.set("fail", () => {
+    throw new RuntimeError(rdiag(file, null, "R1010", "RUNTIME_MODULE_ERROR", "native throw"));
+  });
+
+  makeModule("test.nosym");
+  loadModuleRegistry(); // ensures registry exists if needed
+
+  const imports = ast.imports || [];
+  for (const imp of imports) {
+    const modName = imp.modulePath.join(".");
+    if (!imp.items || imp.items.length === 0) {
+      const alias = imp.alias || imp.modulePath[imp.modulePath.length - 1];
+      namespaces.set(alias, modName);
+      makeModule(modName);
+    } else {
+      for (const it of imp.items) {
+        const local = it.alias || it.name;
+        importedFunctions.set(local, { module: modName, name: it.name, node: it });
+      }
+    }
+  }
+
+  return { modules, namespaces, importedFunctions };
+}
+
 function runProgram(ast, file) {
   const functions = new Map();
   for (const d of ast.decls) {
@@ -117,13 +300,20 @@ function runProgram(ast, file) {
   const main = functions.get("main");
   if (!main) return;
 
+  const moduleEnv = buildModuleEnv(ast, file);
+  const globalScope = new Scope(null);
+  for (const [alias, modName] of moduleEnv.namespaces.entries()) {
+    const mod = moduleEnv.modules.get(modName);
+    if (mod) globalScope.define(alias, mod.obj);
+  }
+
   const callFunction = (fn, args) => {
-    const scope = new Scope(null);
+    const scope = new Scope(globalScope);
     for (let i = 0; i < fn.params.length; i += 1) {
       scope.define(fn.params[i].name, args[i]);
     }
     try {
-      execBlock(fn.body, scope, functions, file, callFunction);
+      execBlock(fn.body, scope, functions, moduleEnv, file, callFunction);
       return null;
     } catch (e) {
       if (e instanceof ReturnSignal) return e.value;
@@ -134,54 +324,54 @@ function runProgram(ast, file) {
   callFunction(main, []);
 }
 
-function execBlock(block, scope, functions, file, callFunction) {
+function execBlock(block, scope, functions, moduleEnv, file, callFunction) {
   const local = new Scope(scope);
-  for (const stmt of block.stmts) execStmt(stmt, local, functions, file, callFunction);
+  for (const stmt of block.stmts) execStmt(stmt, local, functions, moduleEnv, file, callFunction);
 }
 
-function execStmt(stmt, scope, functions, file, callFunction) {
+function execStmt(stmt, scope, functions, moduleEnv, file, callFunction) {
   switch (stmt.kind) {
     case "VarDecl": {
       let v = null;
-      if (stmt.init) v = evalExpr(stmt.init, scope, functions, file, callFunction);
+      if (stmt.init) v = evalExpr(stmt.init, scope, functions, moduleEnv, file, callFunction);
       scope.define(stmt.name, v);
       return;
     }
     case "AssignStmt": {
-      const rhs = evalExpr(stmt.expr, scope, functions, file, callFunction);
+      const rhs = evalExpr(stmt.expr, scope, functions, moduleEnv, file, callFunction);
       if (stmt.target.kind === "Identifier") {
         scope.set(stmt.target.name, rhs);
       } else if (stmt.target.kind === "IndexExpr") {
-        const target = evalExpr(stmt.target.target, scope, functions, file, callFunction);
-        const idx = evalExpr(stmt.target.index, scope, functions, file, callFunction);
+        const target = evalExpr(stmt.target.target, scope, functions, moduleEnv, file, callFunction);
+        const idx = evalExpr(stmt.target.index, scope, functions, moduleEnv, file, callFunction);
         assignIndex(file, stmt.target.target, stmt.target.index, target, idx, rhs);
       }
       return;
     }
     case "ExprStmt":
-      evalExpr(stmt.expr, scope, functions, file, callFunction);
+      evalExpr(stmt.expr, scope, functions, moduleEnv, file, callFunction);
       return;
     case "ReturnStmt": {
-      const v = stmt.expr ? evalExpr(stmt.expr, scope, functions, file, callFunction) : null;
+      const v = stmt.expr ? evalExpr(stmt.expr, scope, functions, moduleEnv, file, callFunction) : null;
       throw new ReturnSignal(v);
     }
     case "ThrowStmt":
       throw new RuntimeError(rdiag(file, stmt, "R1999", "RUNTIME_THROW", "explicit throw"));
     case "Block":
-      execBlock(stmt, scope, functions, file, callFunction);
+      execBlock(stmt, scope, functions, moduleEnv, file, callFunction);
       return;
     case "ForStmt":
-      execFor(stmt, scope, functions, file, callFunction);
+      execFor(stmt, scope, functions, moduleEnv, file, callFunction);
       return;
     case "SwitchStmt":
-      execSwitch(stmt, scope, functions, file, callFunction);
+      execSwitch(stmt, scope, functions, moduleEnv, file, callFunction);
       return;
     case "TryStmt": {
       const hasCatch = stmt.catches && stmt.catches.length > 0;
       const catchClause = hasCatch ? stmt.catches[0] : null;
       let pending = null;
       try {
-        execBlock(stmt.tryBlock, scope, functions, file, callFunction);
+        execBlock(stmt.tryBlock, scope, functions, moduleEnv, file, callFunction);
       } catch (e) {
         if (e instanceof ReturnSignal) throw e;
         if (!hasCatch || !(e instanceof RuntimeError)) {
@@ -189,10 +379,10 @@ function execStmt(stmt, scope, functions, file, callFunction) {
         } else {
           const cs = new Scope(scope);
           cs.define(catchClause.name, e.message);
-          execBlock(catchClause.block, cs, functions, file, callFunction);
+          execBlock(catchClause.block, cs, functions, moduleEnv, file, callFunction);
         }
       } finally {
-        if (stmt.finallyBlock) execBlock(stmt.finallyBlock, scope, functions, file, callFunction);
+        if (stmt.finallyBlock) execBlock(stmt.finallyBlock, scope, functions, moduleEnv, file, callFunction);
       }
       if (pending) throw pending;
       return;
@@ -205,28 +395,28 @@ function execStmt(stmt, scope, functions, file, callFunction) {
   }
 }
 
-function execFor(stmt, scope, functions, file, callFunction) {
+function execFor(stmt, scope, functions, moduleEnv, file, callFunction) {
   if (stmt.forKind === "classic") {
     const s = new Scope(scope);
     if (stmt.init) {
-      if (stmt.init.kind === "VarDecl" || stmt.init.kind === "AssignStmt") execStmt(stmt.init, s, functions, file, callFunction);
-      else evalExpr(stmt.init, s, functions, file, callFunction);
+      if (stmt.init.kind === "VarDecl" || stmt.init.kind === "AssignStmt") execStmt(stmt.init, s, functions, moduleEnv, file, callFunction);
+      else evalExpr(stmt.init, s, functions, moduleEnv, file, callFunction);
     }
     while (true) {
       if (stmt.cond) {
-        const c = evalExpr(stmt.cond, s, functions, file, callFunction);
+        const c = evalExpr(stmt.cond, s, functions, moduleEnv, file, callFunction);
         if (!Boolean(c)) break;
       }
-      execStmt(stmt.body, s, functions, file, callFunction);
+      execStmt(stmt.body, s, functions, moduleEnv, file, callFunction);
       if (stmt.step) {
-        if (stmt.step.kind === "VarDecl" || stmt.step.kind === "AssignStmt") execStmt(stmt.step, s, functions, file, callFunction);
-        else evalExpr(stmt.step, s, functions, file, callFunction);
+        if (stmt.step.kind === "VarDecl" || stmt.step.kind === "AssignStmt") execStmt(stmt.step, s, functions, moduleEnv, file, callFunction);
+        else evalExpr(stmt.step, s, functions, moduleEnv, file, callFunction);
       }
     }
     return;
   }
 
-  const seq = evalExpr(stmt.iterExpr, scope, functions, file, callFunction);
+  const seq = evalExpr(stmt.iterExpr, scope, functions, moduleEnv, file, callFunction);
   const s = new Scope(scope);
   let items = null;
   if (Array.isArray(seq)) {
@@ -244,21 +434,21 @@ function execFor(stmt, scope, functions, file, callFunction) {
   }
   for (const item of items) {
     if (stmt.iterVar) s.define(stmt.iterVar.name, item);
-    execStmt(stmt.body, s, functions, file, callFunction);
+    execStmt(stmt.body, s, functions, moduleEnv, file, callFunction);
   }
 }
 
-function execSwitch(stmt, scope, functions, file, callFunction) {
-  const v = evalExpr(stmt.expr, scope, functions, file, callFunction);
+function execSwitch(stmt, scope, functions, moduleEnv, file, callFunction) {
+  const v = evalExpr(stmt.expr, scope, functions, moduleEnv, file, callFunction);
   for (const c of stmt.cases) {
-    const cv = evalExpr(c.value, scope, functions, file, callFunction);
+    const cv = evalExpr(c.value, scope, functions, moduleEnv, file, callFunction);
     if (eqValue(v, cv)) {
-      for (const st of c.stmts) execStmt(st, scope, functions, file, callFunction);
+      for (const st of c.stmts) execStmt(st, scope, functions, moduleEnv, file, callFunction);
       return;
     }
   }
   if (stmt.defaultCase) {
-    for (const st of stmt.defaultCase.stmts) execStmt(st, scope, functions, file, callFunction);
+    for (const st of stmt.defaultCase.stmts) execStmt(st, scope, functions, moduleEnv, file, callFunction);
   }
 }
 
@@ -267,7 +457,7 @@ function eqValue(a, b) {
   return a === b;
 }
 
-function evalExpr(expr, scope, functions, file, callFunction) {
+function evalExpr(expr, scope, functions, moduleEnv, file, callFunction) {
   switch (expr.kind) {
     case "Literal":
       if (expr.literalType === "int") return parseIntLiteral(expr.value);
@@ -278,7 +468,7 @@ function evalExpr(expr, scope, functions, file, callFunction) {
     case "Identifier":
       return scope.get(expr.name);
     case "UnaryExpr": {
-      const v = evalExpr(expr.expr, scope, functions, file, callFunction);
+      const v = evalExpr(expr.expr, scope, functions, moduleEnv, file, callFunction);
       if (expr.op === "-") {
         if (typeof v === "bigint") return checkIntRange(file, expr.expr, -v);
         return -v;
@@ -292,36 +482,42 @@ function evalExpr(expr, scope, functions, file, callFunction) {
       return v;
     }
     case "BinaryExpr": {
-      const l = evalExpr(expr.left, scope, functions, file, callFunction);
-      const r = evalExpr(expr.right, scope, functions, file, callFunction);
+      const l = evalExpr(expr.left, scope, functions, moduleEnv, file, callFunction);
+      const r = evalExpr(expr.right, scope, functions, moduleEnv, file, callFunction);
       return evalBinary(file, expr, l, r);
     }
     case "ConditionalExpr": {
-      const c = evalExpr(expr.cond, scope, functions, file, callFunction);
-      return c ? evalExpr(expr.thenExpr, scope, functions, file, callFunction) : evalExpr(expr.elseExpr, scope, functions, file, callFunction);
+      const c = evalExpr(expr.cond, scope, functions, moduleEnv, file, callFunction);
+      return c
+        ? evalExpr(expr.thenExpr, scope, functions, moduleEnv, file, callFunction)
+        : evalExpr(expr.elseExpr, scope, functions, moduleEnv, file, callFunction);
     }
     case "CallExpr":
-      return evalCall(expr, scope, functions, file, callFunction);
+      return evalCall(expr, scope, functions, moduleEnv, file, callFunction);
     case "IndexExpr": {
-      const target = evalExpr(expr.target, scope, functions, file, callFunction);
-      const idx = evalExpr(expr.index, scope, functions, file, callFunction);
+      const target = evalExpr(expr.target, scope, functions, moduleEnv, file, callFunction);
+      const idx = evalExpr(expr.index, scope, functions, moduleEnv, file, callFunction);
       return indexGet(file, expr.target, expr.index, target, idx);
     }
     case "MemberExpr": {
-      const target = evalExpr(expr.target, scope, functions, file, callFunction);
+      const target = evalExpr(expr.target, scope, functions, moduleEnv, file, callFunction);
+      if (target && target.__module && moduleEnv) {
+        const mod = moduleEnv.modules.get(target.__module);
+        if (mod && mod.constants.has(expr.name)) return mod.constants.get(expr.name);
+      }
       return { __member__: true, target, name: expr.name, node: expr };
     }
     case "PostfixExpr": {
-      const v = evalExpr(expr.expr, scope, functions, file, callFunction);
+      const v = evalExpr(expr.expr, scope, functions, moduleEnv, file, callFunction);
       return v;
     }
     case "ListLiteral":
-      return expr.items.map((it) => evalExpr(it, scope, functions, file, callFunction));
+      return expr.items.map((it) => evalExpr(it, scope, functions, moduleEnv, file, callFunction));
     case "MapLiteral": {
       const m = new Map();
       for (const p of expr.pairs) {
-        const k = evalExpr(p.key, scope, functions, file, callFunction);
-        const v = evalExpr(p.value, scope, functions, file, callFunction);
+        const k = evalExpr(p.key, scope, functions, moduleEnv, file, callFunction);
+        const v = evalExpr(p.value, scope, functions, moduleEnv, file, callFunction);
         m.set(mapKey(k), v);
       }
       return m;
@@ -437,20 +633,36 @@ function assignIndex(file, targetNode, indexNode, target, idx, rhs) {
   }
 }
 
-function evalCall(expr, scope, functions, file, callFunction) {
+function evalCall(expr, scope, functions, moduleEnv, file, callFunction) {
   // Function call by identifier.
   if (expr.callee.kind === "Identifier") {
     const fn = functions.get(expr.callee.name);
+    if (!fn && moduleEnv && moduleEnv.importedFunctions.has(expr.callee.name)) {
+      const info = moduleEnv.importedFunctions.get(expr.callee.name);
+      const mod = moduleEnv.modules.get(info.module);
+      if (!mod) {
+        throw new RuntimeError(rdiag(file, info.node, "R1010", "RUNTIME_MODULE_ERROR", "module not found"));
+      }
+      if (mod.error) {
+        throw new RuntimeError(rdiag(file, info.node, "R1010", "RUNTIME_MODULE_ERROR", mod.error));
+      }
+      const impl = mod.functions.get(info.name);
+      if (!impl) {
+        throw new RuntimeError(rdiag(file, info.node, "R1010", "RUNTIME_MODULE_ERROR", "symbol not found"));
+      }
+      const args = expr.args.map((a) => evalExpr(a, scope, functions, moduleEnv, file, callFunction));
+      return impl(...args, info.node);
+    }
     if (!fn) return null;
-    const args = expr.args.map((a) => evalExpr(a, scope, functions, file, callFunction));
+    const args = expr.args.map((a) => evalExpr(a, scope, functions, moduleEnv, file, callFunction));
     return callFunction(fn, args);
   }
 
   // Member call.
   if (expr.callee.kind === "MemberExpr") {
     const m = expr.callee;
-    const target = evalExpr(m.target, scope, functions, file, callFunction);
-    const args = expr.args.map((a) => evalExpr(a, scope, functions, file, callFunction));
+    const target = evalExpr(m.target, scope, functions, moduleEnv, file, callFunction);
+    const args = expr.args.map((a) => evalExpr(a, scope, functions, moduleEnv, file, callFunction));
 
     // Sys.print(...)
     if (m.target.kind === "Identifier" && m.target.name === "Sys" && m.name === "print") {
@@ -530,6 +742,87 @@ function evalCall(expr, scope, functions, file, callFunction) {
       } catch {
         throw new RuntimeError(rdiag(file, m, "R1007", "RUNTIME_INVALID_UTF8", "invalid UTF-8"));
       }
+    }
+
+    if (target instanceof IoFile) {
+      if (m.name === "close") {
+        if (target.isStd) {
+          throw new RuntimeError(rdiag(file, m, "R1010", "RUNTIME_IO_ERROR", "cannot close standard stream"));
+        }
+        if (!target.closed) {
+          fs.closeSync(target.fd);
+          target.closed = true;
+        }
+        return null;
+      }
+      if (target.closed) {
+        throw new RuntimeError(rdiag(file, m, "R1010", "RUNTIME_IO_ERROR", "file is closed"));
+      }
+      const isBinary = (target.flags & PS_FILE_BINARY) !== 0;
+      const canRead = (target.flags & PS_FILE_READ) !== 0;
+      const canWrite = (target.flags & (PS_FILE_WRITE | PS_FILE_APPEND)) !== 0;
+      if (m.name === "read") {
+        if (!canRead) throw new RuntimeError(rdiag(file, m, "R1010", "RUNTIME_IO_ERROR", "file not readable"));
+        const hasSize = args.length > 0;
+        if (hasSize) {
+          const size = Number(args[0]);
+          if (!Number.isInteger(size) || size <= 0) {
+            throw new RuntimeError(rdiag(file, m, "R1010", "RUNTIME_IO_ERROR", "read size must be >= 1"));
+          }
+          const buf = Buffer.alloc(size);
+          const n = fs.readSync(target.fd, buf, 0, size, null);
+          if (n === 0) return EOF_SENTINEL;
+          const bytes = Array.from(buf.slice(0, n));
+          if (isBinary) return bytes.map((b) => BigInt(b));
+          const s = decodeUtf8Strict(file, m, bytes, target.atStart);
+          target.atStart = false;
+          return s;
+        }
+        const chunks = [];
+        const buf = Buffer.alloc(4096);
+        while (true) {
+          const n = fs.readSync(target.fd, buf, 0, buf.length, null);
+          if (n === 0) break;
+          chunks.push(...buf.slice(0, n));
+        }
+        if (isBinary) return chunks.map((b) => BigInt(b));
+        const s = decodeUtf8Strict(file, m, chunks, target.atStart);
+        target.atStart = false;
+        return s;
+      }
+      if (m.name === "write") {
+        if (!canWrite) throw new RuntimeError(rdiag(file, m, "R1010", "RUNTIME_IO_ERROR", "file not writable"));
+        const v = args[0];
+        if (!isBinary) {
+          if (typeof v !== "string") {
+            throw new RuntimeError(rdiag(file, m, "R1010", "RUNTIME_IO_ERROR", "write expects string"));
+          }
+          if (v.length > 0) fs.writeSync(target.fd, v);
+          return null;
+        }
+        if (!Array.isArray(v)) {
+          throw new RuntimeError(rdiag(file, m, "R1010", "RUNTIME_IO_ERROR", "write expects list<byte>"));
+        }
+        const bytes = [];
+        for (const it of v) {
+          const n = typeof it === "bigint" ? Number(it) : Number(it);
+          if (!Number.isInteger(n) || n < 0 || n > 255) {
+            throw new RuntimeError(rdiag(file, m, "R1010", "RUNTIME_IO_ERROR", "byte out of range"));
+          }
+          bytes.push(n);
+        }
+        if (bytes.length > 0) fs.writeSync(target.fd, Buffer.from(bytes));
+        return null;
+      }
+    }
+
+    if (target && target.__module && moduleEnv) {
+      const mod = moduleEnv.modules.get(target.__module);
+      if (!mod) throw new RuntimeError(rdiag(file, m, "R1010", "RUNTIME_MODULE_ERROR", "module not found"));
+      if (mod.error) throw new RuntimeError(rdiag(file, m, "R1010", "RUNTIME_MODULE_ERROR", mod.error));
+      const fn = mod.functions.get(m.name);
+      if (!fn) throw new RuntimeError(rdiag(file, m, "R1010", "RUNTIME_MODULE_ERROR", "symbol not found"));
+      return fn(...args, m);
     }
 
     if (m.name === "pop" && Array.isArray(target)) {
