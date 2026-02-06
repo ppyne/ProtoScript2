@@ -1112,9 +1112,24 @@ Il n'existe pas d'API de slicing/view pour `string`. L'extraction est explicite 
 
 ### 14.1 Imports
 
+Deux formes existent :
+
+- import de module avec alias (espace de noms)
+- import explicite de symboles
+
 ```c
-import std.io as io;
-import math.core.{abs, clamp as clip};
+import Io;
+import Io as io;
+import Math.{abs, sqrt as racine};
+import JSON.{encode, decode};
+```
+
+Exemples d'usage :
+
+```c
+float x = Io.readLine().toFloat();
+float y = racine(x);
+string s = encode(y);
 ```
 
 ### 14.2 Visibilité et noms
@@ -1196,13 +1211,46 @@ Confondre absence de RTTI utilisateur et mécanisme `catch` par type : `catch` u
 
 Exécution déterministe selon l'ordre d'évaluation défini.
 
-### 16.2 Absences volontaires
+### 16.2 CLI `ps` (usage pratique)
+
+Le CLI `ps` exécute un fichier ProtoScript V2, ou du code inline.
+
+Exemples :
+
+```bash
+ps run fichier.pts
+ps -e "Io.printLine(42);"
+ps check fichier.pts
+```
+
+Options courantes :
+
+```
+--help
+--version
+```
+
+Détails des commandes :
+
+- `ps run fichier.pts` : exécute le programme (runtime C).
+- `ps -e "code"` : exécute un extrait inline (wrap dans un `main` implicite).
+- `ps check fichier.pts` : parse + analyse statique uniquement (aucune exécution).
+- `ps ast fichier.pts` : affiche l’AST (arbre de syntaxe) en JSON stable pour inspection.
+- `ps ir fichier.pts` : affiche l’IR (intermédiaire) en JSON stable pour inspection.
+
+Détails des options :
+
+- `--trace` : journalisation des étapes d’exécution (runtime), utile pour déboguer l’ordre d’évaluation.
+- `--trace-ir` : journalisation des instructions IR au moment de l’exécution.
+- `--time` : affiche le temps d’exécution total (ms).
+
+### 16.3 Absences volontaires
 
 - Pas de RTTI utilisateur.
 - Pas de réflexion.
 - Pas de comportement implicite dépendant de l'environnement runtime.
 
-### 16.3 Entrée `main` et codes de sortie
+### 16.4 Entrée `main` et codes de sortie
 
 Signatures autorisées :
 
@@ -1234,7 +1282,46 @@ Codes de sortie par défaut :
 
 Si `main` retourne un `int`, cette valeur devient le code de sortie.
 
-### 16.4 Comparaison utile (JS/PHP)
+### 16.5 Modules et compilation C (note pratique)
+
+Quand vous compilez du ProtoScript V2 vers du C avec **le compilateur `protoscriptc`** (option `--emit-c`), le code C généré s’appuie sur le runtime C **et** sur les modules natifs nécessaires.
+Cela signifie que :
+
+- `import Math...`, `import Io...`, `import JSON...` exigent que ces modules soient présents au link/chargement.
+- il n’y a **aucun** fallback implicite : si le module n’est pas fourni, l’exécution échoue.
+
+Exemple minimal :
+
+```c
+import Math.{sqrt};
+
+function main() : void {
+    float x = sqrt(9.0);
+    Io.printLine(x);
+}
+```
+
+Le binaire C généré doit être exécuté avec le runtime et les modules natifs disponibles.
+
+Exemple concret (compilation + édition de liens) :
+
+```bash
+# Générer le C depuis un fichier ProtoScript
+bin/protoscriptc --emit-c hello.pts > hello.c
+
+# Compiler et lier contre le runtime C de ProtoScript
+cc -std=c11 -O2 -I./include \
+  hello.c \
+  c/runtime/ps_api.c c/runtime/ps_errors.c c/runtime/ps_heap.c c/runtime/ps_value.c \
+  c/runtime/ps_string.c c/runtime/ps_list.c c/runtime/ps_object.c c/runtime/ps_map.c \
+  c/runtime/ps_dynlib_posix.c c/runtime/ps_json.c c/runtime/ps_modules.c c/runtime/ps_vm.c \
+  -ldl -o hello
+
+# Exécuter (les modules natifs requis doivent être accessibles)
+./hello
+```
+
+### 16.5 Comparaison utile (JS/PHP)
 
 Pas d'ajout dynamique de membres/fonctions à chaud. L'exécution suit un contrat statique.
 

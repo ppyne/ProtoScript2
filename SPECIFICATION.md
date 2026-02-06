@@ -3099,7 +3099,13 @@ import math.core.{abs, clamp as clip};
 - aucun fallback runtime n’est autorisé
 - les appels importés restent des appels statiques (`call_static` ou équivalent IR)
 
-## 20.5 Contrat backend minimal (API C normative)
+## 20.5 Utilisation avec `emit-c` (normatif)
+
+- le code C généré par `emit-c` suppose la disponibilité du runtime C et des modules natifs requis
+- un import de module (`Io`, `Math`, `JSON`, ou tout module du registre) doit échouer à l’édition de liens ou au chargement si le module n’est pas fourni
+- aucun fallback implicite n’est autorisé : le build doit fournir explicitement le registre et les modules natifs
+
+## 20.6 Contrat backend minimal (API C normative)
 
 ```c
 typedef enum {
@@ -3130,7 +3136,7 @@ Règles :
 - le backend doit émettre des appels vers `c_symbol` connus au linking statique
 - aucune découverte dynamique de symboles n’est autorisée
 
-## 20.6 Module standard `Io` (normatif)
+## 20.7 Module standard `Io` (normatif)
 
 Le module `Io` fait partie de l’environnement standard et doit être résolu statiquement via le registre de modules.
 
