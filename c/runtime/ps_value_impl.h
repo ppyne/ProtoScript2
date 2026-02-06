@@ -61,6 +61,7 @@ typedef struct {
   PS_Value *source;
   size_t offset;
   size_t len;
+  int readonly;
 } PS_View;
 
 typedef struct {

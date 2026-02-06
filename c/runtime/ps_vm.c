@@ -134,6 +134,8 @@ typedef struct {
   char *kind;
   char *iter;
   char *source;
+  char *offset;
+  char *len;
   char *mode;
   char *callee;
   char *receiver;
@@ -145,6 +147,7 @@ typedef struct {
   char *shift;
   int width;
   char *method;
+  int readonly;
   char **args;
   size_t arg_count;
   struct {
@@ -239,6 +242,8 @@ static IRInstr parse_instr(PS_JsonValue *obj) {
   ins.kind = dup_json_string(ps_json_obj_get(obj, "kind"));
   ins.iter = dup_json_string(ps_json_obj_get(obj, "iter"));
   ins.source = dup_json_string(ps_json_obj_get(obj, "source"));
+  ins.offset = dup_json_string(ps_json_obj_get(obj, "offset"));
+  ins.len = dup_json_string(ps_json_obj_get(obj, "len"));
   ins.mode = dup_json_string(ps_json_obj_get(obj, "mode"));
   ins.callee = dup_json_string(ps_json_obj_get(obj, "callee"));
   ins.receiver = dup_json_string(ps_json_obj_get(obj, "receiver"));
@@ -251,6 +256,8 @@ static IRInstr parse_instr(PS_JsonValue *obj) {
   PS_JsonValue *w = ps_json_obj_get(obj, "width");
   if (w && w->type == PS_JSON_NUMBER) ins.width = (int)w->as.num_v;
   ins.method = dup_json_string(ps_json_obj_get(obj, "method"));
+  PS_JsonValue *ro = ps_json_obj_get(obj, "readonly");
+  if (ro && ro->type == PS_JSON_BOOL) ins.readonly = ro->as.bool_v ? 1 : 0;
   PS_JsonValue *args = ps_json_obj_get(obj, "args");
   if (args && args->type == PS_JSON_ARRAY) {
     ins.arg_count = args->as.array_v.len;
@@ -289,6 +296,8 @@ static void free_instr(IRInstr *i) {
   free(i->kind);
   free(i->iter);
   free(i->source);
+  free(i->offset);
+  free(i->len);
   free(i->mode);
   free(i->callee);
   free(i->receiver);
@@ -735,6 +744,27 @@ static int exec_function(PS_Context *ctx, PS_IR_Module *m, IRFunction *f, PS_Val
         }
         continue;
       }
+      if (strcmp(ins->op, "check_view_bounds") == 0) {
+        PS_Value *t = get_value(&temps, &vars, ins->target);
+        PS_Value *o = get_value(&temps, &vars, ins->offset);
+        PS_Value *l = get_value(&temps, &vars, ins->len);
+        if (!t || !o || !l) goto raise;
+        int64_t off = o->as.int_v;
+        int64_t ln = l->as.int_v;
+        if (off < 0 || ln < 0) {
+          ps_throw(ctx, PS_ERR_RANGE, "index out of bounds");
+          goto raise;
+        }
+        size_t total = 0;
+        if (t->tag == PS_V_LIST) total = t->as.list_v.len;
+        else if (t->tag == PS_V_STRING) total = ps_utf8_glyph_len((const uint8_t *)t->as.string_v.ptr, t->as.string_v.len);
+        else if (t->tag == PS_V_VIEW) total = t->as.view_v.len;
+        if ((uint64_t)off + (uint64_t)ln > total) {
+          ps_throw(ctx, PS_ERR_RANGE, "index out of bounds");
+          goto raise;
+        }
+        continue;
+      }
       if (strcmp(ins->op, "check_map_has_key") == 0) {
         PS_Value *mval = get_value(&temps, &vars, ins->map);
         PS_Value *k = get_value(&temps, &vars, ins->key);
@@ -804,6 +834,35 @@ static int exec_function(PS_Context *ctx, PS_IR_Module *m, IRFunction *f, PS_Val
         ps_value_release(map);
         continue;
       }
+      if (strcmp(ins->op, "make_view") == 0) {
+        PS_Value *src = get_value(&temps, &vars, ins->source);
+        PS_Value *o = get_value(&temps, &vars, ins->offset);
+        PS_Value *l = get_value(&temps, &vars, ins->len);
+        if (!src || !o || !l) goto raise;
+        int64_t off = o->as.int_v;
+        int64_t ln = l->as.int_v;
+        if (off < 0 || ln < 0) {
+          ps_throw(ctx, PS_ERR_RANGE, "index out of bounds");
+          goto raise;
+        }
+        PS_Value *base = src;
+        size_t base_off = 0;
+        int readonly = ins->readonly;
+        if (src->tag == PS_V_VIEW) {
+          base = src->as.view_v.source;
+          base_off = src->as.view_v.offset;
+          if (src->as.view_v.readonly) readonly = 1;
+        }
+        PS_Value *v = ps_value_alloc(PS_V_VIEW);
+        if (!v) goto raise;
+        v->as.view_v.source = ps_value_retain(base);
+        v->as.view_v.offset = base_off + (size_t)off;
+        v->as.view_v.len = (size_t)ln;
+        v->as.view_v.readonly = readonly;
+        bindings_set(&temps, ins->dst, v);
+        ps_value_release(v);
+        continue;
+      }
       if (strcmp(ins->op, "index_get") == 0) {
         PS_Value *t = get_value(&temps, &vars, ins->target);
         PS_Value *i = get_value(&temps, &vars, ins->index);
@@ -814,6 +873,15 @@ static int exec_function(PS_Context *ctx, PS_IR_Module *m, IRFunction *f, PS_Val
           uint32_t g = ps_utf8_glyph_at((const uint8_t *)t->as.string_v.ptr, t->as.string_v.len, (size_t)i->as.int_v);
           res = ps_make_glyph(ctx, g);
         } else if (t->tag == PS_V_MAP) res = ps_map_get(ctx, t, i);
+        else if (t->tag == PS_V_VIEW) {
+          size_t idx = t->as.view_v.offset + (size_t)i->as.int_v;
+          PS_Value *src = t->as.view_v.source;
+          if (src->tag == PS_V_LIST) res = ps_list_get_internal(ctx, src, idx);
+          else if (src->tag == PS_V_STRING) {
+            uint32_t g = ps_utf8_glyph_at((const uint8_t *)src->as.string_v.ptr, src->as.string_v.len, idx);
+            res = ps_make_glyph(ctx, g);
+          }
+        }
         if (!res) goto raise;
         bindings_set(&temps, ins->dst, res);
         continue;
@@ -826,6 +894,19 @@ static int exec_function(PS_Context *ctx, PS_IR_Module *m, IRFunction *f, PS_Val
           if (!ps_list_set_internal(ctx, t, (size_t)i->as.int_v, v)) goto raise;
         } else if (t->tag == PS_V_MAP) {
           if (!ps_map_set(ctx, t, i, v)) goto raise;
+        } else if (t->tag == PS_V_VIEW) {
+          if (t->as.view_v.readonly) {
+            ps_throw(ctx, PS_ERR_TYPE, "cannot assign through view");
+            goto raise;
+          }
+          size_t idx = t->as.view_v.offset + (size_t)i->as.int_v;
+          PS_Value *src = t->as.view_v.source;
+          if (src->tag == PS_V_LIST) {
+            if (!ps_list_set_internal(ctx, src, idx, v)) goto raise;
+          } else {
+            ps_throw(ctx, PS_ERR_TYPE, "invalid view target");
+            goto raise;
+          }
         }
         continue;
       }
@@ -850,6 +931,8 @@ static int exec_function(PS_Context *ctx, PS_IR_Module *m, IRFunction *f, PS_Val
           else if (src->tag == PS_V_STRING) {
             size_t gl = ps_utf8_glyph_len((const uint8_t *)src->as.string_v.ptr, src->as.string_v.len);
             has = it->as.iter_v.index < gl;
+          } else if (src->tag == PS_V_VIEW) {
+            has = it->as.iter_v.index < src->as.view_v.len;
           }
         }
         block_idx = find_block(f, has ? ins->then_label : ins->else_label);
@@ -876,6 +959,14 @@ static int exec_function(PS_Context *ctx, PS_IR_Module *m, IRFunction *f, PS_Val
                 }
                 count++;
               }
+            }
+          } else if (src->tag == PS_V_VIEW) {
+            size_t vidx = src->as.view_v.offset + idx;
+            PS_Value *base = src->as.view_v.source;
+            if (base->tag == PS_V_LIST) res = base->as.list_v.items[vidx];
+            else if (base->tag == PS_V_STRING) {
+              uint32_t g = ps_utf8_glyph_at((const uint8_t *)base->as.string_v.ptr, base->as.string_v.len, vidx);
+              res = ps_make_glyph(ctx, g);
             }
           }
         }
@@ -1500,6 +1591,16 @@ static int exec_function(PS_Context *ctx, PS_IR_Module *m, IRFunction *f, PS_Val
             }
             bindings_set(&temps, ins->dst, out);
             ps_value_release(out);
+          }
+        } else if (recv->tag == PS_V_VIEW) {
+          if (strcmp(ins->method, "length") == 0) {
+            PS_Value *v = ps_make_int(ctx, (int64_t)recv->as.view_v.len);
+            bindings_set(&temps, ins->dst, v);
+            ps_value_release(v);
+          } else if (strcmp(ins->method, "isEmpty") == 0) {
+            PS_Value *v = ps_make_bool(ctx, recv->as.view_v.len == 0);
+            bindings_set(&temps, ins->dst, v);
+            ps_value_release(v);
           }
         } else if (recv->tag == PS_V_LIST && strcmp(ins->method, "pop") == 0) {
           if (recv->as.list_v.len == 0) {

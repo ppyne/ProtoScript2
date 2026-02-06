@@ -2097,6 +2097,42 @@ static char *infer_call_type(Analyzer *a, AstNode *e, Scope *scope, int *ok) {
         return strdup(rf->ret_type);
       }
     }
+    if (callee->text) {
+      int argc = (int)e->child_len - 1;
+      char *tt = infer_expr_type(a, target, scope, ok);
+      if (tt) {
+        if (strcmp(tt, "string") == 0 && strcmp(callee->text, "view") == 0) {
+          if (!(argc == 0 || argc == 2)) {
+            set_diag(a->diag, a->file, e->line, e->col, "E3001", "TYPE_MISMATCH_ASSIGNMENT", "arity mismatch");
+            *ok = 0;
+            free(tt);
+            return NULL;
+          }
+        } else if (strncmp(tt, "list<", 5) == 0 && (strcmp(callee->text, "view") == 0 || strcmp(callee->text, "slice") == 0)) {
+          if (argc != 2) {
+            set_diag(a->diag, a->file, e->line, e->col, "E3001", "TYPE_MISMATCH_ASSIGNMENT", "arity mismatch");
+            *ok = 0;
+            free(tt);
+            return NULL;
+          }
+        } else if (strncmp(tt, "slice<", 6) == 0 && strcmp(callee->text, "slice") == 0) {
+          if (argc != 2) {
+            set_diag(a->diag, a->file, e->line, e->col, "E3001", "TYPE_MISMATCH_ASSIGNMENT", "arity mismatch");
+            *ok = 0;
+            free(tt);
+            return NULL;
+          }
+        } else if (strncmp(tt, "view<", 5) == 0 && strcmp(callee->text, "view") == 0) {
+          if (argc != 2) {
+            set_diag(a->diag, a->file, e->line, e->col, "E3001", "TYPE_MISMATCH_ASSIGNMENT", "arity mismatch");
+            *ok = 0;
+            free(tt);
+            return NULL;
+          }
+        }
+        free(tt);
+      }
+    }
   }
   return strdup("unknown");
 }
@@ -2949,6 +2985,33 @@ static char *ir_guess_expr_type(AstNode *e, IrFnCtx *ctx) {
           if (strcmp(m, "push") == 0) return strdup("int");
           if (strcmp(m, "contains") == 0) return strdup("bool");
           if (strcmp(m, "sort") == 0) return strdup("int");
+          if (strcmp(m, "view") == 0 || strcmp(m, "slice") == 0) {
+            char *et2 = ir_type_elem_for_index(recv_t);
+            char *out = NULL;
+            if (et2) out = str_printf("%s<%s>", m, et2);
+            free(et2);
+            return out ? out : strdup("unknown");
+          }
+        } else if (strncmp(recv_t, "slice<", 6) == 0) {
+          if (strcmp(m, "length") == 0) return strdup("int");
+          if (strcmp(m, "isEmpty") == 0) return strdup("bool");
+          if (strcmp(m, "slice") == 0) {
+            char *et2 = ir_type_elem_for_index(recv_t);
+            char *out = NULL;
+            if (et2) out = str_printf("slice<%s>", et2);
+            free(et2);
+            return out ? out : strdup("unknown");
+          }
+        } else if (strncmp(recv_t, "view<", 5) == 0) {
+          if (strcmp(m, "length") == 0) return strdup("int");
+          if (strcmp(m, "isEmpty") == 0) return strdup("bool");
+          if (strcmp(m, "view") == 0) {
+            char *et2 = ir_type_elem_for_index(recv_t);
+            char *out = NULL;
+            if (et2) out = str_printf("view<%s>", et2);
+            free(et2);
+            return out ? out : strdup("unknown");
+          }
         } else if (strncmp(recv_t, "map<", 4) == 0) {
           if (strcmp(m, "length") == 0) return strdup("int");
           if (strcmp(m, "isEmpty") == 0) return strdup("bool");
@@ -3103,6 +3166,73 @@ static char *ir_lower_call(AstNode *e, IrFnCtx *ctx) {
           free(dst);
           dst = NULL;
         }
+      } else if (strcmp(callee->text ? callee->text : "", "view") == 0 || strcmp(callee->text ? callee->text : "", "slice") == 0) {
+        const char *kind = callee->text ? callee->text : "";
+        char *offset = NULL;
+        char *len = NULL;
+        if (argc == 0) {
+          offset = ir_next_tmp(ctx);
+          if (offset) {
+            char *o_esc = json_escape(offset);
+            char *ins0 = str_printf("{\"op\":\"const\",\"dst\":\"%s\",\"literalType\":\"int\",\"value\":\"0\"}", o_esc ? o_esc : "");
+            free(o_esc);
+            if (!ir_emit(ctx, ins0)) {
+              free(offset);
+              offset = NULL;
+            }
+          }
+          len = ir_next_tmp(ctx);
+          if (len) {
+            char *d_esc = json_escape(len);
+            char *r_esc = json_escape(recv);
+            char *insl = str_printf(
+                "{\"op\":\"call_method_static\",\"dst\":\"%s\",\"receiver\":\"%s\",\"method\":\"length\",\"args\":[]}", d_esc ? d_esc : "",
+                r_esc ? r_esc : "");
+            free(d_esc);
+            free(r_esc);
+            if (!ir_emit(ctx, insl)) {
+              free(len);
+              len = NULL;
+            }
+          }
+        } else if (argc >= 2) {
+          offset = args[0] ? strdup(args[0]) : NULL;
+          len = args[1] ? strdup(args[1]) : NULL;
+        }
+        if (offset && len) {
+          char *t_esc = json_escape(recv);
+          char *o_esc = json_escape(offset);
+          char *l_esc = json_escape(len);
+          char *chk = str_printf("{\"op\":\"check_view_bounds\",\"target\":\"%s\",\"offset\":\"%s\",\"len\":\"%s\"}", t_esc ? t_esc : "",
+                                 o_esc ? o_esc : "", l_esc ? l_esc : "");
+          free(t_esc);
+          free(o_esc);
+          free(l_esc);
+          if (!ir_emit(ctx, chk)) {
+            free(dst);
+            dst = NULL;
+          }
+          char *d_esc2 = json_escape(dst);
+          char *s_esc = json_escape(recv);
+          char *o_esc2 = json_escape(offset);
+          char *l_esc2 = json_escape(len);
+          char *k_esc = json_escape(kind);
+          char *ins = str_printf(
+              "{\"op\":\"make_view\",\"dst\":\"%s\",\"kind\":\"%s\",\"source\":\"%s\",\"offset\":\"%s\",\"len\":\"%s\",\"readonly\":%s}",
+              d_esc2 ? d_esc2 : "", k_esc ? k_esc : "", s_esc ? s_esc : "", o_esc2 ? o_esc2 : "", l_esc2 ? l_esc2 : "",
+              strcmp(kind, "view") == 0 ? "true" : "false");
+          free(d_esc2);
+          free(s_esc);
+          free(o_esc2);
+          free(l_esc2);
+          free(k_esc);
+          if (!ir_emit(ctx, ins)) {
+            free(dst);
+            dst = NULL;
+          }
+        }
+        free(offset);
+        free(len);
       } else if (strcmp(callee->text ? callee->text : "", "print") == 0 && strcmp(recv_ast->kind, "Identifier") == 0 &&
                  recv_ast->text && strcmp(recv_ast->text, "Sys") == 0) {
         char *args_json = strdup("");

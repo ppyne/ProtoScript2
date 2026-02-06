@@ -289,6 +289,7 @@ function emitTypeDecls(typeNames) {
   const out = [];
   out.push("typedef struct { const char* ptr; size_t len; } ps_string;");
   out.push("typedef struct { size_t i; size_t n; } ps_iter_cursor;");
+  out.push("typedef struct { ps_string str; uint32_t* ptr; size_t len; size_t offset; int is_string; } ps_view_glyph;");
   for (const t of typeNames) {
     const p = parseContainer(t);
     if (!p) continue;
@@ -297,6 +298,7 @@ function emitTypeDecls(typeNames) {
     if (p.kind === "list") {
       out.push(`typedef struct { ${innerC}* ptr; size_t len; size_t cap; } ps_list_${bn};`);
     } else if (p.kind === "view") {
+      if (p.inner === "glyph") continue;
       out.push(`typedef struct { ${innerC}* ptr; size_t len; } ps_view_${bn};`);
     } else if (p.kind === "slice") {
       out.push(`typedef struct { ${innerC}* ptr; size_t len; } ps_slice_${bn};`);
@@ -424,6 +426,11 @@ function emitRuntimeHelpers() {
     "static void ps_check_index_bounds(size_t len, int64_t idx) {",
     "  if (idx < 0 || (size_t)idx >= len) ps_panic(\"R1002\", \"RUNTIME_INDEX_OOB\", \"index out of bounds\");",
     "}",
+    "static void ps_check_view_bounds(size_t len, int64_t offset, int64_t view_len) {",
+    "  if (offset < 0 || view_len < 0 || (size_t)(offset + view_len) > len) {",
+    "    ps_panic(\"R1002\", \"RUNTIME_INDEX_OOB\", \"index out of bounds\");",
+    "  }",
+    "}",
     "static void ps_check_map_has_key(int has_key) {",
     "  if (!has_key) ps_panic(\"R1003\", \"RUNTIME_MISSING_KEY\", \"missing map key\");",
     "}",
@@ -498,6 +505,11 @@ function emitRuntimeHelpers() {
     "  }",
     "  ps_panic(\"R1002\", \"RUNTIME_INDEX_OOB\", \"index out of bounds\");",
     "  return 0;",
+    "}",
+    "static uint32_t ps_view_glyph_get(ps_view_glyph v, int64_t idx) {",
+    "  if (idx < 0 || (size_t)idx >= v.len) ps_panic(\"R1002\", \"RUNTIME_INDEX_OOB\", \"index out of bounds\");",
+    "  if (v.is_string) return ps_string_index_glyph(v.str, (int64_t)(v.offset + (size_t)idx));",
+    "  return v.ptr[idx];",
     "}",
     "static ps_string ps_string_substring(ps_string s, int64_t start, int64_t length) {",
     "  if (start < 0 || length < 0) ps_panic(\"R1002\", \"RUNTIME_INDEX_OOB\", \"index out of bounds\");",
@@ -978,6 +990,12 @@ function emitInstr(i, fnInf, state) {
       if (t(i.target) === "string") out.push(`ps_check_index_bounds(ps_utf8_glyph_len(${n(i.target)}), ${n(i.index)});`);
       else out.push(`ps_check_index_bounds(${n(i.target)}.len, ${n(i.index)});`);
       break;
+    case "check_view_bounds": {
+      const tt = t(i.target);
+      if (tt === "string") out.push(`ps_check_view_bounds(ps_utf8_glyph_len(${n(i.target)}), ${n(i.offset)}, ${n(i.len)});`);
+      else out.push(`ps_check_view_bounds(${n(i.target)}.len, ${n(i.offset)}, ${n(i.len)});`);
+      break;
+    }
     case "check_map_has_key":
       {
         const m = parseMapType(t(i.map));
@@ -1229,8 +1247,35 @@ function emitInstr(i, fnInf, state) {
       }
       break;
     case "make_view":
-      out.push(`${n(i.dst)}.ptr = ${n(i.source)}.ptr;`);
-      out.push(`${n(i.dst)}.len = ${n(i.len)};`);
+      if (t(i.dst) === "view<glyph>") {
+        if (t(i.source) === "string") {
+          out.push(`${n(i.dst)}.is_string = 1;`);
+          out.push(`${n(i.dst)}.str = ${n(i.source)};`);
+          out.push(`${n(i.dst)}.offset = (size_t)${n(i.offset)};`);
+          out.push(`${n(i.dst)}.len = (size_t)${n(i.len)};`);
+          out.push(`${n(i.dst)}.ptr = NULL;`);
+        } else if (t(i.source) === "view<glyph>") {
+          out.push(`${n(i.dst)}.is_string = ${n(i.source)}.is_string;`);
+          out.push(`if (${n(i.source)}.is_string) {`);
+          out.push(`  ${n(i.dst)}.str = ${n(i.source)}.str;`);
+          out.push(`  ${n(i.dst)}.offset = ${n(i.source)}.offset + (size_t)${n(i.offset)};`);
+          out.push(`  ${n(i.dst)}.len = (size_t)${n(i.len)};`);
+          out.push(`  ${n(i.dst)}.ptr = NULL;`);
+          out.push(`} else {`);
+          out.push(`  ${n(i.dst)}.ptr = ${n(i.source)}.ptr + (size_t)${n(i.offset)};`);
+          out.push(`  ${n(i.dst)}.len = (size_t)${n(i.len)};`);
+          out.push(`  ${n(i.dst)}.offset = 0;`);
+          out.push(`}`);
+        } else {
+          out.push(`${n(i.dst)}.is_string = 0;`);
+          out.push(`${n(i.dst)}.ptr = ${n(i.source)}.ptr + (size_t)${n(i.offset)};`);
+          out.push(`${n(i.dst)}.len = (size_t)${n(i.len)};`);
+          out.push(`${n(i.dst)}.offset = 0;`);
+        }
+      } else {
+        out.push(`${n(i.dst)}.ptr = ${n(i.source)}.ptr + (size_t)${n(i.offset)};`);
+        out.push(`${n(i.dst)}.len = (size_t)${n(i.len)};`);
+      }
       break;
     case "index_get":
       {
@@ -1242,7 +1287,12 @@ function emitInstr(i, fnInf, state) {
         } else if (tt === "string") {
           out.push(`${n(i.dst)} = ps_string_index_glyph(${n(i.target)}, ${n(i.index)});`);
         } else {
-          out.push(`${n(i.dst)} = ${n(i.target)}.ptr[${n(i.index)}];`);
+          const p = parseContainer(tt);
+          if (p && p.kind === "view" && p.inner === "glyph") {
+            out.push(`${n(i.dst)} = ps_view_glyph_get(${n(i.target)}, ${n(i.index)});`);
+          } else {
+            out.push(`${n(i.dst)} = ${n(i.target)}.ptr[${n(i.index)}];`);
+          }
         }
       }
       break;
@@ -1309,6 +1359,7 @@ function emitInstr(i, fnInf, state) {
         const m = parseMapType(srcType);
         if (m && i.mode === "in") out.push(`${n(i.dst)} = ${n(i.source)}.keys[${n(i.iter)}.i];`);
         else if (m && i.mode === "of") out.push(`${n(i.dst)} = ${n(i.source)}.values[${n(i.iter)}.i];`);
+        else if (srcType === "view<glyph>") out.push(`${n(i.dst)} = ps_view_glyph_get(${n(i.source)}, ${n(i.iter)}.i);`);
         else if (srcType === "string") out.push(`${n(i.dst)} = (uint8_t)${n(i.source)}.ptr[${n(i.iter)}.i];`);
         else out.push(`${n(i.dst)} = ${n(i.source)}.ptr[${n(i.iter)}.i];`);
       }

@@ -72,6 +72,32 @@ function glyphAt(s, idx) {
   return new Glyph(ch.codePointAt(0));
 }
 
+function isView(v) {
+  return v && v.__view === true;
+}
+
+function makeView(file, node, source, offset, len, readonly) {
+  const off = Number(offset);
+  const ln = Number(len);
+  if (!Number.isInteger(off) || !Number.isInteger(ln) || off < 0 || ln < 0) {
+    throw new RuntimeError(rdiag(file, node, "R1002", "RUNTIME_INDEX_OOB", "index out of bounds"));
+  }
+  let base = source;
+  let baseOffset = 0;
+  if (isView(source)) {
+    base = source.source;
+    baseOffset = source.offset;
+  }
+  let totalLen = 0;
+  if (Array.isArray(base)) totalLen = base.length;
+  else if (typeof base === "string") totalLen = glyphStringsOf(base).length;
+  else if (isView(base)) totalLen = base.len;
+  if (off + ln > totalLen) {
+    throw new RuntimeError(rdiag(file, node, "R1002", "RUNTIME_INDEX_OOB", "index out of bounds"));
+  }
+  return { __view: true, source: base, offset: baseOffset + off, len: ln, readonly: !!readonly };
+}
+
 function trimAscii(s, mode = "both") {
   const chars = glyphStringsOf(s);
   let start = 0;
@@ -684,6 +710,12 @@ function execFor(stmt, scope, functions, moduleEnv, file, callFunction) {
   let items = null;
   if (Array.isArray(seq)) {
     items = seq;
+  } else if (isView(seq)) {
+    items = [];
+    for (let i = 0; i < seq.len; i += 1) {
+      if (Array.isArray(seq.source)) items.push(seq.source[seq.offset + i]);
+      else if (typeof seq.source === "string") items.push(glyphAt(seq.source, seq.offset + i));
+    }
   } else if (typeof seq === "string") {
     items = glyphsOf(seq);
   } else if (seq instanceof Map) {
@@ -882,6 +914,15 @@ function indexGet(file, targetNode, indexNode, target, idx) {
     }
     return target[i];
   }
+  if (isView(target)) {
+    const i = Number(idx);
+    if (!Number.isInteger(i) || i < 0 || i >= target.len) {
+      throw new RuntimeError(rdiag(file, targetNode, "R1002", "RUNTIME_INDEX_OOB", "index out of bounds"));
+    }
+    if (Array.isArray(target.source)) return target.source[target.offset + i];
+    if (typeof target.source === "string") return glyphAt(target.source, target.offset + i);
+    return null;
+  }
   if (typeof target === "string") {
     const glyphs = glyphStringsOf(target);
     const i = Number(idx);
@@ -908,6 +949,20 @@ function assignIndex(file, targetNode, indexNode, target, idx, rhs) {
     }
     target[i] = rhs;
     return;
+  }
+  if (isView(target)) {
+    if (target.readonly) {
+      throw new RuntimeError(rdiag(file, targetNode, "R1010", "RUNTIME_TYPE_ERROR", "cannot assign through view"));
+    }
+    const i = Number(idx);
+    if (!Number.isInteger(i) || i < 0 || i >= target.len) {
+      throw new RuntimeError(rdiag(file, targetNode, "R1002", "RUNTIME_INDEX_OOB", "index out of bounds"));
+    }
+    if (Array.isArray(target.source)) {
+      target.source[target.offset + i] = rhs;
+      return;
+    }
+    throw new RuntimeError(rdiag(file, targetNode, "R1010", "RUNTIME_TYPE_ERROR", "invalid slice target"));
   }
   if (target instanceof Map) {
     target.set(mapKey(idx), rhs);
@@ -1039,16 +1094,41 @@ function evalCall(expr, scope, functions, moduleEnv, file, callFunction) {
       if (m.name === "isFinite") return Number.isFinite(target);
     }
 
+    if (m.name === "view" || m.name === "slice") {
+      if (typeof target === "string" && m.name === "view") {
+        if (args.length === 0) {
+          const len = glyphStringsOf(target).length;
+          return makeView(file, m, target, 0, len, true);
+        }
+        if (args.length === 2) {
+          return makeView(file, m, target, args[0], args[1], true);
+        }
+        throw new RuntimeError(rdiag(file, m, "R1010", "RUNTIME_TYPE_ERROR", "invalid view arity"));
+      }
+      if (Array.isArray(target)) {
+        if (args.length !== 2) throw new RuntimeError(rdiag(file, m, "R1010", "RUNTIME_TYPE_ERROR", "invalid view/slice arity"));
+        return makeView(file, m, target, args[0], args[1], m.name === "view");
+      }
+      if (isView(target)) {
+        if (args.length !== 2) throw new RuntimeError(rdiag(file, m, "R1010", "RUNTIME_TYPE_ERROR", "invalid view/slice arity"));
+        if (m.name === "view" && target.readonly) return makeView(file, m, target, args[0], args[1], true);
+        if (m.name === "slice" && !target.readonly) return makeView(file, m, target, args[0], args[1], false);
+        throw new RuntimeError(rdiag(file, m, "R1010", "RUNTIME_TYPE_ERROR", "invalid view/slice target"));
+      }
+    }
+
     if (m.name === "length") {
       if (Array.isArray(target)) return BigInt(target.length);
       if (typeof target === "string") return BigInt(glyphStringsOf(target).length);
       if (target instanceof Map) return BigInt(target.size);
+      if (isView(target)) return BigInt(target.len);
       return 0n;
     }
     if (m.name === "isEmpty") {
       if (Array.isArray(target)) return target.length === 0;
       if (typeof target === "string") return glyphStringsOf(target).length === 0;
       if (target instanceof Map) return target.size === 0;
+      if (isView(target)) return target.len === 0;
       return false;
     }
     if (target instanceof Map) {

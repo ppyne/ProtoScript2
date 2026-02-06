@@ -567,14 +567,28 @@ class IRBuilder {
         return { value: dst, type: { kind: "PrimitiveType", name: "string" } };
       }
       if (method === "view" || method === "slice") {
+        let offsetValue = null;
+        let lenValue = null;
+        if (args.length === 0) {
+          const offset = this.nextTemp();
+          this.emit(block, { op: "const", dst: offset, literalType: "int", value: "0" });
+          const lenTmp = this.nextTemp();
+          this.emit(block, { op: "call_method_static", dst: lenTmp, receiver: recv.value, method: "length", args: [] });
+          offsetValue = offset;
+          lenValue = lenTmp;
+        } else {
+          offsetValue = args[0].value;
+          lenValue = args[1] ? args[1].value : null;
+        }
         const dst = this.nextTemp();
-        const len = args.length >= 2 ? args[1].value : `len(${recv.value})`;
+        this.emit(block, { op: "check_view_bounds", target: recv.value, offset: offsetValue, len: lenValue });
         this.emit(block, {
           op: "make_view",
           dst,
           kind: method,
           source: recv.value,
-          len,
+          offset: offsetValue,
+          len: lenValue,
           readonly: method === "view",
         });
         const elemType = this.elementTypeForIndex(recv.type);
@@ -699,7 +713,7 @@ function formatInstr(i) {
     case "rethrow":
       return "rethrow";
     case "make_view":
-      return `${i.dst} = make_${i.kind}(source=${i.source}, len=${i.len}, readonly=${i.readonly})`;
+      return `${i.dst} = make_${i.kind}(source=${i.source}, offset=${i.offset}, len=${i.len}, readonly=${i.readonly})`;
     case "index_get":
       return `${i.dst} = index_get ${i.target}[${i.index}]`;
     case "index_set":
@@ -714,6 +728,8 @@ function formatInstr(i) {
       return `check_shift_range shift=${i.shift} width=${i.width}`;
     case "check_index_bounds":
       return `check_index_bounds target=${i.target} index=${i.index}`;
+    case "check_view_bounds":
+      return `check_view_bounds target=${i.target} offset=${i.offset} len=${i.len}`;
     case "check_map_has_key":
       return `check_map_has_key map=${i.map} key=${i.key}`;
     case "ret":
@@ -802,6 +818,7 @@ function validateSerializedIR(doc) {
     "check_div_zero",
     "check_shift_range",
     "check_index_bounds",
+    "check_view_bounds",
     "check_map_has_key",
     "ret",
     "ret_void",

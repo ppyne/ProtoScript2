@@ -1,0 +1,9 @@
+import Io;
+
+function main() : void {
+    string s = "a🙂b";
+    view<glyph> v = s.view(1, 1);
+    glyph g = v[0];
+    bool ok = (v.length() == 1) && (g.toString() == "🙂");
+    Io.printLine(ok.toString());
+}

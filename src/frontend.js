@@ -1442,6 +1442,39 @@ class Analyzer {
         if (name === "replace") return prim("string");
         if (name === "toUpper" || name === "toLower") return prim("string");
         if (name === "toUtf8Bytes") return { kind: "GenericType", name: "list", args: [prim("byte")] };
+        if (name === "view") {
+          if (!(expr.args.length === 0 || expr.args.length === 2)) {
+            this.addDiag(expr, "E3001", "TYPE_MISMATCH_ASSIGNMENT", "arity mismatch for 'view'");
+          }
+          return { kind: "GenericType", name: "view", args: [prim("glyph")] };
+        }
+      }
+      if (t.startsWith("list<")) {
+        if (name === "view" || name === "slice") {
+          if (expr.args.length !== 2) {
+            this.addDiag(expr, "E3001", "TYPE_MISMATCH_ASSIGNMENT", `arity mismatch for '${name}'`);
+          }
+          const elem = targetType.args[0];
+          return { kind: "GenericType", name, args: [elem] };
+        }
+      }
+      if (t.startsWith("slice<")) {
+        if (name === "slice") {
+          if (expr.args.length !== 2) {
+            this.addDiag(expr, "E3001", "TYPE_MISMATCH_ASSIGNMENT", "arity mismatch for 'slice'");
+          }
+          const elem = targetType.args[0];
+          return { kind: "GenericType", name: "slice", args: [elem] };
+        }
+      }
+      if (t.startsWith("view<")) {
+        if (name === "view") {
+          if (expr.args.length !== 2) {
+            this.addDiag(expr, "E3001", "TYPE_MISMATCH_ASSIGNMENT", "arity mismatch for 'view'");
+          }
+          const elem = targetType.args[0];
+          return { kind: "GenericType", name: "view", args: [elem] };
+        }
       }
       if (t === "File") {
         if (name === "read") {
