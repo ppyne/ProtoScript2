@@ -3109,6 +3109,7 @@ Règles :
 - la promotion implicite `int → float` est autorisée à l’appel
 - les fonctions suivent la sémantique IEEE‑754 (NaN, ±Infinity, −0)
 - aucune exception n’est levée pour des valeurs hors domaine : le résultat est `NaN` ou `±Infinity`
+- `Math.random()` retourne un `float` uniforme dans **0.0 ≤ x < 1.0**, ne prend aucun argument, avance un PRNG interne, sans allocation ni dépendance système
 
 Le comportement complet du module `Math` est normatif et défini dans `docs/module_math_specification.md`.
 

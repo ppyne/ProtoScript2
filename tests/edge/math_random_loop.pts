@@ -1,0 +1,26 @@
+import Io;
+import Math;
+
+function main() : void {
+    float a = Math.random();
+    float b = Math.random();
+    float c = Math.random();
+    float d = Math.random();
+    float e = Math.random();
+    float f = Math.random();
+    float g = Math.random();
+    float h = Math.random();
+    float i = Math.random();
+    float j = Math.random();
+    bool ok = (a >= 0.0 && a < 1.0)
+           && (b >= 0.0 && b < 1.0)
+           && (c >= 0.0 && c < 1.0)
+           && (d >= 0.0 && d < 1.0)
+           && (e >= 0.0 && e < 1.0)
+           && (f >= 0.0 && f < 1.0)
+           && (g >= 0.0 && g < 1.0)
+           && (h >= 0.0 && h < 1.0)
+           && (i >= 0.0 && i < 1.0)
+           && (j >= 0.0 && j < 1.0);
+    Io.printLine(ok.toString());
+}

@@ -1,0 +1,8 @@
+import Io;
+import Math;
+
+function main() : void {
+    float a = Math.random();
+    float b = Math.random();
+    Io.printLine((a != b).toString());
+}

@@ -236,7 +236,35 @@ function buildModuleEnv(ast, file) {
   mathMod.functions.set("hypot", (a, b, node) => Math.hypot(toNumberArg(node, a), toNumberArg(node, b)));
   mathMod.functions.set("clz32", (x, node) => Math.clz32(toNumberArg(node, x)));
   mathMod.functions.set("imul", (a, b, node) => Math.imul(toNumberArg(node, a), toNumberArg(node, b)));
-  mathMod.functions.set("random", () => Math.random());
+  let mathRngState = 0;
+  let mathRngSeeded = false;
+  const hashString32 = (s) => {
+    let h = 2166136261 >>> 0;
+    for (let i = 0; i < s.length; i += 1) {
+      h ^= s.charCodeAt(i);
+      h = Math.imul(h, 16777619) >>> 0;
+    }
+    return h >>> 0;
+  };
+  const mathRngSeed = () => {
+    const envSeed = Number.parseInt(process.env.PS_RNG_SEED || "", 10);
+    let seed = Number.isFinite(envSeed)
+      ? envSeed >>> 0
+      : hashString32(`${process.cwd()}|${process.execPath}`);
+    if (seed === 0) seed = 0x6d2b79f5;
+    mathRngState = seed >>> 0;
+    mathRngSeeded = true;
+  };
+  const mathRngNext = () => {
+    if (!mathRngSeeded) mathRngSeed();
+    let x = mathRngState >>> 0;
+    x ^= (x << 13) >>> 0;
+    x ^= (x >>> 17) >>> 0;
+    x ^= (x << 5) >>> 0;
+    mathRngState = x >>> 0;
+    return mathRngState;
+  };
+  mathMod.functions.set("random", () => mathRngNext() / 4294967296);
 
   const ioMod = makeModule("Io");
   ioMod.constants.set("EOL", "\n");

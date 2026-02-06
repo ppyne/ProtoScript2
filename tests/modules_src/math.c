@@ -1,6 +1,5 @@
 #include <math.h>
-#include <stdlib.h>
-#include <time.h>
+#include <stdint.h>
 #include "ps/ps_api.h"
 
 static int get_float_arg(PS_Context *ctx, PS_Value *v, double *out) {
@@ -297,16 +296,33 @@ static PS_Status mod_imul(PS_Context *ctx, int argc, PS_Value **argv, PS_Value *
   return ret_float(ctx, (double)r, out);
 }
 
+static uint32_t math_rng_state = 0;
+static int math_rng_seeded = 0;
+
+static void math_rng_seed(void) {
+  uintptr_t p = (uintptr_t)&math_rng_state;
+  uint32_t s = (uint32_t)(p ^ (p >> 16) ^ 0xA5A5A5A5u);
+  if (s == 0) s = 0x6d2b79f5u;
+  math_rng_state = s;
+  math_rng_seeded = 1;
+}
+
+static uint32_t math_rng_next(void) {
+  if (!math_rng_seeded) math_rng_seed();
+  uint32_t x = math_rng_state;
+  x ^= x << 13;
+  x ^= x >> 17;
+  x ^= x << 5;
+  math_rng_state = x;
+  return x;
+}
+
 static PS_Status mod_random(PS_Context *ctx, int argc, PS_Value **argv, PS_Value **out) {
   (void)argc;
   (void)argv;
-  static int seeded = 0;
-  if (!seeded) {
-    srand((unsigned)time(NULL));
-    seeded = 1;
-  }
-  double r = (double)rand() / ((double)RAND_MAX + 1.0);
-  return ret_float(ctx, r, out);
+  uint32_t r = math_rng_next();
+  double v = (double)r / 4294967296.0;
+  return ret_float(ctx, v, out);
 }
 
 PS_Status ps_module_init(PS_Context *ctx, PS_Module *out) {

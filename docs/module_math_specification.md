@@ -120,9 +120,24 @@ Les fonctions `Math` suivent la sémantique IEEE‑754 (double précision) :
 
 `Math.random` :
 
-- retourne un `float` dans l’intervalle **[0, 1)**,
-- distribution et graine **implémentation‑dépendantes**,
-- non cryptographiquement sûr.
+- retourne un `float` dans l’intervalle **0.0 ≤ x < 1.0**,
+- ne prend aucun argument,
+- avance l’état interne du générateur pseudo‑aléatoire,
+- n’alloue aucune mémoire,
+- a un effet de bord limité au module `Math`,
+- n’est pas cryptographiquement sûr.
+
+Initialisation :
+
+- l’état initial du générateur est **dépendant de l’environnement d’exécution**,
+- aucune fonction de *seed* n’est exposée au langage.
+
+Contraintes d’implémentation :
+
+- générateur pseudo‑aléatoire **interne** au runtime,
+- **interdiction** d’utiliser la libc (`rand`, `drand48`, etc.),
+- **aucune dépendance système**,
+- déterministe à état initial identique.
 
 ---
 
@@ -136,4 +151,3 @@ float b = Math.sqrt(9.0);     // 3.0
 float c = Math.log(Math.E);   // 1.0
 float d = Math.pow(2.0, 3.0); // 8.0
 ```
-

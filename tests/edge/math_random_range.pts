@@ -1,0 +1,8 @@
+import Io;
+import Math;
+
+function main() : void {
+    float x = Math.random();
+    bool ok = (x >= 0.0) && (x < 1.0);
+    Io.printLine(ok.toString());
+}
