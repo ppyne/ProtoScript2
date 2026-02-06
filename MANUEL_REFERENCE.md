@@ -32,7 +32,7 @@ function main() : void {
 }
 
 function main() : void {
-    Io.print(String.join(["Hello world", Io.EOL]));
+    Io.print("Hello world".concat(Io.EOL));
 }
 ```
 
