@@ -1728,11 +1728,18 @@ error:
   return 1;
 }
 
-int ps_vm_run_main(PS_Context *ctx, PS_IR_Module *m) {
+int ps_vm_run_main(PS_Context *ctx, PS_IR_Module *m, PS_Value **args, size_t argc, PS_Value **out) {
   IRFunction *main_fn = find_fn(m, "main");
   if (!main_fn) {
     ps_throw(ctx, PS_ERR_INTERNAL, "no main");
     return 1;
   }
-  return exec_function(ctx, m, main_fn, NULL, 0, NULL);
+  if (main_fn->param_count > 1) {
+    ps_throw(ctx, PS_ERR_TYPE, "main must take zero or one argument");
+    return 1;
+  }
+  if (main_fn->param_count == 1) {
+    return exec_function(ctx, m, main_fn, args, argc, out);
+  }
+  return exec_function(ctx, m, main_fn, NULL, 0, out);
 }

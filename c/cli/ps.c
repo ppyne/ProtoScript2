@@ -9,11 +9,12 @@
 #include "../runtime/ps_vm.h"
 #include "../runtime/ps_runtime.h"
 #include "../runtime/ps_errors.h"
+#include "../runtime/ps_list.h"
 
 static void usage(void) {
   fprintf(stderr, "Usage:\n");
-  fprintf(stderr, "  ps run <file>\n");
-  fprintf(stderr, "  ps -e \"<code>\"\n");
+  fprintf(stderr, "  ps run <file> [args...]\n");
+  fprintf(stderr, "  ps -e \"<code>\" [args...]\n");
   fprintf(stderr, "  ps repl\n");
   fprintf(stderr, "  ps check <file>\n");
   fprintf(stderr, "  ps ast <file>\n");
@@ -54,10 +55,36 @@ static PS_IR_Module *load_ir_from_file(PS_Context *ctx, const char *file) {
   return m;
 }
 
-static int run_file(PS_Context *ctx, const char *file) {
+static PS_Value *build_args_list(PS_Context *ctx, int argc, char **argv, int start) {
+  PS_Value *list = ps_make_list(ctx);
+  if (!list) return NULL;
+  for (int i = start; i < argc; i++) {
+    const char *s = argv[i];
+    PS_Value *v = ps_make_string_utf8(ctx, s, strlen(s));
+    if (!v) {
+      ps_value_release(list);
+      return NULL;
+    }
+    if (ps_list_push(ctx, list, v) != PS_OK) {
+      ps_value_release(v);
+      ps_value_release(list);
+      return NULL;
+    }
+    ps_value_release(v);
+  }
+  return list;
+}
+
+static int run_file(PS_Context *ctx, const char *file, PS_Value *args_list, PS_Value **out_ret) {
   PS_IR_Module *m = load_ir_from_file(ctx, file);
   if (!m) return 1;
-  int rc = ps_vm_run_main(ctx, m);
+  PS_Value *argvs[1];
+  size_t argc = 0;
+  if (args_list) {
+    argvs[0] = args_list;
+    argc = 1;
+  }
+  int rc = ps_vm_run_main(ctx, m, argvs, argc, out_ret);
   ps_ir_free(m);
   return rc;
 }
@@ -94,15 +121,21 @@ int main(int argc, char **argv) {
   if (do_time) clock_gettime(CLOCK_MONOTONIC, &t0);
 
   int rc = 0;
+  int exit_code = 0;
+  PS_Value *ret = NULL;
   if (strcmp(argv[1], "run") == 0 && argc >= 3) {
-    rc = run_file(ctx, argv[2]);
+    PS_Value *args_list = build_args_list(ctx, argc, argv, 3);
+    rc = run_file(ctx, argv[2], args_list, &ret);
+    if (args_list) ps_value_release(args_list);
   } else if (strcmp(argv[1], "-e") == 0 && argc >= 3) {
     char path[256];
     if (!write_temp_source(argv[2], path, sizeof(path))) {
       fprintf(stderr, "ps: failed to write temp source\n");
       rc = 2;
     } else {
-      rc = run_file(ctx, path);
+      PS_Value *args_list = build_args_list(ctx, argc, argv, 3);
+      rc = run_file(ctx, path, args_list, &ret);
+      if (args_list) ps_value_release(args_list);
     }
   } else if (strcmp(argv[1], "repl") == 0) {
     char line[1024];
@@ -113,7 +146,7 @@ int main(int argc, char **argv) {
       if (strncmp(line, "exit", 4) == 0) break;
       char path[256];
       if (!write_temp_source(line, path, sizeof(path))) break;
-      rc = run_file(ctx, path);
+      rc = run_file(ctx, path, NULL, &ret);
       if (rc != 0) {
         const char *code = NULL;
         const char *cat = ps_runtime_category(ps_last_error_code(ctx), ps_last_error_message(ctx), &code);
@@ -132,7 +165,7 @@ int main(int argc, char **argv) {
     if (r != 0) {
       fprintf(stderr, "%s:%d:%d %s %s: %s\n", d.file ? d.file : argv[2], d.line, d.col, d.code ? d.code : "E0001",
               d.category ? d.category : "FRONTEND_ERROR", d.message);
-      rc = (r == 2) ? 2 : 1;
+      rc = (r == 2) ? 1 : 2;
     }
   } else if (strcmp(argv[1], "ast") == 0 && argc >= 3) {
     PsDiag d;
@@ -140,7 +173,7 @@ int main(int argc, char **argv) {
     if (r != 0) {
       fprintf(stderr, "%s:%d:%d %s %s: %s\n", d.file ? d.file : argv[2], d.line, d.col, d.code ? d.code : "E0001",
               d.category ? d.category : "FRONTEND_ERROR", d.message);
-      rc = (r == 2) ? 2 : 1;
+      rc = (r == 2) ? 1 : 2;
     }
   } else if (strcmp(argv[1], "ir") == 0 && argc >= 3) {
     PsDiag d;
@@ -148,11 +181,11 @@ int main(int argc, char **argv) {
     if (r != 0) {
       fprintf(stderr, "%s:%d:%d %s %s: %s\n", d.file ? d.file : argv[2], d.line, d.col, d.code ? d.code : "E0001",
               d.category ? d.category : "FRONTEND_ERROR", d.message);
-      rc = (r == 2) ? 2 : 1;
+      rc = (r == 2) ? 1 : 2;
     }
   } else if (strcmp(argv[1], "test") == 0) {
     rc = system("CONFORMANCE_CHECK_CMD=\"./c/ps check\" CONFORMANCE_RUN_CMD=\"./c/ps run\" tests/run_conformance.sh");
-    if (rc != 0) rc = 1;
+    if (rc != 0) rc = 2;
   } else {
     usage();
     rc = 2;
@@ -174,6 +207,17 @@ int main(int argc, char **argv) {
     }
   }
 
+  if (rc == 0 && ret && ps_typeof(ret) == PS_T_INT) {
+    exit_code = (int)ps_as_int(ret);
+  } else if (rc != 0) {
+    PS_ErrorCode err = ps_last_error_code(ctx);
+    if (err == PS_ERR_INTERNAL || err == PS_ERR_OOM) exit_code = 1;
+    else exit_code = 2;
+  } else {
+    exit_code = 0;
+  }
+
+  if (ret) ps_value_release(ret);
   ps_ctx_destroy(ctx);
-  return rc == 0 ? 0 : 1;
+  return exit_code;
 }
