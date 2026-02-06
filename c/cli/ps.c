@@ -19,6 +19,7 @@ static void usage(void) {
   fprintf(stderr, "  ps check <file>\n");
   fprintf(stderr, "  ps ast <file>\n");
   fprintf(stderr, "  ps ir <file>\n");
+  fprintf(stderr, "  ps emit-c <file> [--opt]\n");
   fprintf(stderr, "  ps test\n");
   fprintf(stderr, "Options:\n");
   fprintf(stderr, "  --help, --version, --trace, --trace-ir, --time\n");
@@ -53,6 +54,36 @@ static PS_IR_Module *load_ir_from_file(PS_Context *ctx, const char *file) {
   PS_IR_Module *m = ps_ir_load_json(ctx, buf, len);
   free(buf);
   return m;
+}
+
+static int file_is_executable(const char *path) {
+  return access(path, X_OK) == 0;
+}
+
+static int forward_emit_c(const char *file, int opt) {
+  const char *candidates[] = { "./bin/protoscriptc", "bin/protoscriptc", NULL };
+  const char *target = NULL;
+  for (int i = 0; candidates[i] != NULL; i++) {
+    if (file_is_executable(candidates[i])) {
+      target = candidates[i];
+      break;
+    }
+  }
+  if (!target) {
+    fprintf(stderr, "ps: cannot find reference compiler at ./bin/protoscriptc\n");
+    return 2;
+  }
+
+  if (opt) {
+    char *args[] = { (char *)target, "--emit-c", (char *)file, "--opt", NULL };
+    execv(target, args);
+  } else {
+    char *args[] = { (char *)target, "--emit-c", (char *)file, NULL };
+    execv(target, args);
+  }
+
+  fprintf(stderr, "ps: failed to exec %s: %s\n", target, strerror(errno));
+  return 2;
 }
 
 static PS_Value *build_args_list(PS_Context *ctx, int argc, char **argv, int start) {
@@ -98,6 +129,7 @@ int main(int argc, char **argv) {
   int trace = 0;
   int trace_ir = 0;
   int do_time = 0;
+  int opt = 0;
   for (int i = 1; i < argc; i++) {
     if (strcmp(argv[i], "--help") == 0) {
       usage();
@@ -110,6 +142,11 @@ int main(int argc, char **argv) {
     if (strcmp(argv[i], "--trace") == 0) trace = 1;
     if (strcmp(argv[i], "--trace-ir") == 0) trace_ir = 1;
     if (strcmp(argv[i], "--time") == 0) do_time = 1;
+    if (strcmp(argv[i], "--opt") == 0) opt = 1;
+  }
+
+  if (strcmp(argv[1], "emit-c") == 0 && argc >= 3) {
+    return forward_emit_c(argv[2], opt);
   }
 
   PS_Context *ctx = ps_ctx_create();
