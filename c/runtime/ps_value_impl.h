@@ -40,6 +40,7 @@ typedef struct {
   PS_Value **items;
   size_t len;
   size_t cap;
+  uint64_t version;
 } PS_List;
 
 typedef struct {
@@ -63,6 +64,7 @@ typedef struct {
   size_t offset;
   size_t len;
   int readonly;
+  uint64_t version;
 } PS_View;
 
 typedef struct {

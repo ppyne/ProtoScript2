@@ -20,6 +20,7 @@ PS_Value *ps_list_new(PS_Context *ctx) {
   v->as.list_v.items = NULL;
   v->as.list_v.len = 0;
   v->as.list_v.cap = 0;
+  v->as.list_v.version = 0;
   return v;
 }
 
@@ -63,5 +64,6 @@ int ps_list_push_internal(PS_Context *ctx, PS_Value *list, PS_Value *value) {
     return 0;
   }
   list->as.list_v.items[list->as.list_v.len++] = ps_value_retain(value);
+  list->as.list_v.version += 1;
   return 1;
 }

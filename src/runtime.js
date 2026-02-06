@@ -207,6 +207,35 @@ function isView(v) {
   return v && v.__view === true;
 }
 
+const listVersion = new WeakMap();
+
+function getListVersion(list) {
+  return listVersion.get(list) ?? 0;
+}
+
+function initList(list) {
+  if (Array.isArray(list) && !listVersion.has(list)) listVersion.set(list, 0);
+  return list;
+}
+
+function bumpList(list) {
+  if (!Array.isArray(list)) return;
+  listVersion.set(list, getListVersion(list) + 1);
+}
+
+function ensureViewValid(file, node, view) {
+  if (!isView(view)) return;
+  if (Array.isArray(view.source)) {
+    if (getListVersion(view.source) !== view.version) {
+      throw new RuntimeError(rdiag(file, node, "R1012", "RUNTIME_VIEW_INVALID", "view invalidated"));
+    }
+  }
+}
+
+function makeList(items) {
+  return initList(items ?? []);
+}
+
 function makeView(file, node, source, offset, len, readonly) {
   const off = Number(offset);
   const ln = Number(len);
@@ -216,6 +245,7 @@ function makeView(file, node, source, offset, len, readonly) {
   let base = source;
   let baseOffset = 0;
   if (isView(source)) {
+    ensureViewValid(file, node, source);
     base = source.source;
     baseOffset = source.offset;
   }
@@ -226,7 +256,14 @@ function makeView(file, node, source, offset, len, readonly) {
   if (off + ln > totalLen) {
     throw new RuntimeError(rdiag(file, node, "R1002", "RUNTIME_INDEX_OOB", "index out of bounds"));
   }
-  return { __view: true, source: base, offset: baseOffset + off, len: ln, readonly: !!readonly };
+  return {
+    __view: true,
+    source: base,
+    offset: baseOffset + off,
+    len: ln,
+    readonly: !!readonly,
+    version: Array.isArray(base) ? getListVersion(base) : 0,
+  };
 }
 
 function trimAscii(s, mode = "both") {
@@ -296,14 +333,14 @@ function intToBytes(n) {
   const buf = new ArrayBuffer(8);
   const view = new DataView(buf);
   view.setBigInt64(0, BigInt(n), IS_LITTLE_ENDIAN);
-  return Array.from(new Uint8Array(buf), (b) => BigInt(b));
+  return makeList(Array.from(new Uint8Array(buf), (b) => BigInt(b)));
 }
 
 function floatToBytes(x) {
   const buf = new ArrayBuffer(8);
   const view = new DataView(buf);
   view.setFloat64(0, Number(x), IS_LITTLE_ENDIAN);
-  return Array.from(new Uint8Array(buf), (b) => BigInt(b));
+  return makeList(Array.from(new Uint8Array(buf), (b) => BigInt(b)));
 }
 
 function parseIntStrict(file, node, s) {
@@ -614,7 +651,7 @@ function buildModuleEnv(ast, file) {
       return makeJsonValue("number", v);
     }
     if (typeof v === "string") return makeJsonValue("string", v);
-    if (Array.isArray(v)) return makeJsonValue("array", v.map((it) => jsonDecodeValue(node, it)));
+    if (Array.isArray(v)) return makeJsonValue("array", makeList(v.map((it) => jsonDecodeValue(node, it))));
     if (typeof v === "object") {
       const m = new Map();
       for (const [k, val] of Object.entries(v)) {
@@ -753,7 +790,7 @@ function runProgram(ast, file, argv) {
     }
   };
 
-  const argList = Array.isArray(argv) ? argv.slice() : [];
+  const argList = makeList(Array.isArray(argv) ? argv.slice() : []);
   const mainArgs = main.params && main.params.length === 1 ? [argList] : [];
   callFunction(main, mainArgs);
 }
@@ -881,6 +918,7 @@ function execFor(stmt, scope, functions, moduleEnv, protoEnv, file, callFunction
   if (Array.isArray(seq)) {
     items = seq;
   } else if (isView(seq)) {
+    ensureViewValid(file, stmt.iterExpr, seq);
     items = [];
     for (let i = 0; i < seq.len; i += 1) {
       if (Array.isArray(seq.source)) items.push(seq.source[seq.offset + i]);
@@ -997,7 +1035,7 @@ function evalExpr(expr, scope, functions, moduleEnv, protoEnv, file, callFunctio
       return v;
     }
     case "ListLiteral":
-      return expr.items.map((it) => evalExpr(it, scope, functions, moduleEnv, protoEnv, file, callFunction));
+      return makeList(expr.items.map((it) => evalExpr(it, scope, functions, moduleEnv, protoEnv, file, callFunction)));
     case "MapLiteral": {
       const m = new Map();
       for (const p of expr.pairs) {
@@ -1101,6 +1139,7 @@ function indexGet(file, targetNode, indexNode, target, idx) {
     return target[i];
   }
   if (isView(target)) {
+    ensureViewValid(file, targetNode, target);
     const i = Number(idx);
     if (!Number.isInteger(i) || i < 0 || i >= target.len) {
       throw new RuntimeError(rdiag(file, targetNode, "R1002", "RUNTIME_INDEX_OOB", "index out of bounds"));
@@ -1137,6 +1176,7 @@ function assignIndex(file, targetNode, indexNode, target, idx, rhs) {
     return;
   }
   if (isView(target)) {
+    ensureViewValid(file, targetNode, target);
     if (target.readonly) {
       throw new RuntimeError(rdiag(file, targetNode, "R1010", "RUNTIME_TYPE_ERROR", "cannot assign through view"));
     }
@@ -1290,7 +1330,7 @@ function evalCall(expr, scope, functions, moduleEnv, protoEnv, file, callFunctio
       if (m.name === "toUtf8Bytes") {
         const enc = new TextEncoder();
         const bytes = enc.encode(String.fromCodePoint(target.value));
-        return Array.from(bytes, (b) => BigInt(b));
+        return makeList(Array.from(bytes, (b) => BigInt(b)));
       }
     }
     if (m.name === "toByte") {
@@ -1353,14 +1393,20 @@ function evalCall(expr, scope, functions, moduleEnv, protoEnv, file, callFunctio
       if (Array.isArray(target)) return BigInt(target.length);
       if (typeof target === "string") return BigInt(glyphStringsOf(target).length);
       if (target instanceof Map) return BigInt(target.size);
-      if (isView(target)) return BigInt(target.len);
+      if (isView(target)) {
+        ensureViewValid(file, m, target);
+        return BigInt(target.len);
+      }
       return 0n;
     }
     if (m.name === "isEmpty") {
       if (Array.isArray(target)) return target.length === 0;
       if (typeof target === "string") return glyphStringsOf(target).length === 0;
       if (target instanceof Map) return target.size === 0;
-      if (isView(target)) return target.len === 0;
+      if (isView(target)) {
+        ensureViewValid(file, m, target);
+        return target.len === 0;
+      }
       return false;
     }
     if (target instanceof Map) {
@@ -1375,8 +1421,8 @@ function evalCall(expr, scope, functions, moduleEnv, protoEnv, file, callFunctio
         }
         return target.has(mapKey(args[0]));
       }
-      if (m.name === "keys") return Array.from(target.keys()).map(unmapKey);
-      if (m.name === "values") return Array.from(target.values());
+      if (m.name === "keys") return makeList(Array.from(target.keys()).map(unmapKey));
+      if (m.name === "values") return makeList(Array.from(target.values()));
     }
 
     if (typeof target === "string") {
@@ -1400,8 +1446,8 @@ function evalCall(expr, scope, functions, moduleEnv, protoEnv, file, callFunctio
       if (m.name === "endsWith") return target.endsWith(String(args[0] ?? ""));
       if (m.name === "split") {
         const sep = String(args[0] ?? "");
-        if (sep === "") return glyphStringsOf(target);
-        return target.split(sep);
+        if (sep === "") return makeList(glyphStringsOf(target));
+        return makeList(target.split(sep));
       }
       if (m.name === "trim") return trimAscii(target, "both");
       if (m.name === "trimStart") return trimAscii(target, "start");
@@ -1410,7 +1456,7 @@ function evalCall(expr, scope, functions, moduleEnv, protoEnv, file, callFunctio
       if (m.name === "toUtf8Bytes") {
         const enc = new TextEncoder();
         const bytes = enc.encode(target);
-        return Array.from(bytes, (b) => BigInt(b));
+        return makeList(Array.from(bytes, (b) => BigInt(b)));
       }
     }
 
@@ -1433,6 +1479,7 @@ function evalCall(expr, scope, functions, moduleEnv, protoEnv, file, callFunctio
     if (Array.isArray(target)) {
       if (m.name === "push") {
         target.push(args[0]);
+        bumpList(target);
         return BigInt(target.length);
       }
       if (m.name === "contains") {
@@ -1519,7 +1566,7 @@ function evalCall(expr, scope, functions, moduleEnv, protoEnv, file, callFunctio
           const n = fs.readSync(target.fd, buf, 0, size, null);
           if (n === 0) return EOF_SENTINEL;
           const bytes = Array.from(buf.slice(0, n));
-          if (isBinary) return bytes.map((b) => BigInt(b));
+          if (isBinary) return makeList(bytes.map((b) => BigInt(b)));
           const s = decodeUtf8Strict(file, m, bytes, target.atStart);
           target.atStart = false;
           return s;
@@ -1531,7 +1578,7 @@ function evalCall(expr, scope, functions, moduleEnv, protoEnv, file, callFunctio
           if (n === 0) break;
           chunks.push(...buf.slice(0, n));
         }
-        if (isBinary) return chunks.map((b) => BigInt(b));
+        if (isBinary) return makeList(chunks.map((b) => BigInt(b)));
         const s = decodeUtf8Strict(file, m, chunks, target.atStart);
         target.atStart = false;
         return s;
@@ -1575,7 +1622,9 @@ function evalCall(expr, scope, functions, moduleEnv, protoEnv, file, callFunctio
       if (target.length === 0) {
         throw new RuntimeError(rdiag(file, m.target, "R1006", "RUNTIME_EMPTY_POP", "pop on empty list"));
       }
-      return target.pop();
+      const v = target.pop();
+      bumpList(target);
+      return v;
     }
   }
 

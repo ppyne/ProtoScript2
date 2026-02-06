@@ -35,6 +35,8 @@
       "invalid/runtime/string_to_float_invalid",
       "invalid/runtime/string_substring_oob",
       "invalid/runtime/view_oob",
+      "invalid/runtime/view_invalidated_push",
+      "invalid/runtime/slice_invalidated_pop",
       "invalid/runtime/utf8_invalid_bytes",
       "invalid/runtime/module_noinit",
       "invalid/runtime/module_badver",

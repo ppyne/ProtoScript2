@@ -429,7 +429,9 @@ function emitTypeDecls(typeNames, protoMap) {
   const out = [];
   out.push("typedef struct { const char* ptr; size_t len; } ps_string;");
   out.push("typedef struct { size_t i; size_t n; } ps_iter_cursor;");
-  out.push("typedef struct { ps_string str; uint32_t* ptr; size_t len; size_t offset; int is_string; } ps_view_glyph;");
+  out.push(
+    "typedef struct { ps_string str; uint32_t* ptr; size_t len; size_t offset; int is_string; const uint64_t* version_ptr; uint64_t version; } ps_view_glyph;"
+  );
   if (typeNames.has("JSONValue")) {
     out.push("typedef struct ps_jsonvalue ps_jsonvalue;");
   }
@@ -457,12 +459,12 @@ function emitTypeDecls(typeNames, protoMap) {
     const innerC = cTypeFromName(p.inner);
     const bn = baseName(p.inner);
     if (p.kind === "list") {
-      out.push(`typedef struct { ${innerC}* ptr; size_t len; size_t cap; } ps_list_${bn};`);
+      out.push(`typedef struct { ${innerC}* ptr; size_t len; size_t cap; uint64_t version; } ps_list_${bn};`);
     } else if (p.kind === "view") {
       if (p.inner === "glyph") continue;
-      out.push(`typedef struct { ${innerC}* ptr; size_t len; } ps_view_${bn};`);
+      out.push(`typedef struct { ${innerC}* ptr; size_t len; const uint64_t* version_ptr; uint64_t version; } ps_view_${bn};`);
     } else if (p.kind === "slice") {
-      out.push(`typedef struct { ${innerC}* ptr; size_t len; } ps_slice_${bn};`);
+      out.push(`typedef struct { ${innerC}* ptr; size_t len; const uint64_t* version_ptr; uint64_t version; } ps_slice_${bn};`);
     } else if (p.kind === "map") {
       const m = parseMapType(t);
       if (m) {
@@ -532,7 +534,7 @@ function emitContainerHelpers(typeNames) {
     if (needKeyList) {
       const keyList = `ps_list_${baseName(m.keyType)}`;
       out.push(`static ${keyList} ps_map_keys_${m.base}(const ${mapC}* m) {`);
-      out.push(`  ${keyList} out = { NULL, 0, 0 };`);
+      out.push(`  ${keyList} out = { NULL, 0, 0, 0 };`);
       out.push("  if (!m || m->len == 0) return out;");
       out.push("  out.len = m->len;");
       out.push("  out.cap = m->len;");
@@ -545,7 +547,7 @@ function emitContainerHelpers(typeNames) {
     if (needValList) {
       const valList = `ps_list_${baseName(m.valueType)}`;
       out.push(`static ${valList} ps_map_values_${m.base}(const ${mapC}* m) {`);
-      out.push(`  ${valList} out = { NULL, 0, 0 };`);
+      out.push(`  ${valList} out = { NULL, 0, 0, 0 };`);
       out.push("  if (!m || m->len == 0) return out;");
       out.push("  out.len = m->len;");
       out.push("  out.cap = m->len;");
@@ -719,7 +721,7 @@ function emitRuntimeHelpers() {
     "  return out;",
     "}",
     "static ps_list_byte ps_file_read_all_bytes(ps_file* f) {",
-    "  ps_list_byte out = { NULL, 0, 0 };",
+    "  ps_list_byte out = { NULL, 0, 0, 0 };",
     "  ps_file_check_open(f);",
     "  fseek(f->fp, 0, SEEK_END);",
     "  long sz = ftell(f->fp);",
@@ -845,7 +847,7 @@ function emitRuntimeHelpers() {
     "  return JSON_object((ps_map_string_JSONValue){ NULL, NULL, 0, 0 });",
     "}",
     "static ps_jsonvalue ps_json_parse_array(ps_json_parser* p, int* ok) {",
-    "  ps_list_JSONValue out = { NULL, 0, 0 };",
+    "  ps_list_JSONValue out = { NULL, 0, 0, 0 };",
     "  p->i += 1;",
     "  ps_json_skip_ws(p);",
     "  if (p->i < p->len && p->s[p->i] == ']') { p->i += 1; return JSON_array(out); }",
@@ -994,7 +996,7 @@ function emitRuntimeHelpers() {
     "static ps_string JSON_encode_number(double n) { return JSON_encode(JSON_number(n)); }",
     "static ps_string JSON_encode_string(ps_string s) { return JSON_encode(JSON_string(s)); }",
     "static ps_string JSON_encode_list_int(ps_list_int v) {",
-    "  ps_list_JSONValue out = { NULL, 0, 0 };",
+    "  ps_list_JSONValue out = { NULL, 0, 0, 0 };",
     "  if (v.len > 0) {",
     "    out.ptr = (ps_jsonvalue*)malloc(sizeof(ps_jsonvalue) * v.len);",
     "    if (!out.ptr) ps_panic(\"R1998\", \"RUNTIME_OOM\", \"out of memory\");",
@@ -1111,6 +1113,11 @@ function emitRuntimeHelpers() {
     "static void ps_check_view_bounds(size_t len, int64_t offset, int64_t view_len) {",
     "  if (offset < 0 || view_len < 0 || (size_t)(offset + view_len) > len) {",
     "    ps_panic(\"R1002\", \"RUNTIME_INDEX_OOB\", \"index out of bounds\");",
+    "  }",
+    "}",
+    "static void ps_check_view_valid(const uint64_t* version_ptr, uint64_t version) {",
+    "  if (version_ptr && *version_ptr != version) {",
+    "    ps_panic(\"R1012\", \"RUNTIME_VIEW_INVALID\", \"view invalidated\");",
     "  }",
     "}",
     "static void ps_check_map_has_key(int has_key) {",
@@ -1369,9 +1376,10 @@ function emitRuntimeHelpers() {
     "    l->cap = new_cap;",
     "  }",
     "  l->ptr[l->len++] = v;",
+    "  l->version += 1;",
     "}",
     "static ps_list_string ps_string_split(ps_string s, ps_string sep) {",
-    "  ps_list_string out = { NULL, 0, 0 };",
+    "  ps_list_string out = { NULL, 0, 0, 0 };",
     "  if (sep.len == 0) {",
     "    size_t i = 0;",
     "    while (i < s.len) {",
@@ -1418,7 +1426,7 @@ function emitRuntimeHelpers() {
     "  return out;",
     "}",
     "static ps_list_byte ps_string_to_utf8_bytes(ps_string s) {",
-    "  ps_list_byte out = { NULL, 0, 0 };",
+    "  ps_list_byte out = { NULL, 0, 0, 0 };",
     "  out.len = s.len;",
     "  out.cap = s.len;",
     "  out.ptr = (uint8_t*)malloc(sizeof(uint8_t) * s.len);",
@@ -1427,7 +1435,7 @@ function emitRuntimeHelpers() {
     "  return out;",
     "}",
     "static ps_list_byte ps_glyph_to_utf8_bytes(uint32_t g) {",
-    "  ps_list_byte out = { NULL, 0, 0 };",
+    "  ps_list_byte out = { NULL, 0, 0, 0 };",
     "  uint8_t buf[4];",
     "  size_t n = 0;",
     "  if (g <= 0x7F) {",
@@ -1479,7 +1487,7 @@ function emitRuntimeHelpers() {
     "static ps_list_byte ps_i64_to_bytes(int64_t v) {",
     "  union { int64_t i; uint8_t b[8]; } u;",
     "  u.i = v;",
-    "  ps_list_byte out = { NULL, 0, 0 };",
+    "  ps_list_byte out = { NULL, 0, 0, 0 };",
     "  out.len = 8;",
     "  out.cap = 8;",
     "  out.ptr = (uint8_t*)malloc(8);",
@@ -1490,7 +1498,7 @@ function emitRuntimeHelpers() {
     "static ps_list_byte ps_f64_to_bytes(double v) {",
     "  union { double f; uint8_t b[8]; } u;",
     "  u.f = v;",
-    "  ps_list_byte out = { NULL, 0, 0 };",
+    "  ps_list_byte out = { NULL, 0, 0, 0 };",
     "  out.len = 8;",
     "  out.cap = 8;",
     "  out.ptr = (uint8_t*)malloc(8);",
@@ -1811,12 +1819,22 @@ function emitInstr(i, fnInf, state) {
           else if (i.method === "asObject") out.push(`${n(i.dst)} = ps_json_as_object(${n(i.receiver)});`);
         } else if (i.method === "length") {
           if (rt === "string") out.push(`${n(i.dst)} = (int64_t)ps_utf8_glyph_len(${n(i.receiver)});`);
-          else if (rc && ["list", "slice", "view"].includes(rc.kind)) out.push(`${n(i.dst)} = (int64_t)${n(i.receiver)}.len;`);
+          else if (rc && ["list", "slice", "view"].includes(rc.kind)) {
+            if (rc.kind === "view" || rc.kind === "slice") {
+              out.push(`ps_check_view_valid(${n(i.receiver)}.version_ptr, ${n(i.receiver)}.version);`);
+            }
+            out.push(`${n(i.dst)} = (int64_t)${n(i.receiver)}.len;`);
+          }
           else if (rc && rc.kind === "map") out.push(`${n(i.dst)} = (int64_t)${n(i.receiver)}.len;`);
           else out.push(`${n(i.dst)} = 0;`);
         } else if (i.method === "isEmpty") {
           if (rt === "string") out.push(`${n(i.dst)} = ps_utf8_glyph_len(${n(i.receiver)}) == 0;`);
-          else if (rc && ["list", "slice", "view"].includes(rc.kind)) out.push(`${n(i.dst)} = ${n(i.receiver)}.len == 0;`);
+          else if (rc && ["list", "slice", "view"].includes(rc.kind)) {
+            if (rc.kind === "view" || rc.kind === "slice") {
+              out.push(`ps_check_view_valid(${n(i.receiver)}.version_ptr, ${n(i.receiver)}.version);`);
+            }
+            out.push(`${n(i.dst)} = ${n(i.receiver)}.len == 0;`);
+          }
           else if (rc && rc.kind === "map") out.push(`${n(i.dst)} = ${n(i.receiver)}.len == 0;`);
           else out.push(`${n(i.dst)} = 0;`);
         } else if (rc && rc.kind === "map" && i.method === "containsKey") {
@@ -1921,6 +1939,7 @@ function emitInstr(i, fnInf, state) {
           out.push(`  ${n(recv)}.cap = new_cap;`);
           out.push(`}`);
           out.push(`${n(recv)}.ptr[${n(recv)}.len++] = ${n(i.args[0])};`);
+          out.push(`${n(recv)}.version += 1;`);
           out.push(`${n(i.dst)} = (int64_t)${n(recv)}.len;`);
         } else if (rc && rc.kind === "list" && i.method === "contains") {
           const recv = aliasOf(i.receiver) || i.receiver;
@@ -1973,6 +1992,7 @@ function emitInstr(i, fnInf, state) {
           const recv = aliasOf(i.receiver) || i.receiver;
           out.push(`if (${n(recv)}.len == 0) ps_panic("R1006", "RUNTIME_EMPTY_POP", "pop on empty list");`);
           out.push(`${n(recv)}.len -= 1;`);
+          out.push(`${n(recv)}.version += 1;`);
           out.push(`${n(i.dst)} = ${n(recv)}.ptr[${n(recv)}.len];`);
         } else {
           out.push(`/* static method call */ ${n(i.dst)} = 0; /* ${i.method} */`);
@@ -2008,6 +2028,8 @@ function emitInstr(i, fnInf, state) {
           out.push(`${n(i.dst)}.offset = (size_t)${n(i.offset)};`);
           out.push(`${n(i.dst)}.len = (size_t)${n(i.len)};`);
           out.push(`${n(i.dst)}.ptr = NULL;`);
+          out.push(`${n(i.dst)}.version_ptr = NULL;`);
+          out.push(`${n(i.dst)}.version = 0;`);
         } else if (t(i.source) === "view<glyph>") {
           out.push(`${n(i.dst)}.is_string = ${n(i.source)}.is_string;`);
           out.push(`if (${n(i.source)}.is_string) {`);
@@ -2015,20 +2037,40 @@ function emitInstr(i, fnInf, state) {
           out.push(`  ${n(i.dst)}.offset = ${n(i.source)}.offset + (size_t)${n(i.offset)};`);
           out.push(`  ${n(i.dst)}.len = (size_t)${n(i.len)};`);
           out.push(`  ${n(i.dst)}.ptr = NULL;`);
+          out.push(`  ${n(i.dst)}.version_ptr = NULL;`);
+          out.push(`  ${n(i.dst)}.version = 0;`);
           out.push(`} else {`);
           out.push(`  ${n(i.dst)}.ptr = ${n(i.source)}.ptr + (size_t)${n(i.offset)};`);
           out.push(`  ${n(i.dst)}.len = (size_t)${n(i.len)};`);
           out.push(`  ${n(i.dst)}.offset = 0;`);
+          out.push(`  ${n(i.dst)}.version_ptr = ${n(i.source)}.version_ptr;`);
+          out.push(`  ${n(i.dst)}.version = ${n(i.source)}.version;`);
           out.push(`}`);
         } else {
+          const srcRef = aliasOf(i.source) || i.source;
           out.push(`${n(i.dst)}.is_string = 0;`);
           out.push(`${n(i.dst)}.ptr = ${n(i.source)}.ptr + (size_t)${n(i.offset)};`);
           out.push(`${n(i.dst)}.len = (size_t)${n(i.len)};`);
           out.push(`${n(i.dst)}.offset = 0;`);
+          out.push(`${n(i.dst)}.version_ptr = &${n(srcRef)}.version;`);
+          out.push(`${n(i.dst)}.version = ${n(srcRef)}.version;`);
         }
       } else {
+        const srcType = t(i.source);
+        const srcCont = parseContainer(srcType);
         out.push(`${n(i.dst)}.ptr = ${n(i.source)}.ptr + (size_t)${n(i.offset)};`);
         out.push(`${n(i.dst)}.len = (size_t)${n(i.len)};`);
+        if (srcCont && srcCont.kind === "list") {
+          const srcRef = aliasOf(i.source) || i.source;
+          out.push(`${n(i.dst)}.version_ptr = &${n(srcRef)}.version;`);
+          out.push(`${n(i.dst)}.version = ${n(srcRef)}.version;`);
+        } else if (srcCont && (srcCont.kind === "view" || srcCont.kind === "slice")) {
+          out.push(`${n(i.dst)}.version_ptr = ${n(i.source)}.version_ptr;`);
+          out.push(`${n(i.dst)}.version = ${n(i.source)}.version;`);
+        } else {
+          out.push(`${n(i.dst)}.version_ptr = NULL;`);
+          out.push(`${n(i.dst)}.version = 0;`);
+        }
       }
       break;
     case "index_get":
@@ -2043,7 +2085,11 @@ function emitInstr(i, fnInf, state) {
         } else {
           const p = parseContainer(tt);
           if (p && p.kind === "view" && p.inner === "glyph") {
+            out.push(`ps_check_view_valid(${n(i.target)}.version_ptr, ${n(i.target)}.version);`);
             out.push(`${n(i.dst)} = ps_view_glyph_get(${n(i.target)}, ${n(i.index)});`);
+          } else if (p && (p.kind === "view" || p.kind === "slice")) {
+            out.push(`ps_check_view_valid(${n(i.target)}.version_ptr, ${n(i.target)}.version);`);
+            out.push(`${n(i.dst)} = ${n(i.target)}.ptr[${n(i.index)}];`);
           } else {
             out.push(`${n(i.dst)} = ${n(i.target)}.ptr[${n(i.index)}];`);
           }
@@ -2058,6 +2104,10 @@ function emitInstr(i, fnInf, state) {
         if (m) {
           out.push(`ps_map_set_${m.base}(&${n(mapRefName)}, ${n(i.index)}, ${n(i.src)});`);
         } else {
+          const p = parseContainer(tt);
+          if (p && (p.kind === "view" || p.kind === "slice")) {
+            out.push(`ps_check_view_valid(${n(i.target)}.version_ptr, ${n(i.target)}.version);`);
+          }
           out.push(`${n(i.target)}.ptr[${n(i.index)}] = ${n(i.src)};`);
         }
       }
@@ -2065,6 +2115,7 @@ function emitInstr(i, fnInf, state) {
     case "make_list":
       out.push(`${n(i.dst)}.len = ${i.items.length};`);
       out.push(`${n(i.dst)}.cap = ${i.items.length};`);
+      out.push(`${n(i.dst)}.version = 0;`);
       out.push(
         `${n(i.dst)}.ptr = (${cTypeFromName(parseContainer(t(i.dst))?.inner || "int")}*)malloc(sizeof(*${n(i.dst)}.ptr) * ${i.items.length});`
       );
@@ -2150,6 +2201,13 @@ function emitInstr(i, fnInf, state) {
       out.push(`goto ${i.target};`);
       break;
     case "iter_begin":
+      {
+        const srcType = t(i.source);
+        const srcCont = parseContainer(srcType);
+        if (srcCont && (srcCont.kind === "view" || srcCont.kind === "slice")) {
+          out.push(`ps_check_view_valid(${n(i.source)}.version_ptr, ${n(i.source)}.version);`);
+        }
+      }
       out.push(`${n(i.dst)}.i = 0;`);
       out.push(`${n(i.dst)}.n = ${n(i.source)}.len;`);
       break;
@@ -2162,9 +2220,18 @@ function emitInstr(i, fnInf, state) {
         const m = parseMapType(srcType);
         if (m && i.mode === "in") out.push(`${n(i.dst)} = ${n(i.source)}.keys[${n(i.iter)}.i];`);
         else if (m && i.mode === "of") out.push(`${n(i.dst)} = ${n(i.source)}.values[${n(i.iter)}.i];`);
-        else if (srcType === "view<glyph>") out.push(`${n(i.dst)} = ps_view_glyph_get(${n(i.source)}, ${n(i.iter)}.i);`);
+        else if (srcType === "view<glyph>") {
+          out.push(`ps_check_view_valid(${n(i.source)}.version_ptr, ${n(i.source)}.version);`);
+          out.push(`${n(i.dst)} = ps_view_glyph_get(${n(i.source)}, ${n(i.iter)}.i);`);
+        }
         else if (srcType === "string") out.push(`${n(i.dst)} = (uint8_t)${n(i.source)}.ptr[${n(i.iter)}.i];`);
-        else out.push(`${n(i.dst)} = ${n(i.source)}.ptr[${n(i.iter)}.i];`);
+        else {
+          const srcCont = parseContainer(srcType);
+          if (srcCont && (srcCont.kind === "view" || srcCont.kind === "slice")) {
+            out.push(`ps_check_view_valid(${n(i.source)}.version_ptr, ${n(i.source)}.version);`);
+          }
+          out.push(`${n(i.dst)} = ${n(i.source)}.ptr[${n(i.iter)}.i];`);
+        }
       }
       out.push(`${n(i.iter)}.i += 1;`);
       break;

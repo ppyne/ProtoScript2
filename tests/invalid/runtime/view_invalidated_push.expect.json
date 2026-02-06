@@ -1,0 +1,11 @@
+{
+  "status": "reject-runtime",
+  "error_family": "Rxxxx",
+  "error_code": "R1012",
+  "category": "RUNTIME_VIEW_INVALID",
+  "position": {
+    "file": "invalid/runtime/view_invalidated_push.pts",
+    "line": 7,
+    "column": 13
+  }
+}

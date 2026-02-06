@@ -178,6 +178,15 @@ struct PS_IR_Module {
   size_t fn_count;
 };
 
+static int view_is_valid(PS_Value *v) {
+  if (!v || v->tag != PS_V_VIEW) return 0;
+  if (!v->as.view_v.source) return 1;
+  if (v->as.view_v.source->tag == PS_V_LIST) {
+    return v->as.view_v.version == v->as.view_v.source->as.list_v.version;
+  }
+  return 1;
+}
+
 static void bindings_free(PS_Bindings *b) {
   if (!b) return;
   for (size_t i = 0; i < b->len; i++) {
@@ -986,6 +995,8 @@ static int exec_function(PS_Context *ctx, PS_IR_Module *m, IRFunction *f, PS_Val
         v->as.view_v.offset = base_off + (size_t)off;
         v->as.view_v.len = (size_t)ln;
         v->as.view_v.readonly = readonly;
+        if (base && base->tag == PS_V_LIST) v->as.view_v.version = base->as.list_v.version;
+        else v->as.view_v.version = 0;
         bindings_set(&temps, ins->dst, v);
         ps_value_release(v);
         continue;
@@ -1001,6 +1012,10 @@ static int exec_function(PS_Context *ctx, PS_IR_Module *m, IRFunction *f, PS_Val
           res = ps_make_glyph(ctx, g);
         } else if (t->tag == PS_V_MAP) res = ps_map_get(ctx, t, i);
         else if (t->tag == PS_V_VIEW) {
+          if (!view_is_valid(t)) {
+            ps_throw(ctx, PS_ERR_RANGE, "view invalidated");
+            goto raise;
+          }
           size_t idx = t->as.view_v.offset + (size_t)i->as.int_v;
           PS_Value *src = t->as.view_v.source;
           if (src->tag == PS_V_LIST) res = ps_list_get_internal(ctx, src, idx);
@@ -1022,6 +1037,10 @@ static int exec_function(PS_Context *ctx, PS_IR_Module *m, IRFunction *f, PS_Val
         } else if (t->tag == PS_V_MAP) {
           if (!ps_map_set(ctx, t, i, v)) goto raise;
         } else if (t->tag == PS_V_VIEW) {
+          if (!view_is_valid(t)) {
+            ps_throw(ctx, PS_ERR_RANGE, "view invalidated");
+            goto raise;
+          }
           if (t->as.view_v.readonly) {
             ps_throw(ctx, PS_ERR_TYPE, "cannot assign through view");
             goto raise;
@@ -1059,6 +1078,10 @@ static int exec_function(PS_Context *ctx, PS_IR_Module *m, IRFunction *f, PS_Val
             size_t gl = ps_utf8_glyph_len((const uint8_t *)src->as.string_v.ptr, src->as.string_v.len);
             has = it->as.iter_v.index < gl;
           } else if (src->tag == PS_V_VIEW) {
+            if (!view_is_valid(src)) {
+              ps_throw(ctx, PS_ERR_RANGE, "view invalidated");
+              goto raise;
+            }
             has = it->as.iter_v.index < src->as.view_v.len;
           }
         }
@@ -1088,6 +1111,10 @@ static int exec_function(PS_Context *ctx, PS_IR_Module *m, IRFunction *f, PS_Val
               }
             }
           } else if (src->tag == PS_V_VIEW) {
+            if (!view_is_valid(src)) {
+              ps_throw(ctx, PS_ERR_RANGE, "view invalidated");
+              goto raise;
+            }
             size_t vidx = src->as.view_v.offset + idx;
             PS_Value *base = src->as.view_v.source;
             if (base->tag == PS_V_LIST) res = base->as.list_v.items[vidx];
@@ -1722,10 +1749,18 @@ static int exec_function(PS_Context *ctx, PS_IR_Module *m, IRFunction *f, PS_Val
           }
         } else if (recv->tag == PS_V_VIEW) {
           if (strcmp(ins->method, "length") == 0) {
+            if (!view_is_valid(recv)) {
+              ps_throw(ctx, PS_ERR_RANGE, "view invalidated");
+              goto raise;
+            }
             PS_Value *v = ps_make_int(ctx, (int64_t)recv->as.view_v.len);
             bindings_set(&temps, ins->dst, v);
             ps_value_release(v);
           } else if (strcmp(ins->method, "isEmpty") == 0) {
+            if (!view_is_valid(recv)) {
+              ps_throw(ctx, PS_ERR_RANGE, "view invalidated");
+              goto raise;
+            }
             PS_Value *v = ps_make_bool(ctx, recv->as.view_v.len == 0);
             bindings_set(&temps, ins->dst, v);
             ps_value_release(v);
@@ -1737,6 +1772,7 @@ static int exec_function(PS_Context *ctx, PS_IR_Module *m, IRFunction *f, PS_Val
           }
           PS_Value *v = recv->as.list_v.items[recv->as.list_v.len - 1];
           recv->as.list_v.len -= 1;
+          recv->as.list_v.version += 1;
           bindings_set(&temps, ins->dst, v);
         } else if (recv->tag == PS_V_LIST && strcmp(ins->method, "push") == 0) {
           PS_Value *v = get_value(&temps, &vars, ins->args[0]);

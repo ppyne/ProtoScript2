@@ -1,0 +1,9 @@
+import Io;
+
+function main() : void {
+    list<int> xs = [1, 2, 3];
+    view<int> v = xs.view(0, 2);
+    xs.push(9);
+    int a = v[0];
+    Io.printLine(a.toString());
+}

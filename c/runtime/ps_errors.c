@@ -57,6 +57,10 @@ const char *ps_runtime_category(PS_ErrorCode code, const char *msg, const char *
       *out_code = "R1008";
       return "RUNTIME_BYTE_RANGE";
     }
+    if (msg_has(msg, "view invalidated")) {
+      *out_code = "R1012";
+      return "RUNTIME_VIEW_INVALID";
+    }
   }
   if (code == PS_ERR_UTF8) {
     *out_code = "R1007";
