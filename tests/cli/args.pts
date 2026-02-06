@@ -1,0 +1,7 @@
+function main(list<string> args) : int {
+    return (args.length() >= 3 &&
+            args[1] == "run" &&
+            args[2].endsWith("tests/cli/args.pts"))
+        ? 0
+        : 1;
+}

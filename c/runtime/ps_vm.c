@@ -1464,9 +1464,10 @@ static int exec_function(PS_Context *ctx, PS_IR_Module *m, IRFunction *f, PS_Val
             ps_value_release(v);
           } else if (strcmp(ins->method, "sort") == 0) {
             size_t n = recv->as.list_v.len;
+            PS_ValueTag tag = PS_V_VOID;
             if (n > 0) {
               PS_Value *first = recv->as.list_v.items[0];
-              PS_ValueTag tag = first ? first->tag : PS_V_VOID;
+              tag = first ? first->tag : PS_V_VOID;
               if (!(tag == PS_V_INT || tag == PS_V_FLOAT || tag == PS_V_BYTE || tag == PS_V_GLYPH || tag == PS_V_STRING || tag == PS_V_BOOL)) {
                 ps_throw(ctx, PS_ERR_TYPE, "list element not comparable");
                 goto raise;
@@ -1561,7 +1562,7 @@ static int exec_function(PS_Context *ctx, PS_IR_Module *m, IRFunction *f, PS_Val
               }
             }
             int ok = ps_map_has_key(ctx, recv, key);
-            if (ctx->has_error) goto raise;
+            if (ps_last_error_code(ctx) != PS_ERR_NONE) goto raise;
             PS_Value *v = ps_make_bool(ctx, ok);
             bindings_set(&temps, ins->dst, v);
             ps_value_release(v);
