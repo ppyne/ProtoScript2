@@ -344,6 +344,34 @@ static PS_Value *value_from_literal(PS_Context *ctx, const char *literalType, PS
   if (strcmp(literalType, "string") == 0) {
     return ps_make_string_utf8(ctx, raw ? raw : "", raw ? strlen(raw) : 0);
   }
+  if (strcmp(literalType, "eof") == 0) {
+    if (!ctx->eof_value) {
+      PS_Value *v = ps_value_alloc(PS_V_OBJECT);
+      if (!v) {
+        ps_throw(ctx, PS_ERR_OOM, "out of memory");
+        return NULL;
+      }
+      ctx->eof_value = v;
+    }
+    return ps_value_retain(ctx->eof_value);
+  }
+  if (strcmp(literalType, "file") == 0) {
+    const char *name = raw ? raw : "";
+    if (strcmp(name, "stdin") == 0) {
+      if (!ctx->stdin_value) ctx->stdin_value = ps_make_file(ctx, stdin, PS_FILE_READ | PS_FILE_STD);
+      return ctx->stdin_value ? ps_value_retain(ctx->stdin_value) : NULL;
+    }
+    if (strcmp(name, "stdout") == 0) {
+      if (!ctx->stdout_value) ctx->stdout_value = ps_make_file(ctx, stdout, PS_FILE_WRITE | PS_FILE_STD);
+      return ctx->stdout_value ? ps_value_retain(ctx->stdout_value) : NULL;
+    }
+    if (strcmp(name, "stderr") == 0) {
+      if (!ctx->stderr_value) ctx->stderr_value = ps_make_file(ctx, stderr, PS_FILE_WRITE | PS_FILE_STD);
+      return ctx->stderr_value ? ps_value_retain(ctx->stderr_value) : NULL;
+    }
+    ps_throw(ctx, PS_ERR_RANGE, "invalid file constant");
+    return NULL;
+  }
   return NULL;
 }
 
@@ -352,6 +380,28 @@ static PS_Value *get_value(PS_Bindings *temps, PS_Bindings *vars, const char *na
   PS_Value *v = bindings_get(temps, name);
   if (v) return v;
   return bindings_get(vars, name);
+}
+
+static int values_equal(PS_Value *a, PS_Value *b) {
+  if (!a || !b) return a == b;
+  if (a->tag != b->tag) return 0;
+  switch (a->tag) {
+    case PS_V_BOOL:
+      return a->as.bool_v == b->as.bool_v;
+    case PS_V_INT:
+      return a->as.int_v == b->as.int_v;
+    case PS_V_FLOAT:
+      return a->as.float_v == b->as.float_v;
+    case PS_V_BYTE:
+      return a->as.byte_v == b->as.byte_v;
+    case PS_V_GLYPH:
+      return a->as.glyph_v == b->as.glyph_v;
+    case PS_V_STRING:
+      if (a->as.string_v.len != b->as.string_v.len) return 0;
+      return memcmp(a->as.string_v.ptr, b->as.string_v.ptr, a->as.string_v.len) == 0;
+    default:
+      return a == b;
+  }
 }
 
 static int is_truthy(PS_Value *v) {
@@ -563,8 +613,8 @@ static int exec_function(PS_Context *ctx, PS_IR_Module *m, IRFunction *f, PS_Val
         else if (strcmp(ins->operator, "-") == 0) res = ps_make_int(ctx, l->as.int_v - r->as.int_v);
         else if (strcmp(ins->operator, "*") == 0) res = ps_make_int(ctx, l->as.int_v * r->as.int_v);
         else if (strcmp(ins->operator, "/") == 0) res = ps_make_int(ctx, l->as.int_v / r->as.int_v);
-        else if (strcmp(ins->operator, "==") == 0) res = ps_make_bool(ctx, l->as.int_v == r->as.int_v);
-        else if (strcmp(ins->operator, "!=") == 0) res = ps_make_bool(ctx, l->as.int_v != r->as.int_v);
+        else if (strcmp(ins->operator, "==") == 0) res = ps_make_bool(ctx, values_equal(l, r));
+        else if (strcmp(ins->operator, "!=") == 0) res = ps_make_bool(ctx, !values_equal(l, r));
         else if (strcmp(ins->operator, "<") == 0) res = ps_make_bool(ctx, l->as.int_v < r->as.int_v);
         else if (strcmp(ins->operator, "<=") == 0) res = ps_make_bool(ctx, l->as.int_v <= r->as.int_v);
         else if (strcmp(ins->operator, ">") == 0) res = ps_make_bool(ctx, l->as.int_v > r->as.int_v);
@@ -714,6 +764,235 @@ static int exec_function(PS_Context *ctx, PS_IR_Module *m, IRFunction *f, PS_Val
       if (strcmp(ins->op, "call_method_static") == 0) {
         PS_Value *recv = get_value(&temps, &vars, ins->receiver);
         if (!recv) goto raise;
+        if (recv->tag == PS_V_FILE) {
+          PS_File *f = &recv->as.file_v;
+          const int can_read = (f->flags & PS_FILE_READ) != 0;
+          const int can_write = (f->flags & (PS_FILE_WRITE | PS_FILE_APPEND)) != 0;
+          const int is_binary = (f->flags & PS_FILE_BINARY) != 0;
+          if (strcmp(ins->method, "close") == 0) {
+            if (f->flags & PS_FILE_STD) {
+              ps_throw(ctx, PS_ERR_RANGE, "cannot close standard stream");
+              goto raise;
+            }
+            if (!f->closed && f->fp) {
+              fclose(f->fp);
+              f->closed = 1;
+            }
+            continue;
+          }
+          if (f->closed || !f->fp) {
+            ps_throw(ctx, PS_ERR_RANGE, "file is closed");
+            goto raise;
+          }
+          if (strcmp(ins->method, "read") == 0) {
+            if (!can_read) {
+              ps_throw(ctx, PS_ERR_RANGE, "file not readable");
+              goto raise;
+            }
+            size_t want = 0;
+            int has_size = ins->arg_count > 0;
+            if (has_size) {
+              PS_Value *sv = get_value(&temps, &vars, ins->args[0]);
+              if (!sv || sv->tag != PS_V_INT) {
+                ps_throw(ctx, PS_ERR_RANGE, "invalid read size");
+                goto raise;
+              }
+              if (sv->as.int_v <= 0) {
+                ps_throw(ctx, PS_ERR_RANGE, "read size must be >= 1");
+                goto raise;
+              }
+              want = (size_t)sv->as.int_v;
+            }
+            if (has_size) {
+              uint8_t *buf = (uint8_t *)malloc(want);
+              if (!buf) {
+                ps_throw(ctx, PS_ERR_OOM, "out of memory");
+                goto raise;
+              }
+              size_t n = fread(buf, 1, want, f->fp);
+              if (ferror(f->fp)) {
+                free(buf);
+                ps_throw(ctx, PS_ERR_INTERNAL, "read failed");
+                goto raise;
+              }
+              if (n == 0) {
+                free(buf);
+                PS_Value *eofv = value_from_literal(ctx, "eof", NULL, NULL);
+                if (!eofv) goto raise;
+                bindings_set(&temps, ins->dst, eofv);
+                ps_value_release(eofv);
+                continue;
+              }
+              if (!is_binary) {
+                size_t start = 0;
+                for (size_t i = 0; i < n; i++) {
+                  if (buf[i] == 0x00) {
+                    free(buf);
+                    ps_throw(ctx, PS_ERR_UTF8, "NUL byte not allowed");
+                    goto raise;
+                  }
+                }
+                if (f->at_start && n >= 3 && buf[0] == 0xEF && buf[1] == 0xBB && buf[2] == 0xBF) {
+                  start = 3;
+                }
+                for (size_t i = start; i + 2 < n; i++) {
+                  if (buf[i] == 0xEF && buf[i + 1] == 0xBB && buf[i + 2] == 0xBF) {
+                    free(buf);
+                    ps_throw(ctx, PS_ERR_UTF8, "BOM not allowed here");
+                    goto raise;
+                  }
+                }
+                if (!ps_utf8_validate(buf + start, n - start)) {
+                  free(buf);
+                  ps_throw(ctx, PS_ERR_UTF8, "invalid UTF-8");
+                  goto raise;
+                }
+                PS_Value *s = ps_make_string_utf8(ctx, (const char *)buf + start, n - start);
+                free(buf);
+                if (!s) goto raise;
+                bindings_set(&temps, ins->dst, s);
+                ps_value_release(s);
+              } else {
+                PS_Value *list = ps_list_new(ctx);
+                for (size_t i = 0; i < n; i++) {
+                  PS_Value *bv = ps_make_byte(ctx, buf[i]);
+                  ps_list_push_internal(ctx, list, bv);
+                  ps_value_release(bv);
+                }
+                free(buf);
+                bindings_set(&temps, ins->dst, list);
+                ps_value_release(list);
+              }
+              f->at_start = 0;
+              continue;
+            }
+            size_t cap = 4096;
+            size_t len = 0;
+            uint8_t *buf = (uint8_t *)malloc(cap);
+            if (!buf) {
+              ps_throw(ctx, PS_ERR_OOM, "out of memory");
+              goto raise;
+            }
+            while (1) {
+              size_t n = fread(buf + len, 1, cap - len, f->fp);
+              len += n;
+              if (n == 0) break;
+              if (len == cap) {
+                size_t ncap = cap * 2;
+                uint8_t *nbuf = (uint8_t *)realloc(buf, ncap);
+                if (!nbuf) {
+                  free(buf);
+                  ps_throw(ctx, PS_ERR_OOM, "out of memory");
+                  goto raise;
+                }
+                buf = nbuf;
+                cap = ncap;
+              }
+            }
+            if (ferror(f->fp)) {
+              free(buf);
+              ps_throw(ctx, PS_ERR_INTERNAL, "read failed");
+              goto raise;
+            }
+            if (!is_binary) {
+              size_t start = 0;
+              for (size_t i = 0; i < len; i++) {
+                if (buf[i] == 0x00) {
+                  free(buf);
+                  ps_throw(ctx, PS_ERR_UTF8, "NUL byte not allowed");
+                  goto raise;
+                }
+              }
+              if (f->at_start && len >= 3 && buf[0] == 0xEF && buf[1] == 0xBB && buf[2] == 0xBF) {
+                start = 3;
+              }
+              for (size_t i = start; i + 2 < len; i++) {
+                if (buf[i] == 0xEF && buf[i + 1] == 0xBB && buf[i + 2] == 0xBF) {
+                  free(buf);
+                  ps_throw(ctx, PS_ERR_UTF8, "BOM not allowed here");
+                  goto raise;
+                }
+              }
+              if (!ps_utf8_validate(buf + start, len - start)) {
+                free(buf);
+                ps_throw(ctx, PS_ERR_UTF8, "invalid UTF-8");
+                goto raise;
+              }
+              PS_Value *s = ps_make_string_utf8(ctx, (const char *)buf + start, len - start);
+              free(buf);
+              if (!s) goto raise;
+              bindings_set(&temps, ins->dst, s);
+              ps_value_release(s);
+            } else {
+              PS_Value *list = ps_list_new(ctx);
+              for (size_t i = 0; i < len; i++) {
+                PS_Value *bv = ps_make_byte(ctx, buf[i]);
+                ps_list_push_internal(ctx, list, bv);
+                ps_value_release(bv);
+              }
+              free(buf);
+              bindings_set(&temps, ins->dst, list);
+              ps_value_release(list);
+            }
+            f->at_start = 0;
+            continue;
+          }
+          if (strcmp(ins->method, "write") == 0) {
+            if (!can_write) {
+              ps_throw(ctx, PS_ERR_RANGE, "file not writable");
+              goto raise;
+            }
+            PS_Value *arg = get_value(&temps, &vars, ins->args[0]);
+            if (!arg) goto raise;
+            if (!is_binary) {
+              if (arg->tag != PS_V_STRING) {
+                ps_throw(ctx, PS_ERR_TYPE, "write expects string");
+                goto raise;
+              }
+              if (arg->as.string_v.len > 0) {
+                fwrite(arg->as.string_v.ptr, 1, arg->as.string_v.len, f->fp);
+              }
+              if (ferror(f->fp)) {
+                ps_throw(ctx, PS_ERR_INTERNAL, "write failed");
+                goto raise;
+              }
+            } else {
+              if (arg->tag != PS_V_LIST) {
+                ps_throw(ctx, PS_ERR_TYPE, "write expects list<byte>");
+                goto raise;
+              }
+              size_t n = arg->as.list_v.len;
+              uint8_t *buf = (uint8_t *)malloc(n);
+              if (!buf && n > 0) {
+                ps_throw(ctx, PS_ERR_OOM, "out of memory");
+                goto raise;
+              }
+              for (size_t i = 0; i < n; i++) {
+                PS_Value *it = arg->as.list_v.items[i];
+                if (!it || (it->tag != PS_V_INT && it->tag != PS_V_BYTE)) {
+                  free(buf);
+                  ps_throw(ctx, PS_ERR_TYPE, "list<byte> expected");
+                  goto raise;
+                }
+                int64_t v = (it->tag == PS_V_BYTE) ? it->as.byte_v : it->as.int_v;
+                if (v < 0 || v > 255) {
+                  free(buf);
+                  ps_throw(ctx, PS_ERR_RANGE, "byte out of range");
+                  goto raise;
+                }
+                buf[i] = (uint8_t)v;
+              }
+              if (n > 0) fwrite(buf, 1, n, f->fp);
+              if (ferror(f->fp)) {
+                free(buf);
+                ps_throw(ctx, PS_ERR_INTERNAL, "write failed");
+                goto raise;
+              }
+              free(buf);
+            }
+            continue;
+          }
+        }
         if (recv->tag == PS_V_STRING) {
           if (strcmp(ins->method, "length") == 0) {
             size_t gl = ps_utf8_glyph_len((const uint8_t *)recv->as.string_v.ptr, recv->as.string_v.len);

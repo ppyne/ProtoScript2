@@ -4,6 +4,8 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#include "ps/ps_api.h"
+
 typedef struct PS_Value PS_Value;
 
 typedef enum {
@@ -19,6 +21,7 @@ typedef enum {
   PS_V_MAP,
   PS_V_VIEW,
   PS_V_ITER,
+  PS_V_FILE,
   PS_V_VOID
 } PS_ValueTag;
 
@@ -66,6 +69,13 @@ typedef struct {
   size_t index;
 } PS_Iter;
 
+typedef struct {
+  FILE *fp;
+  uint32_t flags;
+  int closed;
+  int at_start;
+} PS_File;
+
 struct PS_Value {
   PS_ValueTag tag;
   int64_t refcount;
@@ -82,6 +92,7 @@ struct PS_Value {
     PS_Map map_v;
     PS_View view_v;
     PS_Iter iter_v;
+    PS_File file_v;
   } as;
 };
 

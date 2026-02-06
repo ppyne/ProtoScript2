@@ -5,6 +5,7 @@
 
 #include <stddef.h>
 #include <stdint.h>
+#include <stdio.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -26,6 +27,7 @@ typedef enum {
   PS_T_BYTES,
   PS_T_LIST,
   PS_T_OBJECT,
+  PS_T_FILE,
   PS_T_VOID
 } PS_TypeTag;
 
@@ -61,6 +63,13 @@ typedef struct {
   size_t fn_count;
   const PS_NativeFnDesc *fns;
 } PS_Module;
+
+// File flags (for native modules creating File handles).
+#define PS_FILE_READ   0x01
+#define PS_FILE_WRITE  0x02
+#define PS_FILE_APPEND 0x04
+#define PS_FILE_BINARY 0x08
+#define PS_FILE_STD    0x10
 
 // Module entry point symbol (required).
 // Return PS_OK on success, PS_ERR on failure (ctx carries error).
@@ -98,6 +107,7 @@ PS_Value *ps_make_string_utf8(PS_Context *ctx, const char *utf8, size_t len);
 PS_Value *ps_make_bytes(PS_Context *ctx, const uint8_t *bytes, size_t len);
 PS_Value *ps_make_list(PS_Context *ctx);
 PS_Value *ps_make_object(PS_Context *ctx);
+PS_Value *ps_make_file(PS_Context *ctx, FILE *fp, uint32_t flags);
 
 // Accessors (do not transfer ownership).
 int ps_as_bool(PS_Value *v);

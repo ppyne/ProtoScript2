@@ -1,0 +1,15 @@
+import Io;
+
+function main() : void {
+    var f = Io.open("io_bin.bin", "wb");
+    var data = [1, 2, 255];
+    f.write(data);
+    f.close();
+
+    var r = Io.open("io_bin.bin", "rb");
+    var chunk = r.read(3);
+    r.close();
+
+    bool ok = (chunk != Io.EOF);
+    Sys.print(ok.toString());
+}

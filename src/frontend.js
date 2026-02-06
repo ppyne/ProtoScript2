@@ -96,7 +96,7 @@ function isValidRegistryType(s, allowVoid) {
   if (typeof s !== "string") return false;
   const t = stripWs(s);
   if (allowVoid && t === "void") return true;
-  const prim = ["int", "float", "bool", "byte", "glyph", "string"];
+  const prim = ["int", "float", "bool", "byte", "glyph", "string", "File"];
   if (prim.includes(t)) return true;
   if (t.startsWith("list<") || t.startsWith("slice<") || t.startsWith("view<")) {
     if (!t.endsWith(">")) return false;
@@ -157,10 +157,19 @@ function loadModuleRegistry() {
       fns.set(f.name, { name: f.name, params, retType, ast, valid: validParams && validRet });
     }
     for (const c of m.constants || []) {
-      if (!c || typeof c.name !== "string") continue;
-      if (c.type !== "float") continue;
-      if (typeof c.value !== "string" && typeof c.value !== "number") continue;
-      consts.set(c.name, { type: "float", value: String(c.value) });
+      if (!c || typeof c.name !== "string" || typeof c.type !== "string") continue;
+      if (c.type === "float") {
+        if (typeof c.value !== "string" && typeof c.value !== "number") continue;
+        consts.set(c.name, { type: "float", value: String(c.value) });
+      } else if (c.type === "string") {
+        if (typeof c.value !== "string") continue;
+        consts.set(c.name, { type: "string", value: c.value });
+      } else if (c.type === "file") {
+        if (typeof c.value !== "string") continue;
+        consts.set(c.name, { type: "file", value: c.value });
+      } else if (c.type === "eof") {
+        consts.set(c.name, { type: "eof", value: "" });
+      }
     }
     modules.set(m.name, { functions: fns, constants: consts });
   }
@@ -1300,7 +1309,11 @@ class Analyzer {
         if (expr.target.kind === "Identifier" && this.moduleConsts.has(expr.target.name)) {
           const consts = this.moduleConsts.get(expr.target.name);
           if (consts && consts.has(expr.name)) {
-            return { kind: "PrimitiveType", name: "float" };
+            const c = consts.get(expr.name);
+            if (c.type === "float") return { kind: "PrimitiveType", name: "float" };
+            if (c.type === "string") return { kind: "PrimitiveType", name: "string" };
+            if (c.type === "file") return { kind: "NamedType", name: "File" };
+            if (c.type === "eof") return { kind: "NamedType", name: "EOF" };
           }
         }
         return null;

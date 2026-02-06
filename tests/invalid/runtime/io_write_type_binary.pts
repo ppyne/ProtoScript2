@@ -1,0 +1,6 @@
+import Io;
+
+function main() : void {
+    var f = Io.open("io_bin_bad.bin", "wb");
+    f.write("abc");
+}

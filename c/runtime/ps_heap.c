@@ -12,6 +12,10 @@ PS_Context *ps_ctx_create(void) {
   ctx->last_error.message[0] = '\0';
   ctx->trace = 0;
   ctx->trace_ir = 0;
+  ctx->eof_value = NULL;
+  ctx->stdin_value = NULL;
+  ctx->stdout_value = NULL;
+  ctx->stderr_value = NULL;
   return ctx;
 }
 
@@ -20,6 +24,10 @@ void ps_ctx_destroy(PS_Context *ctx) {
   while (ctx->handles.len > 0) {
     ps_handle_pop(ctx);
   }
+  if (ctx->eof_value) ps_value_release(ctx->eof_value);
+  if (ctx->stdin_value) ps_value_release(ctx->stdin_value);
+  if (ctx->stdout_value) ps_value_release(ctx->stdout_value);
+  if (ctx->stderr_value) ps_value_release(ctx->stderr_value);
   free(ctx->handles.items);
   free(ctx);
 }

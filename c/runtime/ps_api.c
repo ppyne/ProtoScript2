@@ -1,5 +1,6 @@
 #include <string.h>
 #include <stdlib.h>
+#include <stdio.h>
 
 #include "ps/ps_api.h"
 #include "ps_list.h"
@@ -29,6 +30,8 @@ PS_TypeTag ps_typeof(PS_Value *v) {
       return PS_T_LIST;
     case PS_V_OBJECT:
       return PS_T_OBJECT;
+    case PS_V_FILE:
+      return PS_T_FILE;
     default:
       return PS_T_VOID;
   }
@@ -98,6 +101,19 @@ PS_Value *ps_make_bytes(PS_Context *ctx, const uint8_t *bytes, size_t len) {
 PS_Value *ps_make_list(PS_Context *ctx) { return ps_list_new(ctx); }
 
 PS_Value *ps_make_object(PS_Context *ctx) { return ps_object_new(ctx); }
+
+PS_Value *ps_make_file(PS_Context *ctx, FILE *fp, uint32_t flags) {
+  (void)ctx;
+  if (!fp) return NULL;
+  PS_Value *v = ps_value_alloc(PS_V_FILE);
+  if (!v) return NULL;
+  v->as.file_v.fp = fp;
+  v->as.file_v.flags = flags;
+  v->as.file_v.closed = 0;
+  v->as.file_v.at_start = 1;
+  setvbuf(fp, NULL, _IONBF, 0);
+  return v;
+}
 
 int ps_as_bool(PS_Value *v) { return v ? v->as.bool_v : 0; }
 int64_t ps_as_int(PS_Value *v) { return v ? v->as.int_v : 0; }

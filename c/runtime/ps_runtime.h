@@ -19,6 +19,10 @@ struct PS_Context {
   struct PS_ModuleRecord *modules;
   size_t module_count;
   size_t module_cap;
+  PS_Value *eof_value;
+  PS_Value *stdin_value;
+  PS_Value *stdout_value;
+  PS_Value *stderr_value;
 };
 
 PS_Value *ps_value_alloc(PS_ValueTag tag);

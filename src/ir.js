@@ -83,10 +83,19 @@ function buildImportMap(ast) {
     modules.set(m.name, fns);
     const consts = new Map();
     for (const c of m.constants || []) {
-      if (!c || typeof c.name !== "string") continue;
-      if (c.type !== "float") continue;
-      if (typeof c.value !== "string" && typeof c.value !== "number") continue;
-      consts.set(c.name, String(c.value));
+      if (!c || typeof c.name !== "string" || typeof c.type !== "string") continue;
+      if (c.type === "float") {
+        if (typeof c.value !== "string" && typeof c.value !== "number") continue;
+        consts.set(c.name, { type: "float", value: String(c.value) });
+      } else if (c.type === "string") {
+        if (typeof c.value !== "string") continue;
+        consts.set(c.name, { type: "string", value: c.value });
+      } else if (c.type === "file") {
+        if (typeof c.value !== "string") continue;
+        consts.set(c.name, { type: "file", value: c.value });
+      } else if (c.type === "eof") {
+        consts.set(c.name, { type: "eof", value: "" });
+      }
     }
     moduleConsts.set(m.name, consts);
   }
@@ -464,9 +473,13 @@ class IRBuilder {
           const mod = this.importNamespaces.get(expr.target.name);
           const consts = this.moduleConsts.get(mod);
           if (consts && consts.has(expr.name)) {
+            const c = consts.get(expr.name);
             const dst = this.nextTemp();
-            this.emit(block, { op: "const", dst, literalType: "float", value: consts.get(expr.name) });
-            return { value: dst, type: { kind: "PrimitiveType", name: "float" } };
+            this.emit(block, { op: "const", dst, literalType: c.type, value: c.value });
+            if (c.type === "float") return { value: dst, type: { kind: "PrimitiveType", name: "float" } };
+            if (c.type === "string") return { value: dst, type: { kind: "PrimitiveType", name: "string" } };
+            if (c.type === "file") return { value: dst, type: { kind: "NamedType", name: "File" } };
+            return { value: dst, type: { kind: "NamedType", name: "EOF" } };
           }
         }
         const base = this.lowerExpr(expr.target, block, irFn, scope);

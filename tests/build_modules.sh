@@ -33,5 +33,6 @@ build_mod "test_noinit" "$SRC_DIR/test_noinit.c"
 build_mod "test_badver" "$SRC_DIR/test_badver.c"
 build_mod "test_nosym" "$SRC_DIR/test_nosym.c"
 build_mod "Math" "$SRC_DIR/math.c" -lm
+build_mod "Io" "$SRC_DIR/io.c"
 
 echo "modules built in $OUT_DIR"

@@ -1,0 +1,11 @@
+import Io;
+
+function main() : void {
+    var f = Io.open("io_utf8_bad.bin", "wb");
+    var data = [195, 40];
+    f.write(data);
+    f.close();
+
+    var r = Io.open("io_utf8_bad.bin", "r");
+    r.read();
+}

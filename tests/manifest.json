@@ -36,7 +36,14 @@
       "invalid/runtime/module_not_found",
       "invalid/runtime/math_sqrt_domain",
       "invalid/runtime/math_log_domain",
-      "invalid/runtime/math_type_error"
+      "invalid/runtime/math_type_error",
+      "invalid/runtime/io_invalid_mode",
+      "invalid/runtime/io_read_size_invalid",
+      "invalid/runtime/io_write_type_text",
+      "invalid/runtime/io_write_type_binary",
+      "invalid/runtime/io_close_std",
+      "invalid/runtime/io_after_close",
+      "invalid/runtime/io_utf8_invalid"
     ],
     "edge": [
       "edge/overflow_int_add",
@@ -80,7 +87,12 @@
       "edge/module_try_catch",
       "edge/module_try_finally_rethrow",
       "edge/math_abs_min_max",
-      "edge/math_constants"
+      "edge/math_constants",
+      "edge/io_text_roundtrip",
+      "edge/io_eof",
+      "edge/io_print",
+      "edge/io_stdout_stderr",
+      "edge/io_binary_read_write"
     ]
   }
 }

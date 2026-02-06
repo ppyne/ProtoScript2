@@ -1,0 +1,13 @@
+import Io;
+
+function main() : void {
+    var f = Io.open("io_text.txt", "w");
+    f.write("Hello\n");
+    f.close();
+
+    var r = Io.open("io_text.txt", "r");
+    var s = r.read();
+    r.close();
+
+    Io.print(s);
+}

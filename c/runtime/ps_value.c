@@ -52,6 +52,11 @@ void ps_value_free(PS_Value *v) {
     case PS_V_ITER:
       if (v->as.iter_v.source) ps_value_release(v->as.iter_v.source);
       break;
+    case PS_V_FILE:
+      if (v->as.file_v.fp && !v->as.file_v.closed && !(v->as.file_v.flags & PS_FILE_STD)) {
+        fclose(v->as.file_v.fp);
+      }
+      break;
     default:
       break;
   }

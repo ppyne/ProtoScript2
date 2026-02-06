@@ -1,0 +1,5 @@
+import Io;
+
+function main() : void {
+    Io.open("io_invalid.txt", "rw");
+}

@@ -1628,7 +1628,7 @@ static int parse_registry_type(const char **p, int allow_void) {
   skip_ws(p);
   if (allow_void && consume_kw(p, "void")) return 1;
   if (consume_kw(p, "int") || consume_kw(p, "float") || consume_kw(p, "bool") || consume_kw(p, "byte") || consume_kw(p, "glyph") ||
-      consume_kw(p, "string")) {
+      consume_kw(p, "string") || consume_kw(p, "File")) {
     return 1;
   }
   if (consume_kw(p, "list") || consume_kw(p, "slice") || consume_kw(p, "view")) {
@@ -1732,17 +1732,38 @@ static ModuleRegistry *registry_load(void) {
         PS_JsonValue *cval = ps_json_obj_get(c, "value");
         if (!cname || cname->type != PS_JSON_STRING) continue;
         if (!ctype || ctype->type != PS_JSON_STRING) continue;
-        if (strcmp(ctype->as.str_v, "float") != 0) continue;
-        if (!cval || (cval->type != PS_JSON_STRING && cval->type != PS_JSON_NUMBER)) continue;
         RegConst *rc = (RegConst *)calloc(1, sizeof(RegConst));
         if (!rc) continue;
         rc->name = strdup(cname->as.str_v);
-        rc->type = strdup("float");
-        if (cval->type == PS_JSON_STRING) rc->value = strdup(cval->as.str_v);
-        else {
-          char buf[64];
-          snprintf(buf, sizeof(buf), "%.17g", cval->as.num_v);
-          rc->value = strdup(buf);
+        rc->type = strdup(ctype->as.str_v);
+        if (strcmp(ctype->as.str_v, "float") == 0) {
+          if (!cval || (cval->type != PS_JSON_STRING && cval->type != PS_JSON_NUMBER)) {
+            free(rc->name);
+            free(rc->type);
+            free(rc);
+            continue;
+          }
+          if (cval->type == PS_JSON_STRING) rc->value = strdup(cval->as.str_v);
+          else {
+            char buf[64];
+            snprintf(buf, sizeof(buf), "%.17g", cval->as.num_v);
+            rc->value = strdup(buf);
+          }
+        } else if (strcmp(ctype->as.str_v, "string") == 0 || strcmp(ctype->as.str_v, "file") == 0) {
+          if (!cval || cval->type != PS_JSON_STRING) {
+            free(rc->name);
+            free(rc->type);
+            free(rc);
+            continue;
+          }
+          rc->value = strdup(cval->as.str_v);
+        } else if (strcmp(ctype->as.str_v, "eof") == 0) {
+          rc->value = strdup("");
+        } else {
+          free(rc->name);
+          free(rc->type);
+          free(rc);
+          continue;
         }
         rc->next = rm->consts;
         rm->consts = rc;
@@ -2088,7 +2109,12 @@ static char *infer_expr_type(Analyzer *a, AstNode *e, Scope *scope, int *ok) {
         ImportNamespace *ns = find_namespace(a, target->text ? target->text : "");
         if (ns) {
           RegConst *rc = registry_find_const(a->registry, ns->module, e->text ? e->text : "");
-          if (rc && rc->type && strcmp(rc->type, "float") == 0) return strdup("float");
+          if (rc && rc->type) {
+            if (strcmp(rc->type, "float") == 0) return strdup("float");
+            if (strcmp(rc->type, "string") == 0) return strdup("string");
+            if (strcmp(rc->type, "file") == 0) return strdup("File");
+            if (strcmp(rc->type, "eof") == 0) return strdup("EOF");
+          }
         }
       }
     }
@@ -2782,7 +2808,12 @@ static char *ir_guess_expr_type(AstNode *e, IrFnCtx *ctx) {
           ImportNamespace *ns = ir_find_namespace(ctx, target->text ? target->text : "");
           if (ns) {
             RegConst *rc = registry_find_const(ctx->registry, ns->module, e->text ? e->text : "");
-            if (rc && rc->type && strcmp(rc->type, "float") == 0) return strdup("float");
+            if (rc && rc->type) {
+              if (strcmp(rc->type, "float") == 0) return strdup("float");
+              if (strcmp(rc->type, "string") == 0) return strdup("string");
+              if (strcmp(rc->type, "file") == 0) return strdup("File");
+              if (strcmp(rc->type, "eof") == 0) return strdup("EOF");
+            }
           }
         }
       }
@@ -3137,15 +3168,18 @@ static char *ir_lower_expr(AstNode *e, IrFnCtx *ctx) {
       ImportNamespace *ns = ir_find_namespace(ctx, target->text ? target->text : "");
       if (ns) {
         RegConst *rc = registry_find_const(ctx->registry, ns->module, e->text ? e->text : "");
-        if (rc && rc->type && strcmp(rc->type, "float") == 0 && rc->value) {
+        if (rc && rc->type) {
           char *dst = ir_next_tmp(ctx);
           if (!dst) return NULL;
           char *d_esc = json_escape(dst);
-          char *v_esc = json_escape(rc->value);
-          char *ins = str_printf("{\"op\":\"const\",\"dst\":\"%s\",\"literalType\":\"float\",\"value\":\"%s\"}", d_esc ? d_esc : "",
-                                 v_esc ? v_esc : "");
+          const char *lt = rc->type ? rc->type : "unknown";
+          char *lt_esc = json_escape(lt);
+          char *v_esc = json_escape(rc->value ? rc->value : "");
+          char *ins = str_printf("{\"op\":\"const\",\"dst\":\"%s\",\"literalType\":\"%s\",\"value\":\"%s\"}", d_esc ? d_esc : "",
+                                 lt_esc ? lt_esc : "", v_esc ? v_esc : "");
           free(d_esc);
           free(v_esc);
+          free(lt_esc);
           if (!ir_emit(ctx, ins)) {
             free(dst);
             return NULL;

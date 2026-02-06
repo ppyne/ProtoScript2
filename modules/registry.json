@@ -69,6 +69,20 @@
         { "name": "PI", "type": "float", "value": "3.141592653589793" },
         { "name": "E", "type": "float", "value": "2.718281828459045" }
       ]
+    },
+    {
+      "name": "Io",
+      "functions": [
+        { "name": "open", "ret": "File", "params": ["string", "string"] },
+        { "name": "print", "ret": "void", "params": ["string"] }
+      ],
+      "constants": [
+        { "name": "EOL", "type": "string", "value": "\n" },
+        { "name": "EOF", "type": "eof" },
+        { "name": "stdin", "type": "file", "value": "stdin" },
+        { "name": "stdout", "type": "file", "value": "stdout" },
+        { "name": "stderr", "type": "file", "value": "stderr" }
+      ]
     }
   ]
 }
