@@ -13,6 +13,80 @@ class RuntimeError extends Error {
   }
 }
 
+function isObjectInstance(v) {
+  return v && v.__object === true;
+}
+
+function buildPrototypeEnv(ast) {
+  const protos = new Map();
+  for (const d of ast.decls || []) {
+    if (d.kind !== "PrototypeDecl") continue;
+    const fields = [];
+    for (const f of d.fields || []) fields.push({ name: f.name, type: f.type });
+    const methods = new Map();
+    for (const m of d.methods || []) methods.set(m.name, m);
+    protos.set(d.name, { name: d.name, parent: d.parent || null, fields, methods });
+  }
+  return protos;
+}
+
+function collectPrototypeFields(protos, name) {
+  const out = [];
+  const chain = [];
+  let cur = protos.get(name);
+  while (cur) {
+    chain.push(cur);
+    cur = cur.parent ? protos.get(cur.parent) : null;
+  }
+  for (let i = chain.length - 1; i >= 0; i -= 1) {
+    for (const f of chain[i].fields) out.push(f);
+  }
+  return out;
+}
+
+function defaultValueForTypeNode(protos, t) {
+  if (!t || t.kind === "PrimitiveType") {
+    const n = t ? t.name : "void";
+    if (n === "int") return 0n;
+    if (n === "byte") return 0n;
+    if (n === "float") return 0.0;
+    if (n === "bool") return false;
+    if (n === "glyph") return new Glyph(0);
+    if (n === "string") return "";
+    return null;
+  }
+  if (t.kind === "NamedType") {
+    if (protos.has(t.name)) return clonePrototype(protos, t.name);
+    if (t.name === "JSONValue") return makeJsonValue("null", null);
+    if (t.name === "File") return null;
+    return null;
+  }
+  if (t.kind === "GenericType") {
+    if (t.name === "list") return [];
+    if (t.name === "map") return new Map();
+    if (t.name === "view" || t.name === "slice") return { __view: true, source: [], offset: 0, len: 0, readonly: t.name === "view" };
+  }
+  return null;
+}
+
+function clonePrototype(protos, name) {
+  const fields = collectPrototypeFields(protos, name);
+  const obj = { __object: true, __proto: name, __fields: Object.create(null) };
+  for (const f of fields) {
+    obj.__fields[f.name] = defaultValueForTypeNode(protos, f.type);
+  }
+  return obj;
+}
+
+function resolveProtoMethodRuntime(protos, name, method) {
+  let cur = protos.get(name);
+  while (cur) {
+    if (cur.methods && cur.methods.has(method)) return { proto: cur.name, method: cur.methods.get(method) };
+    cur = cur.parent ? protos.get(cur.parent) : null;
+  }
+  return null;
+}
+
 function isExceptionValue(v) {
   return v && v.__exception === true;
 }
@@ -640,8 +714,15 @@ function buildModuleEnv(ast, file) {
 
 function runProgram(ast, file, argv) {
   const functions = new Map();
+  const protoEnv = buildPrototypeEnv(ast);
   for (const d of ast.decls) {
     if (d.kind === "FunctionDecl") functions.set(d.name, d);
+    if (d.kind === "PrototypeDecl") {
+      for (const m of d.methods || []) {
+        m.__protoOwner = d.name;
+        functions.set(`${d.name}.${m.name}`, m);
+      }
+    }
   }
   const main = functions.get("main");
   if (!main) return;
@@ -655,11 +736,16 @@ function runProgram(ast, file, argv) {
 
   const callFunction = (fn, args) => {
     const scope = new Scope(globalScope);
+    let argIndex = 0;
+    if (fn.__protoOwner) {
+      scope.define("self", args[0]);
+      argIndex = 1;
+    }
     for (let i = 0; i < fn.params.length; i += 1) {
-      scope.define(fn.params[i].name, args[i]);
+      scope.define(fn.params[i].name, args[argIndex + i]);
     }
     try {
-      execBlock(fn.body, scope, functions, moduleEnv, file, callFunction);
+      execBlock(fn.body, scope, functions, moduleEnv, protoEnv, file, callFunction);
       return null;
     } catch (e) {
       if (e instanceof ReturnSignal) return e.value;
@@ -672,39 +758,48 @@ function runProgram(ast, file, argv) {
   callFunction(main, mainArgs);
 }
 
-function execBlock(block, scope, functions, moduleEnv, file, callFunction) {
+function execBlock(block, scope, functions, moduleEnv, protoEnv, file, callFunction) {
   const local = new Scope(scope);
-  for (const stmt of block.stmts) execStmt(stmt, local, functions, moduleEnv, file, callFunction);
+  for (const stmt of block.stmts) execStmt(stmt, local, functions, moduleEnv, protoEnv, file, callFunction);
 }
 
-function execStmt(stmt, scope, functions, moduleEnv, file, callFunction) {
+function execStmt(stmt, scope, functions, moduleEnv, protoEnv, file, callFunction) {
   switch (stmt.kind) {
     case "VarDecl": {
       let v = null;
-      if (stmt.init) v = evalExpr(stmt.init, scope, functions, moduleEnv, file, callFunction);
+      if (stmt.init) v = evalExpr(stmt.init, scope, functions, moduleEnv, protoEnv, file, callFunction);
       scope.define(stmt.name, v);
       return;
     }
     case "AssignStmt": {
-      const rhs = evalExpr(stmt.expr, scope, functions, moduleEnv, file, callFunction);
+      const rhs = evalExpr(stmt.expr, scope, functions, moduleEnv, protoEnv, file, callFunction);
       if (stmt.target.kind === "Identifier") {
         scope.set(stmt.target.name, rhs);
+      } else if (stmt.target.kind === "MemberExpr") {
+        const target = evalExpr(stmt.target.target, scope, functions, moduleEnv, protoEnv, file, callFunction);
+        if (!isObjectInstance(target)) {
+          throw new RuntimeError(rdiag(file, stmt.target, "R1010", "RUNTIME_TYPE_ERROR", "member assignment on non-object"));
+        }
+        if (!(stmt.target.name in target.__fields)) {
+          throw new RuntimeError(rdiag(file, stmt.target, "R1010", "RUNTIME_TYPE_ERROR", "unknown field"));
+        }
+        target.__fields[stmt.target.name] = rhs;
       } else if (stmt.target.kind === "IndexExpr") {
-        const target = evalExpr(stmt.target.target, scope, functions, moduleEnv, file, callFunction);
-        const idx = evalExpr(stmt.target.index, scope, functions, moduleEnv, file, callFunction);
+        const target = evalExpr(stmt.target.target, scope, functions, moduleEnv, protoEnv, file, callFunction);
+        const idx = evalExpr(stmt.target.index, scope, functions, moduleEnv, protoEnv, file, callFunction);
         assignIndex(file, stmt.target.target, stmt.target.index, target, idx, rhs);
       }
       return;
     }
     case "ExprStmt":
-      evalExpr(stmt.expr, scope, functions, moduleEnv, file, callFunction);
+      evalExpr(stmt.expr, scope, functions, moduleEnv, protoEnv, file, callFunction);
       return;
     case "ReturnStmt": {
-      const v = stmt.expr ? evalExpr(stmt.expr, scope, functions, moduleEnv, file, callFunction) : null;
+      const v = stmt.expr ? evalExpr(stmt.expr, scope, functions, moduleEnv, protoEnv, file, callFunction) : null;
       throw new ReturnSignal(v);
     }
     case "ThrowStmt": {
-      const v = stmt.expr ? evalExpr(stmt.expr, scope, functions, moduleEnv, file, callFunction) : null;
+      const v = stmt.expr ? evalExpr(stmt.expr, scope, functions, moduleEnv, protoEnv, file, callFunction) : null;
       if (!isExceptionValue(v)) {
         throw new RuntimeError(rdiag(file, stmt, "R1010", "RUNTIME_TYPE_ERROR", "throw expects Exception"));
       }
@@ -712,19 +807,19 @@ function execStmt(stmt, scope, functions, moduleEnv, file, callFunction) {
       throw v;
     }
     case "Block":
-      execBlock(stmt, scope, functions, moduleEnv, file, callFunction);
+      execBlock(stmt, scope, functions, moduleEnv, protoEnv, file, callFunction);
       return;
     case "ForStmt":
-      execFor(stmt, scope, functions, moduleEnv, file, callFunction);
+      execFor(stmt, scope, functions, moduleEnv, protoEnv, file, callFunction);
       return;
     case "SwitchStmt":
-      execSwitch(stmt, scope, functions, moduleEnv, file, callFunction);
+      execSwitch(stmt, scope, functions, moduleEnv, protoEnv, file, callFunction);
       return;
     case "TryStmt": {
       const hasCatch = stmt.catches && stmt.catches.length > 0;
       let pending = null;
       try {
-        execBlock(stmt.tryBlock, scope, functions, moduleEnv, file, callFunction);
+        execBlock(stmt.tryBlock, scope, functions, moduleEnv, protoEnv, file, callFunction);
       } catch (e) {
         if (e instanceof ReturnSignal) throw e;
         let ex = null;
@@ -738,7 +833,7 @@ function execStmt(stmt, scope, functions, moduleEnv, file, callFunction) {
             if (exceptionMatches(ex, c.type)) {
               const cs = new Scope(scope);
               cs.define(c.name, ex);
-              execBlock(c.block, cs, functions, moduleEnv, file, callFunction);
+              execBlock(c.block, cs, functions, moduleEnv, protoEnv, file, callFunction);
               handled = true;
               break;
             }
@@ -746,7 +841,7 @@ function execStmt(stmt, scope, functions, moduleEnv, file, callFunction) {
           if (!handled) pending = ex;
         }
       } finally {
-        if (stmt.finallyBlock) execBlock(stmt.finallyBlock, scope, functions, moduleEnv, file, callFunction);
+        if (stmt.finallyBlock) execBlock(stmt.finallyBlock, scope, functions, moduleEnv, protoEnv, file, callFunction);
       }
       if (pending) throw pending;
       return;
@@ -759,28 +854,28 @@ function execStmt(stmt, scope, functions, moduleEnv, file, callFunction) {
   }
 }
 
-function execFor(stmt, scope, functions, moduleEnv, file, callFunction) {
+function execFor(stmt, scope, functions, moduleEnv, protoEnv, file, callFunction) {
   if (stmt.forKind === "classic") {
     const s = new Scope(scope);
     if (stmt.init) {
-      if (stmt.init.kind === "VarDecl" || stmt.init.kind === "AssignStmt") execStmt(stmt.init, s, functions, moduleEnv, file, callFunction);
-      else evalExpr(stmt.init, s, functions, moduleEnv, file, callFunction);
+      if (stmt.init.kind === "VarDecl" || stmt.init.kind === "AssignStmt") execStmt(stmt.init, s, functions, moduleEnv, protoEnv, file, callFunction);
+      else evalExpr(stmt.init, s, functions, moduleEnv, protoEnv, file, callFunction);
     }
     while (true) {
       if (stmt.cond) {
-        const c = evalExpr(stmt.cond, s, functions, moduleEnv, file, callFunction);
+        const c = evalExpr(stmt.cond, s, functions, moduleEnv, protoEnv, file, callFunction);
         if (!Boolean(c)) break;
       }
-      execStmt(stmt.body, s, functions, moduleEnv, file, callFunction);
+      execStmt(stmt.body, s, functions, moduleEnv, protoEnv, file, callFunction);
       if (stmt.step) {
-        if (stmt.step.kind === "VarDecl" || stmt.step.kind === "AssignStmt") execStmt(stmt.step, s, functions, moduleEnv, file, callFunction);
-        else evalExpr(stmt.step, s, functions, moduleEnv, file, callFunction);
+        if (stmt.step.kind === "VarDecl" || stmt.step.kind === "AssignStmt") execStmt(stmt.step, s, functions, moduleEnv, protoEnv, file, callFunction);
+        else evalExpr(stmt.step, s, functions, moduleEnv, protoEnv, file, callFunction);
       }
     }
     return;
   }
 
-  const seq = evalExpr(stmt.iterExpr, scope, functions, moduleEnv, file, callFunction);
+  const seq = evalExpr(stmt.iterExpr, scope, functions, moduleEnv, protoEnv, file, callFunction);
   const s = new Scope(scope);
   let items = null;
   if (Array.isArray(seq)) {
@@ -804,21 +899,21 @@ function execFor(stmt, scope, functions, moduleEnv, file, callFunction) {
   }
   for (const item of items) {
     if (stmt.iterVar) s.define(stmt.iterVar.name, item);
-    execStmt(stmt.body, s, functions, moduleEnv, file, callFunction);
+    execStmt(stmt.body, s, functions, moduleEnv, protoEnv, file, callFunction);
   }
 }
 
-function execSwitch(stmt, scope, functions, moduleEnv, file, callFunction) {
-  const v = evalExpr(stmt.expr, scope, functions, moduleEnv, file, callFunction);
+function execSwitch(stmt, scope, functions, moduleEnv, protoEnv, file, callFunction) {
+  const v = evalExpr(stmt.expr, scope, functions, moduleEnv, protoEnv, file, callFunction);
   for (const c of stmt.cases) {
-    const cv = evalExpr(c.value, scope, functions, moduleEnv, file, callFunction);
+    const cv = evalExpr(c.value, scope, functions, moduleEnv, protoEnv, file, callFunction);
     if (eqValue(v, cv)) {
-      for (const st of c.stmts) execStmt(st, scope, functions, moduleEnv, file, callFunction);
+      for (const st of c.stmts) execStmt(st, scope, functions, moduleEnv, protoEnv, file, callFunction);
       return;
     }
   }
   if (stmt.defaultCase) {
-    for (const st of stmt.defaultCase.stmts) execStmt(st, scope, functions, moduleEnv, file, callFunction);
+    for (const st of stmt.defaultCase.stmts) execStmt(st, scope, functions, moduleEnv, protoEnv, file, callFunction);
   }
 }
 
@@ -828,7 +923,7 @@ function eqValue(a, b) {
   return a === b;
 }
 
-function evalExpr(expr, scope, functions, moduleEnv, file, callFunction) {
+function evalExpr(expr, scope, functions, moduleEnv, protoEnv, file, callFunction) {
   switch (expr.kind) {
     case "Literal":
       if (expr.literalType === "int") return parseIntLiteral(expr.value);
@@ -839,7 +934,7 @@ function evalExpr(expr, scope, functions, moduleEnv, file, callFunction) {
     case "Identifier":
       return scope.get(expr.name);
     case "UnaryExpr": {
-      const v = evalExpr(expr.expr, scope, functions, moduleEnv, file, callFunction);
+      const v = evalExpr(expr.expr, scope, functions, moduleEnv, protoEnv, file, callFunction);
       if (isGlyph(v) && (expr.op === "-" || expr.op === "++" || expr.op === "--" || expr.op === "~")) {
         throw new RuntimeError(rdiag(file, expr, "R1010", "RUNTIME_TYPE_ERROR", "invalid glyph operation"));
       }
@@ -856,25 +951,25 @@ function evalExpr(expr, scope, functions, moduleEnv, file, callFunction) {
       return v;
     }
     case "BinaryExpr": {
-      const l = evalExpr(expr.left, scope, functions, moduleEnv, file, callFunction);
-      const r = evalExpr(expr.right, scope, functions, moduleEnv, file, callFunction);
+      const l = evalExpr(expr.left, scope, functions, moduleEnv, protoEnv, file, callFunction);
+      const r = evalExpr(expr.right, scope, functions, moduleEnv, protoEnv, file, callFunction);
       return evalBinary(file, expr, l, r);
     }
     case "ConditionalExpr": {
-      const c = evalExpr(expr.cond, scope, functions, moduleEnv, file, callFunction);
+      const c = evalExpr(expr.cond, scope, functions, moduleEnv, protoEnv, file, callFunction);
       return c
-        ? evalExpr(expr.thenExpr, scope, functions, moduleEnv, file, callFunction)
-        : evalExpr(expr.elseExpr, scope, functions, moduleEnv, file, callFunction);
+        ? evalExpr(expr.thenExpr, scope, functions, moduleEnv, protoEnv, file, callFunction)
+        : evalExpr(expr.elseExpr, scope, functions, moduleEnv, protoEnv, file, callFunction);
     }
     case "CallExpr":
-      return evalCall(expr, scope, functions, moduleEnv, file, callFunction);
+      return evalCall(expr, scope, functions, moduleEnv, protoEnv, file, callFunction);
     case "IndexExpr": {
-      const target = evalExpr(expr.target, scope, functions, moduleEnv, file, callFunction);
-      const idx = evalExpr(expr.index, scope, functions, moduleEnv, file, callFunction);
+      const target = evalExpr(expr.target, scope, functions, moduleEnv, protoEnv, file, callFunction);
+      const idx = evalExpr(expr.index, scope, functions, moduleEnv, protoEnv, file, callFunction);
       return indexGet(file, expr.target, expr.index, target, idx);
     }
     case "MemberExpr": {
-      const target = evalExpr(expr.target, scope, functions, moduleEnv, file, callFunction);
+      const target = evalExpr(expr.target, scope, functions, moduleEnv, protoEnv, file, callFunction);
       if (target && target.__module && moduleEnv) {
         const mod = moduleEnv.modules.get(target.__module);
         if (mod && mod.constants.has(expr.name)) return mod.constants.get(expr.name);
@@ -889,19 +984,25 @@ function evalExpr(expr, scope, functions, moduleEnv, file, callFunction) {
         if (expr.name === "category") return target.category || "";
         return null;
       }
+      if (isObjectInstance(target)) {
+        if (!(expr.name in target.__fields)) {
+          throw new RuntimeError(rdiag(file, expr, "R1010", "RUNTIME_TYPE_ERROR", "unknown field"));
+        }
+        return target.__fields[expr.name];
+      }
       return { __member__: true, target, name: expr.name, node: expr };
     }
     case "PostfixExpr": {
-      const v = evalExpr(expr.expr, scope, functions, moduleEnv, file, callFunction);
+      const v = evalExpr(expr.expr, scope, functions, moduleEnv, protoEnv, file, callFunction);
       return v;
     }
     case "ListLiteral":
-      return expr.items.map((it) => evalExpr(it, scope, functions, moduleEnv, file, callFunction));
+      return expr.items.map((it) => evalExpr(it, scope, functions, moduleEnv, protoEnv, file, callFunction));
     case "MapLiteral": {
       const m = new Map();
       for (const p of expr.pairs) {
-        const k = evalExpr(p.key, scope, functions, moduleEnv, file, callFunction);
-        const v = evalExpr(p.value, scope, functions, moduleEnv, file, callFunction);
+        const k = evalExpr(p.key, scope, functions, moduleEnv, protoEnv, file, callFunction);
+        const v = evalExpr(p.value, scope, functions, moduleEnv, protoEnv, file, callFunction);
         m.set(mapKey(k), v);
       }
       return m;
@@ -1054,12 +1155,12 @@ function assignIndex(file, targetNode, indexNode, target, idx, rhs) {
   }
 }
 
-function evalCall(expr, scope, functions, moduleEnv, file, callFunction) {
+function evalCall(expr, scope, functions, moduleEnv, protoEnv, file, callFunction) {
   // Function call by identifier.
   if (expr.callee.kind === "Identifier") {
     const fn = functions.get(expr.callee.name);
     if (!fn && expr.callee.name === "Exception") {
-      const args = expr.args.map((a) => evalExpr(a, scope, functions, moduleEnv, file, callFunction));
+      const args = expr.args.map((a) => evalExpr(a, scope, functions, moduleEnv, protoEnv, file, callFunction));
       if (args.length > 2) {
         throw new RuntimeError(rdiag(file, expr, "R1010", "RUNTIME_TYPE_ERROR", "Exception expects (string message, Exception cause?)"));
       }
@@ -1094,19 +1195,41 @@ function evalCall(expr, scope, functions, moduleEnv, file, callFunction) {
       if (!impl) {
         throw new RuntimeError(rdiag(file, info.node, "R1010", "RUNTIME_MODULE_ERROR", "symbol not found"));
       }
-      const args = expr.args.map((a) => evalExpr(a, scope, functions, moduleEnv, file, callFunction));
+      const args = expr.args.map((a) => evalExpr(a, scope, functions, moduleEnv, protoEnv, file, callFunction));
       return impl(...args, info.node);
     }
     if (!fn) return null;
-    const args = expr.args.map((a) => evalExpr(a, scope, functions, moduleEnv, file, callFunction));
+    const args = expr.args.map((a) => evalExpr(a, scope, functions, moduleEnv, protoEnv, file, callFunction));
     return callFunction(fn, args);
   }
 
   // Member call.
   if (expr.callee.kind === "MemberExpr") {
     const m = expr.callee;
-    const target = evalExpr(m.target, scope, functions, moduleEnv, file, callFunction);
-    const args = expr.args.map((a) => evalExpr(a, scope, functions, moduleEnv, file, callFunction));
+    const target = evalExpr(m.target, scope, functions, moduleEnv, protoEnv, file, callFunction);
+    const args = expr.args.map((a) => evalExpr(a, scope, functions, moduleEnv, protoEnv, file, callFunction));
+
+    if (protoEnv && (expr._protoClone || (m.target.kind === "Identifier" && protoEnv.has(m.target.name) && m.name === "clone"))) {
+      const pname = expr._protoClone || m.target.name;
+      if (!protoEnv.has(pname)) {
+        throw new RuntimeError(rdiag(file, m, "R1010", "RUNTIME_TYPE_ERROR", "unknown prototype"));
+      }
+      return clonePrototype(protoEnv, pname);
+    }
+    if (protoEnv && expr._protoStatic) {
+      const info = resolveProtoMethodRuntime(protoEnv, expr._protoStatic, m.name);
+      if (!info) throw new RuntimeError(rdiag(file, m, "R1010", "RUNTIME_TYPE_ERROR", "unknown prototype method"));
+      const fn = functions.get(`${info.proto}.${m.name}`);
+      if (!fn) throw new RuntimeError(rdiag(file, m, "R1010", "RUNTIME_TYPE_ERROR", "missing method"));
+      return callFunction(fn, args);
+    }
+    if (protoEnv && expr._protoInstance) {
+      const info = resolveProtoMethodRuntime(protoEnv, expr._protoInstance, m.name);
+      if (!info) throw new RuntimeError(rdiag(file, m, "R1010", "RUNTIME_TYPE_ERROR", "unknown prototype method"));
+      const fn = functions.get(`${info.proto}.${m.name}`);
+      if (!fn) throw new RuntimeError(rdiag(file, m, "R1010", "RUNTIME_TYPE_ERROR", "missing method"));
+      return callFunction(fn, [target, ...args]);
+    }
 
     if (isJsonValue(target)) {
       const t = target.type;

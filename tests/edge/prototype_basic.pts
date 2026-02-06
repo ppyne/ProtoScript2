@@ -1,0 +1,18 @@
+import Io;
+
+prototype Point {
+    int x;
+    int y;
+
+    function sum() : int {
+        return self.x + self.y;
+    }
+}
+
+function main() : void {
+    Point p = Point.clone();
+    p.x = 2;
+    p.y = 3;
+    int s = p.sum();
+    Io.printLine(s.toString());
+}

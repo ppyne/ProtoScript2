@@ -3,6 +3,8 @@
 const fs = require("fs");
 const path = require("path");
 
+let PROTO_MAP = new Map();
+
 function loadModuleRegistry() {
   const candidates = [
     path.join(process.cwd(), "modules", "registry.json"),
@@ -112,6 +114,7 @@ function isAliasTrackedType(typeName) {
 function cTypeFromName(typeName) {
   const scalar = cScalarType(typeName);
   if (scalar) return scalar;
+  if (PROTO_MAP.has(typeName)) return `${typeName}*`;
   const c = parseContainer(typeName);
   if (!c) return "int64_t";
   const inner = baseName(c.inner);
@@ -128,7 +131,7 @@ function classifyBinOp(op) {
   return "arith";
 }
 
-function inferTempTypes(ir) {
+function inferTempTypes(ir, protoMap) {
   const fnRet = new Map(ir.functions.map((f) => [f.name, f.returnType.name]));
   const result = new Map();
 
@@ -282,9 +285,19 @@ function inferTempTypes(ir) {
               if (rt === "Exception" || rt === "RuntimeException") {
                 if (["code", "category", "message", "file"].includes(i.name)) set(i.dst, "string");
                 else if (["line", "column"].includes(i.name)) set(i.dst, "int");
+              } else if (protoMap && protoMap.has(rt)) {
+                const fields = collectProtoFields(protoMap, rt);
+                const hit = fields.find((f) => f.name === i.name);
+                if (hit) {
+                  const t = typeof hit.type === "string" ? hit.type : hit.type?.name;
+                  if (t) set(i.dst, t);
+                }
               }
               break;
             }
+            case "make_object":
+              if (i.proto) set(i.dst, i.proto);
+              break;
             case "call_unknown":
               set(i.dst, "int");
               break;
@@ -379,16 +392,64 @@ function collectTypeNames(ir, inferred) {
     for (const t of inf.varTypes.values()) names.add(t);
     for (const t of inf.tempTypes.values()) names.add(t);
   }
+  if (Array.isArray(ir.prototypes)) {
+    for (const p of ir.prototypes) {
+      if (p && p.name) names.add(p.name);
+      for (const f of p.fields || []) names.add(f.type?.name || f.type);
+    }
+  }
   return names;
 }
 
-function emitTypeDecls(typeNames) {
+function buildProtoMap(ir) {
+  const map = new Map();
+  if (!ir || !Array.isArray(ir.prototypes)) return map;
+  for (const p of ir.prototypes) {
+    if (!p || !p.name) continue;
+    map.set(p.name, { name: p.name, parent: p.parent || null, fields: p.fields || [] });
+  }
+  return map;
+}
+
+function collectProtoFields(protoMap, name) {
+  const out = [];
+  const chain = [];
+  let cur = protoMap.get(name);
+  while (cur) {
+    chain.push(cur);
+    cur = cur.parent ? protoMap.get(cur.parent) : null;
+  }
+  for (let i = chain.length - 1; i >= 0; i -= 1) {
+    for (const f of chain[i].fields || []) out.push(f);
+  }
+  return out;
+}
+
+function emitTypeDecls(typeNames, protoMap) {
   const out = [];
   out.push("typedef struct { const char* ptr; size_t len; } ps_string;");
   out.push("typedef struct { size_t i; size_t n; } ps_iter_cursor;");
   out.push("typedef struct { ps_string str; uint32_t* ptr; size_t len; size_t offset; int is_string; } ps_view_glyph;");
   if (typeNames.has("JSONValue")) {
     out.push("typedef struct ps_jsonvalue ps_jsonvalue;");
+  }
+  if (protoMap && protoMap.size > 0) {
+    for (const name of protoMap.keys()) {
+      out.push(`typedef struct ${name} ${name};`);
+    }
+    for (const [name, p] of protoMap.entries()) {
+      const fields = collectProtoFields(protoMap, name);
+      out.push(`struct ${name} {`);
+      if (fields.length === 0) {
+        out.push("  uint8_t __empty;");
+      } else {
+        for (const f of fields) {
+          const t = typeof f.type === "string" ? f.type : f.type?.name;
+          out.push(`  ${cTypeFromName(t || "int")} ${f.name};`);
+        }
+      }
+      out.push("};");
+    }
   }
   for (const t of typeNames) {
     const p = parseContainer(t);
@@ -2021,6 +2082,13 @@ function emitInstr(i, fnInf, state) {
         }
       }
       break;
+    case "make_object":
+      {
+        const rt = t(i.dst);
+        if (PROTO_MAP.has(rt)) out.push(`${n(i.dst)} = (${rt}*)calloc(1, sizeof(${rt}));`);
+        else out.push(`${n(i.dst)} = 0;`);
+      }
+      break;
     case "member_get":
       {
         const rt = t(i.target);
@@ -2032,8 +2100,20 @@ function emitInstr(i, fnInf, state) {
           else if (i.name === "line") out.push(`${n(i.dst)} = ${n(i.target)}->line;`);
           else if (i.name === "column") out.push(`${n(i.dst)} = ${n(i.target)}->column;`);
           else out.push(`${n(i.dst)} = (ps_string){\"\",0};`);
+        } else if (PROTO_MAP.has(rt)) {
+          out.push(`${n(i.dst)} = ${n(i.target)}->${i.name};`);
         } else {
           out.push(`/* member_get ${i.name} */ ${n(i.dst)} = 0;`);
+        }
+      }
+      break;
+    case "member_set":
+      {
+        const rt = t(i.target);
+        if (PROTO_MAP.has(rt)) {
+          out.push(`${n(i.target)}->${i.name} = ${n(i.src)};`);
+        } else {
+          out.push(`/* member_set ${i.name} */`);
         }
       }
       break;
@@ -2156,14 +2236,17 @@ function emitFunctionBody(fn, fnInf) {
 
   if (ret === "void") out.push("  return;");
   else if (fn.name === "main") out.push("  return 0;");
+  else if (ret.endsWith("*")) out.push("  return NULL;");
   else out.push(`  return (${ret}){0};`);
   out.push("}");
   return out;
 }
 
 function generateC(ir) {
-  const inferred = inferTempTypes(ir);
+  const protoMap = buildProtoMap(ir);
+  const inferred = inferTempTypes(ir, protoMap);
   const typeNames = collectTypeNames(ir, inferred);
+  PROTO_MAP = protoMap;
   const out = [];
   out.push("/* ProtoScript V2 reference C backend (non-optimized) */");
   out.push("/* This C is intended as a semantic oracle. */");
@@ -2178,7 +2261,7 @@ function generateC(ir) {
   out.push("#include <limits.h>");
   out.push("#include <setjmp.h>");
   out.push("");
-  out.push(...emitTypeDecls(typeNames));
+  out.push(...emitTypeDecls(typeNames, PROTO_MAP));
   out.push("");
   out.push(...emitRuntimeHelpers());
   out.push("");

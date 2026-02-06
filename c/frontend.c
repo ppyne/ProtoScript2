@@ -1350,6 +1350,76 @@ static int parse_function_decl(Parser *p) {
   return ok;
 }
 
+static int parse_prototype_decl(Parser *p) {
+  Token *pkw = p_t(p, 0);
+  if (!p_eat(p, TK_KW, "prototype")) return 0;
+  Token *name = p_t(p, 0);
+  if (!p_eat(p, TK_ID, NULL)) return 0;
+  AstNode *proto = NULL;
+  if (!p_ast_add(p, "PrototypeDecl", name->text, pkw->line, pkw->col, &proto)) return 0;
+  if (!p_ast_push(p, proto)) return 0;
+
+  if (p_at(p, TK_SYM, ":")) {
+    p_eat(p, TK_SYM, ":");
+    Token *parent = p_t(p, 0);
+    if (!p_eat(p, TK_ID, NULL)) return 0;
+    AstNode *pn = ast_new("Parent", parent->text ? parent->text : "", parent->line, parent->col);
+    if (!pn || !ast_add_child(proto, pn)) return 0;
+  }
+
+  if (!p_eat(p, TK_SYM, "{")) return 0;
+  while (!p_at(p, TK_SYM, "}")) {
+    if (p_at(p, TK_EOF, NULL)) {
+      set_diag(p->diag, p->file, pkw->line, pkw->col, "E1002", "PARSE_UNCLOSED_BLOCK", "Unclosed prototype");
+      p_ast_pop(p);
+      return 0;
+    }
+    if (p_at(p, TK_KW, "function")) {
+      if (!parse_function_decl(p)) {
+        p_ast_pop(p);
+        return 0;
+      }
+      continue;
+    }
+    size_t type_start = p->i;
+    Token *tt = p_t(p, 0);
+    if (!parse_type(p)) {
+      p_ast_pop(p);
+      return 0;
+    }
+    size_t type_end = p->i;
+    Token *fname = p_t(p, 0);
+    if (!p_eat(p, TK_ID, NULL)) {
+      p_ast_pop(p);
+      return 0;
+    }
+    if (!p_eat(p, TK_SYM, ";")) {
+      p_ast_pop(p);
+      return 0;
+    }
+    AstNode *field = ast_new("FieldDecl", fname->text, tt->line, tt->col);
+    if (!field) {
+      p_ast_pop(p);
+      return 0;
+    }
+    char *type_txt = token_span_text(p, type_start, type_end);
+    AstNode *tn = ast_new("Type", type_txt ? type_txt : "", tt->line, tt->col);
+    free(type_txt);
+    if (!tn || !ast_add_child(field, tn) || !ast_add_child(proto, field)) {
+      ast_free(tn);
+      ast_free(field);
+      p_ast_pop(p);
+      return 0;
+    }
+  }
+  if (!p_eat(p, TK_SYM, "}")) {
+    p_ast_pop(p);
+    return 0;
+  }
+  p_ast_pop(p);
+  return 1;
+}
+
 static char *parse_module_path(Parser *p) {
   Token *t = p_t(p, 0);
   if (!t || (t->kind != TK_ID && t->kind != TK_KW)) return NULL;
@@ -1431,6 +1501,10 @@ static int parse_program(Parser *p) {
   while (!p_at(p, TK_EOF, NULL)) {
     if (p_at(p, TK_KW, "import")) {
       if (!parse_import_decl(p)) return 0;
+      continue;
+    }
+    if (p_at(p, TK_KW, "prototype")) {
+      if (!parse_prototype_decl(p)) return 0;
       continue;
     }
     if (p_at(p, TK_KW, "function")) {
@@ -1543,7 +1617,32 @@ typedef struct {
   ModuleRegistry *registry;
   ImportSymbol *imports;
   ImportNamespace *namespaces;
+  struct ProtoInfo *protos;
 } Analyzer;
+
+typedef struct ProtoField {
+  char *name;
+  char *type;
+  struct ProtoField *next;
+} ProtoField;
+
+typedef struct ProtoMethod {
+  char *name;
+  char *ret_type;
+  char **param_types;
+  int param_count;
+  struct ProtoMethod *next;
+} ProtoMethod;
+
+typedef struct ProtoInfo {
+  char *name;
+  char *parent;
+  int line;
+  int col;
+  ProtoField *fields;
+  ProtoMethod *methods;
+  struct ProtoInfo *next;
+} ProtoInfo;
 
 static void free_syms(Sym *s) {
   while (s) {
@@ -1613,6 +1712,117 @@ static void free_namespaces(ImportNamespace *n) {
     free(n);
     n = nx;
   }
+}
+
+static void free_protos(ProtoInfo *p) {
+  while (p) {
+    ProtoInfo *pn = p->next;
+    ProtoField *f = p->fields;
+    while (f) {
+      ProtoField *fn = f->next;
+      free(f->name);
+      free(f->type);
+      free(f);
+      f = fn;
+    }
+    ProtoMethod *m = p->methods;
+    while (m) {
+      ProtoMethod *mn = m->next;
+      free(m->name);
+      free(m->ret_type);
+      if (m->param_types) {
+        for (int i = 0; i < m->param_count; i++) free(m->param_types[i]);
+      }
+      free(m->param_types);
+      free(m);
+      m = mn;
+    }
+    free(p->name);
+    free(p->parent);
+    free(p);
+    p = pn;
+  }
+}
+
+static ProtoInfo *proto_find(ProtoInfo *list, const char *name) {
+  for (ProtoInfo *p = list; p; p = p->next) {
+    if (p->name && name && strcmp(p->name, name) == 0) return p;
+  }
+  return NULL;
+}
+
+static ProtoField *proto_find_field(ProtoInfo *list, const char *proto, const char *field) {
+  for (ProtoInfo *p = proto_find(list, proto); p; p = p->parent ? proto_find(list, p->parent) : NULL) {
+    for (ProtoField *f = p->fields; f; f = f->next) {
+      if (f->name && field && strcmp(f->name, field) == 0) return f;
+    }
+    if (!p->parent) break;
+  }
+  return NULL;
+}
+
+static ProtoMethod *proto_find_method(ProtoInfo *list, const char *proto, const char *method) {
+  for (ProtoInfo *p = proto_find(list, proto); p; p = p->parent ? proto_find(list, p->parent) : NULL) {
+    for (ProtoMethod *m = p->methods; m; m = m->next) {
+      if (m->name && method && strcmp(m->name, method) == 0) return m;
+    }
+    if (!p->parent) break;
+  }
+  return NULL;
+}
+
+static int proto_is_subtype(ProtoInfo *list, const char *child, const char *parent) {
+  if (!child || !parent) return 0;
+  if (strcmp(child, parent) == 0) return 1;
+  ProtoInfo *p = proto_find(list, child);
+  while (p && p->parent) {
+    if (strcmp(p->parent, parent) == 0) return 1;
+    p = proto_find(list, p->parent);
+  }
+  return 0;
+}
+
+typedef struct {
+  ProtoField **items;
+  size_t len;
+  size_t cap;
+} ProtoFieldVec;
+
+static int proto_field_vec_push(ProtoFieldVec *v, ProtoField *f) {
+  if (v->len == v->cap) {
+    size_t nc = v->cap == 0 ? 8 : v->cap * 2;
+    ProtoField **ni = (ProtoField **)realloc(v->items, nc * sizeof(ProtoField *));
+    if (!ni) return 0;
+    v->items = ni;
+    v->cap = nc;
+  }
+  v->items[v->len++] = f;
+  return 1;
+}
+
+static ProtoFieldVec proto_collect_fields(ProtoInfo *list, const char *proto) {
+  ProtoFieldVec out;
+  memset(&out, 0, sizeof(out));
+  ProtoInfo *chain[64];
+  size_t chain_len = 0;
+  ProtoInfo *cur = proto_find(list, proto);
+  while (cur && chain_len < 64) {
+    chain[chain_len++] = cur;
+    cur = cur->parent ? proto_find(list, cur->parent) : NULL;
+  }
+  for (size_t i = 0; i < chain_len; i++) {
+    ProtoInfo *p = chain[chain_len - 1 - i];
+    for (ProtoField *f = p->fields; f; f = f->next) {
+      if (!proto_field_vec_push(&out, f)) {
+        free(out.items);
+        out.items = NULL;
+        out.len = 0;
+        out.cap = 0;
+        return out;
+      }
+    }
+  }
+  return out;
 }
 
 static void skip_ws(const char **p) {
@@ -1982,6 +2192,126 @@ static int collect_imports(Analyzer *a, AstNode *root) {
   return 1;
 }
 
+static int proto_same_signature(ProtoMethod *a, ProtoMethod *b) {
+  if (!a || !b) return 0;
+  if (strcmp(a->ret_type ? a->ret_type : "void", b->ret_type ? b->ret_type : "void") != 0) return 0;
+  if (a->param_count != b->param_count) return 0;
+  for (int i = 0; i < a->param_count; i++) {
+    const char *at = a->param_types ? a->param_types[i] : NULL;
+    const char *bt = b->param_types ? b->param_types[i] : NULL;
+    if (!at || !bt || strcmp(at, bt) != 0) return 0;
+  }
+  return 1;
+}
+
+static int collect_prototypes(Analyzer *a, AstNode *root) {
+  for (size_t i = 0; i < root->child_len; i++) {
+    AstNode *pd = root->children[i];
+    if (strcmp(pd->kind, "PrototypeDecl") != 0) continue;
+    const char *name = pd->text ? pd->text : "";
+    if (proto_find(a->protos, name)) {
+      set_diag(a->diag, a->file, pd->line, pd->col, "E2001", "UNRESOLVED_NAME", "duplicate prototype");
+      return 0;
+    }
+    ProtoInfo *p = (ProtoInfo *)calloc(1, sizeof(ProtoInfo));
+    if (!p) return 0;
+    p->name = strdup(name);
+    p->line = pd->line;
+    p->col = pd->col;
+    AstNode *parent = ast_child_kind(pd, "Parent");
+    if (parent && parent->text) p->parent = strdup(parent->text);
+    p->next = a->protos;
+    a->protos = p;
+
+    for (size_t j = 0; j < pd->child_len; j++) {
+      AstNode *c = pd->children[j];
+      if (strcmp(c->kind, "FieldDecl") == 0) {
+        const char *fname = c->text ? c->text : "";
+        for (ProtoField *f = p->fields; f; f = f->next) {
+          if (f->name && strcmp(f->name, fname) == 0) {
+            set_diag(a->diag, a->file, c->line, c->col, "E2001", "UNRESOLVED_NAME", "duplicate field in prototype");
+            return 0;
+          }
+        }
+        AstNode *tn = ast_child_kind(c, "Type");
+        char *ft = canon_type(tn ? tn->text : "unknown");
+        ProtoField *nf = (ProtoField *)calloc(1, sizeof(ProtoField));
+        if (!nf) return 0;
+        nf->name = strdup(fname);
+        nf->type = ft ? ft : strdup("unknown");
+        nf->next = NULL;
+        if (!p->fields) {
+          p->fields = nf;
+        } else {
+          ProtoField *tail = p->fields;
+          while (tail->next) tail = tail->next;
+          tail->next = nf;
+        }
+      } else if (strcmp(c->kind, "FunctionDecl") == 0) {
+        const char *mname = c->text ? c->text : "";
+        for (ProtoMethod *m = p->methods; m; m = m->next) {
+          if (m->name && strcmp(m->name, mname) == 0) {
+            set_diag(a->diag, a->file, c->line, c->col, "E2001", "UNRESOLVED_NAME", "duplicate method in prototype");
+            return 0;
+          }
+        }
+        ProtoMethod *nm = (ProtoMethod *)calloc(1, sizeof(ProtoMethod));
+        if (!nm) return 0;
+        nm->name = strdup(mname);
+        AstNode *rt = ast_child_kind(c, "ReturnType");
+        nm->ret_type = canon_type(rt ? rt->text : "void");
+        int pc = 0;
+        for (size_t pi = 0; pi < c->child_len; pi++) {
+          if (strcmp(c->children[pi]->kind, "Param") == 0) pc++;
+        }
+        nm->param_count = pc;
+        if (pc > 0) {
+          nm->param_types = (char **)calloc((size_t)pc, sizeof(char *));
+          if (!nm->param_types) return 0;
+          int idx = 0;
+          for (size_t pi = 0; pi < c->child_len; pi++) {
+            AstNode *pn = c->children[pi];
+            if (strcmp(pn->kind, "Param") != 0) continue;
+            AstNode *pt = ast_child_kind(pn, "Type");
+            nm->param_types[idx++] = canon_type(pt ? pt->text : "unknown");
+          }
+        }
+        nm->next = NULL;
+        if (!p->methods) {
+          p->methods = nm;
+        } else {
+          ProtoMethod *tail = p->methods;
+          while (tail->next) tail = tail->next;
+          tail->next = nm;
+        }
+      }
+    }
+  }
+
+  for (ProtoInfo *p = a->protos; p; p = p->next) {
+    if (p->parent && !proto_find(a->protos, p->parent)) {
+      set_diag(a->diag, a->file, p->line, p->col, "E2001", "UNRESOLVED_NAME", "unknown parent prototype");
+      return 0;
+    }
+    if (p->parent) {
+      for (ProtoField *f = p->fields; f; f = f->next) {
+        if (proto_find_field(a->protos, p->parent, f->name)) {
+          set_diag(a->diag, a->file, p->line, p->col, "E3001", "TYPE_MISMATCH_ASSIGNMENT", "field already defined in parent");
+          return 0;
+        }
+      }
+      for (ProtoMethod *m = p->methods; m; m = m->next) {
+        ProtoMethod *pm = proto_find_method(a->protos, p->parent, m->name);
+        if (pm && !proto_same_signature(pm, m)) {
+          set_diag(a->diag, a->file, p->line, p->col, "E3001", "TYPE_MISMATCH_ASSIGNMENT", "override signature mismatch");
+          return 0;
+        }
+      }
+    }
+  }
+  return 1;
+}
+
 static int add_fn(Analyzer *a, AstNode *fn) {
   FnSig *f = (FnSig *)calloc(1, sizeof(FnSig));
   if (!f) return 0;
@@ -2084,6 +2414,32 @@ static char *infer_call_type(Analyzer *a, AstNode *e, Scope *scope, int *ok) {
   if (strcmp(callee->kind, "MemberExpr") == 0 && callee->child_len > 0) {
     AstNode *target = callee->children[0];
     if (strcmp(target->kind, "Identifier") == 0) {
+      ProtoInfo *proto = proto_find(a->protos, target->text ? target->text : "");
+      if (proto) {
+        const char *mname = callee->text ? callee->text : "";
+        int argc = (int)e->child_len - 1;
+        if (strcmp(mname, "clone") == 0) {
+          if (argc != 0) {
+            set_diag(a->diag, a->file, e->line, e->col, "E3001", "TYPE_MISMATCH_ASSIGNMENT", "arity mismatch for 'clone'");
+            *ok = 0;
+            return NULL;
+          }
+          return strdup(proto->name ? proto->name : "unknown");
+        }
+        ProtoMethod *pm = proto_find_method(a->protos, proto->name, mname);
+        if (!pm) {
+          set_diag(a->diag, a->file, e->line, e->col, "E2001", "UNRESOLVED_NAME", "unknown prototype method");
+          *ok = 0;
+          return NULL;
+        }
+        int expected = pm->param_count + 1;
+        if (argc != expected) {
+          set_diag(a->diag, a->file, e->line, e->col, "E3001", "TYPE_MISMATCH_ASSIGNMENT", "arity mismatch");
+          *ok = 0;
+          return NULL;
+        }
+        return strdup(pm->ret_type ? pm->ret_type : "unknown");
+      }
       ImportNamespace *ns = find_namespace(a, target->text ? target->text : "");
       if (ns) {
         RegFn *rf = registry_find_fn(a->registry, ns->module, callee->text ? callee->text : "");
@@ -2101,6 +2457,24 @@ static char *infer_call_type(Analyzer *a, AstNode *e, Scope *scope, int *ok) {
       int argc = (int)e->child_len - 1;
       char *tt = infer_expr_type(a, target, scope, ok);
       if (tt) {
+        if (proto_find(a->protos, tt)) {
+          ProtoMethod *pm = proto_find_method(a->protos, tt, callee->text);
+          if (!pm) {
+            set_diag(a->diag, a->file, e->line, e->col, "E2001", "UNRESOLVED_NAME", "unknown prototype method");
+            *ok = 0;
+            free(tt);
+            return NULL;
+          }
+          if (argc != pm->param_count) {
+            set_diag(a->diag, a->file, e->line, e->col, "E3001", "TYPE_MISMATCH_ASSIGNMENT", "arity mismatch");
+            *ok = 0;
+            free(tt);
+            return NULL;
+          }
+          char *ret = strdup(pm->ret_type ? pm->ret_type : "unknown");
+          free(tt);
+          return ret;
+        }
         if (strcmp(tt, "string") == 0 && strcmp(callee->text, "view") == 0) {
           if (!(argc == 0 || argc == 2)) {
             set_diag(a->diag, a->file, e->line, e->col, "E3001", "TYPE_MISMATCH_ASSIGNMENT", "arity mismatch");
@@ -2161,6 +2535,22 @@ static char *infer_expr_type(Analyzer *a, AstNode *e, Scope *scope, int *ok) {
           }
         }
       }
+      int ok2 = 1;
+      char *tt = infer_expr_type(a, target, scope, &ok2);
+      if (!ok2) {
+        free(tt);
+        *ok = 0;
+        return NULL;
+      }
+      if (tt && proto_find(a->protos, tt)) {
+        ProtoField *pf = proto_find_field(a->protos, tt, e->text ? e->text : "");
+        if (pf && pf->type) {
+          char *ret = strdup(pf->type);
+          free(tt);
+          return ret;
+        }
+      }
+      free(tt);
     }
     if (e->child_len > 0) return infer_expr_type(a, e->children[0], scope, ok);
     return strdup("unknown");
@@ -2247,6 +2637,24 @@ static char *infer_assignable_type(Analyzer *a, AstNode *lhs, Scope *scope, int 
   if (!lhs) return strdup("unknown");
   if (strcmp(lhs->kind, "Identifier") == 0) return strdup(scope_lookup(scope, lhs->text ? lhs->text : ""));
   if (strcmp(lhs->kind, "IndexExpr") == 0) return infer_expr_type(a, lhs, scope, ok);
+  if (strcmp(lhs->kind, "MemberExpr") == 0 && lhs->child_len > 0) {
+    int ok2 = 1;
+    char *tt = infer_expr_type(a, lhs->children[0], scope, &ok2);
+    if (!ok2) {
+      free(tt);
+      *ok = 0;
+      return NULL;
+    }
+    if (tt && proto_find(a->protos, tt)) {
+      ProtoField *pf = proto_find_field(a->protos, tt, lhs->text ? lhs->text : "");
+      if (pf && pf->type) {
+        char *ret = strdup(pf->type);
+        free(tt);
+        return ret;
+      }
+    }
+    free(tt);
+  }
   return strdup("unknown");
 }
 
@@ -2299,11 +2707,12 @@ static int analyze_stmt(Analyzer *a, AstNode *st, Scope *scope) {
         return 0;
       }
       if (lhs && rhs && strcmp(lhs, rhs) != 0 && strcmp(rhs, "unknown") != 0) {
+        int allow_sub = proto_is_subtype(a->protos, rhs, lhs);
         int empty_map_init =
             (init && strcmp(init->kind, "MapLiteral") == 0 && init->child_len == 0 && lhs && strncmp(lhs, "map<", 4) == 0);
         int empty_list_init =
             (init && strcmp(init->kind, "ListLiteral") == 0 && init->child_len == 0 && lhs && strncmp(lhs, "list<", 5) == 0);
-        if (!empty_map_init && !empty_list_init) {
+        if (!allow_sub && !empty_map_init && !empty_list_init) {
         char msg[160];
         snprintf(msg, sizeof(msg), "cannot assign %s to %s", rhs, lhs);
         set_diag(a->diag, a->file, st->line, st->col, "E3001", "TYPE_MISMATCH_ASSIGNMENT", msg);
@@ -2372,13 +2781,14 @@ static int analyze_stmt(Analyzer *a, AstNode *st, Scope *scope) {
       return 0;
     }
     if (lhs && rhs && strcmp(lhs, rhs) != 0) {
+      int allow_sub = proto_is_subtype(a->protos, rhs, lhs);
       int empty_map_assign =
           (st->child_len >= 2 && st->children[1] && strcmp(st->children[1]->kind, "MapLiteral") == 0 &&
            st->children[1]->child_len == 0 && lhs && strncmp(lhs, "map<", 4) == 0);
       int empty_list_assign =
           (st->child_len >= 2 && st->children[1] && strcmp(st->children[1]->kind, "ListLiteral") == 0 &&
            st->children[1]->child_len == 0 && lhs && strncmp(lhs, "list<", 5) == 0);
-      if (!empty_map_assign && !empty_list_assign) {
+      if (!allow_sub && !empty_map_assign && !empty_list_assign) {
       char msg[160];
       snprintf(msg, sizeof(msg), "cannot assign %s to %s", rhs, lhs);
       set_diag(a->diag, a->file, st->line, st->col, "E3001", "TYPE_MISMATCH_ASSIGNMENT", msg);
@@ -2514,6 +2924,37 @@ static int analyze_function(Analyzer *a, AstNode *fn) {
   return ok;
 }
 
+static int analyze_method(Analyzer *a, AstNode *fn, const char *self_type) {
+  Scope root;
+  memset(&root, 0, sizeof(root));
+  root.parent = NULL;
+  if (self_type) {
+    char *st = canon_type(self_type);
+    if (!st || !scope_define(&root, "self", st, -1)) {
+      free(st);
+      free_syms(root.syms);
+      return 0;
+    }
+    free(st);
+  }
+  for (size_t i = 0; i < fn->child_len; i++) {
+    AstNode *c = fn->children[i];
+    if (strcmp(c->kind, "Param") != 0) continue;
+    AstNode *tn = ast_child_kind(c, "Type");
+    char *tt = canon_type(tn ? tn->text : "unknown");
+    if (!tt || !scope_define(&root, c->text ? c->text : "", tt, -1)) {
+      free(tt);
+      free_syms(root.syms);
+      return 0;
+    }
+    free(tt);
+  }
+  AstNode *blk = ast_child_kind(fn, "Block");
+  int ok = blk ? analyze_block(a, blk, &root) : 1;
+  free_syms(root.syms);
+  return ok;
+}
+
 static int parse_file_internal(const char *file, PsDiag *out_diag, AstNode **out_root) {
   memset(out_diag, 0, sizeof(*out_diag));
   size_t n = 0;
@@ -2617,6 +3058,7 @@ typedef struct {
   ImportSymbol *imports;
   ImportNamespace *namespaces;
   ModuleRegistry *registry;
+  ProtoInfo *protos;
 } IrFnCtx;
 
 static void str_vec_free(StrVec *v) {
@@ -2909,6 +3351,18 @@ static char *ir_guess_expr_type(AstNode *e, IrFnCtx *ctx) {
           }
         }
       }
+      if (e->child_len > 0) {
+        char *tt = ir_guess_expr_type(e->children[0], ctx);
+        if (tt && proto_find(ctx->protos, tt)) {
+          ProtoField *pf = proto_find_field(ctx->protos, tt, e->text ? e->text : "");
+          if (pf && pf->type) {
+            char *ret = strdup(pf->type);
+            free(tt);
+            return ret;
+          }
+        }
+        free(tt);
+      }
     }
     return (e->child_len > 0) ? ir_guess_expr_type(e->children[0], ctx) : strdup("unknown");
   }
@@ -2928,9 +3382,24 @@ static char *ir_guess_expr_type(AstNode *e, IrFnCtx *ctx) {
       return strdup(f ? f->ret_type : "unknown");
     }
     if (strcmp(c->kind, "MemberExpr") == 0 && c->text) {
+      if (c->child_len > 0 && strcmp(c->children[0]->kind, "Identifier") == 0) {
+        const char *target = c->children[0]->text ? c->children[0]->text : "";
+        ProtoInfo *proto = proto_find(ctx->protos, target);
+        if (proto) {
+          if (strcmp(c->text, "clone") == 0) return strdup(proto->name ? proto->name : "unknown");
+          ProtoMethod *pm = proto_find_method(ctx->protos, proto->name, c->text);
+          return strdup(pm && pm->ret_type ? pm->ret_type : "unknown");
+        }
+      }
       char *recv_t = (c->child_len > 0) ? ir_guess_expr_type(c->children[0], ctx) : NULL;
       const char *m = c->text;
       if (recv_t) {
+        if (proto_find(ctx->protos, recv_t)) {
+          ProtoMethod *pm = proto_find_method(ctx->protos, recv_t, m);
+          char *ret = strdup(pm && pm->ret_type ? pm->ret_type : "unknown");
+          free(recv_t);
+          return ret;
+        }
         if (strcmp(recv_t, "int") == 0) {
           if (strcmp(m, "toByte") == 0) return strdup("byte");
           if (strcmp(m, "toFloat") == 0) return strdup("float");
@@ -3070,6 +3539,41 @@ static char *ir_guess_expr_type(AstNode *e, IrFnCtx *ctx) {
   return strdup("unknown");
 }
 
+static char *ir_emit_default_value(IrFnCtx *ctx, const char *type) {
+  char *dst = ir_next_tmp(ctx);
+  if (!dst) return NULL;
+  const char *t = type ? type : "unknown";
+  char *d_esc = json_escape(dst);
+  if (strcmp(t, "int") == 0) {
+    ir_emit(ctx, str_printf("{\"op\":\"const\",\"dst\":\"%s\",\"literalType\":\"int\",\"value\":\"0\"}", d_esc ? d_esc : ""));
+  } else if (strcmp(t, "byte") == 0) {
+    ir_emit(ctx, str_printf("{\"op\":\"const\",\"dst\":\"%s\",\"literalType\":\"byte\",\"value\":\"0\"}", d_esc ? d_esc : ""));
+  } else if (strcmp(t, "float") == 0) {
+    ir_emit(ctx, str_printf("{\"op\":\"const\",\"dst\":\"%s\",\"literalType\":\"float\",\"value\":\"0\"}", d_esc ? d_esc : ""));
+  } else if (strcmp(t, "bool") == 0) {
+    ir_emit(ctx, str_printf("{\"op\":\"const\",\"dst\":\"%s\",\"literalType\":\"bool\",\"value\":false}", d_esc ? d_esc : ""));
+  } else if (strcmp(t, "glyph") == 0) {
+    ir_emit(ctx, str_printf("{\"op\":\"const\",\"dst\":\"%s\",\"literalType\":\"glyph\",\"value\":\"0\"}", d_esc ? d_esc : ""));
+  } else if (strcmp(t, "string") == 0) {
+    ir_emit(ctx, str_printf("{\"op\":\"const\",\"dst\":\"%s\",\"literalType\":\"string\",\"value\":\"\"}", d_esc ? d_esc : ""));
+  } else if (proto_find(ctx->protos, t)) {
+    char *callee = str_printf("%s.clone", t);
+    char *callee_esc = json_escape(callee ? callee : "");
+    ir_emit(ctx, str_printf("{\"op\":\"call_static\",\"dst\":\"%s\",\"callee\":\"%s\",\"args\":[],\"variadic\":false}", d_esc ? d_esc : "",
+                            callee_esc ? callee_esc : ""));
+    free(callee);
+    free(callee_esc);
+  } else if (strncmp(t, "list<", 5) == 0) {
+    ir_emit(ctx, str_printf("{\"op\":\"make_list\",\"dst\":\"%s\",\"items\":[]}", d_esc ? d_esc : ""));
+  } else if (strncmp(t, "map<", 4) == 0) {
+    ir_emit(ctx, str_printf("{\"op\":\"make_map\",\"dst\":\"%s\",\"pairs\":[]}", d_esc ? d_esc : ""));
+  } else {
+    ir_emit(ctx, str_printf("{\"op\":\"const\",\"dst\":\"%s\",\"literalType\":\"int\",\"value\":\"0\"}", d_esc ? d_esc : ""));
+  }
+  free(d_esc);
+  return dst;
+}
+
 static char *ir_lower_expr(AstNode *e, IrFnCtx *ctx);
 
 static char *ir_lower_call(AstNode *e, IrFnCtx *ctx) {
@@ -3122,6 +3626,51 @@ static char *ir_lower_call(AstNode *e, IrFnCtx *ctx) {
   } else if (strcmp(callee->kind, "MemberExpr") == 0 && callee->child_len > 0) {
     AstNode *recv_ast = callee->children[0];
     if (strcmp(recv_ast->kind, "Identifier") == 0) {
+      ProtoInfo *proto = proto_find(ctx->protos, recv_ast->text ? recv_ast->text : "");
+      if (proto) {
+        char *dst_esc = json_escape(dst);
+        char *args_json = strdup("");
+        for (size_t i = 0; i < argc; i++) {
+          char *arg_esc = json_escape(args[i]);
+          char *prev = args_json;
+          args_json = str_printf("%s%s\"%s\"", prev, (i == 0 ? "" : ","), arg_esc ? arg_esc : "");
+          free(prev);
+          free(arg_esc);
+        }
+        char *callee_full = NULL;
+        if (strcmp(callee->text ? callee->text : "", "clone") == 0) {
+          callee_full = str_printf("%s.clone", proto->name ? proto->name : "");
+          char *callee_esc = json_escape(callee_full ? callee_full : "");
+          char *ins = str_printf("{\"op\":\"call_static\",\"dst\":\"%s\",\"callee\":\"%s\",\"args\":[],\"variadic\":false}",
+                                 dst_esc ? dst_esc : "", callee_esc ? callee_esc : "");
+          free(callee_esc);
+          free(callee_full);
+          free(args_json);
+          if (!ir_emit(ctx, ins)) {
+            free(dst);
+            dst = NULL;
+          }
+          for (size_t i = 0; i < argc; i++) free(args[i]);
+          free(args);
+          return dst;
+        }
+        callee_full = str_printf("%s.%s", proto->name ? proto->name : "", callee->text ? callee->text : "");
+        char *callee_esc = json_escape(callee_full ? callee_full : "");
+        char *ins = str_printf(
+            "{\"op\":\"call_static\",\"dst\":\"%s\",\"callee\":\"%s\",\"args\":[%s],\"variadic\":false}",
+            dst_esc ? dst_esc : "", callee_esc ? callee_esc : "", args_json ? args_json : "");
+        free(dst_esc);
+        free(callee_esc);
+        free(callee_full);
+        free(args_json);
+        if (!ir_emit(ctx, ins)) {
+          free(dst);
+          dst = NULL;
+        }
+        for (size_t i = 0; i < argc; i++) free(args[i]);
+        free(args);
+        return dst;
+      }
       ImportNamespace *ns = ir_find_namespace(ctx, recv_ast->text ? recv_ast->text : "");
       if (ns) {
         char *dst_esc = json_escape(dst);
@@ -3156,9 +3705,45 @@ static char *ir_lower_call(AstNode *e, IrFnCtx *ctx) {
       free(dst);
       dst = NULL;
     } else {
+      char *recv_type = ir_guess_expr_type(recv_ast, ctx);
       char *recv_esc = json_escape(recv);
       char *dst_esc = json_escape(dst);
       char *method_esc = json_escape(callee->text ? callee->text : "");
+      if (recv_type && proto_find(ctx->protos, recv_type)) {
+        char *args_json = strdup("");
+        char *recv_arg = json_escape(recv);
+        char *prev = args_json;
+        args_json = str_printf("%s\"%s\"", prev ? prev : "", recv_arg ? recv_arg : "");
+        free(prev);
+        free(recv_arg);
+        for (size_t i = 0; i < argc; i++) {
+          char *arg_esc = json_escape(args[i]);
+          char *prev2 = args_json;
+          args_json = str_printf("%s,\"%s\"", prev2 ? prev2 : "", arg_esc ? arg_esc : "");
+          free(prev2);
+          free(arg_esc);
+        }
+        char *callee_full = str_printf("%s.%s", recv_type, callee->text ? callee->text : "");
+        char *callee_esc = json_escape(callee_full ? callee_full : "");
+        char *ins = str_printf(
+            "{\"op\":\"call_static\",\"dst\":\"%s\",\"callee\":\"%s\",\"args\":[%s],\"variadic\":false}",
+            dst_esc ? dst_esc : "", callee_esc ? callee_esc : "", args_json ? args_json : "");
+        free(callee_full);
+        free(callee_esc);
+        free(args_json);
+        if (!ir_emit(ctx, ins)) {
+          free(dst);
+          dst = NULL;
+        }
+        free(recv_esc);
+        free(dst_esc);
+        free(method_esc);
+        free(recv);
+        free(recv_type);
+        for (size_t i = 0; i < argc; i++) free(args[i]);
+        free(args);
+        return dst;
+      }
       if (strcmp(callee->text ? callee->text : "", "toString") == 0) {
         char *ins = str_printf("{\"op\":\"call_builtin_tostring\",\"dst\":\"%s\",\"value\":\"%s\"}", dst_esc ? dst_esc : "",
                                recv_esc ? recv_esc : "");
@@ -3271,6 +3856,7 @@ static char *ir_lower_call(AstNode *e, IrFnCtx *ctx) {
       free(dst_esc);
       free(method_esc);
       free(recv);
+      free(recv_type);
     }
   } else {
     char *dst_esc = json_escape(dst);
@@ -3716,6 +4302,24 @@ static int ir_lower_stmt(AstNode *st, IrFnCtx *ctx) {
       free(t);
       free(i);
       free(lhs_t);
+      return ir_emit(ctx, ins);
+    }
+    if (strcmp(lhs->kind, "MemberExpr") == 0 && lhs->child_len >= 1) {
+      char *t = ir_lower_expr(lhs->children[0], ctx);
+      if (!t) {
+        free(v);
+        return 0;
+      }
+      char *t_esc = json_escape(t);
+      char *n_esc = json_escape(lhs->text ? lhs->text : "");
+      char *v_esc = json_escape(v);
+      char *ins = str_printf("{\"op\":\"member_set\",\"target\":\"%s\",\"name\":\"%s\",\"src\":\"%s\"}", t_esc ? t_esc : "",
+                             n_esc ? n_esc : "", v_esc ? v_esc : "");
+      free(t_esc);
+      free(n_esc);
+      free(v_esc);
+      free(v);
+      free(t);
       return ir_emit(ctx, ins);
     }
     free(v);
@@ -4361,6 +4965,15 @@ int ps_emit_ir_json(const char *file, PsDiag *out_diag, FILE *out) {
     free_registry(a.registry);
     return 1;
   }
+  if (!collect_prototypes(&a, root)) {
+    ast_free(root);
+    free_fns(a.fns);
+    free_imports(a.imports);
+    free_namespaces(a.namespaces);
+    free_registry(a.registry);
+    free_protos(a.protos);
+    return 1;
+  }
 
   fputs("{\n", out);
   fputs("  \"ir_version\": \"1.0.0\",\n", out);
@@ -4415,6 +5028,35 @@ int ps_emit_ir_json(const char *file, PsDiag *out_diag, FILE *out) {
     s->next = fn_sigs;
     fn_sigs = s;
   }
+  for (ProtoInfo *p = a.protos; p; p = p->next) {
+    if (!p->name) continue;
+    IrFnSig *clone = (IrFnSig *)calloc(1, sizeof(IrFnSig));
+    if (!clone) {
+      ast_free(root);
+      ir_free_fn_sigs(fn_sigs);
+      set_diag(out_diag, file, 1, 1, "E0002", "INTERNAL_ERROR", "IR signature allocation failure");
+      return 2;
+    }
+    clone->name = str_printf("%s.clone", p->name);
+    clone->ret_type = strdup(p->name);
+    clone->variadic = 0;
+    clone->next = fn_sigs;
+    fn_sigs = clone;
+    for (ProtoMethod *m = p->methods; m; m = m->next) {
+      IrFnSig *ms = (IrFnSig *)calloc(1, sizeof(IrFnSig));
+      if (!ms) {
+        ast_free(root);
+        ir_free_fn_sigs(fn_sigs);
+        set_diag(out_diag, file, 1, 1, "E0002", "INTERNAL_ERROR", "IR signature allocation failure");
+        return 2;
+      }
+      ms->name = str_printf("%s.%s", p->name, m->name ? m->name : "");
+      ms->ret_type = strdup(m->ret_type ? m->ret_type : "void");
+      ms->variadic = 0;
+      ms->next = fn_sigs;
+      fn_sigs = ms;
+    }
+  }
 
   int first_fn = 1;
   for (size_t fi = 0; fi < root->child_len; fi++) {
@@ -4429,6 +5071,7 @@ int ps_emit_ir_json(const char *file, PsDiag *out_diag, FILE *out) {
     ctx.imports = a.imports;
     ctx.namespaces = a.namespaces;
     ctx.registry = a.registry;
+    ctx.protos = a.protos;
     if (!ir_add_block(&ctx, "entry", &ctx.cur_block)) {
       ast_free(root);
       ir_free_fn_sigs(fn_sigs);
@@ -4522,6 +5165,220 @@ int ps_emit_ir_json(const char *file, PsDiag *out_diag, FILE *out) {
     ir_var_type_vec_free(&ctx.vars);
   }
 
+  for (size_t pi = 0; pi < root->child_len; pi++) {
+    AstNode *pd = root->children[pi];
+    if (strcmp(pd->kind, "PrototypeDecl") != 0) continue;
+    const char *proto_name = pd->text ? pd->text : "";
+
+    for (size_t mi = 0; mi < pd->child_len; mi++) {
+      AstNode *m = pd->children[mi];
+      if (strcmp(m->kind, "FunctionDecl") != 0) continue;
+      if (!first_fn) fputs(",\n", out);
+      first_fn = 0;
+
+      IrFnCtx ctx;
+      memset(&ctx, 0, sizeof(ctx));
+      ctx.fn_sigs = fn_sigs;
+      ctx.imports = a.imports;
+      ctx.namespaces = a.namespaces;
+      ctx.registry = a.registry;
+      ctx.protos = a.protos;
+      if (!ir_add_block(&ctx, "entry", &ctx.cur_block)) {
+        ast_free(root);
+        ir_free_fn_sigs(fn_sigs);
+        free_fns(a.fns);
+        free_imports(a.imports);
+        free_namespaces(a.namespaces);
+        free_registry(a.registry);
+        free_protos(a.protos);
+        set_diag(out_diag, file, 1, 1, "E0002", "INTERNAL_ERROR", "IR block allocation failure");
+        return 2;
+      }
+      if (!ir_set_var_type(&ctx, "self", proto_name)) {
+        ir_block_vec_free(&ctx.blocks);
+        ir_var_type_vec_free(&ctx.vars);
+        ast_free(root);
+        ir_free_fn_sigs(fn_sigs);
+        set_diag(out_diag, file, 1, 1, "E0002", "INTERNAL_ERROR", "IR param allocation failure");
+        return 2;
+      }
+      for (size_t pj = 0; pj < m->child_len; pj++) {
+        AstNode *p = m->children[pj];
+        if (strcmp(p->kind, "Param") != 0) continue;
+        AstNode *pt = ast_child_kind(p, "Type");
+        char *ptn = ast_type_to_ir_name(pt);
+        if (!ptn || !ir_set_var_type(&ctx, p->text ? p->text : "", ptn)) {
+          free(ptn);
+          ir_block_vec_free(&ctx.blocks);
+          ir_var_type_vec_free(&ctx.vars);
+          ast_free(root);
+          ir_free_fn_sigs(fn_sigs);
+          set_diag(out_diag, file, 1, 1, "E0002", "INTERNAL_ERROR", "IR param allocation failure");
+          return 2;
+        }
+        free(ptn);
+      }
+      AstNode *blk = ast_child_kind(m, "Block");
+      if (blk && !ir_lower_stmt(blk, &ctx)) {
+        ir_block_vec_free(&ctx.blocks);
+        ir_var_type_vec_free(&ctx.vars);
+        ast_free(root);
+        ir_free_fn_sigs(fn_sigs);
+        set_diag(out_diag, file, 1, 1, "E0002", "INTERNAL_ERROR", "IR lowering allocation failure");
+        return 2;
+      }
+      AstNode *rt = ast_child_kind(m, "ReturnType");
+      char *ret = ast_type_to_ir_name(rt);
+      if (!ir_fn_terminated(&ctx)) {
+        if (ret && strcmp(ret, "void") == 0)
+          ir_emit(&ctx, strdup("{\"op\":\"ret_void\"}"));
+        else
+          ir_emit(&ctx, strdup("{\"op\":\"ret\",\"value\":\"0\",\"type\":{\"kind\":\"IRType\",\"name\":\"unknown\"}}"));
+      }
+
+      char *full_name = str_printf("%s.%s", proto_name, m->text ? m->text : "");
+      char *fn_name = json_escape(full_name ? full_name : "");
+      free(full_name);
+      char *ret_esc = json_escape(ret ? ret : "void");
+      fprintf(out, "      {\n");
+      fprintf(out, "        \"kind\": \"Function\",\n");
+      fprintf(out, "        \"name\": \"%s\",\n", fn_name ? fn_name : "");
+      fputs("        \"params\": [", out);
+      char *self_esc = json_escape("self");
+      char *self_type_esc = json_escape(proto_name);
+      fprintf(out, "{\"name\":\"%s\",\"type\":{\"kind\":\"IRType\",\"name\":\"%s\"},\"variadic\":false}",
+              self_esc ? self_esc : "self", self_type_esc ? self_type_esc : proto_name);
+      free(self_esc);
+      free(self_type_esc);
+      for (size_t pj = 0; pj < m->child_len; pj++) {
+        AstNode *p = m->children[pj];
+        if (strcmp(p->kind, "Param") != 0) continue;
+        AstNode *pt = ast_child_kind(p, "Type");
+        AstNode *pv = ast_child_kind(p, "Variadic");
+        char *pn = json_escape(p->text ? p->text : "");
+        char *ptn_raw = ast_type_to_ir_name(pt);
+        char *ptn = json_escape(ptn_raw ? ptn_raw : "unknown");
+        fprintf(out, ",{\"name\":\"%s\",\"type\":{\"kind\":\"IRType\",\"name\":\"%s\"},\"variadic\":%s}",
+                pn ? pn : "", ptn ? ptn : "", pv ? "true" : "false");
+        free(pn);
+        free(ptn_raw);
+        free(ptn);
+      }
+      fputs("],\n", out);
+      fprintf(out, "        \"returnType\": {\"kind\": \"IRType\", \"name\": \"%s\"},\n", ret_esc ? ret_esc : "void");
+      fputs("        \"blocks\": [\n", out);
+      for (size_t bi = 0; bi < ctx.blocks.len; bi++) {
+        IrBlock *b = &ctx.blocks.items[bi];
+        fprintf(out, "          {\n");
+        fprintf(out, "            \"kind\": \"Block\",\n");
+        fprintf(out, "            \"label\": \"%s\",\n", b->label ? b->label : "entry");
+        fputs("            \"instrs\": [\n", out);
+        for (size_t ii = 0; ii < b->instrs.len; ii++) {
+          fprintf(out, "              %s%s\n", b->instrs.items[ii], (ii + 1 < b->instrs.len) ? "," : "");
+        }
+        fputs("            ]\n", out);
+        fprintf(out, "          }%s\n", (bi + 1 < ctx.blocks.len) ? "," : "");
+      }
+      fputs("        ]\n", out);
+      fputs("      }", out);
+
+      free(fn_name);
+      free(ret_esc);
+      free(ret);
+      ir_block_vec_free(&ctx.blocks);
+      ir_var_type_vec_free(&ctx.vars);
+    }
+
+    if (!first_fn) fputs(",\n", out);
+    first_fn = 0;
+
+    IrFnCtx ctx;
+    memset(&ctx, 0, sizeof(ctx));
+    ctx.fn_sigs = fn_sigs;
+    ctx.imports = a.imports;
+    ctx.namespaces = a.namespaces;
+    ctx.registry = a.registry;
+    ctx.protos = a.protos;
+    if (!ir_add_block(&ctx, "entry", &ctx.cur_block)) {
+      ast_free(root);
+      ir_free_fn_sigs(fn_sigs);
+      free_fns(a.fns);
+      free_imports(a.imports);
+      free_namespaces(a.namespaces);
+      free_registry(a.registry);
+      free_protos(a.protos);
+      set_diag(out_diag, file, 1, 1, "E0002", "INTERNAL_ERROR", "IR block allocation failure");
+      return 2;
+    }
+    char *dst = ir_next_tmp(&ctx);
+    char *d_esc = json_escape(dst ? dst : "");
+    char *p_esc = json_escape(proto_name);
+    if (!dst || !ir_emit(&ctx, str_printf("{\"op\":\"make_object\",\"dst\":\"%s\",\"proto\":\"%s\"}", d_esc ? d_esc : "", p_esc ? p_esc : ""))) {
+      free(dst);
+      free(d_esc);
+      free(p_esc);
+      ir_block_vec_free(&ctx.blocks);
+      ir_var_type_vec_free(&ctx.vars);
+      ast_free(root);
+      ir_free_fn_sigs(fn_sigs);
+      set_diag(out_diag, file, 1, 1, "E0002", "INTERNAL_ERROR", "IR lowering allocation failure");
+      return 2;
+    }
+    free(d_esc);
+    free(p_esc);
+    ProtoFieldVec fv = proto_collect_fields(a.protos, proto_name);
+    for (size_t fi = 0; fi < fv.len; fi++) {
+      ProtoField *f = fv.items[fi];
+      char *val = ir_emit_default_value(&ctx, f && f->type ? f->type : "unknown");
+      if (!val) continue;
+      char *t_esc = json_escape(dst);
+      char *n_esc = json_escape(f ? f->name : "");
+      char *v_esc = json_escape(val);
+      ir_emit(&ctx, str_printf("{\"op\":\"member_set\",\"target\":\"%s\",\"name\":\"%s\",\"src\":\"%s\"}", t_esc ? t_esc : "",
+                               n_esc ? n_esc : "", v_esc ? v_esc : ""));
+      free(t_esc);
+      free(n_esc);
+      free(v_esc);
+      free(val);
+    }
+    free(fv.items);
+    char *dst_esc = json_escape(dst);
+    ir_emit(&ctx, str_printf("{\"op\":\"ret\",\"value\":\"%s\",\"type\":{\"kind\":\"IRType\",\"name\":\"%s\"}}", dst_esc ? dst_esc : "",
+                             proto_name));
+    free(dst_esc);
+    free(dst);
+
+    char *clone_name = str_printf("%s.clone", proto_name);
+    char *fn_name = json_escape(clone_name ? clone_name : "");
+    free(clone_name);
+    char *ret_esc = json_escape(proto_name);
+    fprintf(out, "      {\n");
+    fprintf(out, "        \"kind\": \"Function\",\n");
+    fprintf(out, "        \"name\": \"%s\",\n", fn_name ? fn_name : "");
+    fputs("        \"params\": [],\n", out);
+    fprintf(out, "        \"returnType\": {\"kind\": \"IRType\", \"name\": \"%s\"},\n", ret_esc ? ret_esc : "void");
+    fputs("        \"blocks\": [\n", out);
+    for (size_t bi = 0; bi < ctx.blocks.len; bi++) {
+      IrBlock *b = &ctx.blocks.items[bi];
+      fprintf(out, "          {\n");
+      fprintf(out, "            \"kind\": \"Block\",\n");
+      fprintf(out, "            \"label\": \"%s\",\n", b->label ? b->label : "entry");
+      fputs("            \"instrs\": [\n", out);
+      for (size_t ii = 0; ii < b->instrs.len; ii++) {
+        fprintf(out, "              %s%s\n", b->instrs.items[ii], (ii + 1 < b->instrs.len) ? "," : "");
+      }
+      fputs("            ]\n", out);
+      fprintf(out, "          }%s\n", (bi + 1 < ctx.blocks.len) ? "," : "");
+    }
+    fputs("        ]\n", out);
+    fputs("      }", out);
+
+    free(fn_name);
+    free(ret_esc);
+    ir_block_vec_free(&ctx.blocks);
+    ir_var_type_vec_free(&ctx.vars);
+  }
+
   fputs("\n    ]\n", out);
   fputs("  }\n", out);
   fputs("}\n", out);
@@ -4531,6 +5388,7 @@ int ps_emit_ir_json(const char *file, PsDiag *out_diag, FILE *out) {
   free_imports(a.imports);
   free_namespaces(a.namespaces);
   free_registry(a.registry);
+  free_protos(a.protos);
   return 0;
 }
 
@@ -4555,6 +5413,15 @@ int ps_check_file_static(const char *file, PsDiag *out_diag) {
     free_registry(a.registry);
     return 1;
   }
+  if (!collect_prototypes(&a, root)) {
+    ast_free(root);
+    free_fns(a.fns);
+    free_imports(a.imports);
+    free_namespaces(a.namespaces);
+    free_registry(a.registry);
+    free_protos(a.protos);
+    return 1;
+  }
 
   for (size_t i = 0; i < root->child_len; i++) {
     AstNode *fn = root->children[i];
@@ -4562,6 +5429,7 @@ int ps_check_file_static(const char *file, PsDiag *out_diag) {
       if (!add_fn(&a, fn)) {
         ast_free(root);
         free_fns(a.fns);
+        free_protos(a.protos);
         set_diag(out_diag, file, 1, 1, "E0002", "INTERNAL_ERROR", "analyzer allocation failure");
         return 2;
       }
@@ -4574,7 +5442,24 @@ int ps_check_file_static(const char *file, PsDiag *out_diag) {
     if (!analyze_function(&a, fn)) {
       ast_free(root);
       free_fns(a.fns);
+      free_protos(a.protos);
       return 1;
+    }
+  }
+
+  for (size_t i = 0; i < root->child_len; i++) {
+    AstNode *pd = root->children[i];
+    if (strcmp(pd->kind, "PrototypeDecl") != 0) continue;
+    const char *proto_name = pd->text ? pd->text : "";
+    for (size_t j = 0; j < pd->child_len; j++) {
+      AstNode *m = pd->children[j];
+      if (strcmp(m->kind, "FunctionDecl") != 0) continue;
+      if (!analyze_method(&a, m, proto_name)) {
+        ast_free(root);
+        free_fns(a.fns);
+        free_protos(a.protos);
+        return 1;
+      }
     }
   }
 
@@ -4583,5 +5468,6 @@ int ps_check_file_static(const char *file, PsDiag *out_diag) {
   free_imports(a.imports);
   free_namespaces(a.namespaces);
   free_registry(a.registry);
+  free_protos(a.protos);
   return 0;
 }

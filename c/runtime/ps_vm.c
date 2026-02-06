@@ -147,6 +147,7 @@ typedef struct {
   char *shift;
   int width;
   char *method;
+  char *proto;
   int readonly;
   char **args;
   size_t arg_count;
@@ -256,6 +257,7 @@ static IRInstr parse_instr(PS_JsonValue *obj) {
   PS_JsonValue *w = ps_json_obj_get(obj, "width");
   if (w && w->type == PS_JSON_NUMBER) ins.width = (int)w->as.num_v;
   ins.method = dup_json_string(ps_json_obj_get(obj, "method"));
+  ins.proto = dup_json_string(ps_json_obj_get(obj, "proto"));
   PS_JsonValue *ro = ps_json_obj_get(obj, "readonly");
   if (ro && ro->type == PS_JSON_BOOL) ins.readonly = ro->as.bool_v ? 1 : 0;
   PS_JsonValue *args = ps_json_obj_get(obj, "args");
@@ -308,6 +310,7 @@ static void free_instr(IRInstr *i) {
   free(i->elseValue);
   free(i->shift);
   free(i->method);
+  free(i->proto);
   if (i->args) {
     for (size_t j = 0; j < i->arg_count; j++) free(i->args[j]);
   }
@@ -774,6 +777,25 @@ static int exec_function(PS_Context *ctx, PS_IR_Module *m, IRFunction *f, PS_Val
         }
         ps_throw(ctx, PS_ERR_TYPE, "member access on non-object");
         goto raise;
+      }
+      if (strcmp(ins->op, "member_set") == 0) {
+        PS_Value *recv = get_value(&temps, &vars, ins->target);
+        PS_Value *val = get_value(&temps, &vars, ins->src);
+        if (recv && recv->tag == PS_V_OBJECT) {
+          if (!ps_object_set_str_internal(ctx, recv, ins->name ? ins->name : "", ins->name ? strlen(ins->name) : 0, val)) {
+            goto raise;
+          }
+          continue;
+        }
+        ps_throw(ctx, PS_ERR_TYPE, "member assignment on non-object");
+        goto raise;
+      }
+      if (strcmp(ins->op, "make_object") == 0) {
+        PS_Value *obj = ps_object_new(ctx);
+        if (!obj) goto raise;
+        bindings_set(&temps, ins->dst, obj);
+        ps_value_release(obj);
+        continue;
       }
       if (strcmp(ins->op, "check_div_zero") == 0) {
         PS_Value *v = get_value(&temps, &vars, ins->divisor);

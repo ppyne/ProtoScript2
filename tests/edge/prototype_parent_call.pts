@@ -1,0 +1,25 @@
+import Io;
+
+prototype Point {
+    int x;
+    function inc(int dx) : void {
+        self.x = self.x + dx;
+    }
+}
+
+prototype ColoredPoint : Point {
+    int color;
+    function inc(int dx) : void {
+        Point.inc(self, dx);
+        self.color = self.color + 1;
+    }
+}
+
+function main() : void {
+    ColoredPoint cp = ColoredPoint.clone();
+    cp.x = 1;
+    cp.color = 5;
+    cp.inc(2);
+    Io.printLine(cp.x.toString());
+    Io.printLine(cp.color.toString());
+}

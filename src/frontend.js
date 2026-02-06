@@ -417,6 +417,7 @@ class Parser {
     const imports = [];
     while (!this.at("eof")) {
       if (this.at("kw", "import")) imports.push(this.parseImportDecl());
+      else if (this.at("kw", "prototype")) decls.push(this.parsePrototypeDecl());
       else if (this.at("kw", "function")) decls.push(this.parseFunctionDecl());
       else {
         const tok = this.t();
@@ -426,6 +427,31 @@ class Parser {
       }
     }
     return { kind: "Program", imports, decls };
+  }
+
+  parsePrototypeDecl() {
+    const start = this.eat("kw", "prototype");
+    const name = this.eat("id").value;
+    let parent = null;
+    if (this.at("sym", ":")) {
+      this.eat("sym", ":");
+      parent = this.eat("id").value;
+    }
+    this.eat("sym", "{");
+    const fields = [];
+    const methods = [];
+    while (!this.at("sym", "}")) {
+      if (this.at("kw", "function")) {
+        methods.push(this.parseFunctionDecl());
+        continue;
+      }
+      const t = this.parseType();
+      const n = this.eat("id");
+      this.eat("sym", ";");
+      fields.push({ kind: "FieldDecl", type: t, name: n.value, line: n.line, col: n.col });
+    }
+    this.eat("sym", "}");
+    return { kind: "PrototypeDecl", name, parent, fields, methods, line: start.line, col: start.col };
   }
 
   parseModulePath() {
@@ -1036,6 +1062,7 @@ class Analyzer {
     this.file = file;
     this.ast = ast;
     this.functions = new Map();
+    this.prototypes = new Map();
     this.imported = new Map(); // local name -> { module, name, sig }
     this.namespaces = new Map(); // alias -> module
     this.moduleConsts = new Map(); // alias -> Map(name -> { type, value })
@@ -1048,13 +1075,110 @@ class Analyzer {
 
   analyze() {
     this.loadImports();
+    this.collectPrototypes();
     for (const d of this.ast.decls) {
       if (d.kind === "FunctionDecl") this.functions.set(d.name, d);
     }
+    for (const [name, p] of this.prototypes.entries()) {
+      for (const [mname, m] of p.methods.entries()) {
+        this.functions.set(`${name}.${mname}`, m);
+      }
+    }
     for (const d of this.ast.decls) {
       if (d.kind === "FunctionDecl") this.analyzeFunction(d);
+      if (d.kind === "PrototypeDecl") this.analyzePrototype(d);
     }
     return this.diags;
+  }
+
+  collectPrototypes() {
+    for (const d of this.ast.decls) {
+      if (d.kind !== "PrototypeDecl") continue;
+      if (this.prototypes.has(d.name)) {
+        this.addDiag(d, "E2001", "UNRESOLVED_NAME", `duplicate prototype '${d.name}'`);
+        continue;
+      }
+      const fields = new Map();
+      for (const f of d.fields || []) {
+        if (fields.has(f.name)) {
+          this.addDiag(f, "E2001", "UNRESOLVED_NAME", `duplicate field '${f.name}' in prototype '${d.name}'`);
+          continue;
+        }
+        fields.set(f.name, f.type);
+      }
+      const methods = new Map();
+      for (const m of d.methods || []) {
+        if (methods.has(m.name)) {
+          this.addDiag(m, "E2001", "UNRESOLVED_NAME", `duplicate method '${m.name}' in prototype '${d.name}'`);
+          continue;
+        }
+        methods.set(m.name, m);
+      }
+      this.prototypes.set(d.name, { decl: d, parent: d.parent || null, fields, methods });
+    }
+    for (const [name, p] of this.prototypes.entries()) {
+      if (p.parent && !this.prototypes.has(p.parent)) {
+        this.addDiag(p.decl, "E2001", "UNRESOLVED_NAME", `unknown parent prototype '${p.parent}'`);
+      }
+      const parent = this.prototypes.get(p.parent);
+      if (parent) {
+        for (const fieldName of p.fields.keys()) {
+          if (this.resolvePrototypeField(p.parent, fieldName)) {
+            this.addDiag(p.decl, "E3001", "TYPE_MISMATCH_ASSIGNMENT", `field '${fieldName}' already defined in parent`);
+          }
+        }
+        for (const [mname, m] of p.methods.entries()) {
+          const pm = this.resolvePrototypeMethod(p.parent, mname);
+          if (!pm) continue;
+          if (!this.sameSignature(pm, m)) {
+            this.addDiag(m, "E3001", "TYPE_MISMATCH_ASSIGNMENT", `override signature mismatch for '${mname}'`);
+          }
+        }
+      }
+    }
+  }
+
+  resolvePrototypeField(protoName, fieldName) {
+    let p = this.prototypes.get(protoName);
+    while (p) {
+      if (p.fields.has(fieldName)) return p.fields.get(fieldName);
+      if (!p.parent) break;
+      p = this.prototypes.get(p.parent);
+    }
+    return null;
+  }
+
+  resolvePrototypeMethod(protoName, methodName) {
+    let p = this.prototypes.get(protoName);
+    while (p) {
+      if (p.methods.has(methodName)) return p.methods.get(methodName);
+      if (!p.parent) break;
+      p = this.prototypes.get(p.parent);
+    }
+    return null;
+  }
+
+  sameSignature(a, b) {
+    if (!a || !b) return false;
+    if (a.params.length !== b.params.length) return false;
+    for (let i = 0; i < a.params.length; i += 1) {
+      if (!sameType(a.params[i].type, b.params[i].type)) return false;
+      if (!!a.params[i].variadic !== !!b.params[i].variadic) return false;
+    }
+    return sameType(a.retType, b.retType);
+  }
+
+  isSubtype(child, parent) {
+    if (!child || !parent) return false;
+    const cn = typeToString(child);
+    const pn = typeToString(parent);
+    if (cn === pn) return true;
+    let p = this.prototypes.get(cn);
+    while (p) {
+      if (p.parent === pn) return true;
+      p = p.parent ? this.prototypes.get(p.parent) : null;
+    }
+    return false;
   }
 
   loadImports() {
@@ -1101,6 +1225,18 @@ class Analyzer {
     this.analyzeBlock(fn.body, scope, fn);
   }
 
+  analyzePrototype(protoDecl) {
+    const protoName = protoDecl.name;
+    const entry = this.prototypes.get(protoName);
+    if (!entry) return;
+    for (const m of entry.methods.values()) {
+      const scope = new Scope(null);
+      scope.define("self", { kind: "NamedType", name: protoName }, true);
+      for (const p of m.params) scope.define(p.name, p.type, true);
+      this.analyzeBlock(m.body, scope, m);
+    }
+  }
+
   analyzeBlock(block, scope, fn) {
     const local = new Scope(scope);
     for (const s of block.stmts) this.analyzeStmt(s, local, fn);
@@ -1123,7 +1259,14 @@ class Analyzer {
             stmt.init.kind === "ListLiteral" &&
             stmt.init.items.length === 0 &&
             typeToString(t).startsWith("list<");
-          if (t && initType && !sameType(t, initType) && !emptyMapInit && !emptyListInit) {
+          if (
+            t &&
+            initType &&
+            !sameType(t, initType) &&
+            !this.isSubtype(initType, t) &&
+            !emptyMapInit &&
+            !emptyListInit
+          ) {
             this.addDiag(stmt, "E3001", "TYPE_MISMATCH_ASSIGNMENT", `cannot assign ${typeToString(initType)} to ${typeToString(t)}`);
           }
           if (!t) t = initType;
@@ -1153,7 +1296,14 @@ class Analyzer {
           stmt.expr.kind === "ListLiteral" &&
           stmt.expr.items.length === 0 &&
           typeToString(lhsType).startsWith("list<");
-        if (lhsType && rhsType && !sameType(lhsType, rhsType) && !emptyMapAssign && !emptyListAssign) {
+        if (
+          lhsType &&
+          rhsType &&
+          !sameType(lhsType, rhsType) &&
+          !this.isSubtype(rhsType, lhsType) &&
+          !emptyMapAssign &&
+          !emptyListAssign
+        ) {
           this.addDiag(stmt, "E3001", "TYPE_MISMATCH_ASSIGNMENT", `cannot assign ${typeToString(rhsType)} to ${typeToString(lhsType)}`);
         }
         if (stmt.target && stmt.target.kind === "Identifier") {
@@ -1254,6 +1404,17 @@ class Analyzer {
       }
       return s.type;
     }
+    if (expr.kind === "MemberExpr") {
+      const targetType = this.typeOfExpr(expr.target, scope);
+      if (targetType && targetType.kind === "NamedType" && this.prototypes.has(targetType.name)) {
+        const ft = this.resolvePrototypeField(targetType.name, expr.name);
+        if (!ft) {
+          this.addDiag(expr, "E2001", "UNRESOLVED_NAME", `unknown field '${expr.name}'`);
+          return null;
+        }
+        return ft;
+      }
+    }
     if (expr.kind === "IndexExpr") {
       const t = this.typeOfExpr(expr.target, scope);
       const ts = typeToString(t);
@@ -1338,6 +1499,17 @@ class Analyzer {
             if (c.type === "eof") return { kind: "NamedType", name: "EOF" };
           }
         }
+        {
+          const targetType = this.typeOfExpr(expr.target, scope);
+          if (targetType && targetType.kind === "NamedType" && this.prototypes.has(targetType.name)) {
+            const ft = this.resolvePrototypeField(targetType.name, expr.name);
+            if (!ft) {
+              this.addDiag(expr, "E2001", "UNRESOLVED_NAME", `unknown field '${expr.name}'`);
+              return null;
+            }
+            return ft;
+          }
+        }
         return null;
       case "PostfixExpr":
         return this.typeOfExpr(expr.expr, scope);
@@ -1379,6 +1551,27 @@ class Analyzer {
 
     if (expr.callee.kind === "MemberExpr") {
       const member = expr.callee;
+      if (member.target.kind === "Identifier" && this.prototypes.has(member.target.name)) {
+        const protoName = member.target.name;
+        if (member.name === "clone") {
+          if (expr.args.length !== 0) {
+            this.addDiag(expr, "E3001", "TYPE_MISMATCH_ASSIGNMENT", "arity mismatch for 'clone'");
+          }
+          expr._protoClone = protoName;
+          return { kind: "NamedType", name: protoName };
+        }
+        const pm = this.resolvePrototypeMethod(protoName, member.name);
+        if (!pm) {
+          this.addDiag(member, "E2001", "UNRESOLVED_NAME", `unknown method '${member.name}' in prototype '${protoName}'`);
+          return null;
+        }
+        const expected = pm.params.length + 1;
+        if (expr.args.length !== expected) {
+          this.addDiag(expr, "E3001", "TYPE_MISMATCH_ASSIGNMENT", `arity mismatch for '${member.name}'`);
+        }
+        expr._protoStatic = protoName;
+        return pm.retType;
+      }
       if (member.target && member.target.kind === "Identifier") {
         const ns = this.namespaces.get(member.target.name);
         if (ns) {
@@ -1397,6 +1590,18 @@ class Analyzer {
       }
       const targetType = this.typeOfExpr(member.target, scope);
       if (!targetType) return null;
+      if (targetType.kind === "NamedType" && this.prototypes.has(targetType.name)) {
+        const pm = this.resolvePrototypeMethod(targetType.name, member.name);
+        if (!pm) {
+          this.addDiag(member, "E2001", "UNRESOLVED_NAME", `unknown method '${member.name}' in prototype '${targetType.name}'`);
+          return null;
+        }
+        if (expr.args.length !== pm.params.length) {
+          this.addDiag(expr, "E3001", "TYPE_MISMATCH_ASSIGNMENT", `arity mismatch for '${member.name}'`);
+        }
+        expr._protoInstance = targetType.name;
+        return pm.retType;
+      }
       const t = typeToString(targetType);
       const name = member.name;
       const prim = (n) => ({ kind: "PrimitiveType", name: n });

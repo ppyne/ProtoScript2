@@ -138,6 +138,7 @@ class IRBuilder {
     this.tempId = 0;
     this.blockId = 0;
     this.functions = new Map();
+    this.prototypes = new Map();
     const imports = buildImportMap(ast);
     this.importedSymbols = imports.imported;
     this.importNamespaces = imports.namespaces;
@@ -159,14 +160,137 @@ class IRBuilder {
   }
 
   build() {
-    const mod = { kind: "Module", functions: [] };
+    const mod = { kind: "Module", functions: [], prototypes: [] };
+    for (const d of this.ast.decls) {
+      if (d.kind === "PrototypeDecl") {
+        const fields = (d.fields || []).map((f) => ({ name: f.name, type: f.type }));
+        const fieldsIr = (d.fields || []).map((f) => ({ name: f.name, type: lowerType(f.type) }));
+        const methods = new Map();
+        for (const m of d.methods || []) methods.set(m.name, m);
+        this.prototypes.set(d.name, { name: d.name, parent: d.parent || null, fields, methods });
+        mod.prototypes.push({ name: d.name, parent: d.parent || null, fields: fieldsIr });
+      }
+    }
     for (const d of this.ast.decls) {
       if (d.kind === "FunctionDecl") this.functions.set(d.name, d);
+      if (d.kind === "PrototypeDecl") {
+        for (const m of d.methods || []) this.functions.set(`${d.name}.${m.name}`, m);
+      }
     }
     for (const d of this.ast.decls) {
       if (d.kind === "FunctionDecl") mod.functions.push(this.lowerFunction(d));
+      if (d.kind === "PrototypeDecl") {
+        mod.functions.push(this.lowerCloneFunction(d.name));
+        for (const m of d.methods || []) mod.functions.push(this.lowerMethod(d.name, m));
+      }
     }
     return mod;
+  }
+
+  lowerMethod(protoName, method) {
+    const entry = { kind: "Block", label: "entry", instrs: [] };
+    const params = [{ name: "self", type: lowerType({ kind: "NamedType", name: protoName }), variadic: false }];
+    for (const p of method.params) params.push({ name: p.name, type: lowerType(p.type), variadic: !!p.variadic });
+    const irFn = {
+      kind: "Function",
+      name: `${protoName}.${method.name}`,
+      params,
+      returnType: lowerType(method.retType),
+      blocks: [entry],
+    };
+    const scope = new Scope(null);
+    scope.define("self", { kind: "NamedType", name: protoName });
+    for (const p of method.params) scope.define(p.name, p.type);
+    this.lowerBlock(method.body, entry, irFn, scope);
+    return irFn;
+  }
+
+  lowerCloneFunction(protoName) {
+    const entry = { kind: "Block", label: "entry", instrs: [] };
+    const irFn = {
+      kind: "Function",
+      name: `${protoName}.clone`,
+      params: [],
+      returnType: lowerType({ kind: "NamedType", name: protoName }),
+      blocks: [entry],
+    };
+    const dst = this.nextTemp();
+    this.emit(entry, { op: "make_object", dst, proto: protoName });
+    const fields = this.collectPrototypeFields(protoName);
+    for (const f of fields) {
+      const v = this.emitDefaultValue(entry, f.type);
+      this.emit(entry, { op: "member_set", target: dst, name: f.name, src: v.value });
+    }
+    this.emit(entry, { op: "ret", value: dst });
+    return irFn;
+  }
+
+  collectPrototypeFields(protoName) {
+    const out = [];
+    const chain = [];
+    let cur = this.prototypes.get(protoName);
+    while (cur) {
+      chain.push(cur);
+      cur = cur.parent ? this.prototypes.get(cur.parent) : null;
+    }
+    for (let i = chain.length - 1; i >= 0; i -= 1) {
+      for (const f of chain[i].fields) out.push(f);
+    }
+    return out;
+  }
+
+  emitDefaultValue(block, typeNode) {
+    if (!typeNode || typeNode.kind === "PrimitiveType") {
+      const name = typeNode ? typeNode.name : "void";
+      const dst = this.nextTemp();
+      if (name === "int") this.emit(block, { op: "const", dst, literalType: "int", value: "0" });
+      else if (name === "byte") this.emit(block, { op: "const", dst, literalType: "byte", value: "0" });
+      else if (name === "float") this.emit(block, { op: "const", dst, literalType: "float", value: "0" });
+      else if (name === "bool") this.emit(block, { op: "const", dst, literalType: "bool", value: "false" });
+      else if (name === "glyph") this.emit(block, { op: "const", dst, literalType: "glyph", value: "0" });
+      else if (name === "string") this.emit(block, { op: "const", dst, literalType: "string", value: "" });
+      else this.emit(block, { op: "const", dst, literalType: "int", value: "0" });
+      return { value: dst, type: typeNode || { kind: "PrimitiveType", name: "void" } };
+    }
+    if (typeNode.kind === "NamedType" && this.prototypes.has(typeNode.name)) {
+      const dst = this.nextTemp();
+      this.emit(block, { op: "call_static", dst, callee: `${typeNode.name}.clone`, args: [], variadic: false });
+      return { value: dst, type: typeNode };
+    }
+    if (typeNode.kind === "GenericType") {
+      if (typeNode.name === "list") {
+        const dst = this.nextTemp();
+        this.emit(block, { op: "make_list", dst, items: [] });
+        return { value: dst, type: typeNode };
+      }
+      if (typeNode.name === "map") {
+        const dst = this.nextTemp();
+        this.emit(block, { op: "make_map", dst, pairs: [] });
+        return { value: dst, type: typeNode };
+      }
+    }
+    const fallback = this.nextTemp();
+    this.emit(block, { op: "const", dst: fallback, literalType: "int", value: "0" });
+    return { value: fallback, type: typeNode };
+  }
+
+  resolvePrototypeField(protoName, fieldName) {
+    let p = this.prototypes.get(protoName);
+    while (p) {
+      const hit = p.fields.find((f) => f.name === fieldName);
+      if (hit) return hit.type;
+      p = p.parent ? this.prototypes.get(p.parent) : null;
+    }
+    return null;
+  }
+
+  resolvePrototypeMethod(protoName, methodName) {
+    let p = this.prototypes.get(protoName);
+    while (p) {
+      if (p.methods.has(methodName)) return p.methods.get(methodName);
+      p = p.parent ? this.prototypes.get(p.parent) : null;
+    }
+    return null;
   }
 
   lowerFunction(fn) {
@@ -210,6 +334,9 @@ class IRBuilder {
           const i = this.lowerExpr(stmt.target.index, block, irFn, scope);
           this.emitIndexChecks(block, t, i, { forWrite: true });
           this.emit(block, { op: "index_set", target: t.value, index: i.value, src: rhs.value });
+        } else if (stmt.target.kind === "MemberExpr") {
+          const t = this.lowerExpr(stmt.target.target, block, irFn, scope);
+          this.emit(block, { op: "member_set", target: t.value, name: stmt.target.name, src: rhs.value });
         }
         break;
       }
@@ -518,6 +645,10 @@ class IRBuilder {
         const base = this.lowerExpr(expr.target, block, irFn, scope);
         const dst = this.nextTemp();
         this.emit(block, { op: "member_get", dst, target: base.value, name: expr.name });
+        if (base.type && base.type.kind === "NamedType" && this.prototypes.has(base.type.name)) {
+          const ft = this.resolvePrototypeField(base.type.name, expr.name);
+          if (ft) return { value: dst, type: ft };
+        }
         return { value: dst, type: { kind: "PrimitiveType", name: "unknown" } };
       }
       case "PostfixExpr": {
@@ -572,6 +703,25 @@ class IRBuilder {
 
     if (expr.callee.kind === "MemberExpr") {
       const method = expr.callee.name;
+      if (expr.callee.target.kind === "Identifier" && this.prototypes.has(expr.callee.target.name)) {
+        const protoName = expr.callee.target.name;
+        if (method === "clone") {
+          const dst = this.nextTemp();
+          this.emit(block, { op: "call_static", dst, callee: `${protoName}.clone`, args: [], variadic: false });
+          return { value: dst, type: { kind: "NamedType", name: protoName } };
+        }
+        const args = expr.args.map((a) => this.lowerExpr(a, block, irFn, scope));
+        const dst = this.nextTemp();
+        this.emit(block, {
+          op: "call_static",
+          dst,
+          callee: `${protoName}.${method}`,
+          args: args.map((a) => a.value),
+          variadic: false,
+        });
+        const m = this.resolvePrototypeMethod(protoName, method);
+        return { value: dst, type: m ? m.retType : { kind: "PrimitiveType", name: "unknown" } };
+      }
       if (expr.callee.target.kind === "Identifier") {
         const ns = this.importNamespaces.get(expr.callee.target.name);
         if (ns) {
@@ -594,6 +744,18 @@ class IRBuilder {
       }
       const recv = this.lowerExpr(expr.callee.target, block, irFn, scope);
       const args = expr.args.map((a) => this.lowerExpr(a, block, irFn, scope));
+      if (recv.type && recv.type.kind === "NamedType" && this.prototypes.has(recv.type.name)) {
+        const dst = this.nextTemp();
+        this.emit(block, {
+          op: "call_static",
+          dst,
+          callee: `${recv.type.name}.${method}`,
+          args: [recv.value, ...args.map((a) => a.value)],
+          variadic: false,
+        });
+        const m = this.resolvePrototypeMethod(recv.type.name, method);
+        return { value: dst, type: m ? m.retType : { kind: "PrimitiveType", name: "unknown" } };
+      }
       if (method === "toString") {
         const dst = this.nextTemp();
         this.emit(block, { op: "call_builtin_tostring", dst, value: recv.value });
@@ -688,6 +850,25 @@ class IRBuilder {
     if (expr.kind === "CallExpr" && expr.callee.kind === "Identifier") {
       const sig = this.functions.get(expr.callee.name);
       return sig ? sig.retType : { kind: "PrimitiveType", name: "unknown" };
+    }
+    if (expr.kind === "CallExpr" && expr.callee.kind === "MemberExpr") {
+      const m = expr.callee;
+      if (m.target.kind === "Identifier" && this.prototypes.has(m.target.name)) {
+        if (m.name === "clone") return { kind: "NamedType", name: m.target.name };
+        const mm = this.resolvePrototypeMethod(m.target.name, m.name);
+        return mm ? mm.retType : { kind: "PrimitiveType", name: "unknown" };
+      }
+      const t = this.inferExprType(m.target, scope);
+      if (t && t.kind === "NamedType" && this.prototypes.has(t.name)) {
+        const mm = this.resolvePrototypeMethod(t.name, m.name);
+        return mm ? mm.retType : { kind: "PrimitiveType", name: "unknown" };
+      }
+    }
+    if (expr.kind === "MemberExpr") {
+      const t = this.inferExprType(expr.target, scope);
+      if (t && t.kind === "NamedType" && this.prototypes.has(t.name)) {
+        return this.resolvePrototypeField(t.name, expr.name) || { kind: "PrimitiveType", name: "unknown" };
+      }
     }
     return { kind: "PrimitiveType", name: "unknown" };
   }
@@ -791,6 +972,10 @@ function formatInstr(i) {
       return `${i.dst} = make_map {${i.pairs.map((p) => `${p.key}:${p.value}`).join(", ")}}`;
     case "member_get":
       return `${i.dst} = member_get ${i.target}.${i.name}`;
+    case "member_set":
+      return `member_set ${i.target}.${i.name} <- ${i.src}`;
+    case "make_object":
+      return `${i.dst} = make_object ${i.proto || ""}`.trim();
     case "nop":
       return "nop";
     default:
@@ -867,7 +1052,9 @@ function validateSerializedIR(doc) {
     "select",
     "make_list",
     "make_map",
+    "make_object",
     "member_get",
+    "member_set",
     "break",
     "continue",
     "nop",
