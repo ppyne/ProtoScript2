@@ -2,6 +2,8 @@
 #include <limits.h>
 #include <stdlib.h>
 #include <string.h>
+#include <errno.h>
+#include <math.h>
 
 #include "ps_json.h"
 #include "ps_list.h"
@@ -21,6 +23,97 @@ typedef struct {
   size_t len;
   size_t cap;
 } PS_Bindings;
+
+static int parse_int_strict(PS_Context *ctx, const char *s, size_t len, int64_t *out) {
+  if (!s || !out) return 0;
+  if (len == 0) {
+    ps_throw(ctx, PS_ERR_TYPE, "invalid int format");
+    return 0;
+  }
+  char *buf = (char *)malloc(len + 1);
+  if (!buf) {
+    ps_throw(ctx, PS_ERR_OOM, "out of memory");
+    return 0;
+  }
+  memcpy(buf, s, len);
+  buf[len] = '\0';
+  char *end = NULL;
+  errno = 0;
+  long long v = strtoll(buf, &end, 10);
+  int ok = (end && *end == '\0' && errno != ERANGE);
+  free(buf);
+  if (!ok) {
+    ps_throw(ctx, PS_ERR_TYPE, "invalid int format");
+    return 0;
+  }
+  *out = (int64_t)v;
+  return 1;
+}
+
+static int parse_float_strict(PS_Context *ctx, const char *s, size_t len, double *out) {
+  if (!s || !out) return 0;
+  if (len == 0) {
+    ps_throw(ctx, PS_ERR_TYPE, "invalid float format");
+    return 0;
+  }
+  char *buf = (char *)malloc(len + 1);
+  if (!buf) {
+    ps_throw(ctx, PS_ERR_OOM, "out of memory");
+    return 0;
+  }
+  memcpy(buf, s, len);
+  buf[len] = '\0';
+  char *end = NULL;
+  errno = 0;
+  double v = strtod(buf, &end);
+  int ok = (end && *end == '\0' && errno != ERANGE);
+  free(buf);
+  if (!ok) {
+    ps_throw(ctx, PS_ERR_TYPE, "invalid float format");
+    return 0;
+  }
+  *out = v;
+  return 1;
+}
+
+static int glyph_is_letter(uint32_t g) { return (g >= 'A' && g <= 'Z') || (g >= 'a' && g <= 'z'); }
+static int glyph_is_digit(uint32_t g) { return (g >= '0' && g <= '9'); }
+static int glyph_is_whitespace(uint32_t g) { return g == ' ' || g == '\t' || g == '\n' || g == '\r'; }
+static int glyph_is_upper(uint32_t g) { return (g >= 'A' && g <= 'Z'); }
+static int glyph_is_lower(uint32_t g) { return (g >= 'a' && g <= 'z'); }
+static uint32_t glyph_to_upper(uint32_t g) { return (g >= 'a' && g <= 'z') ? (g - 32) : g; }
+static uint32_t glyph_to_lower(uint32_t g) { return (g >= 'A' && g <= 'Z') ? (g + 32) : g; }
+
+static int glyph_to_utf8(uint32_t g, uint8_t out[4], size_t *out_len) {
+  if (g <= 0x7F) {
+    out[0] = (uint8_t)g;
+    *out_len = 1;
+    return 1;
+  }
+  if (g <= 0x7FF) {
+    out[0] = (uint8_t)(0xC0 | (g >> 6));
+    out[1] = (uint8_t)(0x80 | (g & 0x3F));
+    *out_len = 2;
+    return 1;
+  }
+  if (g <= 0xFFFF) {
+    if (g >= 0xD800 && g <= 0xDFFF) return 0;
+    out[0] = (uint8_t)(0xE0 | (g >> 12));
+    out[1] = (uint8_t)(0x80 | ((g >> 6) & 0x3F));
+    out[2] = (uint8_t)(0x80 | (g & 0x3F));
+    *out_len = 3;
+    return 1;
+  }
+  if (g <= 0x10FFFF) {
+    out[0] = (uint8_t)(0xF0 | (g >> 18));
+    out[1] = (uint8_t)(0x80 | ((g >> 12) & 0x3F));
+    out[2] = (uint8_t)(0x80 | ((g >> 6) & 0x3F));
+    out[3] = (uint8_t)(0x80 | (g & 0x3F));
+    *out_len = 4;
+    return 1;
+  }
+  return 0;
+}
 
 typedef struct {
   char *op;
@@ -993,7 +1086,137 @@ static int exec_function(PS_Context *ctx, PS_IR_Module *m, IRFunction *f, PS_Val
             continue;
           }
         }
-        if (recv->tag == PS_V_STRING) {
+        if (recv->tag == PS_V_INT) {
+          if (strcmp(ins->method, "toByte") == 0) {
+            int64_t v = recv->as.int_v;
+            if (v < 0 || v > 255) {
+              ps_throw(ctx, PS_ERR_RANGE, "byte out of range");
+              goto raise;
+            }
+            PS_Value *b = ps_make_byte(ctx, (uint8_t)v);
+            bindings_set(&temps, ins->dst, b);
+            ps_value_release(b);
+          } else if (strcmp(ins->method, "toFloat") == 0) {
+            PS_Value *f = ps_make_float(ctx, (double)recv->as.int_v);
+            bindings_set(&temps, ins->dst, f);
+            ps_value_release(f);
+          } else if (strcmp(ins->method, "toBytes") == 0) {
+            uint8_t buf[8];
+            memcpy(buf, &recv->as.int_v, 8);
+            PS_Value *b = ps_make_bytes(ctx, buf, 8);
+            if (!b) goto raise;
+            bindings_set(&temps, ins->dst, b);
+            ps_value_release(b);
+          } else if (strcmp(ins->method, "abs") == 0) {
+            if (recv->as.int_v == INT64_MIN) {
+              ps_throw(ctx, PS_ERR_RANGE, "int overflow");
+              goto raise;
+            }
+            int64_t v = recv->as.int_v < 0 ? -recv->as.int_v : recv->as.int_v;
+            PS_Value *i = ps_make_int(ctx, v);
+            bindings_set(&temps, ins->dst, i);
+            ps_value_release(i);
+          } else if (strcmp(ins->method, "sign") == 0) {
+            int64_t v = recv->as.int_v == 0 ? 0 : (recv->as.int_v > 0 ? 1 : -1);
+            PS_Value *i = ps_make_int(ctx, v);
+            bindings_set(&temps, ins->dst, i);
+            ps_value_release(i);
+          }
+        } else if (recv->tag == PS_V_BYTE) {
+          if (strcmp(ins->method, "toInt") == 0) {
+            PS_Value *i = ps_make_int(ctx, (int64_t)recv->as.byte_v);
+            bindings_set(&temps, ins->dst, i);
+            ps_value_release(i);
+          } else if (strcmp(ins->method, "toFloat") == 0) {
+            PS_Value *f = ps_make_float(ctx, (double)recv->as.byte_v);
+            bindings_set(&temps, ins->dst, f);
+            ps_value_release(f);
+          }
+        } else if (recv->tag == PS_V_FLOAT) {
+          if (strcmp(ins->method, "toInt") == 0) {
+            double v = recv->as.float_v;
+            if (!isfinite(v)) {
+              ps_throw(ctx, PS_ERR_TYPE, "invalid float to int");
+              goto raise;
+            }
+            if (v > (double)INT64_MAX || v < (double)INT64_MIN) {
+              ps_throw(ctx, PS_ERR_RANGE, "int overflow");
+              goto raise;
+            }
+            int64_t i64 = (int64_t)trunc(v);
+            PS_Value *i = ps_make_int(ctx, i64);
+            bindings_set(&temps, ins->dst, i);
+            ps_value_release(i);
+          } else if (strcmp(ins->method, "toBytes") == 0) {
+            uint8_t buf[8];
+            memcpy(buf, &recv->as.float_v, 8);
+            PS_Value *b = ps_make_bytes(ctx, buf, 8);
+            if (!b) goto raise;
+            bindings_set(&temps, ins->dst, b);
+            ps_value_release(b);
+          } else if (strcmp(ins->method, "abs") == 0) {
+            PS_Value *f = ps_make_float(ctx, fabs(recv->as.float_v));
+            bindings_set(&temps, ins->dst, f);
+            ps_value_release(f);
+          } else if (strcmp(ins->method, "isNaN") == 0) {
+            PS_Value *b = ps_make_bool(ctx, isnan(recv->as.float_v) ? 1 : 0);
+            bindings_set(&temps, ins->dst, b);
+            ps_value_release(b);
+          } else if (strcmp(ins->method, "isInfinite") == 0) {
+            PS_Value *b = ps_make_bool(ctx, isinf(recv->as.float_v) ? 1 : 0);
+            bindings_set(&temps, ins->dst, b);
+            ps_value_release(b);
+          } else if (strcmp(ins->method, "isFinite") == 0) {
+            PS_Value *b = ps_make_bool(ctx, isfinite(recv->as.float_v) ? 1 : 0);
+            bindings_set(&temps, ins->dst, b);
+            ps_value_release(b);
+          }
+        } else if (recv->tag == PS_V_GLYPH) {
+          if (strcmp(ins->method, "isLetter") == 0) {
+            PS_Value *b = ps_make_bool(ctx, glyph_is_letter(recv->as.glyph_v));
+            bindings_set(&temps, ins->dst, b);
+            ps_value_release(b);
+          } else if (strcmp(ins->method, "isDigit") == 0) {
+            PS_Value *b = ps_make_bool(ctx, glyph_is_digit(recv->as.glyph_v));
+            bindings_set(&temps, ins->dst, b);
+            ps_value_release(b);
+          } else if (strcmp(ins->method, "isWhitespace") == 0) {
+            PS_Value *b = ps_make_bool(ctx, glyph_is_whitespace(recv->as.glyph_v));
+            bindings_set(&temps, ins->dst, b);
+            ps_value_release(b);
+          } else if (strcmp(ins->method, "isUpper") == 0) {
+            PS_Value *b = ps_make_bool(ctx, glyph_is_upper(recv->as.glyph_v));
+            bindings_set(&temps, ins->dst, b);
+            ps_value_release(b);
+          } else if (strcmp(ins->method, "isLower") == 0) {
+            PS_Value *b = ps_make_bool(ctx, glyph_is_lower(recv->as.glyph_v));
+            bindings_set(&temps, ins->dst, b);
+            ps_value_release(b);
+          } else if (strcmp(ins->method, "toUpper") == 0) {
+            PS_Value *g = ps_make_glyph(ctx, glyph_to_upper(recv->as.glyph_v));
+            bindings_set(&temps, ins->dst, g);
+            ps_value_release(g);
+          } else if (strcmp(ins->method, "toLower") == 0) {
+            PS_Value *g = ps_make_glyph(ctx, glyph_to_lower(recv->as.glyph_v));
+            bindings_set(&temps, ins->dst, g);
+            ps_value_release(g);
+          } else if (strcmp(ins->method, "toInt") == 0) {
+            PS_Value *i = ps_make_int(ctx, (int64_t)recv->as.glyph_v);
+            bindings_set(&temps, ins->dst, i);
+            ps_value_release(i);
+          } else if (strcmp(ins->method, "toUtf8Bytes") == 0) {
+            uint8_t buf[4];
+            size_t n = 0;
+            if (!glyph_to_utf8(recv->as.glyph_v, buf, &n)) {
+              ps_throw(ctx, PS_ERR_UTF8, "invalid UTF-8");
+              goto raise;
+            }
+            PS_Value *b = ps_make_bytes(ctx, buf, n);
+            if (!b) goto raise;
+            bindings_set(&temps, ins->dst, b);
+            ps_value_release(b);
+          }
+        } else if (recv->tag == PS_V_STRING) {
           if (strcmp(ins->method, "length") == 0) {
             size_t gl = ps_utf8_glyph_len((const uint8_t *)recv->as.string_v.ptr, recv->as.string_v.len);
             PS_Value *v = ps_make_int(ctx, (int64_t)gl);
@@ -1002,6 +1225,18 @@ static int exec_function(PS_Context *ctx, PS_IR_Module *m, IRFunction *f, PS_Val
           } else if (strcmp(ins->method, "isEmpty") == 0) {
             size_t gl = ps_utf8_glyph_len((const uint8_t *)recv->as.string_v.ptr, recv->as.string_v.len);
             PS_Value *v = ps_make_bool(ctx, gl == 0);
+            bindings_set(&temps, ins->dst, v);
+            ps_value_release(v);
+          } else if (strcmp(ins->method, "toInt") == 0) {
+            int64_t iv = 0;
+            if (!parse_int_strict(ctx, recv->as.string_v.ptr, recv->as.string_v.len, &iv)) goto raise;
+            PS_Value *v = ps_make_int(ctx, iv);
+            bindings_set(&temps, ins->dst, v);
+            ps_value_release(v);
+          } else if (strcmp(ins->method, "toFloat") == 0) {
+            double fv = 0.0;
+            if (!parse_float_strict(ctx, recv->as.string_v.ptr, recv->as.string_v.len, &fv)) goto raise;
+            PS_Value *v = ps_make_float(ctx, fv);
             bindings_set(&temps, ins->dst, v);
             ps_value_release(v);
           } else if (strcmp(ins->method, "substring") == 0) {
@@ -1129,6 +1364,22 @@ static int exec_function(PS_Context *ctx, PS_IR_Module *m, IRFunction *f, PS_Val
         else if (v->tag == PS_V_INT) {
           char buf[64];
           snprintf(buf, sizeof(buf), "%lld", (long long)v->as.int_v);
+          s = ps_make_string_utf8(ctx, buf, strlen(buf));
+        } else if (v->tag == PS_V_BYTE) {
+          char buf[64];
+          snprintf(buf, sizeof(buf), "%u", (unsigned)v->as.byte_v);
+          s = ps_make_string_utf8(ctx, buf, strlen(buf));
+        } else if (v->tag == PS_V_GLYPH) {
+          uint8_t buf[4];
+          size_t n = 0;
+          if (!glyph_to_utf8(v->as.glyph_v, buf, &n)) {
+            ps_throw(ctx, PS_ERR_UTF8, "invalid UTF-8");
+            goto raise;
+          }
+          s = ps_make_string_utf8(ctx, (const char *)buf, n);
+        } else if (v->tag == PS_V_FLOAT) {
+          char buf[64];
+          snprintf(buf, sizeof(buf), "%.17g", v->as.float_v);
           s = ps_make_string_utf8(ctx, buf, strlen(buf));
         } else if (v->tag == PS_V_BOOL) {
           const char *t = v->as.bool_v ? "true" : "false";

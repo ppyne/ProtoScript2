@@ -1,0 +1,22 @@
+import Io;
+
+function main() : void {
+    int x = -5;
+    int a = x.abs();
+    int s1 = x.sign();
+    int z = 0;
+    int s0 = z.sign();
+    int p = 7;
+    int s2 = p.sign();
+
+    float f = x.toFloat();
+    byte b = p.toByte();
+    int bi = b.toInt();
+    float bf = b.toFloat();
+
+    list<byte> bytes = x.toBytes();
+    int count = bytes.length();
+
+    bool ok = (a == 5) && (s1 == -1) && (s0 == 0) && (s2 == 1) && (bi == 7) && (bf.toInt() == 7) && (count == 8) && (f.toInt() == -5);
+    Io.printLine(ok.toString());
+}

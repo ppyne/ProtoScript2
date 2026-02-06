@@ -1,0 +1,14 @@
+import Io;
+
+function main() : void {
+    float f = -3.5;
+    float a = f.abs();
+    bool ok = (a.toInt() == 3) && f.isFinite() && !f.isNaN() && !f.isInfinite();
+
+    int i = f.toInt();
+    list<byte> bytes = f.toBytes();
+    int count = bytes.length();
+
+    ok = ok && (i == -3) && (count == 8);
+    Io.printLine(ok.toString());
+}

@@ -53,6 +53,10 @@ const char *ps_runtime_category(PS_ErrorCode code, const char *msg, const char *
       *out_code = "R1006";
       return "RUNTIME_EMPTY_POP";
     }
+    if (msg_has(msg, "byte out of range")) {
+      *out_code = "R1008";
+      return "RUNTIME_BYTE_RANGE";
+    }
   }
   if (code == PS_ERR_UTF8) {
     *out_code = "R1007";

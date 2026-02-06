@@ -1,0 +1,13 @@
+import Io;
+
+function main() : void {
+    glyph g = "A"[0];
+    bool ok = g.isLetter() && g.isUpper() && !g.isLower() && !g.isDigit() && !g.isWhitespace();
+    glyph l = g.toLower();
+    ok = ok && l.isLower() && (l.toString() == "a");
+    int code = g.toInt();
+    list<byte> b = g.toUtf8Bytes();
+    int count = b.length();
+    ok = ok && (code == 65) && (count == 1);
+    Io.printLine(ok.toString());
+}

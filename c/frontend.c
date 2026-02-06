@@ -2876,31 +2876,75 @@ static char *ir_guess_expr_type(AstNode *e, IrFnCtx *ctx) {
       return strdup(f ? f->ret_type : "unknown");
     }
     if (strcmp(c->kind, "MemberExpr") == 0 && c->text) {
-      if (strcmp(c->text, "toString") == 0) return strdup("string");
-      if (strcmp(c->text, "toByte") == 0) return strdup("byte");
-      if (strcmp(c->text, "toInt") == 0) return strdup("int");
-      if (strcmp(c->text, "toFloat") == 0) return strdup("float");
-      if (strcmp(c->text, "length") == 0) return strdup("int");
-      if (strcmp(c->text, "isEmpty") == 0) return strdup("bool");
-      if (strcmp(c->text, "substring") == 0) return strdup("string");
-      if (strcmp(c->text, "indexOf") == 0) return strdup("int");
-      if (strcmp(c->text, "startsWith") == 0 || strcmp(c->text, "endsWith") == 0) return strdup("bool");
-      if (strcmp(c->text, "split") == 0) return strdup("list<string>");
-      if (strcmp(c->text, "trim") == 0 || strcmp(c->text, "trimStart") == 0 || strcmp(c->text, "trimEnd") == 0) return strdup("string");
-      if (strcmp(c->text, "replace") == 0) return strdup("string");
-      if (strcmp(c->text, "toUpper") == 0 || strcmp(c->text, "toLower") == 0) return strdup("string");
-      if (strcmp(c->text, "toUtf8Bytes") == 0) return strdup("list<byte>");
-      if (strcmp(c->text, "toUtf8String") == 0) return strdup("string");
-      if (strcmp(c->text, "join") == 0) return strdup("string");
-      if (strcmp(c->text, "concat") == 0) return strdup("string");
-      if (strcmp(c->text, "isNull") == 0 || strcmp(c->text, "isBool") == 0 || strcmp(c->text, "isNumber") == 0 ||
-          strcmp(c->text, "isString") == 0 || strcmp(c->text, "isArray") == 0 || strcmp(c->text, "isObject") == 0)
-        return strdup("bool");
-      if (strcmp(c->text, "asBool") == 0) return strdup("bool");
-      if (strcmp(c->text, "asNumber") == 0) return strdup("float");
-      if (strcmp(c->text, "asString") == 0) return strdup("string");
-      if (strcmp(c->text, "asArray") == 0) return strdup("list<JSONValue>");
-      if (strcmp(c->text, "asObject") == 0) return strdup("map<string,JSONValue>");
+      char *recv_t = (c->child_len > 0) ? ir_guess_expr_type(c->children[0], ctx) : NULL;
+      const char *m = c->text;
+      if (recv_t) {
+        if (strcmp(recv_t, "int") == 0) {
+          if (strcmp(m, "toByte") == 0) return strdup("byte");
+          if (strcmp(m, "toFloat") == 0) return strdup("float");
+          if (strcmp(m, "toString") == 0) return strdup("string");
+          if (strcmp(m, "toBytes") == 0) return strdup("list<byte>");
+          if (strcmp(m, "abs") == 0 || strcmp(m, "sign") == 0) return strdup("int");
+        } else if (strcmp(recv_t, "byte") == 0) {
+          if (strcmp(m, "toInt") == 0) return strdup("int");
+          if (strcmp(m, "toFloat") == 0) return strdup("float");
+          if (strcmp(m, "toString") == 0) return strdup("string");
+        } else if (strcmp(recv_t, "float") == 0) {
+          if (strcmp(m, "toInt") == 0) return strdup("int");
+          if (strcmp(m, "toString") == 0) return strdup("string");
+          if (strcmp(m, "toBytes") == 0) return strdup("list<byte>");
+          if (strcmp(m, "abs") == 0) return strdup("float");
+          if (strcmp(m, "isNaN") == 0 || strcmp(m, "isInfinite") == 0 || strcmp(m, "isFinite") == 0) return strdup("bool");
+        } else if (strcmp(recv_t, "glyph") == 0) {
+          if (strcmp(m, "toString") == 0) return strdup("string");
+          if (strcmp(m, "toInt") == 0) return strdup("int");
+          if (strcmp(m, "toUtf8Bytes") == 0) return strdup("list<byte>");
+          if (strcmp(m, "isLetter") == 0 || strcmp(m, "isDigit") == 0 || strcmp(m, "isWhitespace") == 0 ||
+              strcmp(m, "isUpper") == 0 || strcmp(m, "isLower") == 0)
+            return strdup("bool");
+          if (strcmp(m, "toUpper") == 0 || strcmp(m, "toLower") == 0) return strdup("glyph");
+        } else if (strcmp(recv_t, "string") == 0) {
+          if (strcmp(m, "length") == 0) return strdup("int");
+          if (strcmp(m, "isEmpty") == 0) return strdup("bool");
+          if (strcmp(m, "toString") == 0) return strdup("string");
+          if (strcmp(m, "toInt") == 0) return strdup("int");
+          if (strcmp(m, "toFloat") == 0) return strdup("float");
+          if (strcmp(m, "substring") == 0) return strdup("string");
+          if (strcmp(m, "indexOf") == 0) return strdup("int");
+          if (strcmp(m, "startsWith") == 0 || strcmp(m, "endsWith") == 0) return strdup("bool");
+          if (strcmp(m, "split") == 0) return strdup("list<string>");
+          if (strcmp(m, "trim") == 0 || strcmp(m, "trimStart") == 0 || strcmp(m, "trimEnd") == 0) return strdup("string");
+          if (strcmp(m, "replace") == 0) return strdup("string");
+          if (strcmp(m, "toUpper") == 0 || strcmp(m, "toLower") == 0) return strdup("string");
+          if (strcmp(m, "toUtf8Bytes") == 0) return strdup("list<byte>");
+        } else if (strncmp(recv_t, "list<", 5) == 0) {
+          char *et = ir_type_elem_for_index(recv_t);
+          if (et && strcmp(et, "byte") == 0 && strcmp(m, "toUtf8String") == 0) {
+            free(et);
+            return strdup("string");
+          }
+          if (et && strcmp(et, "string") == 0 && (strcmp(m, "join") == 0 || strcmp(m, "concat") == 0)) {
+            free(et);
+            return strdup("string");
+          }
+          free(et);
+          if (strcmp(m, "length") == 0) return strdup("int");
+          if (strcmp(m, "isEmpty") == 0) return strdup("bool");
+        } else if (strncmp(recv_t, "map<", 4) == 0) {
+          if (strcmp(m, "length") == 0) return strdup("int");
+          if (strcmp(m, "isEmpty") == 0) return strdup("bool");
+        } else if (strcmp(recv_t, "JSONValue") == 0) {
+          if (strcmp(m, "isNull") == 0 || strcmp(m, "isBool") == 0 || strcmp(m, "isNumber") == 0 ||
+              strcmp(m, "isString") == 0 || strcmp(m, "isArray") == 0 || strcmp(m, "isObject") == 0)
+            return strdup("bool");
+          if (strcmp(m, "asBool") == 0) return strdup("bool");
+          if (strcmp(m, "asNumber") == 0) return strdup("float");
+          if (strcmp(m, "asString") == 0) return strdup("string");
+          if (strcmp(m, "asArray") == 0) return strdup("list<JSONValue>");
+          if (strcmp(m, "asObject") == 0) return strdup("map<string,JSONValue>");
+        }
+      }
+      if (recv_t) free(recv_t);
     }
     return strdup("unknown");
   }

@@ -1,0 +1,4 @@
+function main() : void {
+    string s = "x1";
+    float f = s.toFloat();
+}

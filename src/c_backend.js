@@ -147,6 +147,7 @@ function inferTempTypes(ir) {
                   if (i.method === "toByte") set(i.dst, "byte");
                   else if (i.method === "toFloat") set(i.dst, "float");
                   else if (i.method === "toString") set(i.dst, "string");
+                  else if (i.method === "toBytes") set(i.dst, "list<byte>");
                   else set(i.dst, "int");
                 } else if (rt === "byte") {
                   if (i.method === "toInt") set(i.dst, "int");
@@ -156,6 +157,7 @@ function inferTempTypes(ir) {
                 } else if (rt === "float") {
                   if (i.method === "toInt") set(i.dst, "int");
                   else if (i.method === "toString") set(i.dst, "string");
+                  else if (i.method === "toBytes") set(i.dst, "list<byte>");
                   else if (i.method === "abs") set(i.dst, "float");
                   else if (["isNaN", "isInfinite", "isFinite"].includes(i.method)) set(i.dst, "bool");
                   else set(i.dst, "float");
@@ -168,6 +170,10 @@ function inferTempTypes(ir) {
                   else set(i.dst, "glyph");
                 } else if (rt === "string") {
                   if (["length", "indexOf"].includes(i.method)) set(i.dst, "int");
+                  else if (i.method === "isEmpty") set(i.dst, "bool");
+                  else if (i.method === "toString") set(i.dst, "string");
+                  else if (i.method === "toInt") set(i.dst, "int");
+                  else if (i.method === "toFloat") set(i.dst, "float");
                   else if (["startsWith", "endsWith"].includes(i.method)) set(i.dst, "bool");
                   else if (i.method === "split") set(i.dst, "list<string>");
                   else if (i.method === "toUtf8Bytes") set(i.dst, "list<byte>");
@@ -726,6 +732,99 @@ function emitRuntimeHelpers() {
     "  ps_string out = { buf, b.len };",
     "  return out;",
     "}",
+    "static int64_t ps_int_abs(int64_t v) {",
+    "  if (v == INT64_MIN) ps_panic(\"R1001\", \"RUNTIME_INT_OVERFLOW\", \"int overflow\");",
+    "  return v < 0 ? -v : v;",
+    "}",
+    "static int64_t ps_int_sign(int64_t v) {",
+    "  if (v == 0) return 0;",
+    "  return v > 0 ? 1 : -1;",
+    "}",
+    "static ps_list_byte ps_i64_to_bytes(int64_t v) {",
+    "  union { int64_t i; uint8_t b[8]; } u;",
+    "  u.i = v;",
+    "  ps_list_byte out = { NULL, 0, 0 };",
+    "  out.len = 8;",
+    "  out.cap = 8;",
+    "  out.ptr = (uint8_t*)malloc(8);",
+    "  if (!out.ptr) ps_panic(\"R1998\", \"RUNTIME_OOM\", \"out of memory\");",
+    "  memcpy(out.ptr, u.b, 8);",
+    "  return out;",
+    "}",
+    "static ps_list_byte ps_f64_to_bytes(double v) {",
+    "  union { double f; uint8_t b[8]; } u;",
+    "  u.f = v;",
+    "  ps_list_byte out = { NULL, 0, 0 };",
+    "  out.len = 8;",
+    "  out.cap = 8;",
+    "  out.ptr = (uint8_t*)malloc(8);",
+    "  if (!out.ptr) ps_panic(\"R1998\", \"RUNTIME_OOM\", \"out of memory\");",
+    "  memcpy(out.ptr, u.b, 8);",
+    "  return out;",
+    "}",
+    "static int64_t ps_float_to_int(double v) {",
+    "  if (!isfinite(v)) ps_panic(\"R1010\", \"RUNTIME_TYPE_ERROR\", \"invalid float to int\");",
+    "  if (v > (double)INT64_MAX || v < (double)INT64_MIN) ps_panic(\"R1001\", \"RUNTIME_INT_OVERFLOW\", \"int overflow\");",
+    "  return (int64_t)trunc(v);",
+    "}",
+    "static int64_t ps_string_to_int(ps_string s) {",
+    "  if (s.len == 0) ps_panic(\"R1010\", \"RUNTIME_TYPE_ERROR\", \"invalid int format\");",
+    "  char* buf = (char*)malloc(s.len + 1);",
+    "  if (!buf) ps_panic(\"R1998\", \"RUNTIME_OOM\", \"out of memory\");",
+    "  memcpy(buf, s.ptr, s.len);",
+    "  buf[s.len] = 0;",
+    "  errno = 0;",
+    "  char* end = NULL;",
+    "  long long v = strtoll(buf, &end, 10);",
+    "  int ok = (end && *end == 0 && errno != ERANGE);",
+    "  free(buf);",
+    "  if (!ok) ps_panic(\"R1010\", \"RUNTIME_TYPE_ERROR\", \"invalid int format\");",
+    "  return (int64_t)v;",
+    "}",
+    "static double ps_string_to_float(ps_string s) {",
+    "  if (s.len == 0) ps_panic(\"R1010\", \"RUNTIME_TYPE_ERROR\", \"invalid float format\");",
+    "  char* buf = (char*)malloc(s.len + 1);",
+    "  if (!buf) ps_panic(\"R1998\", \"RUNTIME_OOM\", \"out of memory\");",
+    "  memcpy(buf, s.ptr, s.len);",
+    "  buf[s.len] = 0;",
+    "  errno = 0;",
+    "  char* end = NULL;",
+    "  double v = strtod(buf, &end);",
+    "  int ok = (end && *end == 0 && errno != ERANGE);",
+    "  free(buf);",
+    "  if (!ok) ps_panic(\"R1010\", \"RUNTIME_TYPE_ERROR\", \"invalid float format\");",
+    "  return v;",
+    "}",
+    "static bool ps_glyph_is_letter(uint32_t g) {",
+    "  return (g >= 'A' && g <= 'Z') || (g >= 'a' && g <= 'z');",
+    "}",
+    "static bool ps_glyph_is_digit(uint32_t g) {",
+    "  return (g >= '0' && g <= '9');",
+    "}",
+    "static bool ps_glyph_is_whitespace(uint32_t g) {",
+    "  return g == ' ' || g == '\\t' || g == '\\n' || g == '\\r';",
+    "}",
+    "static bool ps_glyph_is_upper(uint32_t g) {",
+    "  return (g >= 'A' && g <= 'Z');",
+    "}",
+    "static bool ps_glyph_is_lower(uint32_t g) {",
+    "  return (g >= 'a' && g <= 'z');",
+    "}",
+    "static uint32_t ps_glyph_to_upper(uint32_t g) {",
+    "  return (g >= 'a' && g <= 'z') ? (g - 32) : g;",
+    "}",
+    "static uint32_t ps_glyph_to_lower(uint32_t g) {",
+    "  return (g >= 'A' && g <= 'Z') ? (g + 32) : g;",
+    "}",
+    "static ps_string ps_glyph_to_string(uint32_t g) {",
+    "  ps_list_byte b = ps_glyph_to_utf8_bytes(g);",
+    "  char* buf = (char*)malloc(b.len + 1);",
+    "  if (!buf && b.len > 0) ps_panic(\"R1998\", \"RUNTIME_OOM\", \"out of memory\");",
+    "  if (b.len > 0) memcpy(buf, b.ptr, b.len);",
+    "  buf[b.len] = 0;",
+    "  ps_string out = { buf, b.len };",
+    "  return out;",
+    "}",
     "static void Io_print(ps_string s) {",
     "  printf(\"%s\", s.ptr);",
     "}",
@@ -746,6 +845,15 @@ function emitRuntimeHelpers() {
     "  static int slot = 0;",
     "  slot = (slot + 1) & 3;",
     "  int n = snprintf(buf[slot], sizeof(buf[slot]), \"%u\", (unsigned)v);",
+    "  if (n < 0) n = 0;",
+    "  ps_string s = { buf[slot], (size_t)n };",
+    "  return s;",
+    "}",
+    "static ps_string ps_f64_to_string(double v) {",
+    "  static char buf[4][64];",
+    "  static int slot = 0;",
+    "  slot = (slot + 1) & 3;",
+    "  int n = snprintf(buf[slot], sizeof(buf[slot]), \"%.17g\", v);",
     "  if (n < 0) n = 0;",
     "  ps_string s = { buf[slot], (size_t)n };",
     "  return s;",
@@ -892,8 +1000,52 @@ function emitInstr(i, fnInf, state) {
           else if (rc && ["list", "slice", "view"].includes(rc.kind)) out.push(`${n(i.dst)} = (int64_t)${n(i.receiver)}.len;`);
           else if (rc && rc.kind === "map") out.push(`${n(i.dst)} = (int64_t)${n(i.receiver)}.len;`);
           else out.push(`${n(i.dst)} = 0;`);
+        } else if (i.method === "isEmpty") {
+          if (rt === "string") out.push(`${n(i.dst)} = ps_utf8_glyph_len(${n(i.receiver)}) == 0;`);
+          else if (rc && ["list", "slice", "view"].includes(rc.kind)) out.push(`${n(i.dst)} = ${n(i.receiver)}.len == 0;`);
+          else if (rc && rc.kind === "map") out.push(`${n(i.dst)} = ${n(i.receiver)}.len == 0;`);
+          else out.push(`${n(i.dst)} = 0;`);
         } else if (rt === "int" && i.method === "toByte") {
+          out.push(`if (${n(i.receiver)} < 0 || ${n(i.receiver)} > 255) ps_panic("R1008", "RUNTIME_BYTE_RANGE", "byte out of range");`);
           out.push(`${n(i.dst)} = (uint8_t)${n(i.receiver)};`);
+        } else if (rt === "int" && i.method === "toFloat") {
+          out.push(`${n(i.dst)} = (double)${n(i.receiver)};`);
+        } else if (rt === "int" && i.method === "toBytes") {
+          out.push(`${n(i.dst)} = ps_i64_to_bytes(${n(i.receiver)});`);
+        } else if (rt === "int" && i.method === "abs") {
+          out.push(`${n(i.dst)} = ps_int_abs(${n(i.receiver)});`);
+        } else if (rt === "int" && i.method === "sign") {
+          out.push(`${n(i.dst)} = ps_int_sign(${n(i.receiver)});`);
+        } else if (rt === "byte" && i.method === "toInt") {
+          out.push(`${n(i.dst)} = (int64_t)${n(i.receiver)};`);
+        } else if (rt === "byte" && i.method === "toFloat") {
+          out.push(`${n(i.dst)} = (double)${n(i.receiver)};`);
+        } else if (rt === "float" && i.method === "toInt") {
+          out.push(`${n(i.dst)} = ps_float_to_int(${n(i.receiver)});`);
+        } else if (rt === "float" && i.method === "toBytes") {
+          out.push(`${n(i.dst)} = ps_f64_to_bytes(${n(i.receiver)});`);
+        } else if (rt === "float" && i.method === "abs") {
+          out.push(`${n(i.dst)} = fabs(${n(i.receiver)});`);
+        } else if (rt === "float" && i.method === "isNaN") {
+          out.push(`${n(i.dst)} = isnan(${n(i.receiver)});`);
+        } else if (rt === "float" && i.method === "isInfinite") {
+          out.push(`${n(i.dst)} = isinf(${n(i.receiver)});`);
+        } else if (rt === "float" && i.method === "isFinite") {
+          out.push(`${n(i.dst)} = isfinite(${n(i.receiver)});`);
+        } else if (rt === "glyph" && i.method === "isLetter") {
+          out.push(`${n(i.dst)} = ps_glyph_is_letter(${n(i.receiver)});`);
+        } else if (rt === "glyph" && i.method === "isDigit") {
+          out.push(`${n(i.dst)} = ps_glyph_is_digit(${n(i.receiver)});`);
+        } else if (rt === "glyph" && i.method === "isWhitespace") {
+          out.push(`${n(i.dst)} = ps_glyph_is_whitespace(${n(i.receiver)});`);
+        } else if (rt === "glyph" && i.method === "isUpper") {
+          out.push(`${n(i.dst)} = ps_glyph_is_upper(${n(i.receiver)});`);
+        } else if (rt === "glyph" && i.method === "isLower") {
+          out.push(`${n(i.dst)} = ps_glyph_is_lower(${n(i.receiver)});`);
+        } else if (rt === "glyph" && i.method === "toUpper") {
+          out.push(`${n(i.dst)} = ps_glyph_to_upper(${n(i.receiver)});`);
+        } else if (rt === "glyph" && i.method === "toLower") {
+          out.push(`${n(i.dst)} = ps_glyph_to_lower(${n(i.receiver)});`);
         } else if (rt === "string" && i.method === "substring") {
           out.push(`${n(i.dst)} = ps_string_substring(${n(i.receiver)}, ${n(i.args[0])}, ${n(i.args[1])});`);
         } else if (rt === "string" && i.method === "indexOf") {
@@ -920,6 +1072,10 @@ function emitInstr(i, fnInf, state) {
           out.push(`${n(i.dst)} = ps_string_concat(${n(i.receiver)}, ${n(i.args[0])});`);
         } else if (rt === "string" && i.method === "toUtf8Bytes") {
           out.push(`${n(i.dst)} = ps_string_to_utf8_bytes(${n(i.receiver)});`);
+        } else if (rt === "string" && i.method === "toInt") {
+          out.push(`${n(i.dst)} = ps_string_to_int(${n(i.receiver)});`);
+        } else if (rt === "string" && i.method === "toFloat") {
+          out.push(`${n(i.dst)} = ps_string_to_float(${n(i.receiver)});`);
         } else if (rt === "glyph" && i.method === "toInt") {
           out.push(`${n(i.dst)} = (int64_t)${n(i.receiver)};`);
         } else if (rt === "glyph" && i.method === "toUtf8Bytes") {
@@ -949,7 +1105,9 @@ function emitInstr(i, fnInf, state) {
         const vt = t(i.value);
         if (vt === "string") out.push(`${n(i.dst)} = ${n(i.value)};`);
         else if (vt === "int") out.push(`${n(i.dst)} = ps_i64_to_string(${n(i.value)});`);
-        else if (vt === "byte" || vt === "glyph") out.push(`${n(i.dst)} = ps_u32_to_string((uint32_t)${n(i.value)});`);
+        else if (vt === "byte") out.push(`${n(i.dst)} = ps_u32_to_string((uint32_t)${n(i.value)});`);
+        else if (vt === "glyph") out.push(`${n(i.dst)} = ps_glyph_to_string((uint32_t)${n(i.value)});`);
+        else if (vt === "float") out.push(`${n(i.dst)} = ps_f64_to_string(${n(i.value)});`);
         else if (vt === "bool") {
           out.push(`${n(i.dst)}.ptr = ${n(i.value)} ? "true" : "false";`);
           out.push(`${n(i.dst)}.len = ${n(i.value)} ? 4 : 5;`);
@@ -1113,6 +1271,9 @@ function generateC(ir) {
   out.push("#include <stdio.h>");
   out.push("#include <stdlib.h>");
   out.push("#include <string.h>");
+  out.push("#include <errno.h>");
+  out.push("#include <math.h>");
+  out.push("#include <limits.h>");
   out.push("");
   out.push(...emitTypeDecls(typeNames));
   out.push("");

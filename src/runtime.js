@@ -121,6 +121,57 @@ function checkIntRange(file, node, n) {
   return n;
 }
 
+function checkByteRange(file, node, n) {
+  if (n < 0n || n > 255n) {
+    throw new RuntimeError(rdiag(file, node, "R1008", "RUNTIME_BYTE_RANGE", "byte out of range"));
+  }
+  return n;
+}
+
+const IS_LITTLE_ENDIAN = (() => {
+  const buf = new ArrayBuffer(4);
+  const view = new DataView(buf);
+  view.setUint32(0, 0x01020304, true);
+  return new Uint8Array(buf)[0] === 0x04;
+})();
+
+function intToBytes(n) {
+  const buf = new ArrayBuffer(8);
+  const view = new DataView(buf);
+  view.setBigInt64(0, BigInt(n), IS_LITTLE_ENDIAN);
+  return Array.from(new Uint8Array(buf), (b) => BigInt(b));
+}
+
+function floatToBytes(x) {
+  const buf = new ArrayBuffer(8);
+  const view = new DataView(buf);
+  view.setFloat64(0, Number(x), IS_LITTLE_ENDIAN);
+  return Array.from(new Uint8Array(buf), (b) => BigInt(b));
+}
+
+function parseIntStrict(file, node, s) {
+  if (!/^[+-]?(?:0|[1-9][0-9]*)$/.test(s)) {
+    throw new RuntimeError(rdiag(file, node, "R1010", "RUNTIME_TYPE_ERROR", "invalid int format"));
+  }
+  return checkIntRange(file, node, BigInt(s));
+}
+
+function parseFloatStrict(file, node, s) {
+  if (!/^[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?$/.test(s)) {
+    throw new RuntimeError(rdiag(file, node, "R1010", "RUNTIME_TYPE_ERROR", "invalid float format"));
+  }
+  const v = Number(s);
+  if (Number.isNaN(v)) {
+    throw new RuntimeError(rdiag(file, node, "R1010", "RUNTIME_TYPE_ERROR", "invalid float format"));
+  }
+  return v;
+}
+
+function glyphMatches(re, g) {
+  const ch = String.fromCodePoint(g.value);
+  return re.test(ch);
+}
+
 class Scope {
   constructor(parent = null) {
     this.parent = parent;
@@ -932,18 +983,60 @@ function evalCall(expr, scope, functions, moduleEnv, file, callFunction) {
       if (typeof target === "boolean") return target ? "true" : "false";
       return String(target);
     }
-    if (m.name === "toInt" && isGlyph(target)) {
-      return BigInt(target.value);
-    }
-    if (m.name === "toUtf8Bytes" && isGlyph(target)) {
-      const enc = new TextEncoder();
-      const bytes = enc.encode(String.fromCodePoint(target.value));
-      return Array.from(bytes, (b) => BigInt(b));
+    if (isGlyph(target)) {
+      if (m.name === "isLetter") return glyphMatches(/\p{L}/u, target);
+      if (m.name === "isDigit") return glyphMatches(/\p{Nd}/u, target);
+      if (m.name === "isWhitespace") return glyphMatches(/\p{White_Space}/u, target);
+      if (m.name === "isUpper") return glyphMatches(/\p{Lu}/u, target);
+      if (m.name === "isLower") return glyphMatches(/\p{Ll}/u, target);
+      if (m.name === "toUpper") {
+        const up = String.fromCodePoint(target.value).toUpperCase();
+        const ch = Array.from(up)[0] || String.fromCodePoint(target.value);
+        return new Glyph(ch.codePointAt(0));
+      }
+      if (m.name === "toLower") {
+        const lo = String.fromCodePoint(target.value).toLowerCase();
+        const ch = Array.from(lo)[0] || String.fromCodePoint(target.value);
+        return new Glyph(ch.codePointAt(0));
+      }
+      if (m.name === "toInt") return BigInt(target.value);
+      if (m.name === "toUtf8Bytes") {
+        const enc = new TextEncoder();
+        const bytes = enc.encode(String.fromCodePoint(target.value));
+        return Array.from(bytes, (b) => BigInt(b));
+      }
     }
     if (m.name === "toByte") {
+      if (typeof target === "bigint") return checkByteRange(file, m, target);
+      if (typeof target === "number") return checkByteRange(file, m, BigInt(Math.trunc(target)));
+      throw new RuntimeError(rdiag(file, m, "R1010", "RUNTIME_TYPE_ERROR", "toByte expects int"));
+    }
+    if (m.name === "toInt") {
       if (typeof target === "bigint") return target;
-      if (typeof target === "number") return BigInt(target);
-      return 0n;
+      if (typeof target === "number") {
+        if (!Number.isFinite(target)) throw new RuntimeError(rdiag(file, m, "R1010", "RUNTIME_TYPE_ERROR", "invalid float to int"));
+        return checkIntRange(file, m, BigInt(Math.trunc(target)));
+      }
+      if (typeof target === "string") return parseIntStrict(file, m, target);
+    }
+    if (m.name === "toFloat") {
+      if (typeof target === "bigint") return Number(target);
+      if (typeof target === "number") return target;
+      if (typeof target === "string") return parseFloatStrict(file, m, target);
+    }
+    if (m.name === "toBytes") {
+      if (typeof target === "bigint") return intToBytes(target);
+      if (typeof target === "number") return floatToBytes(target);
+    }
+    if (typeof target === "bigint") {
+      if (m.name === "abs") return checkIntRange(file, m, target < 0n ? -target : target);
+      if (m.name === "sign") return target === 0n ? 0n : target > 0n ? 1n : -1n;
+    }
+    if (typeof target === "number") {
+      if (m.name === "abs") return Math.abs(target);
+      if (m.name === "isNaN") return Number.isNaN(target);
+      if (m.name === "isInfinite") return !Number.isFinite(target);
+      if (m.name === "isFinite") return Number.isFinite(target);
     }
 
     if (m.name === "length") {

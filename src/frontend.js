@@ -1405,6 +1405,7 @@ class Analyzer {
         if (name === "toByte") return prim("byte");
         if (name === "toFloat") return prim("float");
         if (name === "toString") return prim("string");
+        if (name === "toBytes") return { kind: "GenericType", name: "list", args: [prim("byte")] };
         if (name === "abs" || name === "sign") return prim("int");
       }
       if (t === "byte") {
@@ -1415,6 +1416,7 @@ class Analyzer {
       if (t === "float") {
         if (name === "toInt") return prim("int");
         if (name === "toString") return prim("string");
+        if (name === "toBytes") return { kind: "GenericType", name: "list", args: [prim("byte")] };
         if (name === "abs") return prim("float");
         if (name === "isNaN" || name === "isInfinite" || name === "isFinite") return prim("bool");
       }
@@ -1429,6 +1431,9 @@ class Analyzer {
       if (t === "string") {
         if (name === "length") return prim("int");
         if (name === "isEmpty") return prim("bool");
+        if (name === "toString") return prim("string");
+        if (name === "toInt") return prim("int");
+        if (name === "toFloat") return prim("float");
         if (name === "substring") return prim("string");
         if (name === "indexOf") return prim("int");
         if (name === "startsWith" || name === "endsWith") return prim("bool");
