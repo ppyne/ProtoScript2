@@ -11,4 +11,9 @@ typedef struct {
 void ps_error_set(PS_Context *ctx, PS_ErrorCode code, const char *msg);
 void ps_error_clear(PS_Context *ctx);
 
+// Runtime diagnostic mapping (best-effort).
+// Returns category string or NULL if no mapping exists.
+// If non-NULL, out_code is set to the canonical Rxxxx code.
+const char *ps_runtime_category(PS_ErrorCode code, const char *msg, const char **out_code);
+
 #endif // PS_ERRORS_H

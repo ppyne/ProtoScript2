@@ -8,6 +8,7 @@
 #include "../frontend.h"
 #include "../runtime/ps_vm.h"
 #include "../runtime/ps_runtime.h"
+#include "../runtime/ps_errors.h"
 
 static void usage(void) {
   fprintf(stderr, "Usage:\n");
@@ -114,7 +115,13 @@ int main(int argc, char **argv) {
       if (!write_temp_source(line, path, sizeof(path))) break;
       rc = run_file(ctx, path);
       if (rc != 0) {
-        fprintf(stderr, "%s\n", ps_last_error_message(ctx));
+        const char *code = NULL;
+        const char *cat = ps_runtime_category(ps_last_error_code(ctx), ps_last_error_message(ctx), &code);
+        if (cat && code) {
+          fprintf(stderr, "%s %s: %s\n", code, cat, ps_last_error_message(ctx));
+        } else {
+          fprintf(stderr, "%s\n", ps_last_error_message(ctx));
+        }
         ps_clear_error(ctx);
       }
     }
@@ -158,7 +165,13 @@ int main(int argc, char **argv) {
   }
 
   if (rc != 0 && ps_last_error_code(ctx) != PS_ERR_NONE) {
-    fprintf(stderr, "error: %s\n", ps_last_error_message(ctx));
+    const char *code = NULL;
+    const char *cat = ps_runtime_category(ps_last_error_code(ctx), ps_last_error_message(ctx), &code);
+    if (cat && code) {
+      fprintf(stderr, "%s %s: %s\n", code, cat, ps_last_error_message(ctx));
+    } else {
+      fprintf(stderr, "error: %s\n", ps_last_error_message(ctx));
+    }
   }
 
   ps_ctx_destroy(ctx);
