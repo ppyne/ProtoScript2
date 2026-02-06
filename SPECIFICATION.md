@@ -172,12 +172,17 @@ g.toUpper();
 g.toLower();
 
 g.toString();
+g.toInt();
+g.toUtf8Bytes();
 ```
 
 Règles :
 
 - les méthodes Unicode utilisent les tables Unicode standards
 - `toUpper()` / `toLower()` retournent un `glyph`
+- `toInt()` retourne le code point Unicode sous forme d’`int`
+- `toUtf8Bytes()` retourne une `list<byte>` en UTF‑8 strict (exactement les octets du glyph)
+- les opérations arithmétiques/unaires (`+`, `-`, `*`, `/`, `%`, `<<`, `>>`, `&`, `|`, `^`, `~`, `++`, `--`) sur `glyph` sont **interdites** et doivent lever une exception runtime
 - les méthodes sont **pures** (sans effet de bord)
 - aucune allocation implicite n’est effectuée
 - les méthodes sont résolues statiquement
@@ -218,9 +223,20 @@ b.toString();
 i.toByte();
 i.toFloat();
 i.toString();
+i.toBytes();
 i.abs();
 i.sign();
 ```
+
+**int.toBytes()**
+
+`int.toBytes()` retourne une `list<byte>` de **8 octets**, copie brute de la représentation mémoire de l’entier.
+
+Règles normatives :
+
+- l’ordre des octets est **celui de la mémoire** sur la machine exécutant le runtime ;
+- aucune normalisation d’endianness n’est effectuée ;
+- le contenu de la liste est une **copie** (pas de vue).
 
 **float**
 
@@ -231,8 +247,19 @@ f.isFinite();
 
 f.toInt();
 f.toString();
+f.toBytes();
 f.abs();
 ```
+
+**float.toBytes()**
+
+`float.toBytes()` retourne une `list<byte>` de **8 octets**, copie brute de la représentation mémoire IEEE‑754 de l’entier.
+
+Règles normatives :
+
+- l’ordre des octets est **celui de la mémoire** sur la machine exécutant le runtime ;
+- aucune normalisation d’endianness n’est effectuée ;
+- le contenu de la liste est une **copie** (pas de vue).
 
 **string**
 
@@ -2738,6 +2765,7 @@ Principe général (normatif) :
 | accès `map[k]` avec clé absente | exception runtime | l’accès doit lever une exception | catégorie `RUNTIME_MISSING_KEY`, position |
 | écriture `map[k] = v` avec clé absente | autorisé | l’opération doit insérer une entrée `(k, v)` | pas d’exception |
 | mutation structurelle pendant itération (`list`/`map`) | exception runtime | l’itération doit détecter la mutation et lever une exception au plus tard au prochain pas | catégorie `RUNTIME_CONCURRENT_MUTATION`, position |
+| opération arithmétique/uniaire sur `glyph` | exception runtime | l’opération doit lever une exception | catégorie `RUNTIME_TYPE_ERROR`, position |
 
 ## 14.3 Debug / release
 

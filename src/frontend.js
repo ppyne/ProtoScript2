@@ -1418,6 +1418,14 @@ class Analyzer {
         if (name === "abs") return prim("float");
         if (name === "isNaN" || name === "isInfinite" || name === "isFinite") return prim("bool");
       }
+      if (t === "glyph") {
+        if (name === "isLetter" || name === "isDigit" || name === "isWhitespace") return prim("bool");
+        if (name === "isUpper" || name === "isLower") return prim("bool");
+        if (name === "toUpper" || name === "toLower") return prim("glyph");
+        if (name === "toString") return prim("string");
+        if (name === "toInt") return prim("int");
+        if (name === "toUtf8Bytes") return { kind: "GenericType", name: "list", args: [prim("byte")] };
+      }
       if (t === "string") {
         if (name === "length") return prim("int");
         if (name === "isEmpty") return prim("bool");

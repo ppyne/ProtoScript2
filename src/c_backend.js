@@ -159,6 +159,13 @@ function inferTempTypes(ir) {
                   else if (i.method === "abs") set(i.dst, "float");
                   else if (["isNaN", "isInfinite", "isFinite"].includes(i.method)) set(i.dst, "bool");
                   else set(i.dst, "float");
+                } else if (rt === "glyph") {
+                  if (i.method === "toString") set(i.dst, "string");
+                  else if (i.method === "toInt") set(i.dst, "int");
+                  else if (i.method === "toUtf8Bytes") set(i.dst, "list<byte>");
+                  else if (["isLetter", "isDigit", "isWhitespace", "isUpper", "isLower"].includes(i.method)) set(i.dst, "bool");
+                  else if (["toUpper", "toLower"].includes(i.method)) set(i.dst, "glyph");
+                  else set(i.dst, "glyph");
                 } else if (rt === "string") {
                   if (["length", "indexOf"].includes(i.method)) set(i.dst, "int");
                   else if (["startsWith", "endsWith"].includes(i.method)) set(i.dst, "bool");
@@ -638,6 +645,39 @@ function emitRuntimeHelpers() {
     "  if (s.len > 0) memcpy(out.ptr, s.ptr, s.len);",
     "  return out;",
     "}",
+    "static ps_list_byte ps_glyph_to_utf8_bytes(uint32_t g) {",
+    "  ps_list_byte out = { NULL, 0, 0 };",
+    "  uint8_t buf[4];",
+    "  size_t n = 0;",
+    "  if (g <= 0x7F) {",
+    "    buf[0] = (uint8_t)g;",
+    "    n = 1;",
+    "  } else if (g <= 0x7FF) {",
+    "    buf[0] = (uint8_t)(0xC0 | (g >> 6));",
+    "    buf[1] = (uint8_t)(0x80 | (g & 0x3F));",
+    "    n = 2;",
+    "  } else if (g <= 0xFFFF) {",
+    "    if (g >= 0xD800 && g <= 0xDFFF) ps_panic(\"R1007\", \"RUNTIME_INVALID_UTF8\", \"invalid UTF-8\");",
+    "    buf[0] = (uint8_t)(0xE0 | (g >> 12));",
+    "    buf[1] = (uint8_t)(0x80 | ((g >> 6) & 0x3F));",
+    "    buf[2] = (uint8_t)(0x80 | (g & 0x3F));",
+    "    n = 3;",
+    "  } else if (g <= 0x10FFFF) {",
+    "    buf[0] = (uint8_t)(0xF0 | (g >> 18));",
+    "    buf[1] = (uint8_t)(0x80 | ((g >> 12) & 0x3F));",
+    "    buf[2] = (uint8_t)(0x80 | ((g >> 6) & 0x3F));",
+    "    buf[3] = (uint8_t)(0x80 | (g & 0x3F));",
+    "    n = 4;",
+    "  } else {",
+    "    ps_panic(\"R1007\", \"RUNTIME_INVALID_UTF8\", \"invalid UTF-8\");",
+    "  }",
+    "  out.len = n;",
+    "  out.cap = n;",
+    "  out.ptr = (uint8_t*)malloc(sizeof(uint8_t) * n);",
+    "  if (!out.ptr && n > 0) ps_panic(\"R1998\", \"RUNTIME_OOM\", \"out of memory\");",
+    "  if (n > 0) memcpy(out.ptr, buf, n);",
+    "  return out;",
+    "}",
     "static ps_string ps_list_byte_to_utf8_string(ps_list_byte b) {",
     "  if (!ps_utf8_validate(b.ptr, b.len)) ps_panic(\"R1007\", \"RUNTIME_INVALID_UTF8\", \"invalid UTF-8\");",
     "  char* buf = (char*)malloc(b.len + 1);",
@@ -758,17 +798,39 @@ function emitInstr(i, fnInf, state) {
       }
       break;
     case "bin_op":
-      out.push(`${n(i.dst)} = (${n(i.left)} ${i.operator} ${n(i.right)});`);
+      {
+        const lt = t(i.left);
+        const rt = t(i.right);
+        if (lt === "glyph" || rt === "glyph") {
+          if (lt !== "glyph" || rt !== "glyph") {
+            out.push('ps_panic("R1010", "RUNTIME_TYPE_ERROR", "invalid glyph operation");');
+          } else if (["==", "!=", "<", "<=", ">", ">="].includes(i.operator)) {
+            out.push(`${n(i.dst)} = (${n(i.left)} ${i.operator} ${n(i.right)});`);
+          } else {
+            out.push('ps_panic("R1010", "RUNTIME_TYPE_ERROR", "invalid glyph operation");');
+          }
+        } else {
+          out.push(`${n(i.dst)} = (${n(i.left)} ${i.operator} ${n(i.right)});`);
+        }
+      }
       break;
     case "unary_op":
-      out.push(`${n(i.dst)} = (${i.operator}${n(i.src)});`);
+      if (t(i.src) === "glyph" && (i.operator === "-" || i.operator === "++" || i.operator === "--" || i.operator === "~")) {
+        out.push('ps_panic("R1010", "RUNTIME_TYPE_ERROR", "invalid glyph operation");');
+      } else {
+        out.push(`${n(i.dst)} = (${i.operator}${n(i.src)});`);
+      }
       break;
     case "copy":
       setAlias(i.dst, aliasOf(i.src) || null);
       out.push(`${n(i.dst)} = ${n(i.src)};`);
       break;
     case "postfix_op":
-      out.push(`${n(i.dst)} = ${n(i.src)}${i.operator};`);
+      if (t(i.src) === "glyph" && (i.operator === "++" || i.operator === "--")) {
+        out.push('ps_panic("R1010", "RUNTIME_TYPE_ERROR", "invalid glyph operation");');
+      } else {
+        out.push(`${n(i.dst)} = ${n(i.src)}${i.operator};`);
+      }
       break;
     case "call_static":
       if (i.callee === "Io.print" || i.callee === "Io.printLine" || i.callee === "Io_print" || i.callee === "Io_printLine") {
@@ -816,6 +878,10 @@ function emitInstr(i, fnInf, state) {
           out.push(`${n(i.dst)} = ps_string_concat(${n(i.receiver)}, ${n(i.args[0])});`);
         } else if (rt === "string" && i.method === "toUtf8Bytes") {
           out.push(`${n(i.dst)} = ps_string_to_utf8_bytes(${n(i.receiver)});`);
+        } else if (rt === "glyph" && i.method === "toInt") {
+          out.push(`${n(i.dst)} = (int64_t)${n(i.receiver)};`);
+        } else if (rt === "glyph" && i.method === "toUtf8Bytes") {
+          out.push(`${n(i.dst)} = ps_glyph_to_utf8_bytes(${n(i.receiver)});`);
         } else if (rc && rc.kind === "list" && rc.inner === "byte" && i.method === "toUtf8String") {
           out.push(`${n(i.dst)} = ps_list_byte_to_utf8_string(${n(i.receiver)});`);
         } else if (i.method === "pop" && rc && rc.kind === "list") {

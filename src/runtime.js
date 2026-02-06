@@ -19,6 +19,18 @@ class ReturnSignal {
   }
 }
 
+class Glyph {
+  constructor(codepoint) {
+    this.value = codepoint >>> 0;
+  }
+  valueOf() {
+    return this.value;
+  }
+  toString() {
+    return String.fromCodePoint(this.value);
+  }
+}
+
 function rdiag(file, node, code, category, message) {
   return {
     file,
@@ -30,12 +42,30 @@ function rdiag(file, node, code, category, message) {
   };
 }
 
+function isGlyph(v) {
+  return v instanceof Glyph;
+}
+
+function glyphValue(v) {
+  return isGlyph(v) ? v.value : null;
+}
+
 function glyphsOf(s) {
+  return Array.from(s, (ch) => new Glyph(ch.codePointAt(0)));
+}
+
+function glyphStringsOf(s) {
   return Array.from(s);
 }
 
+function glyphAt(s, idx) {
+  const ch = glyphStringsOf(s)[idx];
+  if (ch === undefined) return null;
+  return new Glyph(ch.codePointAt(0));
+}
+
 function trimAscii(s, mode = "both") {
-  const chars = glyphsOf(s);
+  const chars = glyphStringsOf(s);
   let start = 0;
   let end = chars.length;
   const isWs = (c) => c === " " || c === "\t" || c === "\n" || c === "\r";
@@ -49,8 +79,8 @@ function trimAscii(s, mode = "both") {
 }
 
 function indexOfGlyphs(hay, needle) {
-  const h = glyphsOf(hay);
-  const n = glyphsOf(needle);
+  const h = glyphStringsOf(hay);
+  const n = glyphStringsOf(needle);
   if (n.length === 0) return 0;
   for (let i = 0; i + n.length <= h.length; i += 1) {
     let ok = true;
@@ -502,6 +532,7 @@ function execSwitch(stmt, scope, functions, moduleEnv, file, callFunction) {
 }
 
 function eqValue(a, b) {
+  if (isGlyph(a) && isGlyph(b)) return a.value === b.value;
   if (typeof a === "bigint" || typeof b === "bigint") return BigInt(a) === BigInt(b);
   return a === b;
 }
@@ -518,6 +549,9 @@ function evalExpr(expr, scope, functions, moduleEnv, file, callFunction) {
       return scope.get(expr.name);
     case "UnaryExpr": {
       const v = evalExpr(expr.expr, scope, functions, moduleEnv, file, callFunction);
+      if (isGlyph(v) && (expr.op === "-" || expr.op === "++" || expr.op === "--" || expr.op === "~")) {
+        throw new RuntimeError(rdiag(file, expr, "R1010", "RUNTIME_TYPE_ERROR", "invalid glyph operation"));
+      }
       if (expr.op === "-") {
         if (typeof v === "bigint") return checkIntRange(file, expr.expr, -v);
         return -v;
@@ -577,12 +611,14 @@ function evalExpr(expr, scope, functions, moduleEnv, file, callFunction) {
 }
 
 function mapKey(v) {
+  if (isGlyph(v)) return `g:${v.value}`;
   if (typeof v === "bigint") return `i:${v.toString()}`;
   return `${typeof v}:${String(v)}`;
 }
 
 function unmapKey(k) {
   if (k.startsWith("i:")) return BigInt(k.slice(2));
+  if (k.startsWith("g:")) return new Glyph(Number(k.slice(2)));
   const idx = k.indexOf(":");
   if (idx < 0) return k;
   const type = k.slice(0, idx);
@@ -595,6 +631,18 @@ function unmapKey(k) {
 
 function evalBinary(file, expr, l, r) {
   const op = expr.op;
+  if (isGlyph(l) || isGlyph(r)) {
+    if (!isGlyph(l) || !isGlyph(r)) {
+      throw new RuntimeError(rdiag(file, expr, "R1010", "RUNTIME_TYPE_ERROR", "invalid glyph operation"));
+    }
+    if (op === "==") return l.value === r.value;
+    if (op === "!=") return l.value !== r.value;
+    if (op === "<") return l.value < r.value;
+    if (op === "<=") return l.value <= r.value;
+    if (op === ">") return l.value > r.value;
+    if (op === ">=") return l.value >= r.value;
+    throw new RuntimeError(rdiag(file, expr, "R1010", "RUNTIME_TYPE_ERROR", "invalid glyph operation"));
+  }
   if (typeof l === "bigint" && typeof r === "bigint") {
     if (op === "+") return checkIntRange(file, expr.left, l + r);
     if (op === "-") return checkIntRange(file, expr.left, l - r);
@@ -651,12 +699,12 @@ function indexGet(file, targetNode, indexNode, target, idx) {
     return target[i];
   }
   if (typeof target === "string") {
-    const glyphs = glyphsOf(target);
+    const glyphs = glyphStringsOf(target);
     const i = Number(idx);
     if (!Number.isInteger(i) || i < 0 || i >= glyphs.length) {
       throw new RuntimeError(rdiag(file, targetNode, "R1002", "RUNTIME_INDEX_OOB", "index out of bounds"));
     }
-    return glyphs[i];
+    return glyphAt(target, i);
   }
   if (target instanceof Map) {
     const k = mapKey(idx);
@@ -715,10 +763,19 @@ function evalCall(expr, scope, functions, moduleEnv, file, callFunction) {
 
     if (m.name === "toString") {
       if (target === null || target === undefined) return "null";
+      if (isGlyph(target)) return String.fromCodePoint(target.value);
       if (typeof target === "bigint") return target.toString();
       if (typeof target === "string") return target;
       if (typeof target === "boolean") return target ? "true" : "false";
       return String(target);
+    }
+    if (m.name === "toInt" && isGlyph(target)) {
+      return BigInt(target.value);
+    }
+    if (m.name === "toUtf8Bytes" && isGlyph(target)) {
+      const enc = new TextEncoder();
+      const bytes = enc.encode(String.fromCodePoint(target.value));
+      return Array.from(bytes, (b) => BigInt(b));
     }
     if (m.name === "toByte") {
       if (typeof target === "bigint") return target;
@@ -728,7 +785,7 @@ function evalCall(expr, scope, functions, moduleEnv, file, callFunction) {
 
     if (m.name === "length") {
       if (Array.isArray(target)) return BigInt(target.length);
-      if (typeof target === "string") return BigInt(Array.from(target).length);
+      if (typeof target === "string") return BigInt(glyphStringsOf(target).length);
       if (target instanceof Map) return BigInt(target.size);
       return 0n;
     }
@@ -740,7 +797,7 @@ function evalCall(expr, scope, functions, moduleEnv, file, callFunction) {
       if (m.name === "substring") {
         const start = Number(args[0]);
         const length = Number(args[1]);
-        const gs = glyphsOf(target);
+        const gs = glyphStringsOf(target);
         if (!Number.isInteger(start) || !Number.isInteger(length) || start < 0 || length < 0 || start + length > gs.length) {
           throw new RuntimeError(rdiag(file, m, "R1002", "RUNTIME_INDEX_OOB", "index out of bounds"));
         }
@@ -754,7 +811,7 @@ function evalCall(expr, scope, functions, moduleEnv, file, callFunction) {
       if (m.name === "endsWith") return target.endsWith(String(args[0] ?? ""));
       if (m.name === "split") {
         const sep = String(args[0] ?? "");
-        if (sep === "") return glyphsOf(target);
+        if (sep === "") return glyphStringsOf(target);
         return target.split(sep);
       }
       if (m.name === "trim") return trimAscii(target, "both");

@@ -1,0 +1,14 @@
+import Io;
+
+function main() : void {
+    glyph g = "A"[0];
+    Io.printLine(g.toInt().toString());
+    list<byte> b = g.toUtf8Bytes();
+    Io.printLine(b[0].toString());
+
+    glyph e = "é"[0];
+    Io.printLine(e.toInt().toString());
+    list<byte> eb = e.toUtf8Bytes();
+    Io.printLine(eb[0].toString());
+    Io.printLine(eb[1].toString());
+}

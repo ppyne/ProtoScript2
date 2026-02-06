@@ -1,0 +1,4 @@
+{
+  "status": "accept-runtime",
+  "expected_stdout": "65\n65\n233\n195\n169\n"
+}

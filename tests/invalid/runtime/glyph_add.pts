@@ -1,0 +1,5 @@
+function main() : void {
+    glyph a = "A"[0];
+    glyph b = "B"[0];
+    glyph c = a + b;
+}
