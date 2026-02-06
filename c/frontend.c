@@ -1479,6 +1479,7 @@ static char *read_file(const char *path, size_t *out_n) {
 typedef struct Sym {
   char *name;
   char *type;
+  int known_list_len; // -1 = unknown
   struct Sym *next;
 } Sym;
 
@@ -1831,11 +1832,12 @@ static int ast_is_terminator(AstNode *n) {
   return strcmp(n->kind, "BreakStmt") == 0 || strcmp(n->kind, "ReturnStmt") == 0 || strcmp(n->kind, "ThrowStmt") == 0;
 }
 
-static int scope_define(Scope *s, const char *name, const char *type) {
+static int scope_define(Scope *s, const char *name, const char *type, int known_list_len) {
   Sym *e = (Sym *)calloc(1, sizeof(Sym));
   if (!e) return 0;
   e->name = strdup(name ? name : "");
   e->type = strdup(type ? type : "unknown");
+  e->known_list_len = known_list_len;
   if (!e->name || !e->type) {
     free(e->name);
     free(e->type);
@@ -1847,13 +1849,18 @@ static int scope_define(Scope *s, const char *name, const char *type) {
   return 1;
 }
 
-static const char *scope_lookup(Scope *s, const char *name) {
+static Sym *scope_lookup_sym(Scope *s, const char *name) {
   for (Scope *cur = s; cur; cur = cur->parent) {
     for (Sym *e = cur->syms; e; e = e->next) {
-      if (strcmp(e->name, name) == 0) return e->type;
+      if (strcmp(e->name, name) == 0) return e;
     }
   }
-  return "unknown";
+  return NULL;
+}
+
+static const char *scope_lookup(Scope *s, const char *name) {
+  Sym *sym = scope_lookup_sym(s, name);
+  return sym ? sym->type : "unknown";
 }
 
 static FnSig *find_fn(Analyzer *a, const char *name) {
@@ -2185,6 +2192,21 @@ static char *infer_expr_type(Analyzer *a, AstNode *e, Scope *scope, int *ok) {
   return strdup("unknown");
 }
 
+static int check_list_pop(Analyzer *a, AstNode *e, Scope *scope) {
+  if (!e || strcmp(e->kind, "CallExpr") != 0 || e->child_len == 0) return 1;
+  AstNode *callee = e->children[0];
+  if (!callee || strcmp(callee->kind, "MemberExpr") != 0 || !callee->text) return 1;
+  if (strcmp(callee->text, "pop") != 0) return 1;
+  if (callee->child_len == 0) return 1;
+  AstNode *target = callee->children[0];
+  if (!target || strcmp(target->kind, "Identifier") != 0) return 1;
+  Sym *sym = scope_lookup_sym(scope, target->text ? target->text : "");
+  if (!sym || sym->known_list_len != 0 || !sym->type) return 1;
+  if (strncmp(sym->type, "list<", 5) != 0) return 1;
+  set_diag(a->diag, a->file, target->line, target->col, "E3005", "STATIC_EMPTY_POP", "pop on statically empty list");
+  return 0;
+}
+
 static char *infer_assignable_type(Analyzer *a, AstNode *lhs, Scope *scope, int *ok) {
   if (!lhs) return strdup("unknown");
   if (strcmp(lhs->kind, "Identifier") == 0) return strdup(scope_lookup(scope, lhs->text ? lhs->text : ""));
@@ -2241,8 +2263,11 @@ static int analyze_stmt(Analyzer *a, AstNode *st, Scope *scope) {
         return 0;
       }
       if (lhs && rhs && strcmp(lhs, rhs) != 0 && strcmp(rhs, "unknown") != 0) {
-        int empty_map_init = (init && strcmp(init->kind, "MapLiteral") == 0 && init->child_len == 0 && lhs && strncmp(lhs, "map<", 4) == 0);
-        if (!empty_map_init) {
+        int empty_map_init =
+            (init && strcmp(init->kind, "MapLiteral") == 0 && init->child_len == 0 && lhs && strncmp(lhs, "map<", 4) == 0);
+        int empty_list_init =
+            (init && strcmp(init->kind, "ListLiteral") == 0 && init->child_len == 0 && lhs && strncmp(lhs, "list<", 5) == 0);
+        if (!empty_map_init && !empty_list_init) {
         char msg[160];
         snprintf(msg, sizeof(msg), "cannot assign %s to %s", rhs, lhs);
         set_diag(a->diag, a->file, st->line, st->col, "E3001", "TYPE_MISMATCH_ASSIGNMENT", msg);
@@ -2252,7 +2277,9 @@ static int analyze_stmt(Analyzer *a, AstNode *st, Scope *scope) {
         }
       }
       if (lhs) {
-        if (!scope_define(scope, st->text ? st->text : "", lhs)) {
+        int known_len = -1;
+        if (init && strcmp(init->kind, "ListLiteral") == 0) known_len = (int)init->child_len;
+        if (!scope_define(scope, st->text ? st->text : "", lhs, known_len)) {
           free(lhs);
           free(rhs);
           return 0;
@@ -2264,7 +2291,7 @@ static int analyze_stmt(Analyzer *a, AstNode *st, Scope *scope) {
     }
     if (tn) {
       char *lhs = canon_type(tn->text);
-      if (!lhs || !scope_define(scope, st->text ? st->text : "", lhs)) {
+      if (!lhs || !scope_define(scope, st->text ? st->text : "", lhs, -1)) {
         free(lhs);
         return 0;
       }
@@ -2276,7 +2303,7 @@ static int analyze_stmt(Analyzer *a, AstNode *st, Scope *scope) {
         free(rhs);
         return 0;
       }
-      if (!scope_define(scope, st->text ? st->text : "", rhs ? rhs : "unknown")) {
+      if (!scope_define(scope, st->text ? st->text : "", rhs ? rhs : "unknown", -1)) {
         free(rhs);
         return 0;
       }
@@ -2309,15 +2336,26 @@ static int analyze_stmt(Analyzer *a, AstNode *st, Scope *scope) {
       return 0;
     }
     if (lhs && rhs && strcmp(lhs, rhs) != 0) {
-      int empty_map_assign = (st->child_len >= 2 && st->children[1] && strcmp(st->children[1]->kind, "MapLiteral") == 0 &&
-                              st->children[1]->child_len == 0 && lhs && strncmp(lhs, "map<", 4) == 0);
-      if (!empty_map_assign) {
+      int empty_map_assign =
+          (st->child_len >= 2 && st->children[1] && strcmp(st->children[1]->kind, "MapLiteral") == 0 &&
+           st->children[1]->child_len == 0 && lhs && strncmp(lhs, "map<", 4) == 0);
+      int empty_list_assign =
+          (st->child_len >= 2 && st->children[1] && strcmp(st->children[1]->kind, "ListLiteral") == 0 &&
+           st->children[1]->child_len == 0 && lhs && strncmp(lhs, "list<", 5) == 0);
+      if (!empty_map_assign && !empty_list_assign) {
       char msg[160];
       snprintf(msg, sizeof(msg), "cannot assign %s to %s", rhs, lhs);
       set_diag(a->diag, a->file, st->line, st->col, "E3001", "TYPE_MISMATCH_ASSIGNMENT", msg);
       free(lhs);
       free(rhs);
       return 0;
+      }
+    }
+    if (st->children[0] && strcmp(st->children[0]->kind, "Identifier") == 0) {
+      Sym *sym = scope_lookup_sym(scope, st->children[0]->text ? st->children[0]->text : "");
+      if (sym) {
+        if (st->children[1] && strcmp(st->children[1]->kind, "ListLiteral") == 0) sym->known_list_len = (int)st->children[1]->child_len;
+        else sym->known_list_len = -1;
       }
     }
     free(lhs);
@@ -2328,7 +2366,8 @@ static int analyze_stmt(Analyzer *a, AstNode *st, Scope *scope) {
     int ok = 1;
     char *t = infer_expr_type(a, st->children[0], scope, &ok);
     free(t);
-    return ok;
+    if (!ok) return 0;
+    return check_list_pop(a, st->children[0], scope);
   }
   if (strcmp(st->kind, "ReturnStmt") == 0 && st->child_len > 0) {
     int ok = 1;
@@ -2351,7 +2390,7 @@ static int analyze_stmt(Analyzer *a, AstNode *st, Scope *scope) {
       if (strcmp(c->kind, "IterVar") == 0) {
         AstNode *tn = ast_child_kind(c, "Type");
         char *tt = canon_type(tn ? tn->text : "unknown");
-        int okd = scope_define(&s2, c->text ? c->text : "", tt ? tt : "unknown");
+        int okd = scope_define(&s2, c->text ? c->text : "", tt ? tt : "unknown", -1);
         free(tt);
         if (!okd) {
           free_syms(s2.syms);
@@ -2397,7 +2436,7 @@ static int analyze_stmt(Analyzer *a, AstNode *st, Scope *scope) {
         s2.parent = scope;
         AstNode *tn = ast_child_kind(c, "Type");
         char *tt = canon_type(tn ? tn->text : "unknown");
-        if (!scope_define(&s2, c->text ? c->text : "", tt ? tt : "unknown")) {
+        if (!scope_define(&s2, c->text ? c->text : "", tt ? tt : "unknown", -1)) {
           free(tt);
           free_syms(s2.syms);
           return 0;
@@ -2426,7 +2465,7 @@ static int analyze_function(Analyzer *a, AstNode *fn) {
     if (strcmp(c->kind, "Param") != 0) continue;
     AstNode *tn = ast_child_kind(c, "Type");
     char *tt = canon_type(tn ? tn->text : "unknown");
-    if (!tt || !scope_define(&root, c->text ? c->text : "", tt)) {
+    if (!tt || !scope_define(&root, c->text ? c->text : "", tt, -1)) {
       free(tt);
       free_syms(root.syms);
       return 0;

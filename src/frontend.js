@@ -1118,7 +1118,12 @@ class Analyzer {
             stmt.init.kind === "MapLiteral" &&
             stmt.init.pairs.length === 0 &&
             typeToString(t).startsWith("map<");
-          if (t && initType && !sameType(t, initType) && !emptyMapInit) {
+          const emptyListInit =
+            !!t &&
+            stmt.init.kind === "ListLiteral" &&
+            stmt.init.items.length === 0 &&
+            typeToString(t).startsWith("list<");
+          if (t && initType && !sameType(t, initType) && !emptyMapInit && !emptyListInit) {
             this.addDiag(stmt, "E3001", "TYPE_MISMATCH_ASSIGNMENT", `cannot assign ${typeToString(initType)} to ${typeToString(t)}`);
           }
           if (!t) t = initType;
@@ -1143,7 +1148,12 @@ class Analyzer {
           stmt.expr.kind === "MapLiteral" &&
           stmt.expr.pairs.length === 0 &&
           typeToString(lhsType).startsWith("map<");
-        if (lhsType && rhsType && !sameType(lhsType, rhsType) && !emptyMapAssign) {
+        const emptyListAssign =
+          !!lhsType &&
+          stmt.expr.kind === "ListLiteral" &&
+          stmt.expr.items.length === 0 &&
+          typeToString(lhsType).startsWith("list<");
+        if (lhsType && rhsType && !sameType(lhsType, rhsType) && !emptyMapAssign && !emptyListAssign) {
           this.addDiag(stmt, "E3001", "TYPE_MISMATCH_ASSIGNMENT", `cannot assign ${typeToString(rhsType)} to ${typeToString(lhsType)}`);
         }
         if (stmt.target && stmt.target.kind === "Identifier") {
