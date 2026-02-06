@@ -1,0 +1,14 @@
+import Io;
+import JSON;
+
+function main() : void {
+    JSONValue b = JSON.decode("true");
+    JSONValue n = JSON.decode("1");
+    JSONValue z = JSON.decode("null");
+    JSONValue a = JSON.decode("[1, 2]");
+    bool ok = b.isBool() && b.asBool() == true;
+    ok = ok && n.isNumber() && n.asNumber() == 1.0;
+    ok = ok && z.isNull();
+    ok = ok && a.isArray() && a.asArray().length() == 2;
+    Io.printLine(ok.toString());
+}

@@ -128,6 +128,8 @@ PS_Status ps_list_push(PS_Context *ctx, PS_Value *list, PS_Value *value);
 
 PS_Value *ps_object_get_str(PS_Context *ctx, PS_Value *obj, const char *key_utf8, size_t key_len);
 PS_Status ps_object_set_str(PS_Context *ctx, PS_Value *obj, const char *key_utf8, size_t key_len, PS_Value *value);
+size_t ps_object_len(PS_Value *obj);
+PS_Status ps_object_entry(PS_Context *ctx, PS_Value *obj, size_t index, const char **out_key, size_t *out_len, PS_Value **out_value);
 
 // UTF-8 conversions (strict).
 PS_Value *ps_string_to_utf8_bytes(PS_Context *ctx, PS_Value *str);

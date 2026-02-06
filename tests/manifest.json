@@ -43,7 +43,9 @@
       "invalid/runtime/io_write_type_binary",
       "invalid/runtime/io_close_std",
       "invalid/runtime/io_after_close",
-      "invalid/runtime/io_utf8_invalid"
+      "invalid/runtime/io_utf8_invalid",
+      "invalid/runtime/json_decode_invalid",
+      "invalid/runtime/json_encode_nan"
     ],
     "edge": [
       "edge/overflow_int_add",
@@ -95,6 +97,9 @@
       "edge/math_random_range",
       "edge/math_random_variability",
       "edge/math_random_loop",
+      "edge/json_encode_basic",
+      "edge/json_decode_basic",
+      "edge/json_isvalid",
       "edge/io_text_roundtrip",
       "edge/io_eof",
       "edge/io_print",

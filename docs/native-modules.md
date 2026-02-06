@@ -142,6 +142,10 @@ Vous ne devez jamais acceder a des champs internes.
 
 Toutes ces fonctions retournent un handle **possede par l'appelant** (refcount +1).
 
+### Collections
+- `ps_list_len`, `ps_list_get`, `ps_list_set`, `ps_list_push`
+- `ps_object_get_str`, `ps_object_set_str`, `ps_object_len`, `ps_object_entry`
+
 ### Inspection / conversion
 - `ps_as_int`, `ps_as_bool`, `ps_as_float`, `ps_as_byte`, `ps_as_glyph`
 - `ps_string_ptr`, `ps_string_len`

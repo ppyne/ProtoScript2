@@ -110,3 +110,33 @@ int ps_object_set_str_internal(PS_Context *ctx, PS_Value *obj, const char *key, 
   o->len += 1;
   return 1;
 }
+
+size_t ps_object_len_internal(PS_Value *obj) {
+  if (!obj || obj->tag != PS_V_OBJECT) return 0;
+  return obj->as.object_v.len;
+}
+
+int ps_object_entry_internal(PS_Context *ctx, PS_Value *obj, size_t index, const char **out_key, size_t *out_len, PS_Value **out_value) {
+  if (!obj || obj->tag != PS_V_OBJECT) {
+    ps_throw(ctx, PS_ERR_TYPE, "not an object");
+    return 0;
+  }
+  PS_Object *o = &obj->as.object_v;
+  if (index >= o->len) {
+    ps_throw(ctx, PS_ERR_RANGE, "index out of bounds");
+    return 0;
+  }
+  size_t seen = 0;
+  for (size_t i = 0; i < o->cap; i++) {
+    if (!o->used[i]) continue;
+    if (seen == index) {
+      if (out_key) *out_key = o->keys[i].ptr;
+      if (out_len) *out_len = o->keys[i].len;
+      if (out_value) *out_value = o->values[i];
+      return 1;
+    }
+    seen += 1;
+  }
+  ps_throw(ctx, PS_ERR_RANGE, "index out of bounds");
+  return 0;
+}

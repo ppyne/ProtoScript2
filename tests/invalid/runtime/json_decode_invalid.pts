@@ -1,0 +1,5 @@
+import JSON;
+
+function main() : void {
+    JSON.decode("{");
+}

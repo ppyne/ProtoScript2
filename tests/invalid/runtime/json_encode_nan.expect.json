@@ -1,0 +1,7 @@
+{
+  "status": "reject-runtime",
+  "error_code": "R1010",
+  "category": "RUNTIME_JSON_ERROR",
+  "position": { "line": 5, "column": 9 },
+  "requires": ["modules"]
+}

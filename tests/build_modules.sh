@@ -34,5 +34,6 @@ build_mod "test_badver" "$SRC_DIR/test_badver.c"
 build_mod "test_nosym" "$SRC_DIR/test_nosym.c"
 build_mod "Math" "$SRC_DIR/math.c" -lm
 build_mod "Io" "$SRC_DIR/io.c"
+build_mod "JSON" "$SRC_DIR/json.c"
 
 echo "modules built in $OUT_DIR"

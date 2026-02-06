@@ -3145,6 +3145,64 @@ Encadré de cohérence :
 - les modules étendent l’environnement de noms, pas le langage
 - ProtoScript V2 conserve un modèle déterministe : tout est résolu, typé et vérifié à la compilation
 
+## 20.8 Module standard `JSON` (normatif)
+
+Le module `JSON` fait partie de l’environnement standard et doit être résolu statiquement via le registre de modules.
+
+### Prototype standard `JSONValue` (scellé)
+
+`JSONValue` est un prototype standard scellé représentant un type somme JSON fermé.
+Il ne peut pas être étendu par l’utilisateur.
+
+Sous‑types normatifs :
+
+- `JsonNull`
+- `JsonBool`
+- `JsonNumber`
+- `JsonString`
+- `JsonArray`
+- `JsonObject`
+
+Méthodes d’accès (sur `JSONValue`) :
+
+- `isNull()`, `isBool()`, `isNumber()`, `isString()`, `isArray()`, `isObject()` → `bool`
+- `asBool()` → `bool`
+- `asNumber()` → `float`
+- `asString()` → `string`
+- `asArray()` → `list<JSONValue>`
+- `asObject()` → `map<string, JSONValue>`
+
+`asX()` déclenche une erreur runtime si le type ne correspond pas.
+
+### Constructeurs explicites (immutables)
+
+Le module fournit des constructeurs explicites pour produire des valeurs JSON :
+
+- `JSON.null()` → `JSONValue`
+- `JSON.bool(bool b)` → `JSONValue`
+- `JSON.number(float x)` → `JSONValue` (promotion implicite `int → float` autorisée)
+- `JSON.string(string s)` → `JSONValue`
+- `JSON.array(list<JSONValue> items)` → `JSONValue`
+- `JSON.object(map<string, JSONValue> members)` → `JSONValue`
+
+### Fonctions
+
+- `JSON.encode(value) -> string`
+- `JSON.decode(string text) -> JSONValue`
+- `JSON.isValid(string text) -> bool`
+
+Règles :
+
+- `JSON.encode` accepte :
+  - un `JSONValue`, ou
+  - toute valeur récursivement sérialisable : `bool`, `int`, `float`, `string`, `list<T>`, `map<string,T>` (avec `T` sérialisable).
+- `NaN`, `+Infinity`, `-Infinity` sont **interdits** à l’encode : erreur runtime.
+- `-0` est préservé lorsqu’il est sérialisé.
+- `JSON.decode` parse du JSON strict UTF‑8 et retourne un arbre `JSONValue` ; en cas d’échec, erreur runtime.
+- `JSON.isValid` retourne `true/false` sans exception si le texte n’est pas un JSON valide (erreur runtime uniquement si argument non‑string).
+
+Le comportement complet du module `JSON` est normatif et défini dans `docs/module_json_specification.md`.
+
 # Annexe A (normative) — Grammaire lexicale
 
 ## A.1 Encodage et caractères

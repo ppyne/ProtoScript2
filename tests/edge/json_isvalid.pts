@@ -1,0 +1,7 @@
+import Io;
+import JSON;
+
+function main() : void {
+    bool ok = JSON.isValid("true") && !JSON.isValid("tru");
+    Io.printLine(ok.toString());
+}

@@ -1630,7 +1630,7 @@ static int parse_registry_type(const char **p, int allow_void) {
   skip_ws(p);
   if (allow_void && consume_kw(p, "void")) return 1;
   if (consume_kw(p, "int") || consume_kw(p, "float") || consume_kw(p, "bool") || consume_kw(p, "byte") || consume_kw(p, "glyph") ||
-      consume_kw(p, "string") || consume_kw(p, "File")) {
+      consume_kw(p, "string") || consume_kw(p, "File") || consume_kw(p, "JSONValue")) {
     return 1;
   }
   if (consume_kw(p, "list") || consume_kw(p, "slice") || consume_kw(p, "view")) {
@@ -2889,6 +2889,14 @@ static char *ir_guess_expr_type(AstNode *e, IrFnCtx *ctx) {
       if (strcmp(c->text, "toUpper") == 0 || strcmp(c->text, "toLower") == 0) return strdup("string");
       if (strcmp(c->text, "toUtf8Bytes") == 0) return strdup("list<byte>");
       if (strcmp(c->text, "toUtf8String") == 0) return strdup("string");
+      if (strcmp(c->text, "isNull") == 0 || strcmp(c->text, "isBool") == 0 || strcmp(c->text, "isNumber") == 0 ||
+          strcmp(c->text, "isString") == 0 || strcmp(c->text, "isArray") == 0 || strcmp(c->text, "isObject") == 0)
+        return strdup("bool");
+      if (strcmp(c->text, "asBool") == 0) return strdup("bool");
+      if (strcmp(c->text, "asNumber") == 0) return strdup("float");
+      if (strcmp(c->text, "asString") == 0) return strdup("string");
+      if (strcmp(c->text, "asArray") == 0) return strdup("list<JSONValue>");
+      if (strcmp(c->text, "asObject") == 0) return strdup("map<string,JSONValue>");
     }
     return strdup("unknown");
   }

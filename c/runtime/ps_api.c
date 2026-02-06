@@ -155,6 +155,14 @@ PS_Status ps_object_set_str(PS_Context *ctx, PS_Value *obj, const char *key_utf8
   return ps_object_set_str_internal(ctx, obj, key_utf8, key_len, value) ? PS_OK : PS_ERR;
 }
 
+size_t ps_object_len(PS_Value *obj) {
+  return ps_object_len_internal(obj);
+}
+
+PS_Status ps_object_entry(PS_Context *ctx, PS_Value *obj, size_t index, const char **out_key, size_t *out_len, PS_Value **out_value) {
+  return ps_object_entry_internal(ctx, obj, index, out_key, out_len, out_value) ? PS_OK : PS_ERR;
+}
+
 PS_Value *ps_string_to_utf8_bytes(PS_Context *ctx, PS_Value *str) {
   if (!str || str->tag != PS_V_STRING) {
     ps_throw(ctx, PS_ERR_TYPE, "not a string");

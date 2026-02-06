@@ -1,0 +1,9 @@
+import Io;
+import JSON;
+
+function main() : void {
+    map<string, int> m = {"a": 1, "b": 2};
+    string s = JSON.encode(m);
+    bool ok = JSON.isValid(s);
+    Io.printLine(ok.toString());
+}

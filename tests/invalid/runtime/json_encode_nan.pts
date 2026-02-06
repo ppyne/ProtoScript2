@@ -1,0 +1,6 @@
+import JSON;
+
+function main() : void {
+    float x = 0.0 / 0.0;
+    JSON.encode(x);
+}

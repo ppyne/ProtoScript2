@@ -31,6 +31,14 @@ class Glyph {
   }
 }
 
+function makeJsonValue(type, value) {
+  return { __json: true, type, value };
+}
+
+function isJsonValue(v) {
+  return v && v.__json === true;
+}
+
 function rdiag(file, node, code, category, message) {
   return {
     file,
@@ -334,6 +342,131 @@ function buildModuleEnv(ast, file) {
     const s = val === null || val === undefined ? "null" : typeof val === "bigint" ? val.toString() : String(val);
     fs.writeSync(1, s + "\n");
     return null;
+  });
+
+  const jsonError = (node, message) => {
+    throw new RuntimeError(rdiag(file, node, "R1010", "RUNTIME_JSON_ERROR", message));
+  };
+
+  const jsonEncodeValue = (node, v) => {
+    if (isJsonValue(v)) {
+      switch (v.type) {
+        case "null":
+          return "null";
+        case "bool":
+          return v.value ? "true" : "false";
+        case "number":
+          if (!Number.isFinite(v.value)) jsonError(node, "invalid JSON number");
+          if (Object.is(v.value, -0)) return "-0";
+          return String(v.value);
+        case "string":
+          return JSON.stringify(String(v.value));
+        case "array":
+          return `[${v.value.map((it) => jsonEncodeValue(node, it)).join(",")}]`;
+        case "object": {
+          const parts = [];
+          for (const [k, val] of v.value.entries()) {
+            const key = unmapKey(k);
+            if (typeof key !== "string") jsonError(node, "JSON object keys must be strings");
+            parts.push(`${JSON.stringify(key)}:${jsonEncodeValue(node, val)}`);
+          }
+          return `{${parts.join(",")}}`;
+        }
+        default:
+          jsonError(node, "invalid JSON value");
+      }
+    }
+    if (typeof v === "boolean") return v ? "true" : "false";
+    if (typeof v === "string") return JSON.stringify(v);
+    if (typeof v === "number") {
+      if (!Number.isFinite(v)) jsonError(node, "invalid JSON number");
+      if (Object.is(v, -0)) return "-0";
+      return String(v);
+    }
+    if (typeof v === "bigint") return v.toString();
+    if (Array.isArray(v)) return `[${v.map((it) => jsonEncodeValue(node, it)).join(",")}]`;
+    if (v instanceof Map) {
+      const parts = [];
+      for (const [k, val] of v.entries()) {
+        const key = unmapKey(k);
+        if (typeof key !== "string") jsonError(node, "JSON object keys must be strings");
+        parts.push(`${JSON.stringify(key)}:${jsonEncodeValue(node, val)}`);
+      }
+      return `{${parts.join(",")}}`;
+    }
+    jsonError(node, "value not JSON-serializable");
+    return "null";
+  };
+
+  const jsonDecodeValue = (node, v) => {
+    if (v === null) return makeJsonValue("null", null);
+    if (typeof v === "boolean") return makeJsonValue("bool", v);
+    if (typeof v === "number") {
+      if (!Number.isFinite(v)) jsonError(node, "invalid JSON number");
+      return makeJsonValue("number", v);
+    }
+    if (typeof v === "string") return makeJsonValue("string", v);
+    if (Array.isArray(v)) return makeJsonValue("array", v.map((it) => jsonDecodeValue(node, it)));
+    if (typeof v === "object") {
+      const m = new Map();
+      for (const [k, val] of Object.entries(v)) {
+        m.set(mapKey(k), jsonDecodeValue(node, val));
+      }
+      return makeJsonValue("object", m);
+    }
+    jsonError(node, "invalid JSON value");
+    return makeJsonValue("null", null);
+  };
+
+  const jsonMod = makeModule("JSON");
+  jsonMod.functions.set("encode", (v, node) => jsonEncodeValue(node, v));
+  jsonMod.functions.set("decode", (s, node) => {
+    if (typeof s !== "string") jsonError(node, "decode expects string");
+    try {
+      const parsed = JSON.parse(s);
+      return jsonDecodeValue(node, parsed);
+    } catch {
+      jsonError(node, "invalid JSON");
+    }
+  });
+  jsonMod.functions.set("isValid", (s, node) => {
+    if (typeof s !== "string") jsonError(node, "isValid expects string");
+    try {
+      JSON.parse(s);
+      return true;
+    } catch {
+      return false;
+    }
+  });
+  jsonMod.functions.set("null", () => makeJsonValue("null", null));
+  jsonMod.functions.set("bool", (b, node) => {
+    if (typeof b !== "boolean") jsonError(node, "bool expects bool");
+    return makeJsonValue("bool", b);
+  });
+  jsonMod.functions.set("number", (x, node) => {
+    const n = typeof x === "bigint" ? Number(x) : x;
+    if (typeof n !== "number" || !Number.isFinite(n)) jsonError(node, "number expects finite float");
+    return makeJsonValue("number", n);
+  });
+  jsonMod.functions.set("string", (s, node) => {
+    if (typeof s !== "string") jsonError(node, "string expects string");
+    return makeJsonValue("string", s);
+  });
+  jsonMod.functions.set("array", (items, node) => {
+    if (!Array.isArray(items)) jsonError(node, "array expects list<JSONValue>");
+    for (const it of items) {
+      if (!isJsonValue(it)) jsonError(node, "array expects list<JSONValue>");
+    }
+    return makeJsonValue("array", items);
+  });
+  jsonMod.functions.set("object", (members, node) => {
+    if (!(members instanceof Map)) jsonError(node, "object expects map<string,JSONValue>");
+    for (const [k, v] of members.entries()) {
+      const key = unmapKey(k);
+      if (typeof key !== "string") jsonError(node, "object expects map<string,JSONValue>");
+      if (!isJsonValue(v)) jsonError(node, "object expects map<string,JSONValue>");
+    }
+    return makeJsonValue("object", members);
   });
 
   const simpleMod = makeModule("test.simple");
@@ -760,6 +893,36 @@ function evalCall(expr, scope, functions, moduleEnv, file, callFunction) {
     const m = expr.callee;
     const target = evalExpr(m.target, scope, functions, moduleEnv, file, callFunction);
     const args = expr.args.map((a) => evalExpr(a, scope, functions, moduleEnv, file, callFunction));
+
+    if (isJsonValue(target)) {
+      const t = target.type;
+      if (m.name === "isNull") return t === "null";
+      if (m.name === "isBool") return t === "bool";
+      if (m.name === "isNumber") return t === "number";
+      if (m.name === "isString") return t === "string";
+      if (m.name === "isArray") return t === "array";
+      if (m.name === "isObject") return t === "object";
+      if (m.name === "asBool") {
+        if (t !== "bool") throw new RuntimeError(rdiag(file, m, "R1010", "RUNTIME_JSON_ERROR", "expected JsonBool"));
+        return target.value;
+      }
+      if (m.name === "asNumber") {
+        if (t !== "number") throw new RuntimeError(rdiag(file, m, "R1010", "RUNTIME_JSON_ERROR", "expected JsonNumber"));
+        return target.value;
+      }
+      if (m.name === "asString") {
+        if (t !== "string") throw new RuntimeError(rdiag(file, m, "R1010", "RUNTIME_JSON_ERROR", "expected JsonString"));
+        return target.value;
+      }
+      if (m.name === "asArray") {
+        if (t !== "array") throw new RuntimeError(rdiag(file, m, "R1010", "RUNTIME_JSON_ERROR", "expected JsonArray"));
+        return target.value;
+      }
+      if (m.name === "asObject") {
+        if (t !== "object") throw new RuntimeError(rdiag(file, m, "R1010", "RUNTIME_JSON_ERROR", "expected JsonObject"));
+        return target.value;
+      }
+    }
 
     if (m.name === "toString") {
       if (target === null || target === undefined) return "null";

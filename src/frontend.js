@@ -96,7 +96,7 @@ function isValidRegistryType(s, allowVoid) {
   if (typeof s !== "string") return false;
   const t = stripWs(s);
   if (allowVoid && t === "void") return true;
-  const prim = ["int", "float", "bool", "byte", "glyph", "string", "File"];
+  const prim = ["int", "float", "bool", "byte", "glyph", "string", "File", "JSONValue"];
   if (prim.includes(t)) return true;
   if (t.startsWith("list<") || t.startsWith("slice<") || t.startsWith("view<")) {
     if (!t.endsWith(">")) return false;
@@ -1445,6 +1445,22 @@ class Analyzer {
         }
         if (name === "write") return prim("void");
         if (name === "close") return prim("void");
+      }
+      if (t === "JSONValue") {
+        if (name === "isNull" || name === "isBool" || name === "isNumber" || name === "isString" || name === "isArray" || name === "isObject") {
+          return prim("bool");
+        }
+        if (name === "asBool") return prim("bool");
+        if (name === "asNumber") return prim("float");
+        if (name === "asString") return prim("string");
+        if (name === "asArray") return { kind: "GenericType", name: "list", args: [{ kind: "NamedType", name: "JSONValue" }] };
+        if (name === "asObject") {
+          return {
+            kind: "GenericType",
+            name: "map",
+            args: [{ kind: "PrimitiveType", name: "string" }, { kind: "NamedType", name: "JSONValue" }],
+          };
+        }
       }
       if (t.startsWith("list<") && name === "toUtf8String") return prim("string");
       return null;

@@ -112,6 +112,20 @@
         { "name": "stdout", "type": "file", "value": "stdout" },
         { "name": "stderr", "type": "file", "value": "stderr" }
       ]
+    },
+    {
+      "name": "JSON",
+      "functions": [
+        { "name": "encode", "ret": "string", "params": ["JSONValue"] },
+        { "name": "decode", "ret": "JSONValue", "params": ["string"] },
+        { "name": "isValid", "ret": "bool", "params": ["string"] },
+        { "name": "null", "ret": "JSONValue", "params": [] },
+        { "name": "bool", "ret": "JSONValue", "params": ["bool"] },
+        { "name": "number", "ret": "JSONValue", "params": ["float"] },
+        { "name": "string", "ret": "JSONValue", "params": ["string"] },
+        { "name": "array", "ret": "JSONValue", "params": ["list<JSONValue>"] },
+        { "name": "object", "ret": "JSONValue", "params": ["map<string,JSONValue>"] }
+      ]
     }
   ]
 }
