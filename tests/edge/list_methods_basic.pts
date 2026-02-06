@@ -1,0 +1,14 @@
+import Io;
+
+function main() : void {
+    list<int> xs = [];
+    bool empty0 = xs.isEmpty();
+    int n1 = xs.push(3);
+    int n2 = xs.push(1);
+    int n3 = xs.push(2);
+    bool empty1 = xs.isEmpty();
+    int s = xs.sort();
+    bool has2 = xs.contains(2);
+    bool ok = empty0 && !empty1 && n1 == 1 && n2 == 2 && n3 == 3 && s == 3 && has2 && xs[0] == 1 && xs[1] == 2 && xs[2] == 3;
+    Io.printLine(ok.toString());
+}

@@ -48,7 +48,8 @@
       "invalid/runtime/io_after_close",
       "invalid/runtime/io_utf8_invalid",
       "invalid/runtime/json_decode_invalid",
-      "invalid/runtime/json_encode_nan"
+      "invalid/runtime/json_encode_nan",
+      "invalid/runtime/list_sort_type_error"
     ],
     "edge": [
       "edge/overflow_int_add",
@@ -92,6 +93,7 @@
       "edge/glyph_methods",
       "edge/string_to_int_float",
       "edge/list_join_concat",
+      "edge/list_methods_basic",
       "edge/module_import_simple_add",
       "edge/module_namespace_call",
       "edge/module_utf8_roundtrip",

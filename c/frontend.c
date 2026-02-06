@@ -2930,6 +2930,9 @@ static char *ir_guess_expr_type(AstNode *e, IrFnCtx *ctx) {
           free(et);
           if (strcmp(m, "length") == 0) return strdup("int");
           if (strcmp(m, "isEmpty") == 0) return strdup("bool");
+          if (strcmp(m, "push") == 0) return strdup("int");
+          if (strcmp(m, "contains") == 0) return strdup("bool");
+          if (strcmp(m, "sort") == 0) return strdup("int");
         } else if (strncmp(recv_t, "map<", 4) == 0) {
           if (strcmp(m, "length") == 0) return strdup("int");
           if (strcmp(m, "isEmpty") == 0) return strdup("bool");

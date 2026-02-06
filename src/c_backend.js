@@ -182,6 +182,12 @@ function inferTempTypes(ir) {
                   set(i.dst, "string");
                 } else if (rc && rc.kind === "list" && rc.inner === "string" && (i.method === "join" || i.method === "concat")) {
                   set(i.dst, "string");
+                } else if (rc && rc.kind === "list" && i.method === "push") {
+                  set(i.dst, "int");
+                } else if (rc && rc.kind === "list" && i.method === "contains") {
+                  set(i.dst, "bool");
+                } else if (rc && rc.kind === "list" && i.method === "sort") {
+                  set(i.dst, "int");
                 } else if (i.method === "length") {
                   set(i.dst, "int");
                 } else {
@@ -1086,6 +1092,63 @@ function emitInstr(i, fnInf, state) {
           out.push(`${n(i.dst)} = ps_list_string_join(${n(i.receiver)}, ${n(i.args[0])});`);
         } else if (rc && rc.kind === "list" && rc.inner === "string" && i.method === "concat") {
           out.push(`${n(i.dst)} = ps_list_string_concat(${n(i.receiver)});`);
+        } else if (rc && rc.kind === "list" && i.method === "push") {
+          const recv = aliasOf(i.receiver) || i.receiver;
+          out.push(`if (${n(recv)}.len == ${n(recv)}.cap) {`);
+          out.push(`  size_t new_cap = ${n(recv)}.cap ? (${n(recv)}.cap * 2) : 4;`);
+          out.push(`  ${n(recv)}.ptr = (${cTypeFromName(rc.inner)}*)realloc(${n(recv)}.ptr, sizeof(*${n(recv)}.ptr) * new_cap);`);
+          out.push(`  if (!${n(recv)}.ptr) ps_panic("R1998", "RUNTIME_OOM", "out of memory");`);
+          out.push(`  ${n(recv)}.cap = new_cap;`);
+          out.push(`}`);
+          out.push(`${n(recv)}.ptr[${n(recv)}.len++] = ${n(i.args[0])};`);
+          out.push(`${n(i.dst)} = (int64_t)${n(recv)}.len;`);
+        } else if (rc && rc.kind === "list" && i.method === "contains") {
+          const recv = aliasOf(i.receiver) || i.receiver;
+          const inner = rc.inner;
+          out.push(`{ bool found = false;`);
+          out.push(`  for (size_t i = 0; i < ${n(recv)}.len; i += 1) {`);
+          if (inner === "string") {
+            out.push(`    if (ps_string_eq(${n(recv)}.ptr[i], ${n(i.args[0])})) { found = true; break; }`);
+          } else if (["int", "float", "byte", "glyph", "bool"].includes(inner)) {
+            out.push(`    if (${n(recv)}.ptr[i] == ${n(i.args[0])}) { found = true; break; }`);
+          } else {
+            out.push(`    ps_panic("R1010", "RUNTIME_TYPE_ERROR", "list element not comparable");`);
+          }
+          out.push(`  }`);
+          out.push(`  ${n(i.dst)} = found;`);
+          out.push(`}`);
+        } else if (rc && rc.kind === "list" && i.method === "sort") {
+          const recv = aliasOf(i.receiver) || i.receiver;
+          const inner = rc.inner;
+          out.push(`{`);
+          if (inner === "string") {
+            out.push(`  for (size_t i = 0; i + 1 < ${n(recv)}.len; i += 1) {`);
+            out.push(`    for (size_t j = i + 1; j < ${n(recv)}.len; j += 1) {`);
+            out.push(`      ps_string a = ${n(recv)}.ptr[i];`);
+            out.push(`      ps_string b = ${n(recv)}.ptr[j];`);
+            out.push(`      size_t ml = (a.len < b.len) ? a.len : b.len;`);
+            out.push(`      int r = memcmp(a.ptr, b.ptr, ml);`);
+            out.push(`      int cmp = (r < 0) ? -1 : (r > 0) ? 1 : (a.len < b.len) ? -1 : (a.len > b.len) ? 1 : 0;`);
+            out.push(`      if (cmp > 0) { ps_string tmp = ${n(recv)}.ptr[i]; ${n(recv)}.ptr[i] = ${n(recv)}.ptr[j]; ${n(recv)}.ptr[j] = tmp; }`);
+            out.push(`    }`);
+            out.push(`  }`);
+          } else if (["int", "float", "byte", "glyph", "bool"].includes(inner)) {
+            out.push(`  for (size_t i = 0; i + 1 < ${n(recv)}.len; i += 1) {`);
+            out.push(`    for (size_t j = i + 1; j < ${n(recv)}.len; j += 1) {`);
+            if (inner === "float") {
+              out.push(`      double a = ${n(recv)}.ptr[i];`);
+              out.push(`      double b = ${n(recv)}.ptr[j];`);
+              out.push(`      if (a > b) { double tmp = ${n(recv)}.ptr[i]; ${n(recv)}.ptr[i] = ${n(recv)}.ptr[j]; ${n(recv)}.ptr[j] = tmp; }`);
+            } else {
+              out.push(`      if (${n(recv)}.ptr[i] > ${n(recv)}.ptr[j]) { ${cTypeFromName(inner)} tmp = ${n(recv)}.ptr[i]; ${n(recv)}.ptr[i] = ${n(recv)}.ptr[j]; ${n(recv)}.ptr[j] = tmp; }`);
+            }
+            out.push(`    }`);
+            out.push(`  }`);
+          } else {
+            out.push(`  ps_panic("R1010", "RUNTIME_TYPE_ERROR", "list element not comparable");`);
+          }
+          out.push(`  ${n(i.dst)} = (int64_t)${n(recv)}.len;`);
+          out.push(`}`);
         } else if (i.method === "pop" && rc && rc.kind === "list") {
           const recv = aliasOf(i.receiver) || i.receiver;
           out.push(`if (${n(recv)}.len == 0) ps_panic("R1006", "RUNTIME_EMPTY_POP", "pop on empty list");`);

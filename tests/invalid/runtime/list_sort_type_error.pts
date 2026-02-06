@@ -1,0 +1,5 @@
+function main() : void {
+    map<string, int> m = {"a": 1};
+    list<map<string, int> > xs = [m];
+    xs.sort();
+}

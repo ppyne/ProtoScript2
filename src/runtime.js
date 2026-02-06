@@ -1103,6 +1103,52 @@ function evalCall(expr, scope, functions, moduleEnv, file, callFunction) {
         throw new RuntimeError(rdiag(file, m, "R1007", "RUNTIME_INVALID_UTF8", "invalid UTF-8"));
       }
     }
+    if (Array.isArray(target)) {
+      if (m.name === "push") {
+        target.push(args[0]);
+        return BigInt(target.length);
+      }
+      if (m.name === "contains") {
+        for (const v of target) {
+          if (eqValue(v, args[0])) return true;
+        }
+        return false;
+      }
+      if (m.name === "sort") {
+        if (target.length === 0) return BigInt(0);
+        const first = target[0];
+        let kind = "unknown";
+        if (typeof first === "bigint") kind = "int";
+        else if (typeof first === "number") kind = "float";
+        else if (typeof first === "string") kind = "string";
+        else if (isGlyph(first)) kind = "glyph";
+        else if (typeof first === "boolean") kind = "bool";
+        if (kind === "unknown") {
+          throw new RuntimeError(rdiag(file, m, "R1010", "RUNTIME_TYPE_ERROR", "list element not comparable"));
+        }
+        for (const v of target) {
+          if (
+            (kind === "int" && typeof v !== "bigint") ||
+            (kind === "float" && typeof v !== "number") ||
+            (kind === "string" && typeof v !== "string") ||
+            (kind === "glyph" && !isGlyph(v)) ||
+            (kind === "bool" && typeof v !== "boolean")
+          ) {
+            throw new RuntimeError(rdiag(file, m, "R1010", "RUNTIME_TYPE_ERROR", "list element not comparable"));
+          }
+        }
+        const cmp = (a, b) => {
+          if (kind === "int") return a < b ? -1 : a > b ? 1 : 0;
+          if (kind === "float") return a < b ? -1 : a > b ? 1 : 0;
+          if (kind === "string") return a < b ? -1 : a > b ? 1 : 0;
+          if (kind === "glyph") return a.value < b.value ? -1 : a.value > b.value ? 1 : 0;
+          if (kind === "bool") return a === b ? 0 : a ? 1 : -1;
+          return 0;
+        };
+        if (target.length > 1) target.sort(cmp);
+        return BigInt(target.length);
+      }
+    }
     if (Array.isArray(target) && (m.name === "join" || m.name === "concat")) {
       for (const v of target) {
         if (typeof v !== "string") {

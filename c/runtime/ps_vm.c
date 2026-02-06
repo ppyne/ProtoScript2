@@ -497,6 +497,43 @@ static int values_equal(PS_Value *a, PS_Value *b) {
   }
 }
 
+static int compare_values(PS_Value *a, PS_Value *b, PS_ValueTag tag, int *out_cmp) {
+  if (!a || !b || a->tag != tag || b->tag != tag) return 0;
+  int cmp = 0;
+  switch (tag) {
+    case PS_V_INT:
+      cmp = (a->as.int_v < b->as.int_v) ? -1 : (a->as.int_v > b->as.int_v) ? 1 : 0;
+      break;
+    case PS_V_FLOAT:
+      if (isnan(a->as.float_v) || isnan(b->as.float_v)) cmp = 0;
+      else cmp = (a->as.float_v < b->as.float_v) ? -1 : (a->as.float_v > b->as.float_v) ? 1 : 0;
+      break;
+    case PS_V_BYTE:
+      cmp = (a->as.byte_v < b->as.byte_v) ? -1 : (a->as.byte_v > b->as.byte_v) ? 1 : 0;
+      break;
+    case PS_V_GLYPH:
+      cmp = (a->as.glyph_v < b->as.glyph_v) ? -1 : (a->as.glyph_v > b->as.glyph_v) ? 1 : 0;
+      break;
+    case PS_V_BOOL:
+      cmp = (a->as.bool_v == b->as.bool_v) ? 0 : (a->as.bool_v ? 1 : -1);
+      break;
+    case PS_V_STRING: {
+      size_t al = a->as.string_v.len;
+      size_t bl = b->as.string_v.len;
+      size_t ml = (al < bl) ? al : bl;
+      int r = memcmp(a->as.string_v.ptr, b->as.string_v.ptr, ml);
+      if (r < 0) cmp = -1;
+      else if (r > 0) cmp = 1;
+      else cmp = (al < bl) ? -1 : (al > bl) ? 1 : 0;
+      break;
+    }
+    default:
+      return 0;
+  }
+  if (out_cmp) *out_cmp = cmp;
+  return 1;
+}
+
 static int is_truthy(PS_Value *v) {
   if (!v) return 0;
   if (v->tag == PS_V_BOOL) return v->as.bool_v != 0;
@@ -1312,6 +1349,97 @@ static int exec_function(PS_Context *ctx, PS_IR_Module *m, IRFunction *f, PS_Val
             PS_Value *v = ps_make_bool(ctx, recv->as.list_v.len == 0);
             bindings_set(&temps, ins->dst, v);
             ps_value_release(v);
+          } else if (strcmp(ins->method, "contains") == 0) {
+            PS_Value *needle = get_value(&temps, &vars, ins->args[0]);
+            int found = 0;
+            for (size_t i = 0; i < recv->as.list_v.len; i++) {
+              if (values_equal(recv->as.list_v.items[i], needle)) {
+                found = 1;
+                break;
+              }
+            }
+            PS_Value *v = ps_make_bool(ctx, found);
+            bindings_set(&temps, ins->dst, v);
+            ps_value_release(v);
+          } else if (strcmp(ins->method, "sort") == 0) {
+            size_t n = recv->as.list_v.len;
+            if (n > 0) {
+              PS_Value *first = recv->as.list_v.items[0];
+              PS_ValueTag tag = first ? first->tag : PS_V_VOID;
+              if (!(tag == PS_V_INT || tag == PS_V_FLOAT || tag == PS_V_BYTE || tag == PS_V_GLYPH || tag == PS_V_STRING || tag == PS_V_BOOL)) {
+                ps_throw(ctx, PS_ERR_TYPE, "list element not comparable");
+                goto raise;
+              }
+              for (size_t i = 0; i < n; i++) {
+                PS_Value *it = recv->as.list_v.items[i];
+                if (!it || it->tag != tag) {
+                  ps_throw(ctx, PS_ERR_TYPE, "list element not comparable");
+                  goto raise;
+                }
+              }
+            }
+            if (n > 1) {
+              for (size_t i = 0; i + 1 < n; i++) {
+                for (size_t j = i + 1; j < n; j++) {
+                  int cmp = 0;
+                  if (!compare_values(recv->as.list_v.items[i], recv->as.list_v.items[j], tag, &cmp)) {
+                    ps_throw(ctx, PS_ERR_TYPE, "list element not comparable");
+                    goto raise;
+                  }
+                  if (cmp > 0) {
+                    PS_Value *tmp = recv->as.list_v.items[i];
+                    recv->as.list_v.items[i] = recv->as.list_v.items[j];
+                    recv->as.list_v.items[j] = tmp;
+                  }
+                }
+              }
+            }
+            PS_Value *v = ps_make_int(ctx, (int64_t)recv->as.list_v.len);
+            bindings_set(&temps, ins->dst, v);
+            ps_value_release(v);
+          } else if (strcmp(ins->method, "join") == 0 || strcmp(ins->method, "concat") == 0) {
+            size_t n = recv->as.list_v.len;
+            PS_Value *sepv = NULL;
+            if (strcmp(ins->method, "join") == 0) {
+              if (ins->arg_count > 0) sepv = get_value(&temps, &vars, ins->args[0]);
+              if (sepv && sepv->tag != PS_V_STRING) {
+                ps_throw(ctx, PS_ERR_TYPE, "join expects string separator");
+                goto raise;
+              }
+            }
+            size_t sep_len = sepv ? sepv->as.string_v.len : 0;
+            size_t total = 0;
+            for (size_t i = 0; i < n; i++) {
+              PS_Value *it = recv->as.list_v.items[i];
+              if (!it || it->tag != PS_V_STRING) {
+                ps_throw(ctx, PS_ERR_TYPE, "join expects list<string>");
+                goto raise;
+              }
+              total += it->as.string_v.len;
+            }
+            if (n > 1) total += sep_len * (n - 1);
+            char *buf = (char *)malloc(total + 1);
+            if (!buf && total > 0) {
+              ps_throw(ctx, PS_ERR_OOM, "out of memory");
+              goto raise;
+            }
+            size_t off = 0;
+            for (size_t i = 0; i < n; i++) {
+              if (i > 0 && sep_len > 0) {
+                memcpy(buf + off, sepv->as.string_v.ptr, sep_len);
+                off += sep_len;
+              }
+              if (recv->as.list_v.items[i]->as.string_v.len > 0) {
+                memcpy(buf + off, recv->as.list_v.items[i]->as.string_v.ptr, recv->as.list_v.items[i]->as.string_v.len);
+                off += recv->as.list_v.items[i]->as.string_v.len;
+              }
+            }
+            if (buf) buf[off] = '\0';
+            PS_Value *out = ps_make_string_utf8(ctx, buf ? buf : "", off);
+            if (buf) free(buf);
+            if (!out) goto raise;
+            bindings_set(&temps, ins->dst, out);
+            ps_value_release(out);
           }
         } else if (recv->tag == PS_V_MAP) {
           if (strcmp(ins->method, "length") == 0) {

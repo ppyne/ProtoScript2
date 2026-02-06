@@ -1455,6 +1455,13 @@ class Analyzer {
         if (name === "join") return prim("string");
         if (name === "concat") return prim("string");
       }
+      if (t.startsWith("list<")) {
+        if (name === "length") return prim("int");
+        if (name === "isEmpty") return prim("bool");
+        if (name === "push") return prim("int");
+        if (name === "contains") return prim("bool");
+        if (name === "sort") return prim("int");
+      }
       if (t === "JSONValue") {
         if (name === "isNull" || name === "isBool" || name === "isNumber" || name === "isString" || name === "isArray" || name === "isObject") {
           return prim("bool");
