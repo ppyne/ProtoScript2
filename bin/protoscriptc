@@ -4,7 +4,7 @@
 const fs = require("fs");
 const path = require("path");
 const { check, parseAndAnalyze, parseOnly, formatDiag, FrontendError } = require("../src/frontend");
-const { runProgram, RuntimeError } = require("../src/runtime");
+const { runProgram, RuntimeError, isExceptionValue } = require("../src/runtime");
 const { buildIR, printIR, serializeIR, validateSerializedIR } = require("../src/ir");
 const { generateC } = require("../src/c_backend");
 const { optimizeIR } = require("../src/optimizer");
@@ -112,6 +112,27 @@ try {
   process.stdout.write(generateC(ir));
   process.exit(0);
 } catch (e) {
+  if (isExceptionValue(e)) {
+    if (e.code && e.category) {
+      console.error(
+        formatDiag({
+          file: e.file || "<runtime>",
+          line: e.line || 1,
+          col: e.column || 1,
+          code: e.code,
+          category: e.category,
+          message: e.message || "exception",
+        })
+      );
+      process.exit(1);
+    }
+    const file = e.file || "<runtime>";
+    const line = e.line || 1;
+    const col = e.column || 1;
+    const msg = e.message || "exception";
+    console.error(`${file}:${line}:${col} exception: ${msg}`);
+    process.exit(1);
+  }
   if (e instanceof RuntimeError && e.diag) {
     console.error(formatDiag(e.diag));
     process.exit(1);

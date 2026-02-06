@@ -543,6 +543,56 @@ static int compare_values(PS_Value *a, PS_Value *b, PS_ValueTag tag, int *out_cm
   return 1;
 }
 
+static PS_Value *make_exception(PS_Context *ctx, int kind, const char *file, int64_t line, int64_t column,
+                                const char *message, PS_Value *cause, const char *code, const char *category) {
+  PS_Value *ex = ps_value_alloc(PS_V_EXCEPTION);
+  if (!ex) {
+    ps_throw(ctx, PS_ERR_OOM, "out of memory");
+    return NULL;
+  }
+  ex->as.exc_v.kind = kind;
+  ex->as.exc_v.file = ps_make_string_utf8(ctx, file ? file : "", file ? strlen(file) : 0);
+  ex->as.exc_v.line = line;
+  ex->as.exc_v.column = column;
+  ex->as.exc_v.message = ps_make_string_utf8(ctx, message ? message : "", message ? strlen(message) : 0);
+  ex->as.exc_v.cause = cause ? ps_value_retain(cause) : NULL;
+  ex->as.exc_v.code = code ? ps_make_string_utf8(ctx, code, strlen(code)) : NULL;
+  ex->as.exc_v.category = category ? ps_make_string_utf8(ctx, category, strlen(category)) : NULL;
+  if (!ex->as.exc_v.file || !ex->as.exc_v.message || (code && !ex->as.exc_v.code) || (category && !ex->as.exc_v.category)) {
+    ps_value_release(ex);
+    return NULL;
+  }
+  return ex;
+}
+
+static PS_Value *make_runtime_exception_from_error(PS_Context *ctx) {
+  const char *code = NULL;
+  const char *category = ps_runtime_category(ps_last_error_code(ctx), ps_last_error_message(ctx), &code);
+  return make_exception(ctx, 1, "", 1, 1, ps_last_error_message(ctx), NULL, code, category);
+}
+
+static int exception_matches(PS_Value *v, const char *type_name) {
+  if (!v || v->tag != PS_V_EXCEPTION || !type_name) return 0;
+  if (strcmp(type_name, "Exception") == 0) return 1;
+  if (strcmp(type_name, "RuntimeException") == 0) return v->as.exc_v.kind == 1;
+  return 0;
+}
+
+static PS_Value *exception_get_field(PS_Context *ctx, PS_Value *v, const char *name) {
+  if (!v || v->tag != PS_V_EXCEPTION || !name) {
+    ps_throw(ctx, PS_ERR_TYPE, "not an exception");
+    return NULL;
+  }
+  if (strcmp(name, "file") == 0) return v->as.exc_v.file ? ps_value_retain(v->as.exc_v.file) : ps_make_string_utf8(ctx, "", 0);
+  if (strcmp(name, "line") == 0) return ps_make_int(ctx, v->as.exc_v.line);
+  if (strcmp(name, "column") == 0) return ps_make_int(ctx, v->as.exc_v.column);
+  if (strcmp(name, "message") == 0) return v->as.exc_v.message ? ps_value_retain(v->as.exc_v.message) : ps_make_string_utf8(ctx, "", 0);
+  if (strcmp(name, "cause") == 0) return v->as.exc_v.cause ? ps_value_retain(v->as.exc_v.cause) : NULL;
+  if (strcmp(name, "code") == 0) return v->as.exc_v.code ? ps_value_retain(v->as.exc_v.code) : ps_make_string_utf8(ctx, "", 0);
+  if (strcmp(name, "category") == 0) return v->as.exc_v.category ? ps_value_retain(v->as.exc_v.category) : ps_make_string_utf8(ctx, "", 0);
+  return NULL;
+}
+
 static int is_truthy(PS_Value *v) {
   if (!v) return 0;
   if (v->tag == PS_V_BOOL) return v->as.bool_v != 0;
@@ -563,6 +613,36 @@ static PS_Value *map_first_key(PS_Value *map) {
 static int exec_function(PS_Context *ctx, PS_IR_Module *m, IRFunction *f, PS_Value **args, size_t argc, PS_Value **out);
 
 static int exec_call_static(PS_Context *ctx, PS_IR_Module *m, const char *callee, PS_Value **args, size_t argc, PS_Value **out) {
+  if (strcmp(callee, "Exception") == 0) {
+    if (argc > 2) {
+      ps_throw(ctx, PS_ERR_TYPE, "Exception expects (string message, Exception cause?)");
+      return 1;
+    }
+    const char *msg = "";
+    PS_Value *cause = NULL;
+    if (argc >= 1) {
+      if (!args[0] || args[0]->tag != PS_V_STRING) {
+        ps_throw(ctx, PS_ERR_TYPE, "Exception message must be string");
+        return 1;
+      }
+      msg = args[0]->as.string_v.ptr ? args[0]->as.string_v.ptr : "";
+    }
+    if (argc == 2) {
+      if (args[1] && args[1]->tag != PS_V_EXCEPTION) {
+        ps_throw(ctx, PS_ERR_TYPE, "Exception cause must be Exception");
+        return 1;
+      }
+      cause = args[1];
+    }
+    PS_Value *ex = make_exception(ctx, 0, "", 1, 1, msg, cause, NULL, NULL);
+    if (!ex) return 1;
+    *out = ex;
+    return 0;
+  }
+  if (strcmp(callee, "RuntimeException") == 0) {
+    ps_throw(ctx, PS_ERR_TYPE, "RuntimeException is not constructible");
+    return 1;
+  }
   IRFunction *fn = find_fn(m, callee);
   if (fn) return exec_function(ctx, m, fn, args, argc, out);
   // Module call: "module.symbol"
@@ -598,9 +678,7 @@ static int exec_function(PS_Context *ctx, PS_IR_Module *m, IRFunction *f, PS_Val
   TryFrame *tries = NULL;
   size_t try_len = 0;
   size_t try_cap = 0;
-  char last_exception_msg[256];
-  PS_ErrorCode last_exception_code = PS_ERR_INTERNAL;
-  last_exception_msg[0] = '\0';
+  PS_Value *last_exception = NULL;
   for (size_t i = 0; i < f->param_count && i < argc; i++) {
     bindings_set(&vars, f->params[i], args[i]);
   }
@@ -643,17 +721,27 @@ static int exec_function(PS_Context *ctx, PS_IR_Module *m, IRFunction *f, PS_Val
         continue;
       }
       if (strcmp(ins->op, "get_exception") == 0) {
-        const char *msg = last_exception_msg[0] ? last_exception_msg : "exception";
-        PS_Value *v = ps_make_string_utf8(ctx, msg, strlen(msg));
-        if (!v) goto raise;
-        bindings_set(&temps, ins->dst, v);
-        ps_value_release(v);
+        if (!last_exception) {
+          last_exception = make_runtime_exception_from_error(ctx);
+          if (!last_exception) goto raise;
+        }
+        bindings_set(&temps, ins->dst, last_exception);
         continue;
       }
       if (strcmp(ins->op, "rethrow") == 0) {
-        const char *msg = last_exception_msg[0] ? last_exception_msg : "exception";
-        ps_throw(ctx, last_exception_code, msg);
+        if (!last_exception) {
+          ps_throw(ctx, PS_ERR_INTERNAL, "rethrow with no exception");
+        }
         goto raise;
+      }
+      if (strcmp(ins->op, "exception_is") == 0) {
+        PS_Value *v = get_value(&temps, &vars, ins->value);
+        int ok = exception_matches(v, ins->type);
+        PS_Value *b = ps_make_bool(ctx, ok);
+        if (!b) goto raise;
+        bindings_set(&temps, ins->dst, b);
+        ps_value_release(b);
+        continue;
       }
       if (strcmp(ins->op, "load_var") == 0) {
         PS_Value *v = bindings_get(&vars, ins->name);
@@ -669,6 +757,23 @@ static int exec_function(PS_Context *ctx, PS_IR_Module *m, IRFunction *f, PS_Val
         PS_Value *v = get_value(&temps, &vars, ins->src);
         bindings_set(&temps, ins->dst, v);
         continue;
+      }
+      if (strcmp(ins->op, "member_get") == 0) {
+        PS_Value *recv = get_value(&temps, &vars, ins->target);
+        if (recv && recv->tag == PS_V_EXCEPTION) {
+          PS_Value *field = exception_get_field(ctx, recv, ins->name);
+          if (!field && ps_last_error_code(ctx) != PS_ERR_NONE) goto raise;
+          bindings_set(&temps, ins->dst, field);
+          if (field) ps_value_release(field);
+          continue;
+        }
+        if (recv && recv->tag == PS_V_OBJECT) {
+          PS_Value *field = ps_object_get_str_internal(ctx, recv, ins->name ? ins->name : "", ins->name ? strlen(ins->name) : 0);
+          bindings_set(&temps, ins->dst, field);
+          continue;
+        }
+        ps_throw(ctx, PS_ERR_TYPE, "member access on non-object");
+        goto raise;
       }
       if (strcmp(ins->op, "check_div_zero") == 0) {
         PS_Value *v = get_value(&temps, &vars, ins->divisor);
@@ -1685,15 +1790,25 @@ static int exec_function(PS_Context *ctx, PS_IR_Module *m, IRFunction *f, PS_Val
         if (out) *out = v ? ps_value_retain(v) : NULL;
         bindings_free(&temps);
         bindings_free(&vars);
+        if (last_exception) ps_value_release(last_exception);
+        free(tries);
         return 0;
       }
       if (strcmp(ins->op, "ret_void") == 0) {
         bindings_free(&temps);
         bindings_free(&vars);
+        if (last_exception) ps_value_release(last_exception);
+        free(tries);
         return 0;
       }
       if (strcmp(ins->op, "throw") == 0) {
-        ps_throw(ctx, PS_ERR_INTERNAL, "exception thrown");
+        PS_Value *v = get_value(&temps, &vars, ins->value);
+        if (!v || v->tag != PS_V_EXCEPTION) {
+          ps_throw(ctx, PS_ERR_TYPE, "throw expects Exception");
+          goto raise;
+        }
+        if (last_exception) ps_value_release(last_exception);
+        last_exception = ps_value_retain(v);
         goto raise;
       }
     }
@@ -1703,19 +1818,25 @@ static int exec_function(PS_Context *ctx, PS_IR_Module *m, IRFunction *f, PS_Val
   }
   bindings_free(&temps);
   bindings_free(&vars);
+  if (last_exception) ps_value_release(last_exception);
   free(tries);
   return 0;
 
 raise:
-  if (ps_last_error_code(ctx) == PS_ERR_NONE) {
+  if (ps_last_error_code(ctx) != PS_ERR_NONE) {
+    if (last_exception) {
+      ps_value_release(last_exception);
+      last_exception = NULL;
+    }
+    last_exception = make_runtime_exception_from_error(ctx);
+  }
+  if (!last_exception) {
     ps_throw(ctx, PS_ERR_INTERNAL, "runtime error");
+    last_exception = make_runtime_exception_from_error(ctx);
   }
   if (try_len > 0) {
     const char *handler = tries[try_len - 1].handler;
     try_len -= 1;
-    strncpy(last_exception_msg, ps_last_error_message(ctx), sizeof(last_exception_msg) - 1);
-    last_exception_msg[sizeof(last_exception_msg) - 1] = '\0';
-    last_exception_code = ps_last_error_code(ctx);
     ps_clear_error(ctx);
     block_idx = find_block(f, handler);
     if (block_idx < f->block_count) goto next_block;
@@ -1725,6 +1846,7 @@ raise:
 error:
   bindings_free(&temps);
   bindings_free(&vars);
+  if (last_exception) ps_value_release(last_exception);
   free(tries);
   return 1;
 }

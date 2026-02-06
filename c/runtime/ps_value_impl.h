@@ -22,6 +22,7 @@ typedef enum {
   PS_V_VIEW,
   PS_V_ITER,
   PS_V_FILE,
+  PS_V_EXCEPTION,
   PS_V_VOID
 } PS_ValueTag;
 
@@ -71,6 +72,17 @@ typedef struct {
 } PS_Iter;
 
 typedef struct {
+  int kind; // 0=Exception, 1=RuntimeException
+  PS_Value *file;
+  int64_t line;
+  int64_t column;
+  PS_Value *message;
+  PS_Value *cause;
+  PS_Value *code;
+  PS_Value *category;
+} PS_Exception;
+
+typedef struct {
   FILE *fp;
   uint32_t flags;
   int closed;
@@ -94,6 +106,7 @@ struct PS_Value {
     PS_View view_v;
     PS_Iter iter_v;
     PS_File file_v;
+    PS_Exception exc_v;
   } as;
 };
 

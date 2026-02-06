@@ -1,5 +1,5 @@
 {
   "status": "accept-runtime",
-  "expected_stdout": "cleanup\ncaught\nR1010\n",
+  "expected_stdout": "runtime\nR1010\n",
   "requires": ["modules"]
 }

@@ -4,7 +4,7 @@ static PS_Status mod_fail(PS_Context *ctx, int argc, PS_Value **argv, PS_Value *
   (void)argc;
   (void)argv;
   (void)out;
-  ps_throw(ctx, PS_ERR_INTERNAL, "native failure");
+  ps_throw(ctx, PS_ERR_RANGE, "division by zero");
   return PS_ERR;
 }
 

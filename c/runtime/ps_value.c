@@ -57,6 +57,13 @@ void ps_value_free(PS_Value *v) {
         fclose(v->as.file_v.fp);
       }
       break;
+    case PS_V_EXCEPTION:
+      if (v->as.exc_v.file) ps_value_release(v->as.exc_v.file);
+      if (v->as.exc_v.message) ps_value_release(v->as.exc_v.message);
+      if (v->as.exc_v.cause) ps_value_release(v->as.exc_v.cause);
+      if (v->as.exc_v.code) ps_value_release(v->as.exc_v.code);
+      if (v->as.exc_v.category) ps_value_release(v->as.exc_v.category);
+      break;
     default:
       break;
   }

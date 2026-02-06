@@ -1,5 +1,5 @@
 {
   "status": "accept-runtime",
-  "expected_stdout": "caught\nafter",
+  "expected_stdout": "caught\nR1010\nRUNTIME_MODULE_ERROR\nafter\n",
   "requires": ["modules"]
 }

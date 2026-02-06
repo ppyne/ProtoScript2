@@ -3751,130 +3751,227 @@ static int ir_lower_stmt(AstNode *st, IrFnCtx *ctx) {
   }
   if (strcmp(st->kind, "TryStmt") == 0) {
     AstNode *try_block = NULL;
-    AstNode *catch_clause = NULL;
     AstNode *finally_clause = NULL;
+    size_t catch_count = 0;
     for (size_t i = 0; i < st->child_len; i++) {
       AstNode *c = st->children[i];
       if (strcmp(c->kind, "Block") == 0 && !try_block) try_block = c;
-      else if (strcmp(c->kind, "CatchClause") == 0 && !catch_clause) catch_clause = c;
+      else if (strcmp(c->kind, "CatchClause") == 0) catch_count += 1;
       else if (strcmp(c->kind, "FinallyClause") == 0 && !finally_clause) finally_clause = c;
     }
-    if (!try_block) return 0;
-    char *try_label = ir_next_label(ctx, "try_body_");
-    char *catch_label = catch_clause ? ir_next_label(ctx, "try_catch_") : NULL;
-    char *finally_label = finally_clause ? ir_next_label(ctx, "try_finally_") : NULL;
-    char *finally_rethrow_label = (finally_clause && !catch_clause) ? ir_next_label(ctx, "try_finally_rethrow_") : NULL;
-    char *done_label = ir_next_label(ctx, "try_done_");
-    if (!try_label || !done_label || (catch_clause && !catch_label) || (finally_clause && !finally_label) ||
-        (finally_clause && !catch_clause && !finally_rethrow_label)) {
-      free(try_label); free(catch_label); free(finally_label); free(finally_rethrow_label); free(done_label);
+    AstNode **catches = NULL;
+    if (catch_count > 0) {
+      catches = (AstNode **)calloc(catch_count, sizeof(AstNode *));
+      if (!catches) return 0;
+      size_t ci = 0;
+      for (size_t i = 0; i < st->child_len; i++) {
+        AstNode *c = st->children[i];
+        if (strcmp(c->kind, "CatchClause") == 0 && ci < catch_count) catches[ci++] = c;
+      }
+    }
+    for (size_t i = 0; i < st->child_len; i++) {
+      AstNode *c = st->children[i];
+      if (strcmp(c->kind, "Block") == 0 && !try_block) try_block = c;
+    }
+    if (!try_block) {
+      free(catches);
       return 0;
     }
-    size_t try_idx = 0, catch_idx = 0, finally_idx = 0, done_idx = 0;
+    char *try_label = ir_next_label(ctx, "try_body_");
+    char *dispatch_label = catch_count > 0 ? ir_next_label(ctx, "try_dispatch_") : NULL;
+    char *rethrow_label = catch_count > 0 ? ir_next_label(ctx, "try_rethrow_") : NULL;
+    char *finally_label = finally_clause ? ir_next_label(ctx, "try_finally_") : NULL;
+    char *finally_rethrow_label = (finally_clause && catch_count == 0) ? ir_next_label(ctx, "try_finally_rethrow_") : NULL;
+    char *done_label = ir_next_label(ctx, "try_done_");
+    if (!try_label || !done_label || (catch_count > 0 && (!dispatch_label || !rethrow_label)) ||
+        (finally_clause && !finally_label) || (finally_clause && catch_count == 0 && !finally_rethrow_label)) {
+      free(catches);
+      free(try_label); free(dispatch_label); free(rethrow_label); free(finally_label); free(finally_rethrow_label); free(done_label);
+      return 0;
+    }
+    size_t try_idx = 0, finally_idx = 0, done_idx = 0;
     size_t finally_rethrow_idx = 0;
-    if (!ir_add_block(ctx, try_label, &try_idx) ||
-        (catch_label && !ir_add_block(ctx, catch_label, &catch_idx)) ||
-        (finally_label && !ir_add_block(ctx, finally_label, &finally_idx)) ||
+    char **dispatch_labels = NULL;
+    char **catch_labels = NULL;
+    size_t *dispatch_idxs = NULL;
+    size_t *catch_idxs = NULL;
+    size_t rethrow_idx = 0;
+    if (catch_count > 0) {
+      dispatch_labels = (char **)calloc(catch_count, sizeof(char *));
+      catch_labels = (char **)calloc(catch_count, sizeof(char *));
+      dispatch_idxs = (size_t *)calloc(catch_count, sizeof(size_t));
+      catch_idxs = (size_t *)calloc(catch_count, sizeof(size_t));
+      if (!dispatch_labels || !catch_labels || !dispatch_idxs || !catch_idxs) {
+        free(catches); free(try_label); free(dispatch_label); free(rethrow_label); free(finally_label); free(finally_rethrow_label); free(done_label);
+        free(dispatch_labels); free(catch_labels); free(dispatch_idxs); free(catch_idxs);
+        return 0;
+      }
+      dispatch_labels[0] = dispatch_label;
+      for (size_t i = 1; i < catch_count; i++) {
+        dispatch_labels[i] = ir_next_label(ctx, "try_dispatch_");
+        if (!dispatch_labels[i]) {
+          free(catches); free(try_label); free(rethrow_label); free(finally_label); free(finally_rethrow_label); free(done_label);
+          for (size_t k = 0; k < i; k++) free(dispatch_labels[k]);
+          free(dispatch_labels); free(catch_labels); free(dispatch_idxs); free(catch_idxs);
+          return 0;
+        }
+      }
+      for (size_t i = 0; i < catch_count; i++) {
+        catch_labels[i] = ir_next_label(ctx, "try_catch_");
+        if (!catch_labels[i]) {
+          free(catches); free(try_label); free(rethrow_label); free(finally_label); free(finally_rethrow_label); free(done_label);
+          for (size_t k = 0; k < catch_count; k++) { if (dispatch_labels[k]) free(dispatch_labels[k]); if (catch_labels[k]) free(catch_labels[k]); }
+          free(dispatch_labels); free(catch_labels); free(dispatch_idxs); free(catch_idxs);
+          return 0;
+        }
+      }
+    }
+    if (!ir_add_block(ctx, try_label, &try_idx)) {
+      free(catches); free(try_label); free(dispatch_label); free(rethrow_label); free(finally_label); free(finally_rethrow_label); free(done_label);
+      if (catch_count > 0) { for (size_t k = 0; k < catch_count; k++) { free(dispatch_labels[k]); free(catch_labels[k]); } free(dispatch_labels); free(catch_labels); free(dispatch_idxs); free(catch_idxs); }
+      return 0;
+    }
+    if (catch_count > 0) {
+      for (size_t i = 0; i < catch_count; i++) {
+        if (!ir_add_block(ctx, dispatch_labels[i], &dispatch_idxs[i]) || !ir_add_block(ctx, catch_labels[i], &catch_idxs[i])) {
+          free(catches); free(try_label); free(dispatch_label); free(rethrow_label); free(finally_label); free(finally_rethrow_label); free(done_label);
+          for (size_t k = 0; k < catch_count; k++) { free(dispatch_labels[k]); free(catch_labels[k]); }
+          free(dispatch_labels); free(catch_labels); free(dispatch_idxs); free(catch_idxs);
+          return 0;
+        }
+      }
+      if (!ir_add_block(ctx, rethrow_label, &rethrow_idx)) {
+        free(catches); free(try_label); free(dispatch_label); free(rethrow_label); free(finally_label); free(finally_rethrow_label); free(done_label);
+        for (size_t k = 0; k < catch_count; k++) { free(dispatch_labels[k]); free(catch_labels[k]); }
+        free(dispatch_labels); free(catch_labels); free(dispatch_idxs); free(catch_idxs);
+        return 0;
+      }
+    }
+    if ((finally_label && !ir_add_block(ctx, finally_label, &finally_idx)) ||
         (finally_rethrow_label && !ir_add_block(ctx, finally_rethrow_label, &finally_rethrow_idx)) ||
         !ir_add_block(ctx, done_label, &done_idx)) {
-      free(try_label); free(catch_label); free(finally_label); free(finally_rethrow_label); free(done_label);
+      free(catches); free(try_label); free(dispatch_label); free(rethrow_label); free(finally_label); free(finally_rethrow_label); free(done_label);
+      if (catch_count > 0) { for (size_t k = 0; k < catch_count; k++) { free(dispatch_labels[k]); free(catch_labels[k]); } free(dispatch_labels); free(catch_labels); free(dispatch_idxs); free(catch_idxs); }
       return 0;
     }
-    const char *handler = catch_label ? catch_label : (finally_rethrow_label ? finally_rethrow_label : (finally_label ? finally_label : done_label));
+    const char *handler = (catch_count > 0) ? dispatch_label
+                            : (finally_rethrow_label ? finally_rethrow_label : (finally_label ? finally_label : done_label));
     char *h_esc = json_escape(handler);
     char *push = str_printf("{\"op\":\"push_handler\",\"target\":\"%s\"}", h_esc ? h_esc : "");
     free(h_esc);
     if (!ir_emit(ctx, push)) {
-      free(try_label); free(catch_label); free(finally_label); free(finally_rethrow_label); free(done_label);
+      free(catches); free(try_label); free(dispatch_label); free(rethrow_label); free(finally_label); free(finally_rethrow_label); free(done_label);
+      if (catch_count > 0) { for (size_t k = 0; k < catch_count; k++) { free(dispatch_labels[k]); free(catch_labels[k]); } free(dispatch_labels); free(catch_labels); free(dispatch_idxs); free(catch_idxs); }
       return 0;
     }
     char *tgt = json_escape(try_label);
     char *jmp = str_printf("{\"op\":\"jump\",\"target\":\"%s\"}", tgt ? tgt : "");
     free(tgt);
     if (!ir_emit(ctx, jmp)) {
-      free(try_label); free(catch_label); free(finally_label); free(finally_rethrow_label); free(done_label);
+      free(catches); free(try_label); free(dispatch_label); free(rethrow_label); free(finally_label); free(finally_rethrow_label); free(done_label);
+      if (catch_count > 0) { for (size_t k = 0; k < catch_count; k++) { free(dispatch_labels[k]); free(catch_labels[k]); } free(dispatch_labels); free(catch_labels); free(dispatch_idxs); free(catch_idxs); }
       return 0;
     }
     ctx->cur_block = try_idx;
     if (!ir_lower_stmt(try_block, ctx)) {
-      free(try_label); free(catch_label); free(finally_label); free(finally_rethrow_label); free(done_label);
+      free(catches); free(try_label); free(dispatch_label); free(rethrow_label); free(finally_label); free(finally_rethrow_label); free(done_label);
+      if (catch_count > 0) { for (size_t k = 0; k < catch_count; k++) { free(dispatch_labels[k]); free(catch_labels[k]); } free(dispatch_labels); free(catch_labels); free(dispatch_idxs); free(catch_idxs); }
       return 0;
     }
     if (!ir_emit(ctx, strdup("{\"op\":\"pop_handler\"}"))) {
-      free(try_label); free(catch_label); free(finally_label); free(finally_rethrow_label); free(done_label);
+      free(catches); free(try_label); free(dispatch_label); free(rethrow_label); free(finally_label); free(finally_rethrow_label); free(done_label);
+      if (catch_count > 0) { for (size_t k = 0; k < catch_count; k++) { free(dispatch_labels[k]); free(catch_labels[k]); } free(dispatch_labels); free(catch_labels); free(dispatch_idxs); free(catch_idxs); }
       return 0;
     }
     char *after_try = json_escape(finally_label ? finally_label : done_label);
     char *jmp2 = str_printf("{\"op\":\"jump\",\"target\":\"%s\"}", after_try ? after_try : "");
     free(after_try);
     if (!ir_emit(ctx, jmp2)) {
-      free(try_label); free(catch_label); free(finally_label); free(finally_rethrow_label); free(done_label);
+      free(catches); free(try_label); free(dispatch_label); free(rethrow_label); free(finally_label); free(finally_rethrow_label); free(done_label);
+      if (catch_count > 0) { for (size_t k = 0; k < catch_count; k++) { free(dispatch_labels[k]); free(catch_labels[k]); } free(dispatch_labels); free(catch_labels); free(dispatch_idxs); free(catch_idxs); }
       return 0;
     }
-    if (catch_clause) {
-      ctx->cur_block = catch_idx;
-      AstNode *tn = ast_child_kind(catch_clause, "Type");
-      char *type = ast_type_to_ir_name(tn);
-      if (!type) type = strdup("unknown");
-      if (!ir_set_var_type(ctx, catch_clause->text ? catch_clause->text : "", type ? type : "unknown")) {
-        free(type); free(try_label); free(catch_label); free(finally_label); free(finally_rethrow_label); free(done_label);
-        return 0;
-      }
-      char *name_esc = json_escape(catch_clause->text ? catch_clause->text : "");
-      char *type_esc = json_escape(type ? type : "unknown");
-      char *decl = str_printf("{\"op\":\"var_decl\",\"name\":\"%s\",\"type\":{\"kind\":\"IRType\",\"name\":\"%s\"}}", name_esc ? name_esc : "",
-                              type_esc ? type_esc : "");
-      free(name_esc); free(type_esc); free(type);
-      if (!ir_emit(ctx, decl)) {
-        free(try_label); free(catch_label); free(finally_label); free(finally_rethrow_label); free(done_label);
-        return 0;
-      }
+    if (catch_count > 0) {
       char *ex = ir_next_tmp(ctx);
       if (!ex) {
-        free(try_label); free(catch_label); free(finally_label); free(finally_rethrow_label); free(done_label);
+        free(catches); free(try_label); free(dispatch_label); free(rethrow_label); free(finally_label); free(finally_rethrow_label); free(done_label);
+        for (size_t k = 0; k < catch_count; k++) { free(dispatch_labels[k]); free(catch_labels[k]); }
+        free(dispatch_labels); free(catch_labels); free(dispatch_idxs); free(catch_idxs);
         return 0;
       }
-      char *ex_esc = json_escape(ex);
-      char *get = str_printf("{\"op\":\"get_exception\",\"dst\":\"%s\"}", ex_esc ? ex_esc : "");
-      free(ex_esc);
-      if (!ir_emit(ctx, get)) {
-        free(ex); free(try_label); free(catch_label); free(finally_label); free(finally_rethrow_label); free(done_label);
-        return 0;
+      // Dispatch blocks
+      for (size_t i = 0; i < catch_count; i++) {
+        ctx->cur_block = dispatch_idxs[i];
+        if (i == 0) {
+          char *ex_esc = json_escape(ex);
+          char *get = str_printf("{\"op\":\"get_exception\",\"dst\":\"%s\"}", ex_esc ? ex_esc : "");
+          free(ex_esc);
+          if (!ir_emit(ctx, get)) { free(ex); goto try_cleanup; }
+        }
+        AstNode *tn = ast_child_kind(catches[i], "Type");
+        char *type = ast_type_to_ir_name(tn);
+        if (!type) type = strdup("unknown");
+        char *cond = ir_next_tmp(ctx);
+        char *cond_esc = json_escape(cond);
+        char *ex_esc2 = json_escape(ex);
+        char *type_esc = json_escape(type);
+        char *match = str_printf("{\"op\":\"exception_is\",\"dst\":\"%s\",\"value\":\"%s\",\"type\":\"%s\"}", cond_esc ? cond_esc : "",
+                                 ex_esc2 ? ex_esc2 : "", type_esc ? type_esc : "");
+        free(cond_esc); free(ex_esc2); free(type_esc); free(type);
+        if (!ir_emit(ctx, match)) { free(cond); free(ex); goto try_cleanup; }
+        const char *else_lbl = (i + 1 < catch_count) ? dispatch_labels[i + 1] : rethrow_label;
+        char *cond2 = json_escape(cond);
+        char *then_esc = json_escape(catch_labels[i]);
+        char *else_esc = json_escape(else_lbl);
+        char *br = str_printf("{\"op\":\"branch_if\",\"cond\":\"%s\",\"then\":\"%s\",\"else\":\"%s\"}", cond2 ? cond2 : "",
+                              then_esc ? then_esc : "", else_esc ? else_esc : "");
+        free(cond2); free(then_esc); free(else_esc); free(cond);
+        if (!ir_emit(ctx, br)) { free(ex); goto try_cleanup; }
       }
-      char *n_esc = json_escape(catch_clause->text ? catch_clause->text : "");
-      char *ex2 = json_escape(ex);
-      char *store = str_printf("{\"op\":\"store_var\",\"name\":\"%s\",\"src\":\"%s\",\"type\":{\"kind\":\"IRType\",\"name\":\"unknown\"}}",
-                               n_esc ? n_esc : "", ex2 ? ex2 : "");
-      free(n_esc); free(ex2); free(ex);
-      if (!ir_emit(ctx, store)) {
-        free(try_label); free(catch_label); free(finally_label); free(finally_rethrow_label); free(done_label);
-        return 0;
+      ctx->cur_block = rethrow_idx;
+      if (!ir_emit(ctx, strdup("{\"op\":\"rethrow\"}"))) { free(ex); goto try_cleanup; }
+
+      for (size_t i = 0; i < catch_count; i++) {
+        ctx->cur_block = catch_idxs[i];
+        AstNode *tn = ast_child_kind(catches[i], "Type");
+        char *type = ast_type_to_ir_name(tn);
+        if (!type) type = strdup("unknown");
+        if (!ir_set_var_type(ctx, catches[i]->text ? catches[i]->text : "", type ? type : "unknown")) {
+          free(type); free(ex); goto try_cleanup;
+        }
+        char *name_esc = json_escape(catches[i]->text ? catches[i]->text : "");
+        char *type_esc = json_escape(type ? type : "unknown");
+        char *decl = str_printf("{\"op\":\"var_decl\",\"name\":\"%s\",\"type\":{\"kind\":\"IRType\",\"name\":\"%s\"}}", name_esc ? name_esc : "",
+                                type_esc ? type_esc : "");
+        free(name_esc); free(type_esc); free(type);
+        if (!ir_emit(ctx, decl)) { free(ex); goto try_cleanup; }
+        char *n_esc = json_escape(catches[i]->text ? catches[i]->text : "");
+        char *ex2 = json_escape(ex);
+        char *store = str_printf("{\"op\":\"store_var\",\"name\":\"%s\",\"src\":\"%s\",\"type\":{\"kind\":\"IRType\",\"name\":\"unknown\"}}",
+                                 n_esc ? n_esc : "", ex2 ? ex2 : "");
+        free(n_esc); free(ex2);
+        if (!ir_emit(ctx, store)) { free(ex); goto try_cleanup; }
+        AstNode *cblk = ast_child_kind(catches[i], "Block");
+        if (cblk && !ir_lower_stmt(cblk, ctx)) { free(ex); goto try_cleanup; }
+        char *after_c = json_escape(finally_label ? finally_label : done_label);
+        char *jmpc = str_printf("{\"op\":\"jump\",\"target\":\"%s\"}", after_c ? after_c : "");
+        free(after_c);
+        if (!ir_emit(ctx, jmpc)) { free(ex); goto try_cleanup; }
       }
-      AstNode *cblk = ast_child_kind(catch_clause, "Block");
-      if (cblk && !ir_lower_stmt(cblk, ctx)) {
-        free(try_label); free(catch_label); free(finally_label); free(finally_rethrow_label); free(done_label);
-        return 0;
-      }
-      char *after_c = json_escape(finally_label ? finally_label : done_label);
-      char *jmpc = str_printf("{\"op\":\"jump\",\"target\":\"%s\"}", after_c ? after_c : "");
-      free(after_c);
-      if (!ir_emit(ctx, jmpc)) {
-        free(try_label); free(catch_label); free(finally_label); free(finally_rethrow_label); free(done_label);
-        return 0;
-      }
+      free(ex);
     }
     if (finally_clause) {
       ctx->cur_block = finally_idx;
       AstNode *fblk = ast_child_kind(finally_clause, "Block");
       if (fblk && !ir_lower_stmt(fblk, ctx)) {
-        free(try_label); free(catch_label); free(finally_label); free(finally_rethrow_label); free(done_label);
+        goto try_cleanup;
         return 0;
       }
       char *aft = json_escape(done_label);
       char *jmpf = str_printf("{\"op\":\"jump\",\"target\":\"%s\"}", aft ? aft : "");
       free(aft);
       if (!ir_emit(ctx, jmpf)) {
-        free(try_label); free(catch_label); free(finally_label); free(finally_rethrow_label); free(done_label);
+        goto try_cleanup;
         return 0;
       }
     }
@@ -3882,21 +3979,33 @@ static int ir_lower_stmt(AstNode *st, IrFnCtx *ctx) {
       ctx->cur_block = finally_rethrow_idx;
       AstNode *fblk2 = ast_child_kind(finally_clause, "Block");
       if (fblk2 && !ir_lower_stmt(fblk2, ctx)) {
-        free(try_label); free(catch_label); free(finally_label); free(finally_rethrow_label); free(done_label);
+        goto try_cleanup;
         return 0;
       }
       if (!ir_emit(ctx, strdup("{\"op\":\"rethrow\"}"))) {
-        free(try_label); free(catch_label); free(finally_label); free(finally_rethrow_label); free(done_label);
+        goto try_cleanup;
         return 0;
       }
     }
     ctx->cur_block = done_idx;
     if (!ir_emit(ctx, strdup("{\"op\":\"nop\"}"))) {
-      free(try_label); free(catch_label); free(finally_label); free(finally_rethrow_label); free(done_label);
-      return 0;
+      goto try_cleanup;
     }
-    free(try_label); free(catch_label); free(finally_label); free(finally_rethrow_label); free(done_label);
+    free(try_label); free(rethrow_label); free(finally_label); free(finally_rethrow_label); free(done_label);
+    if (catch_count > 0) {
+      for (size_t k = 0; k < catch_count; k++) { free(dispatch_labels[k]); free(catch_labels[k]); }
+      free(dispatch_labels); free(catch_labels); free(dispatch_idxs); free(catch_idxs);
+    }
+    free(catches);
     return 1;
+  try_cleanup:
+    free(try_label); free(rethrow_label); free(finally_label); free(finally_rethrow_label); free(done_label);
+    if (catch_count > 0) {
+      for (size_t k = 0; k < catch_count; k++) { if (dispatch_labels) free(dispatch_labels[k]); if (catch_labels) free(catch_labels[k]); }
+      free(dispatch_labels); free(catch_labels); free(dispatch_idxs); free(catch_idxs);
+    }
+    free(catches);
+    return 0;
   }
   if (strcmp(st->kind, "BreakStmt") == 0) return ir_emit(ctx, strdup("{\"op\":\"break\"}"));
   if (strcmp(st->kind, "ContinueStmt") == 0) return ir_emit(ctx, strdup("{\"op\":\"continue\"}"));

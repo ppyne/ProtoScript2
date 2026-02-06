@@ -5,11 +5,10 @@ import test.throw.{fail};
 function main() : void {
     try {
         fail();
-        Io.printLine("no");
     } catch (RuntimeException e) {
-        Io.printLine("caught");
+        Io.printLine("runtime");
         Io.printLine(e.code);
-        Io.printLine(e.category);
+    } catch (Exception e) {
+        Io.printLine("user");
     }
-    Io.printLine("after");
 }

@@ -2431,6 +2431,16 @@ Caractéristiques :
   - un message
   - une cause
 
+Ces champs sont des **propriétés accessibles** de l’objet d’exception.
+
+Prototype standard additionnel :
+
+- `RuntimeException` est un prototype standard qui **dérive de `Exception`**
+- toutes les erreurs runtime doivent lever une instance de `RuntimeException`
+- seules les instances de `RuntimeException` exposent **obligatoirement** :
+  - `code` (code canonique, ex. `R1004`)
+  - `category` (catégorie canonique, ex. `RUNTIME_DIVIDE_BY_ZERO`)
+
 Aucune valeur autre qu’une instance dérivée du prototype `Exception` ne peut être levée.
 
 ---
@@ -2467,7 +2477,11 @@ try {
 
 Règles :
 
-- `catch` intercepte une exception par type
+- `catch` intercepte une exception par type (prototype), avec substitution parent/enfant
+- `catch (Exception e)` est un **catch‑all**
+- la variable `e` est **une instance** d’un prototype dérivant de `Exception`
+- `e` expose au minimum : `file`, `line`, `column`, `message`, `cause`
+- si l’exception dérive de `RuntimeException`, `e.code` et `e.category` sont définis
 - `finally` est toujours exécuté
 - l’exception est propagée si elle n’est pas interceptée
 

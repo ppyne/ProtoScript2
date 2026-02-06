@@ -30,6 +30,8 @@ PS_TypeTag ps_typeof(PS_Value *v) {
       return PS_T_LIST;
     case PS_V_OBJECT:
       return PS_T_OBJECT;
+    case PS_V_EXCEPTION:
+      return PS_T_OBJECT;
     case PS_V_FILE:
       return PS_T_FILE;
     default:

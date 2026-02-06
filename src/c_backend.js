@@ -1,5 +1,37 @@
 "use strict";
 
+const fs = require("fs");
+const path = require("path");
+
+function loadModuleRegistry() {
+  const candidates = [
+    path.join(process.cwd(), "modules", "registry.json"),
+    path.join(__dirname, "..", "modules", "registry.json"),
+  ];
+  for (const p of candidates) {
+    try {
+      if (!fs.existsSync(p)) continue;
+      const doc = JSON.parse(fs.readFileSync(p, "utf8"));
+      const map = new Map();
+      if (doc && Array.isArray(doc.modules)) {
+        for (const m of doc.modules) {
+          if (!m || typeof m.name !== "string" || !Array.isArray(m.functions)) continue;
+          for (const f of m.functions) {
+            if (!f || typeof f.name !== "string" || typeof f.ret !== "string") continue;
+            map.set(`${m.name}.${f.name}`, f.ret);
+          }
+        }
+      }
+      return map;
+    } catch (err) {
+      continue;
+    }
+  }
+  return new Map();
+}
+
+const MODULE_RETURNS = loadModuleRegistry();
+
 function baseName(typeName) {
   return typeName.replace(/[^A-Za-z0-9_]/g, "_");
 }
@@ -22,6 +54,15 @@ function cScalarType(typeName) {
       return "void";
     case "iter_cursor":
       return "ps_iter_cursor";
+    case "File":
+      return "ps_file*";
+    case "EOF":
+      return "int64_t";
+    case "JSONValue":
+      return "ps_jsonvalue";
+    case "Exception":
+    case "RuntimeException":
+      return "ps_exception*";
     default:
       return null;
   }
@@ -114,16 +155,29 @@ function inferTempTypes(ir) {
               varTypes.set(i.name, i.type.name);
               break;
             case "const":
-              set(i.dst, i.literalType);
+              if (i.literalType === "file") set(i.dst, "File");
+              else if (i.literalType === "eof") set(i.dst, "EOF");
+              else set(i.dst, i.literalType);
+              break;
+            case "get_exception":
+              set(i.dst, "Exception");
+              break;
+            case "exception_is":
+              set(i.dst, "bool");
               break;
             case "copy":
               if (tempTypes.has(i.src)) set(i.dst, tempTypes.get(i.src));
               break;
             case "load_var":
-              set(i.dst, i.type.name);
+              if (i.type.name === "unknown" && varTypes.has(i.name)) set(i.dst, varTypes.get(i.name));
+              else set(i.dst, i.type.name);
               break;
             case "store_var":
-              if (tempTypes.has(i.src) && !varTypes.has(i.name)) varTypes.set(i.name, tempTypes.get(i.src));
+              if (tempTypes.has(i.src)) {
+                if (!varTypes.has(i.name) || varTypes.get(i.name) === "unknown") {
+                  varTypes.set(i.name, tempTypes.get(i.src));
+                }
+              }
               if (varTypes.has(i.name) && !tempTypes.has(i.src)) set(i.src, varTypes.get(i.name));
               break;
             case "unary_op":
@@ -138,12 +192,31 @@ function inferTempTypes(ir) {
             }
             case "call_static":
               if (fnRet.has(i.callee)) set(i.dst, fnRet.get(i.callee));
+              else if (MODULE_RETURNS.has(i.callee)) set(i.dst, MODULE_RETURNS.get(i.callee));
+              else if (i.callee === "Exception") set(i.dst, "Exception");
               break;
             case "call_method_static":
               if (getType(i.receiver)) {
                 const rt = getType(i.receiver);
                 const rc = parseContainer(rt);
-                if (rt === "int") {
+                if (rt === "File") {
+                  if (i.method === "read") {
+                    if (i.args.length === 0) set(i.dst, "string");
+                    else set(i.dst, "EOF");
+                  } else if (i.method === "readBytes") {
+                    if (i.args.length === 0) set(i.dst, "list<byte>");
+                    else set(i.dst, "EOF");
+                  } else {
+                    set(i.dst, "void");
+                  }
+                } else if (rt === "JSONValue") {
+                  if (["isNull", "isBool", "isNumber", "isString", "isArray", "isObject"].includes(i.method)) set(i.dst, "bool");
+                  else if (i.method === "asBool") set(i.dst, "bool");
+                  else if (i.method === "asNumber") set(i.dst, "float");
+                  else if (i.method === "asString") set(i.dst, "string");
+                  else if (i.method === "asArray") set(i.dst, "list<JSONValue>");
+                  else if (i.method === "asObject") set(i.dst, "map<string,JSONValue>");
+                } else if (rt === "int") {
                   if (i.method === "toByte") set(i.dst, "byte");
                   else if (i.method === "toFloat") set(i.dst, "float");
                   else if (i.method === "toString") set(i.dst, "string");
@@ -204,6 +277,14 @@ function inferTempTypes(ir) {
                 set(i.dst, "int");
               }
               break;
+            case "member_get": {
+              const rt = getType(i.target);
+              if (rt === "Exception" || rt === "RuntimeException") {
+                if (["code", "category", "message", "file"].includes(i.name)) set(i.dst, "string");
+                else if (["line", "column"].includes(i.name)) set(i.dst, "int");
+              }
+              break;
+            }
             case "call_unknown":
               set(i.dst, "int");
               break;
@@ -274,7 +355,23 @@ function inferTempTypes(ir) {
 }
 
 function collectTypeNames(ir, inferred) {
-  const names = new Set(["int", "float", "bool", "byte", "glyph", "string", "void", "iter_cursor", "list<string>", "list<byte>"]);
+  const names = new Set([
+    "int",
+    "float",
+    "bool",
+    "byte",
+    "glyph",
+    "string",
+    "JSONValue",
+    "void",
+    "iter_cursor",
+    "list<string>",
+    "list<byte>",
+    "list<int>",
+    "list<JSONValue>",
+    "map<string,int>",
+    "map<string,JSONValue>",
+  ]);
   for (const fn of ir.functions) {
     names.add(fn.returnType.name);
     for (const p of fn.params) names.add(p.type.name);
@@ -290,6 +387,9 @@ function emitTypeDecls(typeNames) {
   out.push("typedef struct { const char* ptr; size_t len; } ps_string;");
   out.push("typedef struct { size_t i; size_t n; } ps_iter_cursor;");
   out.push("typedef struct { ps_string str; uint32_t* ptr; size_t len; size_t offset; int is_string; } ps_view_glyph;");
+  if (typeNames.has("JSONValue")) {
+    out.push("typedef struct ps_jsonvalue ps_jsonvalue;");
+  }
   for (const t of typeNames) {
     const p = parseContainer(t);
     if (!p) continue;
@@ -400,10 +500,531 @@ function emitContainerHelpers(typeNames) {
 
 function emitRuntimeHelpers() {
   return [
-    "static void ps_panic(const char* code, const char* category, const char* msg) {",
-    '  fprintf(stderr, "<runtime>:1:1 %s %s: %s\\n", code, category, msg);',
+    "typedef struct { ps_string file; int64_t line; int64_t column; ps_string message; ps_string code; ps_string category; int is_runtime; } ps_exception;",
+    "static ps_exception ps_last_exception;",
+    "static int ps_has_exception = 0;",
+    "static jmp_buf ps_try_stack[64];",
+    "static int ps_try_len = 0;",
+    "static ps_string ps_cstr(const char* s) {",
+    "  ps_string out = { s ? s : \"\", s ? strlen(s) : 0 };",
+    "  return out;",
+    "}",
+    "static bool ps_utf8_validate(const uint8_t* s, size_t len);",
+    "static void ps_set_exception(const char* code, const char* category, const char* msg, int is_runtime) {",
+    "  ps_last_exception.file = ps_cstr(\"<runtime>\");",
+    "  ps_last_exception.line = 1;",
+    "  ps_last_exception.column = 1;",
+    "  ps_last_exception.message = ps_cstr(msg);",
+    "  ps_last_exception.code = ps_cstr(code ? code : \"\");",
+    "  ps_last_exception.category = ps_cstr(category ? category : \"\");",
+    "  ps_last_exception.is_runtime = is_runtime;",
+    "  ps_has_exception = 1;",
+    "}",
+    "static void ps_raise_exception(void) {",
+    "  if (ps_try_len > 0) {",
+    "    ps_try_len -= 1;",
+    "    longjmp(ps_try_stack[ps_try_len], 1);",
+    "  }",
+    "  if (ps_has_exception) {",
+    "    fprintf(stderr, \"<runtime>:1:1 %s %s: %s\\n\", ps_last_exception.code.ptr, ps_last_exception.category.ptr, ps_last_exception.message.ptr);",
+    "  }",
     "  exit(1);",
     "}",
+    "static void ps_panic(const char* code, const char* category, const char* msg) {",
+    "  ps_set_exception(code, category, msg, 1);",
+    "  ps_raise_exception();",
+    "}",
+    "static ps_exception* ps_get_exception(void) {",
+    "  if (!ps_has_exception) ps_set_exception(\"R1999\", \"RUNTIME_THROW\", \"exception\", 1);",
+    "  return &ps_last_exception;",
+    "}",
+    "static int ps_exception_is(ps_exception* ex, const char* type) {",
+    "  if (!ex || !type) return 0;",
+    "  if (strcmp(type, \"Exception\") == 0) return 1;",
+    "  if (strcmp(type, \"RuntimeException\") == 0) return ex->is_runtime;",
+    "  return 0;",
+    "}",
+    "static ps_exception ps_exception_make(ps_string message) {",
+    "  ps_exception ex;",
+    "  ex.file = ps_cstr(\"\");",
+    "  ex.line = 1;",
+    "  ex.column = 1;",
+    "  ex.message = message;",
+    "  ex.code = ps_cstr(\"\");",
+    "  ex.category = ps_cstr(\"\");",
+    "  ex.is_runtime = 0;",
+    "  return ex;",
+    "}",
+    "static ps_exception* ps_exception_new(ps_string message) {",
+    "  ps_exception* ex = (ps_exception*)malloc(sizeof(ps_exception));",
+    "  if (!ex) ps_panic(\"R1998\", \"RUNTIME_OOM\", \"out of memory\");",
+    "  *ex = ps_exception_make(message);",
+    "  return ex;",
+    "}",
+    "static void ps_raise_user_exception(ps_exception* ex) {",
+    "  if (ex) { ps_last_exception = *ex; ps_has_exception = 1; }",
+    "  ps_raise_exception();",
+    "}",
+    "",
+    "typedef struct { FILE* fp; int binary; int is_std; int closed; } ps_file;",
+    "static ps_file ps_stdin = { NULL, 0, 1, 0 };",
+    "static ps_file ps_stdout = { NULL, 0, 1, 0 };",
+    "static ps_file ps_stderr = { NULL, 0, 1, 0 };",
+    "static int ps_io_ready = 0;",
+    "static void ps_io_init(void) {",
+    "  if (ps_io_ready) return;",
+    "  ps_io_ready = 1;",
+    "  if (!ps_stdin.fp) ps_stdin.fp = stdin;",
+    "  if (!ps_stdout.fp) ps_stdout.fp = stdout;",
+    "  if (!ps_stderr.fp) ps_stderr.fp = stderr;",
+    "  if (ps_stdout.fp) setvbuf(ps_stdout.fp, NULL, _IONBF, 0);",
+    "  if (ps_stderr.fp) setvbuf(ps_stderr.fp, NULL, _IONBF, 0);",
+    "}",
+    "static char* ps_string_to_cstr(ps_string s) {",
+    "  char* out = (char*)malloc(s.len + 1);",
+    "  if (!out) ps_panic(\"R1998\", \"RUNTIME_OOM\", \"out of memory\");",
+    "  memcpy(out, s.ptr, s.len);",
+    "  out[s.len] = '\\0';",
+    "  return out;",
+    "}",
+    "static ps_string ps_string_from_owned(char* s) {",
+    "  ps_string out = { s ? s : \"\", s ? strlen(s) : 0 };",
+    "  return out;",
+    "}",
+    "static ps_file* ps_file_open(ps_string path, ps_string mode) {",
+    "  ps_io_init();",
+    "  char* cpath = ps_string_to_cstr(path);",
+    "  char* cmode = ps_string_to_cstr(mode);",
+    "  if (strcmp(cmode, \"r\") != 0 && strcmp(cmode, \"w\") != 0 && strcmp(cmode, \"rb\") != 0 && strcmp(cmode, \"wb\") != 0 && strcmp(cmode, \"a\") != 0 && strcmp(cmode, \"ab\") != 0) {",
+    "    free(cpath);",
+    "    free(cmode);",
+    "    ps_panic(\"R1010\", \"RUNTIME_IO_ERROR\", \"invalid mode\");",
+    "  }",
+    "  int binary = (strchr(cmode, 'b') != NULL);",
+    "  FILE* fp = fopen(cpath, cmode);",
+    "  free(cpath);",
+    "  free(cmode);",
+    "  if (!fp) ps_panic(\"R1010\", \"RUNTIME_IO_ERROR\", \"cannot open file\");",
+    "  ps_file* f = (ps_file*)malloc(sizeof(ps_file));",
+    "  if (!f) ps_panic(\"R1998\", \"RUNTIME_OOM\", \"out of memory\");",
+    "  f->fp = fp;",
+    "  f->binary = binary;",
+    "  f->is_std = 0;",
+    "  f->closed = 0;",
+    "  return f;",
+    "}",
+    "static void ps_file_check_open(ps_file* f) {",
+    "  ps_io_init();",
+    "  if (!f || f->closed) ps_panic(\"R1010\", \"RUNTIME_IO_ERROR\", \"file is closed\");",
+    "}",
+    "static void ps_file_close(ps_file* f) {",
+    "  ps_file_check_open(f);",
+    "  if (f->is_std) ps_panic(\"R1010\", \"RUNTIME_IO_ERROR\", \"cannot close standard stream\");",
+    "  fclose(f->fp);",
+    "  f->closed = 1;",
+    "}",
+    "static void ps_file_write_text(ps_file* f, ps_string s) {",
+    "  ps_file_check_open(f);",
+    "  if (f->binary) ps_panic(\"R1010\", \"RUNTIME_IO_ERROR\", \"write expects list<byte>\");",
+    "  fwrite(s.ptr, 1, s.len, f->fp);",
+    "}",
+    "static void ps_file_write_bytes(ps_file* f, ps_list_byte b) {",
+    "  ps_file_check_open(f);",
+    "  if (!f->binary) ps_panic(\"R1010\", \"RUNTIME_IO_ERROR\", \"write expects string\");",
+    "  if (b.len > 0) fwrite(b.ptr, 1, b.len, f->fp);",
+    "}",
+    "static void ps_file_write_bytes_from_ints(ps_file* f, ps_list_int b) {",
+    "  ps_file_check_open(f);",
+    "  if (!f->binary) ps_panic(\"R1010\", \"RUNTIME_IO_ERROR\", \"write expects string\");",
+    "  for (size_t i = 0; i < b.len; i += 1) {",
+    "    int64_t v = b.ptr[i];",
+    "    if (v < 0 || v > 255) ps_panic(\"R1008\", \"RUNTIME_BYTE_RANGE\", \"byte out of range\");",
+    "    unsigned char c = (unsigned char)v;",
+    "    fwrite(&c, 1, 1, f->fp);",
+    "  }",
+    "}",
+    "static ps_string ps_file_read_all(ps_file* f) {",
+    "  ps_file_check_open(f);",
+    "  fseek(f->fp, 0, SEEK_END);",
+    "  long sz = ftell(f->fp);",
+    "  if (sz < 0) sz = 0;",
+    "  fseek(f->fp, 0, SEEK_SET);",
+    "  char* buf = (char*)malloc((size_t)sz + 1);",
+    "  if (!buf) ps_panic(\"R1998\", \"RUNTIME_OOM\", \"out of memory\");",
+    "  size_t n = fread(buf, 1, (size_t)sz, f->fp);",
+    "  buf[n] = '\\0';",
+    "  ps_string out = { buf, n };",
+    "  if (!ps_utf8_validate((const uint8_t*)out.ptr, out.len)) ps_panic(\"R1007\", \"RUNTIME_INVALID_UTF8\", \"invalid UTF-8\");",
+    "  return out;",
+    "}",
+    "static ps_list_byte ps_file_read_all_bytes(ps_file* f) {",
+    "  ps_list_byte out = { NULL, 0, 0 };",
+    "  ps_file_check_open(f);",
+    "  fseek(f->fp, 0, SEEK_END);",
+    "  long sz = ftell(f->fp);",
+    "  if (sz < 0) sz = 0;",
+    "  fseek(f->fp, 0, SEEK_SET);",
+    "  out.len = (size_t)sz;",
+    "  out.cap = out.len;",
+    "  if (out.len == 0) return out;",
+    "  out.ptr = (uint8_t*)malloc(out.len);",
+    "  if (!out.ptr) ps_panic(\"R1998\", \"RUNTIME_OOM\", \"out of memory\");",
+    "  fread(out.ptr, 1, out.len, f->fp);",
+    "  return out;",
+    "}",
+    "static int64_t ps_file_read_size(ps_file* f, int64_t size) {",
+    "  ps_file_check_open(f);",
+    "  if (size <= 0) ps_panic(\"R1010\", \"RUNTIME_IO_ERROR\", \"read size must be >= 1\");",
+    "  char* buf = (char*)malloc((size_t)size);",
+    "  if (!buf) ps_panic(\"R1998\", \"RUNTIME_OOM\", \"out of memory\");",
+    "  size_t n = fread(buf, 1, (size_t)size, f->fp);",
+    "  free(buf);",
+    "  return (n == 0) ? 0 : 1;",
+    "}",
+    "static ps_file* Io_open(ps_string path, ps_string mode) {",
+    "  return ps_file_open(path, mode);",
+    "}",
+    "static void Io_print(ps_string s) {",
+    "  ps_io_init();",
+    "  fwrite(s.ptr, 1, s.len, ps_stdout.fp);",
+    "}",
+    "static void Io_printLine(ps_string s) {",
+    "  ps_io_init();",
+    "  fwrite(s.ptr, 1, s.len, ps_stdout.fp);",
+    "  fputc('\\n', ps_stdout.fp);",
+    "}",
+    "",
+    "typedef enum {",
+    "  PS_JSON_NULL = 0,",
+    "  PS_JSON_BOOL = 1,",
+    "  PS_JSON_NUMBER = 2,",
+    "  PS_JSON_STRING = 3,",
+    "  PS_JSON_ARRAY = 4,",
+    "  PS_JSON_OBJECT = 5",
+    "} ps_json_kind;",
+    "typedef struct ps_jsonvalue {",
+    "  ps_json_kind kind;",
+    "  bool b;",
+    "  double num;",
+    "  ps_string str;",
+    "  ps_list_JSONValue arr;",
+    "  ps_map_string_JSONValue obj;",
+    "} ps_jsonvalue;",
+    "static ps_jsonvalue JSON_null(void) {",
+    "  ps_jsonvalue v; v.kind = PS_JSON_NULL; v.b = false; v.num = 0.0; v.str = ps_cstr(\"\");",
+    "  v.arr.ptr = NULL; v.arr.len = 0; v.arr.cap = 0;",
+    "  v.obj.keys = NULL; v.obj.values = NULL; v.obj.len = 0; v.obj.cap = 0;",
+    "  return v;",
+    "}",
+    "static ps_jsonvalue JSON_bool(bool b) {",
+    "  ps_jsonvalue v = JSON_null(); v.kind = PS_JSON_BOOL; v.b = b; return v;",
+    "}",
+    "static ps_jsonvalue JSON_number(double n) {",
+    "  if (isnan(n) || isinf(n)) ps_panic(\"R1010\", \"RUNTIME_JSON_ERROR\", \"invalid JSON number\");",
+    "  ps_jsonvalue v = JSON_null(); v.kind = PS_JSON_NUMBER; v.num = n; return v;",
+    "}",
+    "static ps_jsonvalue JSON_string(ps_string s) {",
+    "  ps_jsonvalue v = JSON_null(); v.kind = PS_JSON_STRING; v.str = s; return v;",
+    "}",
+    "static ps_jsonvalue JSON_array(ps_list_JSONValue items) {",
+    "  ps_jsonvalue v = JSON_null(); v.kind = PS_JSON_ARRAY; v.arr = items; return v;",
+    "}",
+    "static ps_jsonvalue JSON_object(ps_map_string_JSONValue members) {",
+    "  ps_jsonvalue v = JSON_null(); v.kind = PS_JSON_OBJECT; v.obj = members; return v;",
+    "}",
+    "static bool ps_json_is_null(ps_jsonvalue v) { return v.kind == PS_JSON_NULL; }",
+    "static bool ps_json_is_bool(ps_jsonvalue v) { return v.kind == PS_JSON_BOOL; }",
+    "static bool ps_json_is_number(ps_jsonvalue v) { return v.kind == PS_JSON_NUMBER; }",
+    "static bool ps_json_is_string(ps_jsonvalue v) { return v.kind == PS_JSON_STRING; }",
+    "static bool ps_json_is_array(ps_jsonvalue v) { return v.kind == PS_JSON_ARRAY; }",
+    "static bool ps_json_is_object(ps_jsonvalue v) { return v.kind == PS_JSON_OBJECT; }",
+    "static bool ps_json_as_bool(ps_jsonvalue v) { if (v.kind != PS_JSON_BOOL) ps_panic(\"R1010\", \"RUNTIME_TYPE_ERROR\", \"not a bool\"); return v.b; }",
+    "static double ps_json_as_number(ps_jsonvalue v) { if (v.kind != PS_JSON_NUMBER) ps_panic(\"R1010\", \"RUNTIME_TYPE_ERROR\", \"not a number\"); return v.num; }",
+    "static ps_string ps_json_as_string(ps_jsonvalue v) { if (v.kind != PS_JSON_STRING) ps_panic(\"R1010\", \"RUNTIME_TYPE_ERROR\", \"not a string\"); return v.str; }",
+    "static ps_list_JSONValue ps_json_as_array(ps_jsonvalue v) { if (v.kind != PS_JSON_ARRAY) ps_panic(\"R1010\", \"RUNTIME_TYPE_ERROR\", \"not an array\"); return v.arr; }",
+    "static ps_map_string_JSONValue ps_json_as_object(ps_jsonvalue v) { if (v.kind != PS_JSON_OBJECT) ps_panic(\"R1010\", \"RUNTIME_TYPE_ERROR\", \"not an object\"); return v.obj; }",
+    "typedef struct { const char* s; size_t len; size_t i; } ps_json_parser;",
+    "static void ps_json_skip_ws(ps_json_parser* p) {",
+    "  while (p->i < p->len) {",
+    "    char c = p->s[p->i];",
+    "    if (c == ' ' || c == '\\n' || c == '\\r' || c == '\\t') p->i += 1;",
+    "    else break;",
+    "  }",
+    "}",
+    "static int ps_json_match(ps_json_parser* p, const char* lit) {",
+    "  size_t n = strlen(lit);",
+    "  if (p->i + n > p->len) return 0;",
+    "  if (strncmp(p->s + p->i, lit, n) != 0) return 0;",
+    "  p->i += n;",
+    "  return 1;",
+    "}",
+    "static ps_jsonvalue ps_json_parse_value(ps_json_parser* p, int* ok);",
+    "static ps_jsonvalue ps_json_parse_string(ps_json_parser* p, int* ok);",
+    "static ps_jsonvalue ps_json_parse_object(ps_json_parser* p, int* ok) {",
+    "  p->i += 1;",
+    "  ps_json_skip_ws(p);",
+    "  if (p->i >= p->len) { *ok = 0; return JSON_null(); }",
+    "  if (p->i < p->len && p->s[p->i] == '}') { p->i += 1; return JSON_object((ps_map_string_JSONValue){ NULL, NULL, 0, 0 }); }",
+    "  while (p->i < p->len) {",
+    "    if (p->s[p->i] != '\"') { *ok = 0; return JSON_null(); }",
+    "    ps_jsonvalue key = ps_json_parse_string(p, ok);",
+    "    if (!*ok) return JSON_null();",
+    "    ps_json_skip_ws(p);",
+    "    if (p->i >= p->len || p->s[p->i] != ':') { *ok = 0; return JSON_null(); }",
+    "    p->i += 1;",
+    "    ps_jsonvalue val = ps_json_parse_value(p, ok);",
+    "    if (!*ok) return JSON_null();",
+    "    (void)key; (void)val;",
+    "    ps_json_skip_ws(p);",
+    "    if (p->i < p->len && p->s[p->i] == ',') { p->i += 1; ps_json_skip_ws(p); continue; }",
+    "    if (p->i < p->len && p->s[p->i] == '}') { p->i += 1; break; }",
+    "    *ok = 0; return JSON_null();",
+    "  }",
+    "  if (p->i > p->len) { *ok = 0; return JSON_null(); }",
+    "  return JSON_object((ps_map_string_JSONValue){ NULL, NULL, 0, 0 });",
+    "}",
+    "static ps_jsonvalue ps_json_parse_array(ps_json_parser* p, int* ok) {",
+    "  ps_list_JSONValue out = { NULL, 0, 0 };",
+    "  p->i += 1;",
+    "  ps_json_skip_ws(p);",
+    "  if (p->i < p->len && p->s[p->i] == ']') { p->i += 1; return JSON_array(out); }",
+    "  while (p->i < p->len) {",
+    "    ps_jsonvalue v = ps_json_parse_value(p, ok);",
+    "    if (!*ok) return JSON_null();",
+    "    if (out.len == out.cap) {",
+    "      size_t nc = (out.cap == 0) ? 4 : out.cap * 2;",
+    "      out.ptr = (ps_jsonvalue*)realloc(out.ptr, sizeof(ps_jsonvalue) * nc);",
+    "      if (!out.ptr) ps_panic(\"R1998\", \"RUNTIME_OOM\", \"out of memory\");",
+    "      out.cap = nc;",
+    "    }",
+    "    out.ptr[out.len++] = v;",
+    "    ps_json_skip_ws(p);",
+    "    if (p->i < p->len && p->s[p->i] == ',') { p->i += 1; ps_json_skip_ws(p); continue; }",
+    "    if (p->i < p->len && p->s[p->i] == ']') { p->i += 1; break; }",
+    "    *ok = 0; return JSON_null();",
+    "  }",
+    "  return JSON_array(out);",
+    "}",
+    "static ps_jsonvalue ps_json_parse_string(ps_json_parser* p, int* ok) {",
+    "  p->i += 1;",
+    "  size_t start = p->i;",
+    "  while (p->i < p->len && p->s[p->i] != '\"') p->i += 1;",
+    "  if (p->i >= p->len) { *ok = 0; return JSON_null(); }",
+    "  size_t n = p->i - start;",
+    "  char* buf = (char*)malloc(n + 1);",
+    "  if (!buf) ps_panic(\"R1998\", \"RUNTIME_OOM\", \"out of memory\");",
+    "  memcpy(buf, p->s + start, n);",
+    "  buf[n] = '\\0';",
+    "  p->i += 1;",
+    "  return JSON_string((ps_string){ buf, n });",
+    "}",
+    "static ps_jsonvalue ps_json_parse_number(ps_json_parser* p, int* ok) {",
+    "  size_t start = p->i;",
+    "  if (p->s[p->i] == '-') p->i += 1;",
+    "  while (p->i < p->len && (p->s[p->i] >= '0' && p->s[p->i] <= '9')) p->i += 1;",
+    "  if (p->i < p->len && p->s[p->i] == '.') {",
+    "    p->i += 1;",
+    "    while (p->i < p->len && (p->s[p->i] >= '0' && p->s[p->i] <= '9')) p->i += 1;",
+    "  }",
+    "  size_t n = p->i - start;",
+    "  if (n == 0) { *ok = 0; return JSON_null(); }",
+    "  char* buf = (char*)malloc(n + 1);",
+    "  if (!buf) ps_panic(\"R1998\", \"RUNTIME_OOM\", \"out of memory\");",
+    "  memcpy(buf, p->s + start, n);",
+    "  buf[n] = '\\0';",
+    "  double v = strtod(buf, NULL);",
+    "  free(buf);",
+    "  return JSON_number(v);",
+    "}",
+    "static ps_jsonvalue ps_json_parse_value(ps_json_parser* p, int* ok) {",
+    "  ps_json_skip_ws(p);",
+    "  if (p->i >= p->len) { *ok = 0; return JSON_null(); }",
+    "  char c = p->s[p->i];",
+    "  if (c == 't') { if (ps_json_match(p, \"true\")) return JSON_bool(true); }",
+    "  if (c == 'f') { if (ps_json_match(p, \"false\")) return JSON_bool(false); }",
+    "  if (c == 'n') { if (ps_json_match(p, \"null\")) return JSON_null(); }",
+    "  if (c == '[') return ps_json_parse_array(p, ok);",
+    "  if (c == '{') return ps_json_parse_object(p, ok);",
+    "  if (c == '\"') return ps_json_parse_string(p, ok);",
+    "  if ((c >= '0' && c <= '9') || c == '-') return ps_json_parse_number(p, ok);",
+    "  *ok = 0; return JSON_null();",
+    "}",
+    "static ps_jsonvalue JSON_decode(ps_string s) {",
+    "  ps_json_parser p = { s.ptr, s.len, 0 };",
+    "  int ok = 1;",
+    "  ps_jsonvalue v = ps_json_parse_value(&p, &ok);",
+    "  ps_json_skip_ws(&p);",
+    "  if (!ok || p.i != p.len) ps_panic(\"R1010\", \"RUNTIME_JSON_ERROR\", \"invalid JSON\");",
+    "  return v;",
+    "}",
+    "static bool JSON_isValid(ps_string s) {",
+    "  ps_json_parser p = { s.ptr, s.len, 0 };",
+    "  int ok = 1;",
+    "  ps_json_parse_value(&p, &ok);",
+    "  ps_json_skip_ws(&p);",
+    "  return ok && p.i == p.len;",
+    "}",
+    "typedef struct { char* ptr; size_t len; size_t cap; } ps_buf;",
+    "static void ps_buf_append(ps_buf* b, const char* s, size_t n) {",
+    "  if (n == 0) return;",
+    "  if (b->len + n + 1 > b->cap) {",
+    "    size_t nc = (b->cap == 0) ? 64 : b->cap * 2;",
+    "    while (nc < b->len + n + 1) nc *= 2;",
+    "    b->ptr = (char*)realloc(b->ptr, nc);",
+    "    if (!b->ptr) ps_panic(\"R1998\", \"RUNTIME_OOM\", \"out of memory\");",
+    "    b->cap = nc;",
+    "  }",
+    "  memcpy(b->ptr + b->len, s, n);",
+    "  b->len += n;",
+    "  b->ptr[b->len] = '\\0';",
+    "}",
+    "static ps_string ps_buf_to_string(ps_buf* b) {",
+    "  if (!b->ptr) return ps_cstr(\"\");",
+    "  return (ps_string){ b->ptr, b->len };",
+    "}",
+    "static ps_string JSON_encode(ps_jsonvalue v);",
+    "static void ps_json_encode_value(ps_buf* b, ps_jsonvalue v) {",
+    "  switch (v.kind) {",
+    "    case PS_JSON_NULL: ps_buf_append(b, \"null\", 4); break;",
+    "    case PS_JSON_BOOL: ps_buf_append(b, v.b ? \"true\" : \"false\", v.b ? 4 : 5); break;",
+    "    case PS_JSON_NUMBER: {",
+    "      char buf[64];",
+    "      int n = snprintf(buf, sizeof(buf), \"%.17g\", v.num);",
+    "      if (n < 0) n = 0;",
+    "      ps_buf_append(b, buf, (size_t)n);",
+    "      break;",
+    "    }",
+    "    case PS_JSON_STRING: {",
+    "      ps_buf_append(b, \"\\\"\", 1);",
+    "      ps_buf_append(b, v.str.ptr, v.str.len);",
+    "      ps_buf_append(b, \"\\\"\", 1);",
+    "      break;",
+    "    }",
+    "    case PS_JSON_ARRAY: {",
+    "      ps_buf_append(b, \"[\", 1);",
+    "      for (size_t i = 0; i < v.arr.len; i += 1) {",
+    "        if (i) ps_buf_append(b, \",\", 1);",
+    "        ps_json_encode_value(b, v.arr.ptr[i]);",
+    "      }",
+    "      ps_buf_append(b, \"]\", 1);",
+    "      break;",
+    "    }",
+    "    case PS_JSON_OBJECT: {",
+    "      ps_buf_append(b, \"{\", 1);",
+    "      for (size_t i = 0; i < v.obj.len; i += 1) {",
+    "        if (i) ps_buf_append(b, \",\", 1);",
+    "        ps_buf_append(b, \"\\\"\", 1);",
+    "        ps_buf_append(b, v.obj.keys[i].ptr, v.obj.keys[i].len);",
+    "        ps_buf_append(b, \"\\\"\", 1);",
+    "        ps_buf_append(b, \":\", 1);",
+    "        ps_json_encode_value(b, v.obj.values[i]);",
+    "      }",
+    "      ps_buf_append(b, \"}\", 1);",
+    "      break;",
+    "    }",
+    "  }",
+    "}",
+    "static ps_string JSON_encode(ps_jsonvalue v) {",
+    "  ps_buf b = { NULL, 0, 0 };",
+    "  ps_json_encode_value(&b, v);",
+    "  return ps_buf_to_string(&b);",
+    "}",
+    "static ps_string JSON_encode_bool(bool b) { return JSON_encode(JSON_bool(b)); }",
+    "static ps_string JSON_encode_number(double n) { return JSON_encode(JSON_number(n)); }",
+    "static ps_string JSON_encode_string(ps_string s) { return JSON_encode(JSON_string(s)); }",
+    "static ps_string JSON_encode_list_int(ps_list_int v) {",
+    "  ps_list_JSONValue out = { NULL, 0, 0 };",
+    "  if (v.len > 0) {",
+    "    out.ptr = (ps_jsonvalue*)malloc(sizeof(ps_jsonvalue) * v.len);",
+    "    if (!out.ptr) ps_panic(\"R1998\", \"RUNTIME_OOM\", \"out of memory\");",
+    "    out.len = v.len; out.cap = v.len;",
+    "    for (size_t i = 0; i < v.len; i += 1) out.ptr[i] = JSON_number((double)v.ptr[i]);",
+    "  }",
+    "  return JSON_encode(JSON_array(out));",
+    "}",
+    "static ps_string JSON_encode_list_JSONValue(ps_list_JSONValue v) { return JSON_encode(JSON_array(v)); }",
+    "static ps_string JSON_encode_map_string_int(ps_map_string_int m) {",
+    "  ps_map_string_JSONValue obj = { NULL, NULL, 0, 0 };",
+    "  if (m.len > 0) {",
+    "    obj.keys = (ps_string*)malloc(sizeof(ps_string) * m.len);",
+    "    obj.values = (ps_jsonvalue*)malloc(sizeof(ps_jsonvalue) * m.len);",
+    "    if (!obj.keys || !obj.values) ps_panic(\"R1998\", \"RUNTIME_OOM\", \"out of memory\");",
+    "    obj.len = m.len; obj.cap = m.len;",
+    "    for (size_t i = 0; i < m.len; i += 1) {",
+    "      obj.keys[i] = m.keys[i];",
+    "      obj.values[i] = JSON_number((double)m.values[i]);",
+    "    }",
+    "  }",
+    "  return JSON_encode(JSON_object(obj));",
+    "}",
+    "static ps_string JSON_encode_map_string_JSONValue(ps_map_string_JSONValue m) {",
+    "  return JSON_encode(JSON_object(m));",
+    "}",
+    "",
+    "static uint32_t ps_math_rng_state = 2463534242u;",
+    "static double Math_abs(double x) { return fabs(x); }",
+    "static double Math_min(double a, double b) { return fmin(a, b); }",
+    "static double Math_max(double a, double b) { return fmax(a, b); }",
+    "static double Math_floor(double x) { return floor(x); }",
+    "static double Math_ceil(double x) { return ceil(x); }",
+    "static double Math_round(double x) { return round(x); }",
+    "static double Math_sqrt(double x) { return sqrt(x); }",
+    "static double Math_pow(double a, double b) { return pow(a, b); }",
+    "static double Math_sin(double x) { return sin(x); }",
+    "static double Math_cos(double x) { return cos(x); }",
+    "static double Math_tan(double x) { return tan(x); }",
+    "static double Math_asin(double x) { return asin(x); }",
+    "static double Math_acos(double x) { return acos(x); }",
+    "static double Math_atan(double x) { return atan(x); }",
+    "static double Math_atan2(double y, double x) { return atan2(y, x); }",
+    "static double Math_sinh(double x) { return sinh(x); }",
+    "static double Math_cosh(double x) { return cosh(x); }",
+    "static double Math_tanh(double x) { return tanh(x); }",
+    "static double Math_asinh(double x) { return asinh(x); }",
+    "static double Math_acosh(double x) { return acosh(x); }",
+    "static double Math_atanh(double x) { return atanh(x); }",
+    "static double Math_exp(double x) { return exp(x); }",
+    "static double Math_expm1(double x) { return expm1(x); }",
+    "static double Math_log(double x) { return log(x); }",
+    "static double Math_log1p(double x) { return log1p(x); }",
+    "static double Math_log2(double x) { return log2(x); }",
+    "static double Math_log10(double x) { return log10(x); }",
+    "static double Math_cbrt(double x) { return cbrt(x); }",
+    "static double Math_hypot(double a, double b) { return hypot(a, b); }",
+    "static double Math_trunc(double x) { return trunc(x); }",
+    "static double Math_sign(double x) {",
+    "  if (isnan(x)) return NAN;",
+    "  if (x == 0.0) return x;",
+    "  return (x < 0.0) ? -1.0 : 1.0;",
+    "}",
+    "static double Math_fround(double x) { float f = (float)x; return (double)f; }",
+    "static double Math_clz32(double x) {",
+    "  uint32_t v = (uint32_t)(int64_t)x;",
+    "  if (v == 0) return 32.0;",
+    "  return (double)__builtin_clz(v);",
+    "}",
+    "static double Math_imul(double a, double b) {",
+    "  int32_t x = (int32_t)(int64_t)a;",
+    "  int32_t y = (int32_t)(int64_t)b;",
+    "  int32_t r = (int32_t)(x * y);",
+    "  return (double)r;",
+    "}",
+    "static double Math_random(void) {",
+    "  uint32_t x = ps_math_rng_state;",
+    "  x ^= x << 13;",
+    "  x ^= x >> 17;",
+    "  x ^= x << 5;",
+    "  ps_math_rng_state = x;",
+    "  return (double)(x) / 4294967296.0;",
+    "}",
+    "",
+    "static int64_t test_simple_add(int64_t a, int64_t b) { return a + b; }",
+    "static ps_string test_utf8_roundtrip(ps_string s) { return s; }",
+    "static void test_throw_fail(void) { ps_panic(\"R1010\", \"RUNTIME_MODULE_ERROR\", \"module not found\"); }",
+    "static int64_t test_noinit_ping(void) { ps_panic(\"R1010\", \"RUNTIME_MODULE_ERROR\", \"module not found\"); return 0; }",
+    "static int64_t test_badver_ping(void) { ps_panic(\"R1010\", \"RUNTIME_MODULE_ERROR\", \"module not found\"); return 0; }",
+    "static int64_t test_missing_ping(void) { ps_panic(\"R1010\", \"RUNTIME_MODULE_ERROR\", \"module not found\"); return 0; }",
+    "static int64_t test_nosym_missing(void) { ps_panic(\"R1010\", \"RUNTIME_MODULE_ERROR\", \"symbol not found\"); return 0; }",
     "",
     "static void ps_check_int_overflow_add(int64_t a, int64_t b) {",
     "  int64_t r;",
@@ -879,12 +1500,6 @@ function emitRuntimeHelpers() {
     "  ps_string out = { buf, b.len };",
     "  return out;",
     "}",
-    "static void Io_print(ps_string s) {",
-    "  printf(\"%s\", s.ptr);",
-    "}",
-    "static void Io_printLine(ps_string s) {",
-    "  printf(\"%s\\n\", s.ptr);",
-    "}",
     "static ps_string ps_i64_to_string(int64_t v) {",
     "  static char buf[4][64];",
     "  static int slot = 0;",
@@ -957,6 +1572,13 @@ function emitInstr(i, fnInf, state) {
       if (i.literalType === "string") {
         out.push(`${n(i.dst)}.ptr = ${JSON.stringify(String(i.value))};`);
         out.push(`${n(i.dst)}.len = strlen(${n(i.dst)}.ptr);`);
+      } else if (i.literalType === "file") {
+        if (i.value === "stdin") out.push(`${n(i.dst)} = &ps_stdin;`);
+        else if (i.value === "stdout") out.push(`${n(i.dst)} = &ps_stdout;`);
+        else if (i.value === "stderr") out.push(`${n(i.dst)} = &ps_stderr;`);
+        else out.push(`${n(i.dst)} = NULL;`);
+      } else if (i.literalType === "eof") {
+        out.push(`${n(i.dst)} = 0;`);
       } else if (i.literalType === "bool") {
         out.push(`${n(i.dst)} = ${(String(i.value) === "true") ? "true" : "false"};`);
       } else {
@@ -1043,7 +1665,42 @@ function emitInstr(i, fnInf, state) {
       }
       break;
     case "call_static":
-      if (i.callee === "Io.print" || i.callee === "Io.printLine" || i.callee === "Io_print" || i.callee === "Io_printLine") {
+      if (i.callee === "Exception") {
+        if (i.args.length > 2) {
+          out.push('ps_panic("R1010", "RUNTIME_TYPE_ERROR", "Exception expects (string message, Exception cause?)");');
+        } else if (i.args.length >= 1) {
+          out.push(`${n(i.dst)} = ps_exception_new(${n(i.args[0])});`);
+        } else {
+          out.push(`${n(i.dst)} = ps_exception_new((ps_string){\"\",0});`);
+        }
+      } else if (i.callee === "RuntimeException") {
+        out.push('ps_panic("R1010", "RUNTIME_TYPE_ERROR", "RuntimeException is not constructible");');
+      } else if (i.callee === "JSON.encode") {
+        const at = t(i.args[0]);
+        if (at === "JSONValue") out.push(`${n(i.dst)} = JSON_encode(${n(i.args[0])});`);
+        else if (at === "string") out.push(`${n(i.dst)} = JSON_encode_string(${n(i.args[0])});`);
+        else if (at === "bool") out.push(`${n(i.dst)} = JSON_encode_bool(${n(i.args[0])});`);
+        else if (at === "int") out.push(`${n(i.dst)} = JSON_encode_number((double)${n(i.args[0])});`);
+        else if (at === "float") out.push(`${n(i.dst)} = JSON_encode_number(${n(i.args[0])});`);
+        else {
+          const pc = parseContainer(at);
+          if (pc && pc.kind === "list") out.push(`${n(i.dst)} = JSON_encode_list_${baseName(pc.inner)}(${n(i.args[0])});`);
+          else if (pc && pc.kind === "map") out.push(`${n(i.dst)} = JSON_encode_map_${baseName(pc.inner)}(${n(i.args[0])});`);
+          else out.push('ps_panic("R1010", "RUNTIME_TYPE_ERROR", "JSON.encode unsupported type");');
+        }
+      } else if (i.callee.startsWith("Math.")) {
+        const bad = i.args.some((a) => {
+          const at = t(a);
+          return !(at === "int" || at === "float");
+        });
+        if (bad) {
+          out.push('ps_panic("R1010", "RUNTIME_TYPE_ERROR", "expected float");');
+        } else if (t(i.dst) === "void") {
+          out.push(`${cIdent(i.callee)}(${i.args.map(n).join(", ")});`);
+        } else {
+          out.push(`${n(i.dst)} = ${cIdent(i.callee)}(${i.args.map(n).join(", ")});`);
+        }
+      } else if (i.callee === "Io.print" || i.callee === "Io.printLine" || i.callee === "Io_print" || i.callee === "Io_printLine") {
         out.push(`${cIdent(i.callee)}(${i.args.map(n).join(", ")});`);
       } else if (t(i.dst) === "void") {
         out.push(`${cIdent(i.callee)}(${i.args.map(n).join(", ")});`);
@@ -1055,7 +1712,43 @@ function emitInstr(i, fnInf, state) {
       {
         const rt = t(i.receiver);
         const rc = parseContainer(rt);
-        if (i.method === "length") {
+        if (rt === "File") {
+          if (i.method === "read") {
+            if (i.args.length === 0) out.push(`${n(i.dst)} = ps_file_read_all(${n(i.receiver)});`);
+            else out.push(`${n(i.dst)} = ps_file_read_size(${n(i.receiver)}, ${n(i.args[0])});`);
+          } else if (i.method === "readBytes") {
+            if (i.args.length === 0) out.push(`${n(i.dst)} = ps_file_read_all_bytes(${n(i.receiver)});`);
+            else out.push(`${n(i.dst)} = ps_file_read_size(${n(i.receiver)}, ${n(i.args[0])});`);
+          } else if (i.method === "write") {
+            const at = t(i.args[0]);
+            if (at === "string") out.push(`ps_file_write_text(${n(i.receiver)}, ${n(i.args[0])});`);
+            else if (parseContainer(at)?.kind === "list" && parseContainer(at)?.inner === "byte") {
+              out.push(`ps_file_write_bytes(${n(i.receiver)}, ${n(i.args[0])});`);
+            } else if (parseContainer(at)?.kind === "list" && parseContainer(at)?.inner === "int") {
+              out.push(`ps_file_write_bytes_from_ints(${n(i.receiver)}, ${n(i.args[0])});`);
+            } else {
+              out.push('ps_panic("R1010", "RUNTIME_TYPE_ERROR", "invalid write argument");');
+            }
+          } else if (i.method === "writeBytes") {
+            out.push(`ps_file_write_bytes(${n(i.receiver)}, ${n(i.args[0])});`);
+          } else if (i.method === "close") {
+            out.push(`ps_file_close(${n(i.receiver)});`);
+          } else {
+            out.push(`/* unknown file method ${i.method} */`);
+          }
+        } else if (rt === "JSONValue") {
+          if (i.method === "isNull") out.push(`${n(i.dst)} = ps_json_is_null(${n(i.receiver)});`);
+          else if (i.method === "isBool") out.push(`${n(i.dst)} = ps_json_is_bool(${n(i.receiver)});`);
+          else if (i.method === "isNumber") out.push(`${n(i.dst)} = ps_json_is_number(${n(i.receiver)});`);
+          else if (i.method === "isString") out.push(`${n(i.dst)} = ps_json_is_string(${n(i.receiver)});`);
+          else if (i.method === "isArray") out.push(`${n(i.dst)} = ps_json_is_array(${n(i.receiver)});`);
+          else if (i.method === "isObject") out.push(`${n(i.dst)} = ps_json_is_object(${n(i.receiver)});`);
+          else if (i.method === "asBool") out.push(`${n(i.dst)} = ps_json_as_bool(${n(i.receiver)});`);
+          else if (i.method === "asNumber") out.push(`${n(i.dst)} = ps_json_as_number(${n(i.receiver)});`);
+          else if (i.method === "asString") out.push(`${n(i.dst)} = ps_json_as_string(${n(i.receiver)});`);
+          else if (i.method === "asArray") out.push(`${n(i.dst)} = ps_json_as_array(${n(i.receiver)});`);
+          else if (i.method === "asObject") out.push(`${n(i.dst)} = ps_json_as_object(${n(i.receiver)});`);
+        } else if (i.method === "length") {
           if (rt === "string") out.push(`${n(i.dst)} = (int64_t)ps_utf8_glyph_len(${n(i.receiver)});`);
           else if (rc && ["list", "slice", "view"].includes(rc.kind)) out.push(`${n(i.dst)} = (int64_t)${n(i.receiver)}.len;`);
           else if (rc && rc.kind === "map") out.push(`${n(i.dst)} = (int64_t)${n(i.receiver)}.len;`);
@@ -1329,7 +2022,20 @@ function emitInstr(i, fnInf, state) {
       }
       break;
     case "member_get":
-      out.push(`/* member_get ${i.name} */ ${n(i.dst)} = 0;`);
+      {
+        const rt = t(i.target);
+        if (rt === "Exception" || rt === "RuntimeException") {
+          if (i.name === "code") out.push(`${n(i.dst)} = ${n(i.target)}->code;`);
+          else if (i.name === "category") out.push(`${n(i.dst)} = ${n(i.target)}->category;`);
+          else if (i.name === "message") out.push(`${n(i.dst)} = ${n(i.target)}->message;`);
+          else if (i.name === "file") out.push(`${n(i.dst)} = ${n(i.target)}->file;`);
+          else if (i.name === "line") out.push(`${n(i.dst)} = ${n(i.target)}->line;`);
+          else if (i.name === "column") out.push(`${n(i.dst)} = ${n(i.target)}->column;`);
+          else out.push(`${n(i.dst)} = (ps_string){\"\",0};`);
+        } else {
+          out.push(`/* member_get ${i.name} */ ${n(i.dst)} = 0;`);
+        }
+      }
       break;
     case "ret":
       out.push(`return ${n(i.value)};`);
@@ -1338,7 +2044,24 @@ function emitInstr(i, fnInf, state) {
       out.push("return;");
       break;
     case "throw":
-      out.push(`ps_panic("R1999", "RUNTIME_THROW", "explicit throw");`);
+      out.push(`ps_raise_user_exception(${n(i.value)});`);
+      break;
+    case "push_handler":
+      out.push('if (ps_try_len >= 64) ps_panic("R1999", "RUNTIME_THROW", "try stack overflow");');
+      out.push(`if (setjmp(ps_try_stack[ps_try_len]) != 0) goto ${i.target};`);
+      out.push("ps_try_len += 1;");
+      break;
+    case "pop_handler":
+      out.push("if (ps_try_len > 0) ps_try_len -= 1;");
+      break;
+    case "get_exception":
+      out.push(`${n(i.dst)} = ps_get_exception();`);
+      break;
+    case "rethrow":
+      out.push("ps_raise_exception();");
+      break;
+    case "exception_is":
+      out.push(`${n(i.dst)} = ps_exception_is(${n(i.value)}, "${i.type}");`);
       break;
     case "branch_if":
       out.push(`if (${n(i.cond)}) goto ${i.then}; else goto ${i.else};`);
@@ -1405,9 +2128,26 @@ function emitFunctionBody(fn, fnInf) {
   if (tempDecls.length > 0) out.push(...tempDecls);
 
   const emitState = { mapAliases: new Map(), mapVarAliases: new Map() };
-  if (fn.blocks.length > 0) out.push(`  goto ${fn.blocks[0].label};`);
-  for (const b of fn.blocks) {
+  const blocks = fn.blocks.map((b) => ({ label: b.label, instrs: b.instrs.slice() }));
+  const postJumpInstrs = [];
+  for (const b of blocks) {
+    const idx = b.instrs.findIndex((i) => ["jump", "branch_if", "return", "rethrow"].includes(i.op));
+    if (idx >= 0 && idx < b.instrs.length - 1) {
+      postJumpInstrs.push(...b.instrs.slice(idx + 1));
+      b.instrs = b.instrs.slice(0, idx + 1);
+    }
+  }
+  let postInjected = false;
+  if (blocks.length > 0) out.push(`  goto ${blocks[0].label};`);
+  for (const b of blocks) {
     out.push(`${b.label}:`);
+    if (!postInjected && postJumpInstrs.length > 0 && b.label.startsWith("try_done_")) {
+      postInjected = true;
+      for (const i of postJumpInstrs) {
+        const lines = emitInstr(i, fnInf, emitState);
+        for (const l of lines) out.push(`  ${l}`);
+      }
+    }
     for (const i of b.instrs) {
       const lines = emitInstr(i, fnInf, emitState);
       for (const l of lines) out.push(`  ${l}`);
@@ -1436,6 +2176,7 @@ function generateC(ir) {
   out.push("#include <errno.h>");
   out.push("#include <math.h>");
   out.push("#include <limits.h>");
+  out.push("#include <setjmp.h>");
   out.push("");
   out.push(...emitTypeDecls(typeNames));
   out.push("");

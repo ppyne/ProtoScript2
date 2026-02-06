@@ -9,7 +9,8 @@ function main() : void {
         } finally {
             Io.printLine("cleanup");
         }
-    } catch (Exception e) {
+    } catch (RuntimeException e) {
         Io.printLine("caught");
+        Io.printLine(e.code);
     }
 }

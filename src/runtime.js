@@ -13,6 +13,63 @@ class RuntimeError extends Error {
   }
 }
 
+function isExceptionValue(v) {
+  return v && v.__exception === true;
+}
+
+function makeExceptionValue(opts) {
+  const ex = {
+    __exception: true,
+    type: opts.type || "Exception",
+    file: opts.file || "",
+    line: Number.isInteger(opts.line) ? opts.line : 1,
+    column: Number.isInteger(opts.column) ? opts.column : 1,
+    message: typeof opts.message === "string" ? opts.message : "",
+    cause: opts.cause || null,
+  };
+  if (opts.code) ex.code = opts.code;
+  if (opts.category) ex.category = opts.category;
+  return ex;
+}
+
+function setExceptionLocation(ex, file, node) {
+  if (!isExceptionValue(ex)) return ex;
+  ex.file = file || "";
+  ex.line = node && node.line ? node.line : 1;
+  ex.column = node && node.col ? node.col : 1;
+  return ex;
+}
+
+function runtimeErrorToException(err) {
+  if (!(err instanceof RuntimeError) || !err.diag) return null;
+  const d = err.diag;
+  return makeExceptionValue({
+    type: "RuntimeException",
+    file: d.file || "",
+    line: d.line || 1,
+    column: d.col || 1,
+    message: d.message || "",
+    code: d.code,
+    category: d.category,
+  });
+}
+
+function exceptionMatches(ex, typeNode) {
+  if (!isExceptionValue(ex)) return false;
+  if (!typeNode || typeNode.kind !== "NamedType") return false;
+  const t = typeNode.name;
+  if (t === "Exception") return true;
+  if (t === "RuntimeException") return ex.type === "RuntimeException";
+  return false;
+}
+
+function valueToString(v) {
+  if (isExceptionValue(v)) return v.message || "Exception";
+  if (v === null || v === undefined) return "null";
+  if (typeof v === "bigint") return v.toString();
+  return String(v);
+}
+
 class ReturnSignal {
   constructor(value) {
     this.value = value;
@@ -411,12 +468,12 @@ function buildModuleEnv(ast, file) {
     }
   });
   ioMod.functions.set("print", (val) => {
-    const s = val === null || val === undefined ? "null" : typeof val === "bigint" ? val.toString() : String(val);
+    const s = valueToString(val);
     fs.writeSync(1, s);
     return null;
   });
   ioMod.functions.set("printLine", (val) => {
-    const s = val === null || val === undefined ? "null" : typeof val === "bigint" ? val.toString() : String(val);
+    const s = valueToString(val);
     fs.writeSync(1, s + "\n");
     return null;
   });
@@ -646,8 +703,14 @@ function execStmt(stmt, scope, functions, moduleEnv, file, callFunction) {
       const v = stmt.expr ? evalExpr(stmt.expr, scope, functions, moduleEnv, file, callFunction) : null;
       throw new ReturnSignal(v);
     }
-    case "ThrowStmt":
-      throw new RuntimeError(rdiag(file, stmt, "R1999", "RUNTIME_THROW", "explicit throw"));
+    case "ThrowStmt": {
+      const v = stmt.expr ? evalExpr(stmt.expr, scope, functions, moduleEnv, file, callFunction) : null;
+      if (!isExceptionValue(v)) {
+        throw new RuntimeError(rdiag(file, stmt, "R1010", "RUNTIME_TYPE_ERROR", "throw expects Exception"));
+      }
+      setExceptionLocation(v, file, stmt);
+      throw v;
+    }
     case "Block":
       execBlock(stmt, scope, functions, moduleEnv, file, callFunction);
       return;
@@ -659,18 +722,28 @@ function execStmt(stmt, scope, functions, moduleEnv, file, callFunction) {
       return;
     case "TryStmt": {
       const hasCatch = stmt.catches && stmt.catches.length > 0;
-      const catchClause = hasCatch ? stmt.catches[0] : null;
       let pending = null;
       try {
         execBlock(stmt.tryBlock, scope, functions, moduleEnv, file, callFunction);
       } catch (e) {
         if (e instanceof ReturnSignal) throw e;
-        if (!hasCatch || !(e instanceof RuntimeError)) {
+        let ex = null;
+        if (e instanceof RuntimeError) ex = runtimeErrorToException(e);
+        else if (isExceptionValue(e)) ex = e;
+        if (!hasCatch || !ex) {
           pending = e;
         } else {
-          const cs = new Scope(scope);
-          cs.define(catchClause.name, e.message);
-          execBlock(catchClause.block, cs, functions, moduleEnv, file, callFunction);
+          let handled = false;
+          for (const c of stmt.catches) {
+            if (exceptionMatches(ex, c.type)) {
+              const cs = new Scope(scope);
+              cs.define(c.name, ex);
+              execBlock(c.block, cs, functions, moduleEnv, file, callFunction);
+              handled = true;
+              break;
+            }
+          }
+          if (!handled) pending = ex;
         }
       } finally {
         if (stmt.finallyBlock) execBlock(stmt.finallyBlock, scope, functions, moduleEnv, file, callFunction);
@@ -805,6 +878,16 @@ function evalExpr(expr, scope, functions, moduleEnv, file, callFunction) {
       if (target && target.__module && moduleEnv) {
         const mod = moduleEnv.modules.get(target.__module);
         if (mod && mod.constants.has(expr.name)) return mod.constants.get(expr.name);
+      }
+      if (isExceptionValue(target)) {
+        if (expr.name === "file") return target.file || "";
+        if (expr.name === "line") return target.line || 1;
+        if (expr.name === "column") return target.column || 1;
+        if (expr.name === "message") return target.message || "";
+        if (expr.name === "cause") return target.cause || null;
+        if (expr.name === "code") return target.code || "";
+        if (expr.name === "category") return target.category || "";
+        return null;
       }
       return { __member__: true, target, name: expr.name, node: expr };
     }
@@ -975,6 +1058,29 @@ function evalCall(expr, scope, functions, moduleEnv, file, callFunction) {
   // Function call by identifier.
   if (expr.callee.kind === "Identifier") {
     const fn = functions.get(expr.callee.name);
+    if (!fn && expr.callee.name === "Exception") {
+      const args = expr.args.map((a) => evalExpr(a, scope, functions, moduleEnv, file, callFunction));
+      if (args.length > 2) {
+        throw new RuntimeError(rdiag(file, expr, "R1010", "RUNTIME_TYPE_ERROR", "Exception expects (string message, Exception cause?)"));
+      }
+      if (args.length >= 1 && typeof args[0] !== "string") {
+        throw new RuntimeError(rdiag(file, expr, "R1010", "RUNTIME_TYPE_ERROR", "Exception message must be string"));
+      }
+      if (args.length === 2 && args[1] !== null && !isExceptionValue(args[1])) {
+        throw new RuntimeError(rdiag(file, expr, "R1010", "RUNTIME_TYPE_ERROR", "Exception cause must be Exception"));
+      }
+      return makeExceptionValue({
+        type: "Exception",
+        file: "",
+        line: 1,
+        column: 1,
+        message: args.length >= 1 ? args[0] : "",
+        cause: args.length === 2 ? args[1] : null,
+      });
+    }
+    if (!fn && expr.callee.name === "RuntimeException") {
+      throw new RuntimeError(rdiag(file, expr, "R1010", "RUNTIME_TYPE_ERROR", "RuntimeException is not constructible"));
+    }
     if (!fn && moduleEnv && moduleEnv.importedFunctions.has(expr.callee.name)) {
       const info = moduleEnv.importedFunctions.get(expr.callee.name);
       const mod = moduleEnv.modules.get(info.module);
@@ -1034,6 +1140,7 @@ function evalCall(expr, scope, functions, moduleEnv, file, callFunction) {
 
     if (m.name === "toString") {
       if (target === null || target === undefined) return "null";
+      if (isExceptionValue(target)) return target.message || "Exception";
       if (isGlyph(target)) return String.fromCodePoint(target.value);
       if (typeof target === "bigint") return target.toString();
       if (typeof target === "string") return target;
@@ -1355,4 +1462,6 @@ function evalCall(expr, scope, functions, moduleEnv, file, callFunction) {
 module.exports = {
   runProgram,
   RuntimeError,
+  isExceptionValue,
+  valueToString,
 };

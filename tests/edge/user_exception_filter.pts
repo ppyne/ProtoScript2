@@ -1,0 +1,11 @@
+import Io;
+
+function main() : void {
+    try {
+        throw Exception("user");
+    } catch (RuntimeException e) {
+        Io.printLine("runtime");
+    } catch (Exception e) {
+        Io.printLine("user");
+    }
+}

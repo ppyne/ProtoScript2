@@ -239,40 +239,73 @@ class IRBuilder {
         this.lowerBlock(stmt, block, irFn, scope);
         break;
       case "TryStmt": {
-        const hasCatch = stmt.catches && stmt.catches.length > 0;
-        const catchClause = hasCatch ? stmt.catches[0] : null;
+        const catches = stmt.catches || [];
+        const hasCatch = catches.length > 0;
         const hasFinally = !!stmt.finallyBlock;
         const tryLabel = this.nextBlock("try_body_");
-        const catchLabel = hasCatch ? this.nextBlock("try_catch_") : null;
+        const dispatchLabel = hasCatch ? this.nextBlock("try_dispatch_") : null;
+        const catchLabels = catches.map(() => this.nextBlock("try_catch_"));
+        const dispatchChecks = hasCatch ? catches.map((_, i) => (i === 0 ? dispatchLabel : this.nextBlock("try_dispatch_"))) : [];
+        const rethrowLabel = hasCatch ? this.nextBlock("try_rethrow_") : null;
         const finallyLabel = hasFinally ? this.nextBlock("try_finally_") : null;
         const finallyRethrowLabel = hasFinally && !hasCatch ? this.nextBlock("try_finally_rethrow_") : null;
         const doneLabel = this.nextBlock("try_done_");
         const bTry = { kind: "Block", label: tryLabel, instrs: [] };
-        const bCatch = catchLabel ? { kind: "Block", label: catchLabel, instrs: [] } : null;
         const bFinally = finallyLabel ? { kind: "Block", label: finallyLabel, instrs: [] } : null;
         const bFinallyRethrow = finallyRethrowLabel ? { kind: "Block", label: finallyRethrowLabel, instrs: [] } : null;
         const bDone = { kind: "Block", label: doneLabel, instrs: [] };
-        const handlerTarget = catchLabel || finallyRethrowLabel || finallyLabel || doneLabel;
+        const handlerTarget = dispatchLabel || finallyRethrowLabel || finallyLabel || doneLabel;
+
         this.emit(block, { op: "push_handler", target: handlerTarget });
         this.emit(block, { op: "jump", target: tryLabel });
         irFn.blocks.push(bTry);
-        if (bCatch) irFn.blocks.push(bCatch);
-        if (bFinally) irFn.blocks.push(bFinally);
-        if (bFinallyRethrow) irFn.blocks.push(bFinallyRethrow);
-        irFn.blocks.push(bDone);
         this.lowerBlock(stmt.tryBlock, bTry, irFn, new Scope(scope));
         this.emit(bTry, { op: "pop_handler" });
         this.emit(bTry, { op: "jump", target: finallyLabel || doneLabel });
-        if (bCatch) {
-          const cs = new Scope(scope);
-          cs.define(catchClause.name, catchClause.type);
-          this.emit(bCatch, { op: "var_decl", name: catchClause.name, type: lowerType(catchClause.type) });
-          const ex = this.nextTemp();
-          this.emit(bCatch, { op: "get_exception", dst: ex });
-          this.emit(bCatch, { op: "store_var", name: catchClause.name, src: ex, type: lowerType(catchClause.type) });
-          this.lowerBlock(catchClause.block, bCatch, irFn, cs);
-          this.emit(bCatch, { op: "jump", target: finallyLabel || doneLabel });
+
+        let exTemp = null;
+        if (hasCatch) {
+          exTemp = this.nextTemp();
+          for (const label of dispatchChecks) {
+            irFn.blocks.push({ kind: "Block", label, instrs: [] });
+          }
+          const bRethrow = { kind: "Block", label: rethrowLabel, instrs: [] };
+          irFn.blocks.push(bRethrow);
+          for (const label of catchLabels) {
+            irFn.blocks.push({ kind: "Block", label, instrs: [] });
+          }
+          if (bFinally) irFn.blocks.push(bFinally);
+          if (bFinallyRethrow) irFn.blocks.push(bFinallyRethrow);
+          irFn.blocks.push(bDone);
+
+          // Dispatch checks
+          for (let i = 0; i < catches.length; i += 1) {
+            const bCheck = irFn.blocks.find((b) => b.label === dispatchChecks[i]);
+            if (i === 0) this.emit(bCheck, { op: "get_exception", dst: exTemp });
+            const cond = this.nextTemp();
+            this.emit(bCheck, { op: "exception_is", dst: cond, value: exTemp, type: typeToString(catches[i].type) });
+            const elseLabel = i + 1 < catches.length ? dispatchChecks[i + 1] : rethrowLabel;
+            this.emit(bCheck, { op: "branch_if", cond, then: catchLabels[i], else: elseLabel });
+          }
+          this.emit(bRethrow, { op: "rethrow" });
+
+          // Catch blocks
+          for (let i = 0; i < catches.length; i += 1) {
+            const c = catches[i];
+            const bCatch = irFn.blocks.find((b) => b.label === catchLabels[i]);
+            const cs = new Scope(scope);
+            cs.define(c.name, c.type);
+            this.emit(bCatch, { op: "var_decl", name: c.name, type: lowerType(c.type) });
+            this.emit(bCatch, { op: "store_var", name: c.name, src: exTemp, type: lowerType(c.type) });
+            this.lowerBlock(c.block, bCatch, irFn, cs);
+            this.emit(bCatch, { op: "jump", target: finallyLabel || doneLabel });
+          }
+        } else {
+          if (bFinally) irFn.blocks.push(bFinally);
+          if (bFinallyRethrow) irFn.blocks.push(bFinallyRethrow);
+          irFn.blocks.push(bDone);
         }
+
         if (bFinally) {
           this.lowerBlock(stmt.finallyBlock, bFinally, irFn, new Scope(scope));
           this.emit(bFinally, { op: "jump", target: doneLabel });
@@ -710,6 +743,8 @@ function formatInstr(i) {
       return "pop_handler";
     case "get_exception":
       return `${i.dst} = get_exception`;
+    case "exception_is":
+      return `${i.dst} = exception_is ${i.value} ${i.type}`;
     case "rethrow":
       return "rethrow";
     case "make_view":
@@ -809,6 +844,7 @@ function validateSerializedIR(doc) {
     "push_handler",
     "pop_handler",
     "get_exception",
+    "exception_is",
     "rethrow",
     "make_view",
     "index_get",
