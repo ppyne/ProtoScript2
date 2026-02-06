@@ -1,6 +1,8 @@
+import Io;
+
 import test.simple.{add};
 
 function main() : void {
     int v = add(1, 2);
-    Sys.print(v.toString());
+    Io.printLine(v.toString());
 }

@@ -1,6 +1,8 @@
+import Io;
+
 function main() : void {
     map<string, string> m = {"a": "x", "b": "y"};
     for (string v of m) {
-        Sys.print(v);
+        Io.printLine(v);
     }
 }

@@ -1,6 +1,8 @@
+import Io;
+
 import Math;
 
 function main() : void {
     bool ok = (Math.PI > 3.14) && (Math.E > 2.71);
-    Sys.print(ok.toString());
+    Io.printLine(ok.toString());
 }

@@ -1,6 +1,8 @@
+import Io;
+
 function main() : void {
     int a = 1;
     int b = 0;
     int c = a / b;
-    Sys.print(c.toString());
+    Io.printLine(c.toString());
 }

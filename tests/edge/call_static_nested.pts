@@ -1,3 +1,5 @@
+import Io;
+
 function inner() : string {
     return "inner";
 }
@@ -7,5 +9,5 @@ function outer() : string {
 }
 
 function main() : void {
-    Sys.print(outer());
+    Io.printLine(outer());
 }

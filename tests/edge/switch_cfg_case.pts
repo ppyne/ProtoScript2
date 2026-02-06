@@ -1,14 +1,16 @@
+import Io;
+
 function main() : void {
     int x = 2;
     switch (x) {
         case 1:
-            Sys.print("ko");
+            Io.printLine("ko");
             break;
         case 2:
-            Sys.print("ok");
+            Io.printLine("ok");
             break;
         default:
-            Sys.print("ko");
+            Io.printLine("ko");
             break;
     }
 }

@@ -5,7 +5,7 @@
   "category": "RUNTIME_INT_OVERFLOW",
   "position": {
     "file": "edge/overflow_int_add.pts",
-    "line": 3,
+    "line": 5,
     "column": 13
   }
 }

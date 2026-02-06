@@ -1,8 +1,10 @@
+import Io;
+
 function greet(string name) : string {
     return name;
 }
 
 function main() : void {
     string s = greet("ok");
-    Sys.print(s);
+    Io.printLine(s);
 }

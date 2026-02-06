@@ -28,7 +28,7 @@ ProtoScript V2 est un langage statiquement typé, déterministe, prototype-based
 
 ```c
 function main() : void {
-    Sys.print("Hello");
+    Io.printLine("Hello");
 }
 ```
 
@@ -36,7 +36,7 @@ function main() : void {
 
 ```c
 function main() {
-    Sys.print("Hello");
+    Io.printLine("Hello");
 }
 ```
 
@@ -67,9 +67,9 @@ function main() : void {
     int x = 1;
     {
         int y = 2;
-        Sys.print(y.toString());
+        Io.printLine(y.toString());
     }
-    Sys.print(x.toString());
+    Io.printLine(x.toString());
 }
 ```
 
@@ -153,10 +153,10 @@ function main() : void {
     b.value = "ok";
 
     if (a.isNull()) {
-        Sys.print("empty");
+        Io.printLine("empty");
     }
     if (!b.isNull()) {
-        Sys.print(b.value);
+        Io.printLine(b.value);
     }
 }
 ```
@@ -174,7 +174,7 @@ Exemple :
 ```c
 function main() : void {
     int x = 1;
-    Sys.print(x.toString());
+    Io.printLine(x.toString());
 }
 ```
 
@@ -183,7 +183,7 @@ Contre-exemple :
 ```c
 function main() : void {
     int x;
-    Sys.print(x.toString()); // invalide : x non initialisée
+    Io.printLine(x.toString()); // invalide : x non initialisée
 }
 ```
 
@@ -293,9 +293,9 @@ function main() : void {
     int x = 1;
     {
         int x = 2; // shadowing local
-        Sys.print(x.toString()); // 2
+        Io.printLine(x.toString()); // 2
     }
-    Sys.print(x.toString()); // 1
+    Io.printLine(x.toString()); // 1
 }
 ```
 
@@ -309,7 +309,7 @@ Exemple :
 function main() : void {
     int x = 1;
     int y = x + 1;
-    Sys.print(y.toString());
+    Io.printLine(y.toString());
 }
 ```
 
@@ -318,7 +318,7 @@ Contre-exemple :
 ```c
 function main() : void {
     int x;
-    Sys.print(x.toString()); // invalide : x non initialisée
+    Io.printLine(x.toString()); // invalide : x non initialisée
 }
 ```
 
@@ -349,8 +349,8 @@ L'évaluation est de gauche à droite.
 `&&` et `||` court-circuitent.
 
 ```c
-function left() : bool { Sys.print("L"); return false; }
-function right() : bool { Sys.print("R"); return true; }
+function left() : bool { Io.printLine("L"); return false; }
+function right() : bool { Io.printLine("R"); return true; }
 
 function main() : void {
     bool v = left() && right(); // affiche seulement L
@@ -498,9 +498,9 @@ Traiter `+` ou `.` comme concaténation universelle (réflexe JS/PHP). En ProtoS
 
 ```c
 if (x > 0) {
-    Sys.print("pos");
+    Io.printLine("pos");
 } else {
-    Sys.print("non-pos");
+    Io.printLine("non-pos");
 }
 ```
 
@@ -508,18 +508,18 @@ Le bloc est optionnel si la branche contient une seule instruction.
 
 ```c
 if (x > 0)
-    Sys.print("pos");
+    Io.printLine("pos");
 ```
 
 Exemple avec `else if` :
 
 ```c
 if (x > 0) {
-    Sys.print("pos");
+    Io.printLine("pos");
 } else if (x < 0) {
-    Sys.print("neg");
+    Io.printLine("neg");
 } else {
-    Sys.print("zero");
+    Io.printLine("zero");
 }
 ```
 
@@ -556,7 +556,7 @@ Exemples d'itération indexée :
 ```c
 list<int> xs = [10, 20, 30];
 for (int i = 0; i < xs.length(); i = i + 1) {
-    Sys.print(xs[i].toString());
+    Io.printLine(xs[i].toString());
 }
 ```
 
@@ -564,7 +564,7 @@ for (int i = 0; i < xs.length(); i = i + 1) {
 string s = "abc";
 for (int i = 0; i < s.length(); ++i) {
     glyph g = s[i];
-    Sys.print(g.toString());
+    Io.printLine(g.toString());
 }
 ```
 
@@ -578,7 +578,7 @@ map<string, int> m = {"a": 1, "b": 2};
 list<string> ks = m.keys();
 for (int i = 0; i < ks.length(); i++) {
     int v = m[ks[i]];
-    Sys.print(v.toString());
+    Io.printLine(v.toString());
 }
 ```
 
@@ -589,7 +589,7 @@ for (int i = 0; i < ks.length(); i++) {
 ```c
 list<int> xs = [1, 2, 3];
 for (int v of xs) {
-    Sys.print(v.toString());
+    Io.printLine(v.toString());
 }
 ```
 
@@ -598,7 +598,7 @@ Sur `string`, `for ... of` itère sur les glyphes :
 ```c
 string s = "a😀b";
 for (glyph g of s) {
-    Sys.print(g.toString());
+    Io.printLine(g.toString());
 }
 ```
 
@@ -607,7 +607,7 @@ Sur `map<K,V>`, `for ... of` itère sur les valeurs `V` :
 ```c
 map<string, int> m = {"a": 1, "b": 2};
 for (int v of m) {
-    Sys.print(v.toString());
+    Io.printLine(v.toString());
 }
 ```
 
@@ -618,7 +618,7 @@ for (int v of m) {
 ```c
 map<string, int> m = {"a": 1, "b": 2};
 for (string k in m) {
-    Sys.print(k);
+    Io.printLine(k);
 }
 ```
 
@@ -653,7 +653,7 @@ for (int v of xs) {
     if (v == 3) {
         break;
     }
-    Sys.print(v.toString());
+    Io.printLine(v.toString());
 }
 ```
 
@@ -664,7 +664,7 @@ for (int i = 0; i < 5; i++) {
     if (i == 2) {
         continue;
     }
-    Sys.print(i.toString());
+    Io.printLine(i.toString());
 }
 ```
 
@@ -673,10 +673,10 @@ for (int i = 0; i < 5; i++) {
 ```c
 switch (x) {
 case 1:
-    Sys.print("one");
+    Io.printLine("one");
     break;
 default:
-    Sys.print("other");
+    Io.printLine("other");
     break;
 }
 ```
@@ -692,9 +692,9 @@ Contre-exemple :
 ```c
 switch (x) {
 case 1:
-    Sys.print("one"); // invalide sans terminaison explicite
+    Io.printLine("one"); // invalide sans terminaison explicite
 default:
-    Sys.print("other");
+    Io.printLine("other");
     break;
 }
 ```
@@ -705,10 +705,10 @@ Contre-exemple (fallthrough implicite) :
 switch (x) {
 case 1:
 case 2:
-    Sys.print("one and two"); // invalide : fallthrough implicite
+    Io.printLine("one and two"); // invalide : fallthrough implicite
     break;
 default:
-    Sys.print("other");
+    Io.printLine("other");
     break;
 }
 ```
@@ -740,7 +740,7 @@ Contre-exemple :
 ```c
 // invalide : paramètres par défaut non supportés
 // function greet(string name = "world") : void {
-//     Sys.print(name);
+//     Io.printLine(name);
 // }
 ```
 
@@ -1163,9 +1163,9 @@ Aucune autre valeur ne peut être levée avec `throw`.
 try {
     risky();
 } catch (Exception e) {
-    Sys.print("handled");
+    Io.printLine("handled");
 } finally {
-    Sys.print("cleanup");
+    Io.printLine("cleanup");
 }
 ```
 
@@ -1302,7 +1302,7 @@ function sum(list<int> values...) : int {
 
 function main() : void {
     int r = sum(1, 2, 3);
-    Sys.print(r.toString());
+    Io.printLine(r.toString());
 }
 ```
 

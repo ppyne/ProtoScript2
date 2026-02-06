@@ -1,3 +1,5 @@
+import Io;
+
 import test.throw.{fail};
 
 function main() : void {
@@ -5,9 +7,9 @@ function main() : void {
         try {
             fail();
         } finally {
-            Sys.print("cleanup");
+            Io.printLine("cleanup");
         }
     } catch (Exception e) {
-        Sys.print("caught");
+        Io.printLine("caught");
     }
 }

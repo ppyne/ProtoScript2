@@ -5,7 +5,7 @@
   "category": "RUNTIME_INDEX_OOB",
   "position": {
     "file": "invalid/runtime/index_set_list_oob.pts",
-    "line": 3,
+    "line": 5,
     "column": 5
   }
 }

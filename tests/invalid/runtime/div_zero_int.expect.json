@@ -5,7 +5,7 @@
   "category": "RUNTIME_DIVIDE_BY_ZERO",
   "position": {
     "file": "invalid/runtime/div_zero_int.pts",
-    "line": 4,
+    "line": 6,
     "column": 17
   }
 }

@@ -1,5 +1,7 @@
+import Io;
+
 function main() : void {
     string s = "a😀b";
     int p = s.indexOf("😀");
-    Sys.print(p.toString());
+    Io.printLine(p.toString());
 }

@@ -1,11 +1,13 @@
+import Io;
+
 import test.throw.{fail};
 
 function main() : void {
     try {
         fail();
-        Sys.print("no");
+        Io.printLine("no");
     } catch (Exception e) {
-        Sys.print("caught");
+        Io.printLine("caught");
     }
-    Sys.print("after");
+    Io.printLine("after");
 }

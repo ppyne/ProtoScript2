@@ -144,6 +144,25 @@ Io.stdout.write(String(value))
 
 ---
 
+## 6.1 Io.printLine(value)
+
+Écrit `value` sur `Io.stdout` **et ajoute une fin de ligne**.
+
+Sémantique exacte (normative) :
+
+```ps
+Io.printLine(value)
+```
+
+est strictement équivalent à :
+
+```ps
+Io.print(value)
+Io.stdout.write(Io.EOL)
+```
+
+---
+
 ## 7. File.read([size])
 
 Lit des données à partir de la position courante.
@@ -300,4 +319,3 @@ try {
 - Tests couvrant texte, binaire, EOF, erreurs.
 
 Fin de la spécification.
-

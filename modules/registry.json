@@ -74,7 +74,8 @@
       "name": "Io",
       "functions": [
         { "name": "open", "ret": "File", "params": ["string", "string"] },
-        { "name": "print", "ret": "void", "params": ["string"] }
+        { "name": "print", "ret": "void", "params": ["string"] },
+        { "name": "printLine", "ret": "void", "params": ["string"] }
       ],
       "constants": [
         { "name": "EOL", "type": "string", "value": "\n" },

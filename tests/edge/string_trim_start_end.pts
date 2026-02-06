@@ -1,5 +1,7 @@
+import Io;
+
 function main() : void {
     string s = "  abc  ";
-    Sys.print("[".concat(s.trimStart()).concat("]"));
-    Sys.print("[".concat(s.trimEnd()).concat("]"));
+    Io.printLine("[".concat(s.trimStart()).concat("]"));
+    Io.printLine("[".concat(s.trimEnd()).concat("]"));
 }

@@ -1,5 +1,7 @@
+import Io;
+
 function main() : void {
     string s = "ab";
     glyph g = s[2];
-    Sys.print("never");
+    Io.printLine("never");
 }

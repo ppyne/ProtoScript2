@@ -1,5 +1,7 @@
+import Io;
+
 function main() : void {
     string s = "a😀b";
     glyph g = s[3];
-    Sys.print(g.toString());
+    Io.printLine(g.toString());
 }

@@ -1,7 +1,9 @@
+import Io;
+
 function main() : void {
     map<string, string> a = {"seed": "x"};
     map<string, string> b = a;
     map<string, string> c = b;
     c["z"] = "ok";
-    Sys.print(a["z"]);
+    Io.printLine(a["z"]);
 }

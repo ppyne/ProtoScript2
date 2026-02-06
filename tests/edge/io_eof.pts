@@ -11,5 +11,5 @@ function main() : void {
     r.close();
 
     bool ok = (b == Io.EOF);
-    Sys.print(ok.toString());
+    Io.printLine(ok.toString());
 }

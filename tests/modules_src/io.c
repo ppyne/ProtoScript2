@@ -96,6 +96,19 @@ static PS_Status io_print(PS_Context *ctx, int argc, PS_Value **argv, PS_Value *
   return PS_OK;
 }
 
+static PS_Status io_print_line(PS_Context *ctx, int argc, PS_Value **argv, PS_Value **out) {
+  (void)out;
+  if (!argv || argc < 1) return PS_OK;
+  PS_Value *s = to_string_value(ctx, argv[0]);
+  if (!s) return PS_ERR;
+  const char *p = ps_string_ptr(s);
+  size_t n = ps_string_len(s);
+  if (n > 0) fwrite(p, 1, n, stdout);
+  fwrite("\n", 1, 1, stdout);
+  ps_value_release(s);
+  return PS_OK;
+}
+
 PS_Status ps_module_init(PS_Context *ctx, PS_Module *out) {
   (void)ctx;
   setvbuf(stdout, NULL, _IONBF, 0);
@@ -103,6 +116,7 @@ PS_Status ps_module_init(PS_Context *ctx, PS_Module *out) {
   static PS_NativeFnDesc fns[] = {
       {.name = "open", .fn = io_open, .arity = 2, .ret_type = PS_T_FILE, .param_types = NULL, .flags = 0},
       {.name = "print", .fn = io_print, .arity = 1, .ret_type = PS_T_VOID, .param_types = NULL, .flags = 0},
+      {.name = "printLine", .fn = io_print_line, .arity = 1, .ret_type = PS_T_VOID, .param_types = NULL, .flags = 0},
   };
   out->module_name = "Io";
   out->api_version = PS_API_VERSION;

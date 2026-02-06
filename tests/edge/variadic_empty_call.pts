@@ -1,6 +1,8 @@
+import Io;
+
 function logAll(list<string> items...) : void {
     for (string s of items)
-        Sys.print(s);
+        Io.printLine(s);
 }
 
 function main() : void {

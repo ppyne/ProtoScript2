@@ -256,6 +256,11 @@ function buildModuleEnv(ast, file) {
     fs.writeSync(1, s);
     return null;
   });
+  ioMod.functions.set("printLine", (val) => {
+    const s = val === null || val === undefined ? "null" : typeof val === "bigint" ? val.toString() : String(val);
+    fs.writeSync(1, s + "\n");
+    return null;
+  });
 
   const simpleMod = makeModule("test.simple");
   simpleMod.functions.set("add", (a, b) => BigInt(a) + BigInt(b));
@@ -663,14 +668,6 @@ function evalCall(expr, scope, functions, moduleEnv, file, callFunction) {
     const m = expr.callee;
     const target = evalExpr(m.target, scope, functions, moduleEnv, file, callFunction);
     const args = expr.args.map((a) => evalExpr(a, scope, functions, moduleEnv, file, callFunction));
-
-    // Sys.print(...)
-    if (m.target.kind === "Identifier" && m.target.name === "Sys" && m.name === "print") {
-      const s = args.map((a) => (typeof a === "bigint" ? a.toString() : String(a))).join("");
-      // Keep behavior explicit and deterministic.
-      process.stdout.write(`${s}\n`);
-      return null;
-    }
 
     if (m.name === "toString") {
       if (target === null || target === undefined) return "null";

@@ -189,7 +189,7 @@ Exemple d'import :
 import test.simple.{add};
 
 function main() : void {
-    Sys.print(add(2, 3).toString());
+    Io.printLine(add(2, 3).toString());
 }
 ```
 

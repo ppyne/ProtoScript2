@@ -1,4 +1,6 @@
+import Io;
+
 function main() : void {
     string s = "abc";
-    Sys.print(s.length().toString());
+    Io.printLine(s.length().toString());
 }

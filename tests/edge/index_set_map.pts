@@ -1,5 +1,7 @@
+import Io;
+
 function main() : void {
     map<string, string> m = {"a": "x"};
     m["a"] = "ok";
-    Sys.print(m["a"]);
+    Io.printLine(m["a"]);
 }

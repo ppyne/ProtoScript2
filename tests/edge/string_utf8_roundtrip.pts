@@ -1,6 +1,8 @@
+import Io;
+
 function main() : void {
     string s = "a😀b";
     list<byte> bytes = s.toUtf8Bytes();
     string t = bytes.toUtf8String();
-    Sys.print(t);
+    Io.printLine(t);
 }
