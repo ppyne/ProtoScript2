@@ -2880,6 +2880,8 @@ static char *ir_guess_expr_type(AstNode *e, IrFnCtx *ctx) {
       if (strcmp(c->text, "toByte") == 0) return strdup("byte");
       if (strcmp(c->text, "toInt") == 0) return strdup("int");
       if (strcmp(c->text, "toFloat") == 0) return strdup("float");
+      if (strcmp(c->text, "length") == 0) return strdup("int");
+      if (strcmp(c->text, "isEmpty") == 0) return strdup("bool");
       if (strcmp(c->text, "substring") == 0) return strdup("string");
       if (strcmp(c->text, "indexOf") == 0) return strdup("int");
       if (strcmp(c->text, "startsWith") == 0 || strcmp(c->text, "endsWith") == 0) return strdup("bool");

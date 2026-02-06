@@ -999,6 +999,11 @@ static int exec_function(PS_Context *ctx, PS_IR_Module *m, IRFunction *f, PS_Val
             PS_Value *v = ps_make_int(ctx, (int64_t)gl);
             bindings_set(&temps, ins->dst, v);
             ps_value_release(v);
+          } else if (strcmp(ins->method, "isEmpty") == 0) {
+            size_t gl = ps_utf8_glyph_len((const uint8_t *)recv->as.string_v.ptr, recv->as.string_v.len);
+            PS_Value *v = ps_make_bool(ctx, gl == 0);
+            bindings_set(&temps, ins->dst, v);
+            ps_value_release(v);
           } else if (strcmp(ins->method, "substring") == 0) {
             PS_Value *a = get_value(&temps, &vars, ins->args[0]);
             PS_Value *b = get_value(&temps, &vars, ins->args[1]);
@@ -1060,6 +1065,26 @@ static int exec_function(PS_Context *ctx, PS_IR_Module *m, IRFunction *f, PS_Val
             ps_value_release(v);
           } else if (strcmp(ins->method, "toUtf8Bytes") == 0) {
             PS_Value *v = ps_string_to_utf8_bytes(ctx, recv);
+            bindings_set(&temps, ins->dst, v);
+            ps_value_release(v);
+          }
+        } else if (recv->tag == PS_V_LIST) {
+          if (strcmp(ins->method, "length") == 0) {
+            PS_Value *v = ps_make_int(ctx, (int64_t)recv->as.list_v.len);
+            bindings_set(&temps, ins->dst, v);
+            ps_value_release(v);
+          } else if (strcmp(ins->method, "isEmpty") == 0) {
+            PS_Value *v = ps_make_bool(ctx, recv->as.list_v.len == 0);
+            bindings_set(&temps, ins->dst, v);
+            ps_value_release(v);
+          }
+        } else if (recv->tag == PS_V_MAP) {
+          if (strcmp(ins->method, "length") == 0) {
+            PS_Value *v = ps_make_int(ctx, (int64_t)recv->as.map_v.len);
+            bindings_set(&temps, ins->dst, v);
+            ps_value_release(v);
+          } else if (strcmp(ins->method, "isEmpty") == 0) {
+            PS_Value *v = ps_make_bool(ctx, recv->as.map_v.len == 0);
             bindings_set(&temps, ins->dst, v);
             ps_value_release(v);
           }

@@ -276,6 +276,8 @@ s.toLower();
 
 s.concat(parts);     // concaténation explicite
 s.toUtf8Bytes();     // list<byte> (UTF-8 strict)
+s.length();                 // longueur en glyphes
+s.isEmpty();                // bool
 s.substring(start, length); // sous-chaîne (glyphes)
 s.indexOf(needle);   // position en glyphes (ou -1)
 s.startsWith(prefix);
@@ -297,6 +299,8 @@ Règles normatives d’accès indexé sur `string` :
 - `string` est immuable et ne constitue pas une collection mutable
 - `string.toUtf8Bytes()` retourne une `list<byte>` en UTF-8 strict
 - `list<byte>.toUtf8String()` retourne une `string` en UTF-8 strict
+- `string.length()` retourne le nombre de glyphes (Unicode scalar values)
+- `string.isEmpty()` retourne `true` si la longueur en glyphes est `0`
 - `string.substring(start, length)` retourne une nouvelle `string` extraite en glyphes
 - `string.substring` n’expose ni vue ni référence partagée
 - les indices et positions retournés par les méthodes de recherche sont exprimés en **glyphes**

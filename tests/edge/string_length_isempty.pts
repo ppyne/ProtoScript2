@@ -1,0 +1,8 @@
+import Io;
+
+function main() : void {
+    string s = "a😀é";
+    int n = s.length();
+    bool ok = (n == 4) && !s.isEmpty() && "".isEmpty();
+    Io.printLine(ok.toString());
+}

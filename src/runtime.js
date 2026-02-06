@@ -952,6 +952,12 @@ function evalCall(expr, scope, functions, moduleEnv, file, callFunction) {
       if (target instanceof Map) return BigInt(target.size);
       return 0n;
     }
+    if (m.name === "isEmpty") {
+      if (Array.isArray(target)) return target.length === 0;
+      if (typeof target === "string") return glyphStringsOf(target).length === 0;
+      if (target instanceof Map) return target.size === 0;
+      return false;
+    }
 
     if (typeof target === "string") {
       if (m.name === "toUpper") return target.toUpperCase();
