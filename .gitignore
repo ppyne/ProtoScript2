@@ -7,3 +7,5 @@ modules/psmod_*.so
 modules/psmod_*.dylib
 c/ps
 c/pscc
+io_*.txt
+io_*.bin
