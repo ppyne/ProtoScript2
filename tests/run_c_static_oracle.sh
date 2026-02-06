@@ -6,6 +6,7 @@ TESTS_DIR="$ROOT_DIR/tests"
 MANIFEST="$TESTS_DIR/manifest.json"
 NODE_COMPILER="${NODE_COMPILER:-$ROOT_DIR/bin/protoscriptc}"
 C_COMPILER="${C_COMPILER:-$ROOT_DIR/c/pscc}"
+export PS_MODULE_REGISTRY="${PS_MODULE_REGISTRY:-$ROOT_DIR/modules/registry.json}"
 
 if ! command -v jq >/dev/null 2>&1; then
   if [[ -x "/usr/local/bin/jq" ]]; then
