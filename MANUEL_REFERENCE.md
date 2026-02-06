@@ -28,7 +28,11 @@ ProtoScript V2 est un langage statiquement typé, déterministe, prototype-based
 
 ```c
 function main() : void {
-    Io.printLine("Hello");
+    Io.printLine("Hello world");
+}
+
+function main() : void {
+    Io.print(String.join(["Hello world", Io.EOL]));
 }
 ```
 

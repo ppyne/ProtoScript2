@@ -259,7 +259,6 @@ s.trimStart();
 s.trimEnd();
 s.replace(old, new); // remplace la première occurrence
 
-string.format("%02i %.2f %x\n", 5, .2, 10);
 ```
 
 Règles normatives d’accès indexé sur `string` :
