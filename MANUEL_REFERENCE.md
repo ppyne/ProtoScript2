@@ -34,6 +34,10 @@ function main() : void {
 function main() : void {
     Io.print("Hello world".concat(Io.EOL));
 }
+
+function main() : void {
+    Io.print(["Hello", " ", "world", Io.EOL].concat());
+}
 ```
 
 ### 1.4 Contre-exemple
