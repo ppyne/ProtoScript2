@@ -414,6 +414,15 @@ Interdire l'affectation en expression supprime une source classique d'effets de 
 | `a / b` | Division | Quotient de `a` et `b`. |
 | `a % b` | Modulo | Reste de `a / b`. |
 
+Notes :
+
+- opérateurs arithmétiques valides sur `int`, `float`, `byte` (pas sur `string`).
+- division par zéro → **exception runtime**.
+- overflow sur `int`/`byte` → **exception runtime**.
+- `a / b` sur `int` est une division entière ; sur `float`, division flottante.
+- `a % b` est défini pour `int`/`byte` uniquement.
+- `-x` est un opérateur unaire ; `-INT_MIN` provoque un overflow runtime.
+
 #### 7.1.2 Opérateurs de comparaison
 
 | Exemple | Nom | Résultat |
@@ -932,6 +941,21 @@ list<int> xs = [1];
 // xs[3] = 10; // runtime OOB
 ```
 
+### 11.1.1 API `list<T>`
+
+Méthodes disponibles :
+
+| Méthode | Signature | Résultat | Erreurs |
+|---|---|---|---|
+| `length()` | `() -> int` | longueur | — |
+| `isEmpty()` | `() -> bool` | vrai si vide | — |
+| `push(x)` | `(T) -> int` | nouvelle longueur | type si `T` incompatible |
+| `pop()` | `() -> T` | dernier élément | erreur statique si liste prouvée vide, sinon runtime si vide |
+| `contains(x)` | `(T) -> bool` | présence | type si `T` incompatible |
+| `sort()` | `() -> int` | longueur | runtime si éléments non comparables |
+| `join(sep)` | `(string) -> string` | concat avec séparateur | runtime si liste non `list<string>` |
+| `concat()` | `() -> string` | concat sans séparateur | runtime si liste non `list<string>` |
+
 ### 11.2 `map<K,V>` : lecture stricte, écriture constructive
 
 - `K` et `V` sont des types explicites ; ils peuvent aussi désigner des types prototypes (objets), la substitution parent/enfant est validée statiquement.
@@ -943,12 +967,28 @@ m["a"] = 2;    // mise à jour (clé présente)
 int x = m["a"]; // lecture valide
 ```
 
+Littéral direct :
+
+```c
+map<string, int> m = {"a": 3, "b": 2, "c": 1};
+```
+
 Contre-exemple :
 
 ```c
 map<string, int> m = {};
 int x = m["absent"]; // runtime missing key
 ```
+
+### 11.2.1 API `map<K,V>`
+
+| Méthode | Signature | Résultat | Erreurs |
+|---|---|---|---|
+| `length()` | `() -> int` | nombre d’entrées | — |
+| `isEmpty()` | `() -> bool` | vrai si vide | — |
+| `containsKey(k)` | `(K) -> bool` | présence clé | type si clé incompatible |
+| `keys()` | `() -> list<K>` | liste des clés | — |
+| `values()` | `() -> list<V>` | liste des valeurs | — |
 
 ### 11.3 Erreur fréquente
 
@@ -965,6 +1005,12 @@ for (int v of xs) { ... }
 for (string k in m) { ... } // clés
 for (int v of m) { ... }    // valeurs
 ```
+
+### 11.6 Erreur fréquente
+
+Confondre les erreurs statiques et runtime :
+
+- `list.pop()` : erreur statique si la liste est **prouvée vide**, sinon exception runtime si elle est vide à l’exécution.
 
 ---
 
@@ -990,10 +1036,61 @@ s[0] = 99; // autorisé
 // v[0] = 99; // invalide (view en lecture seule)
 ```
 
+### 12.3.1 API `slice<T>` / `view<T>`
+
+| Méthode | Signature | Résultat | Erreurs |
+|---|---|---|---|
+| `length()` | `() -> int` | longueur | — |
+| `isEmpty()` | `() -> bool` | vrai si vide | — |
+| `slice(start, len)` | `(int,int) -> slice<T>` | sous‑vue mutable | runtime si hors bornes |
+| `view(start, len)` | `(int,int) -> view<T>` | sous‑vue readonly | runtime si hors bornes |
+
+`string.view(start,len)` retourne `view<glyph>` avec indexation glyphique.
+
 ### 12.4 Durée de vie et invalidation
 
 Une vue ne doit pas survivre au stockage source.
 Les mutations structurelles du stockage source peuvent invalider des vues.
+
+Concrètement :
+
+- `slice`/`view` référencent le **même stockage** que la `list` source.
+- une mutation structurelle (`push`, `pop`, réallocation interne) peut déplacer le buffer.
+- toute vue créée avant cette mutation peut devenir invalide.
+- une vue invalidée **ne doit plus être utilisée** : tout accès après invalidation est une **erreur runtime**.
+
+Comment s’assurer qu’une vue reste valide :
+
+- vous pouvez **intercepter l’exception** si un accès est invalide.
+- en dehors de cela, il n’existe **pas** d’API de validation runtime.
+- la règle est **discipline de code** : ne pas muter structurellement la source tant que la vue est utilisée.
+- cela concerne **toutes** les vues : `view<T>` **et** `slice<T>`.
+
+En cas d’accès après invalidation, une **exception runtime** peut être levée et **interceptée** :
+
+```c
+list<int> xs = [1, 2, 3];
+view<int> v = xs.view(0, 2);
+xs.push(4); // peut invalider v
+
+try {
+    int a = v[0]; // accès potentiellement invalide
+} catch (Exception e) {
+    Io.printLine("vue invalidée");
+}
+```
+
+Exemple :
+
+```c
+list<int> xs = [1, 2, 3];
+view<int> v = xs.view(0, 2); // v -> [1,2]
+
+xs.push(4); // mutation structurelle : v peut être invalidée
+
+// l’accès ci‑dessous est invalide si le buffer a bougé
+// int a = v[0];
+```
 
 ### 12.5 Erreur fréquente
 
@@ -1155,6 +1252,263 @@ Aucun chargement dynamique.
 Les modules natifs étendent l'environnement de noms, pas la sémantique du langage.
 Documentation officielle : `docs/native-modules.md`.
 
+### 14.4.1 Module standard : Io
+
+**Constantes**
+
+| Nom | Type | Description |
+|---|---|---|
+| `Io.EOL` | `string` | fin de ligne (`"\n"`) |
+| `Io.EOF` | sentinelle | valeur unique pour signaler EOF en lecture binaire |
+| `Io.stdin` | `File` | flux standard d’entrée (texte) |
+| `Io.stdout` | `File` | flux standard de sortie (texte) |
+| `Io.stderr` | `File` | flux standard d’erreur (texte) |
+
+**Fonctions globales**
+
+| Fonction | Signature | Description | Erreurs |
+|---|---|---|---|
+| `Io.open` | `(string path, string mode) -> File` | ouvre un fichier | runtime si mode invalide |
+| `Io.print` | `(any value) -> void` | écrit sans fin de ligne | type si valeur incompatible |
+| `Io.printLine` | `(any value) -> void` | écrit + `Io.EOL` | type si valeur incompatible |
+
+Notes :
+
+- `Io.open(...)` **lève une exception runtime** si l’ouverture échoue (fichier introuvable, permissions, mode invalide, etc.).
+- en cas d’échec, **aucun `File` n’est retourné**.
+
+**Méthodes sur `File` ouvert**
+
+| Méthode | Signature | Description | Erreurs |
+|---|---|---|---|
+| `read()` | `() -> string \| list<byte>` | lit tout (texte ou binaire selon mode) | runtime si UTF‑8 invalide |
+| `read(size)` | `(int) -> string \| list<byte> \| Io.EOF` | lit jusqu’à `size` | runtime si size < 1 |
+| `write(x)` | `(string \| list<byte>) -> void` | écrit texte/binaire selon mode | runtime si type invalide |
+| `close()` | `() -> void` | ferme le fichier | runtime si stdin/stdout/stderr |
+
+Notes :
+
+- en mode texte (sans `b`), `read()`/`read(size)` retournent une `string`.
+- en mode binaire (`b`), `read()`/`read(size)` retournent une `list<byte>`.
+- `read(size)` retourne `Io.EOF` **uniquement** si zéro octet est lu (mode binaire).
+
+Exemple :
+
+Écriture de texte :
+
+```c
+File f = Io.open("out.txt", "w");
+f.write("hello");
+f.close();
+Io.printLine("done");
+```
+
+Lecture de texte :
+
+```c
+File f = Io.open("in.txt", "r");
+string data = f.read();
+f.close();
+```
+
+Lecture binaire et écriture binaire :
+
+```c
+File f = Io.open("in.bin", "rb");
+list<byte> bytes = f.read();
+f.close();
+
+File g = Io.open("out.bin", "wb");
+g.write(bytes);
+g.close();
+```
+
+Écrire sur `Io.stderr` :
+
+```c
+Io.stderr.write("error\n");
+```
+
+### 14.4.2 Module standard : Math
+
+**Constantes** (toutes `float`)
+
+| Nom | Valeur | Description |
+|---|---|---|
+| `Math.PI` | π | constante π |
+| `Math.E` | e | constante e |
+| `Math.LN2` | ln(2) | logarithme naturel de 2 |
+| `Math.LN10` | ln(10) | logarithme naturel de 10 |
+| `Math.LOG2E` | log2(e) | log base 2 de e |
+| `Math.LOG10E` | log10(e) | log base 10 de e |
+| `Math.SQRT1_2` | √(1/2) | racine de 1/2 |
+| `Math.SQRT2` | √2 | racine de 2 |
+
+**Fonctions** (toutes pures, retour `float`)
+
+| Fonction | Signature | Unités / domaine | Résultat / notes |
+|---|---|---|---|
+| `abs` | `abs(float x) -> float` | tout réel | \|x\| |
+| `min` | `min(float a, float b) -> float` | tout réel | plus petit des deux |
+| `max` | `max(float a, float b) -> float` | tout réel | plus grand des deux |
+| `floor` | `floor(float x) -> float` | tout réel | ⌊x⌋ |
+| `ceil` | `ceil(float x) -> float` | tout réel | ⌈x⌉ |
+| `round` | `round(float x) -> float` | tout réel | arrondi au plus proche |
+| `trunc` | `trunc(float x) -> float` | tout réel | troncature vers 0 |
+| `sign` | `sign(float x) -> float` | tout réel (NaN inclus) | −1, +1, 0, −0, NaN (voir contrat) |
+| `fround` | `fround(float x) -> float` | tout réel | arrondi float (IEEE‑754) |
+| `sqrt` | `sqrt(float x) -> float` | x ≥ 0 | √x, sinon NaN |
+| `cbrt` | `cbrt(float x) -> float` | tout réel | ∛x |
+| `pow` | `pow(float a, float b) -> float` | tout réel | a^b (IEEE‑754) |
+| `sin` | `sin(float x) -> float` | radians | sin(x) |
+| `cos` | `cos(float x) -> float` | radians | cos(x) |
+| `tan` | `tan(float x) -> float` | radians | tan(x) |
+| `asin` | `asin(float x) -> float` | x ∈ [−1, 1] | arcsin(x) en radians, sinon NaN |
+| `acos` | `acos(float x) -> float` | x ∈ [−1, 1] | arccos(x) en radians, sinon NaN |
+| `atan` | `atan(float x) -> float` | tout réel | arctan(x) en radians |
+| `atan2` | `atan2(float y, float x) -> float` | tout réel | arctan(y/x) en radians, quadrant correct |
+| `sinh` | `sinh(float x) -> float` | tout réel | sinh(x) |
+| `cosh` | `cosh(float x) -> float` | tout réel | cosh(x) |
+| `tanh` | `tanh(float x) -> float` | tout réel | tanh(x) |
+| `asinh` | `asinh(float x) -> float` | tout réel | asinh(x) |
+| `acosh` | `acosh(float x) -> float` | x ≥ 1 | acosh(x), sinon NaN |
+| `atanh` | `atanh(float x) -> float` | x ∈ (−1, 1) | atanh(x), sinon NaN |
+| `exp` | `exp(float x) -> float` | tout réel | e^x |
+| `expm1` | `expm1(float x) -> float` | tout réel | e^x − 1 |
+| `log` | `log(float x) -> float` | x > 0 | ln(x), sinon NaN |
+| `log1p` | `log1p(float x) -> float` | x > −1 | ln(1 + x), sinon NaN |
+| `log2` | `log2(float x) -> float` | x > 0 | log2(x), sinon NaN |
+| `log10` | `log10(float x) -> float` | x > 0 | log10(x), sinon NaN |
+| `hypot` | `hypot(float a, float b) -> float` | tout réel | √(a² + b²) |
+| `clz32` | `clz32(float x) -> float` | entier 32 bits (float) | count leading zeros (JS‑like) |
+| `imul` | `imul(float a, float b) -> float` | entiers 32 bits (float) | multiplication 32 bits (JS‑like) |
+| `random` | `random() -> float` | — | uniforme dans `[0.0, 1.0)` |
+
+Paramètres :
+
+- Les arguments `int` sont acceptés et convertis implicitement en `float`.
+- Tout autre type **doit** provoquer une erreur runtime de type.
+- Les fonctions trigonométriques (`sin`, `cos`, `tan`, `asin`, `acos`, `atan`, etc.) utilisent des **radians**.
+
+### 14.4.2.0 Domaine et valeurs limites
+
+Les fonctions Math suivent IEEE‑754 :
+
+- pour les cas **hors domaine mathématique**, le résultat est **NaN** (aucune exception implicite).
+- pour les débordements, le résultat peut être **+Infinity** ou **−Infinity**.
+- `-0` est préservé si le résultat IEEE‑754 est `-0`.
+
+Exemples typiques :
+
+```c
+float a = Math.log(-1.0); // NaN
+float b = Math.sqrt(-1.0); // NaN
+float c = Math.exp(1000.0); // +Infinity (overflow)
+```
+
+### 14.4.2.1 Contrat NaN / ±Infinity / −0
+
+- Sémantique IEEE‑754 (double précision).
+- `NaN`, `+Infinity`, `−Infinity` peuvent être produits.
+- Aucune exception implicite pour valeurs hors domaine : retour `NaN` ou `±Infinity`.
+- `-0` est préservé si le résultat IEEE‑754 est `-0`.
+- Comparaisons avec `NaN` : `NaN != NaN` est `true`, comparaisons ordonnées avec `NaN` sont `false`.
+
+`Math.sign` :
+
+- retourne `NaN` si l’argument est `NaN`,
+- retourne `-0` si l’argument est `-0`,
+- retourne `-1` si l’argument est négatif,
+- retourne `1` si l’argument est positif,
+- retourne `0` si l’argument est `+0`.
+
+### 14.4.2.2 `Math.random()`
+
+- PRNG interne au runtime (pas de `rand()` libc).
+- aucun seed exposé au langage.
+- déterministe à état initial identique.
+- retourne un `float` dans `[0.0, 1.0)`.
+- pas de dépendance système.
+
+### 14.4.2.3 Erreurs runtime
+
+Format : code + catégorie + message, ex. `R1010 RUNTIME_TYPE_ERROR`.
+
+Erreurs typiques :
+
+- type invalide → `R1010 RUNTIME_TYPE_ERROR`
+
+Exemples :
+
+```c
+float a = Math.abs(-3.5);
+float b = Math.sqrt(9.0);      // 3.0
+float c = Math.log(Math.E);    // 1.0
+float d = Math.pow(2.0, 3.0);  // 8.0
+```
+
+Exemple trigonométrique (radians) :
+
+```c
+float s = Math.sin(Math.PI / 2.0); // ~1.0
+```
+
+### 14.4.3 Module standard : JSON
+
+**Fonctions**
+
+| Fonction | Signature | Description | Erreurs |
+|---|---|---|---|
+| `encode` | `(any) -> string` | sérialise | runtime si valeur non sérialisable |
+| `decode` | `(string) -> JSONValue` | parse JSON | runtime si JSON invalide |
+| `isValid` | `(string) -> bool` | valide sans exception | runtime si argument non string |
+
+Notes :
+
+- `encode` accepte un `JSONValue` ou des valeurs récursivement sérialisables : `bool`, `int`, `float`, `string`, `list<T>`, `map<string,T>`.
+- `NaN`, `+Infinity`, `-Infinity` sont **interdits** à l’encode → exception runtime.
+- `-0` est préservé.
+- `decode` parse du JSON UTF‑8 strict et retourne un `JSONValue`.
+
+**Type `JSONValue` (scellé)**
+
+`JSONValue` est un type somme standard **scellé**.  
+Il ne peut pas être étendu par l’utilisateur.
+
+Sous‑types : `JsonNull`, `JsonBool`, `JsonNumber`, `JsonString`, `JsonArray`, `JsonObject`.
+
+Constructeurs explicites (immutables) :
+
+| Fonction | Signature | Description |
+|---|---|---|
+| `JSON.null` | `() -> JSONValue` | null JSON |
+| `JSON.bool` | `(bool) -> JSONValue` | bool JSON |
+| `JSON.number` | `(float) -> JSONValue` | nombre JSON |
+| `JSON.string` | `(string) -> JSONValue` | chaîne JSON |
+| `JSON.array` | `(list<JSONValue>) -> JSONValue` | tableau JSON |
+| `JSON.object` | `(map<string, JSONValue>) -> JSONValue` | objet JSON |
+
+Méthodes d’accès :
+
+| Méthode | Résultat | Erreurs |
+|---|---|---|
+| `isNull()/isBool()/isNumber()/isString()/isArray()/isObject()` | `bool` | — |
+| `asBool()/asNumber()/asString()/asArray()/asObject()` | type correspondant | runtime si mauvais type |
+
+Exemple :
+
+```c
+string s = JSON.encode({"a": 1, "b": [true, false]});
+JSONValue v = JSON.decode(s);
+bool ok = JSON.isValid("{\"x\":1}");
+```
+
+Le comportement complet est normatif et défini dans :
+
+- `docs/module_io_specification.md`
+- `docs/module_math_specification.md`
+- `docs/module_json_specification.md`
+
 ### 14.5 Ce que les modules ne peuvent pas faire
 
 - introduire de nouveaux opérateurs
@@ -1179,6 +1533,19 @@ Diagnostics avec code, catégorie, position `file:line:column`.
 Les violations runtime normatives lèvent des exceptions catégorisées.
 Toute exception dérive du prototype racine `Exception`.
 Aucune autre valeur ne peut être levée avec `throw`.
+
+### 15.2.1 Codes runtime (résumé)
+
+| Code | Catégorie | Exemple |
+|---|---|---|
+| `R1001` | `RUNTIME_INT_OVERFLOW` | overflow int |
+| `R1002` | `RUNTIME_INDEX_OOB` | index hors bornes |
+| `R1003` | `RUNTIME_MISSING_KEY` | map clé absente |
+| `R1004` | `RUNTIME_DIVIDE_BY_ZERO` | division par zéro |
+| `R1005` | `RUNTIME_SHIFT_RANGE` | décalage invalide |
+| `R1006` | `RUNTIME_EMPTY_POP` | pop sur liste vide |
+| `R1007` | `RUNTIME_UTF8_INVALID` | UTF‑8 invalide |
+| `R1010` | `RUNTIME_TYPE_ERROR` | type runtime incompatible |
 
 ### 15.3 `try / catch / finally`
 
@@ -1221,6 +1588,7 @@ Exemples :
 ps run fichier.pts
 ps -e "Io.printLine(42);"
 ps check fichier.pts
+ps test
 ```
 
 Options courantes :
@@ -1228,6 +1596,9 @@ Options courantes :
 ```
 --help
 --version
+--trace
+--trace-ir
+--time
 ```
 
 Détails des commandes :
@@ -1237,12 +1608,17 @@ Détails des commandes :
 - `ps check fichier.pts` : parse + analyse statique uniquement (aucune exécution).
 - `ps ast fichier.pts` : affiche l’AST (arbre de syntaxe) en JSON stable pour inspection.
 - `ps ir fichier.pts` : affiche l’IR (intermédiaire) en JSON stable pour inspection.
+- `ps test` : lance la suite de conformité (tests normatifs).
 
 Détails des options :
 
 - `--trace` : journalisation des étapes d’exécution (runtime), utile pour déboguer l’ordre d’évaluation.
 - `--trace-ir` : journalisation des instructions IR au moment de l’exécution.
 - `--time` : affiche le temps d’exécution total (ms).
+
+### 16.2.1 CLI `ps` : commande `test`
+
+`ps test` exécute la suite de conformité complète (tests normatifs).
 
 ### 16.3 Absences volontaires
 
@@ -1321,7 +1697,23 @@ cc -std=c11 -O2 -I./include \
 ./hello
 ```
 
-### 16.5 Comparaison utile (JS/PHP)
+### 16.5 CLI `pscc` (frontend C)
+
+`pscc` fournit un frontend C partiel et peut rediriger vers l’oracle Node pour certaines sorties.
+
+Commandes principales :
+
+```bash
+./c/pscc --check file.pts
+./c/pscc --check-c file.pts
+./c/pscc --check-c-static file.pts
+./c/pscc --ast-c file.pts
+./c/pscc --emit-ir-c-json file.pts
+./c/pscc --emit-ir file.pts      # forward vers bin/protoscriptc
+./c/pscc --emit-c file.pts       # forward vers bin/protoscriptc
+```
+
+### 16.6 Comparaison utile (JS/PHP)
 
 Pas d'ajout dynamique de membres/fonctions à chaud. L'exécution suit un contrat statique.
 
