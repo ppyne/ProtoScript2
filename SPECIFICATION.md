@@ -2868,6 +2868,7 @@ Codes canoniques minimaux :
 - `E3003` : `SWITCH_CASE_NO_TERMINATION`
 - `E3004` : `IMMUTABLE_INDEX_WRITE`
 - `E3005` : `STATIC_EMPTY_POP`
+- `E4001` : `UNINITIALIZED_READ`
 
 Exigences minimales de diagnostic :
 

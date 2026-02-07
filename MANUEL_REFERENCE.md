@@ -27,6 +27,8 @@ ProtoScript V2 est un langage statiquement typé, déterministe, prototype-based
 ### 1.3 Programme minimal
 
 ```c
+import Io;
+
 function main() : void {
     Io.printLine("Hello world");
 }
@@ -71,6 +73,8 @@ Un fichier contient des déclarations (imports, prototypes, fonctions, déclarat
 Exemple :
 
 ```c
+import Io;
+
 function main() : void {
     int x = 1;
     {
@@ -136,13 +140,19 @@ Contre-exemple :
 // string s = null;
 ```
 
-### 3.3.1 Alternative idiomatique : prototype "nullable"
+### 3.3.1 Pourquoi ?
+
+Cette approche rend l'absence explicite et statiquement typée, sans introduire de nullité implicite.
+
+### 3.3.2 Alternative idiomatique : prototype "nullable"
 
 Quand un type "vide" est nécessaire, on utilise un prototype explicite avec un indicateur statique.
 
 Exemple (chaîne nullable) :
 
 ```c
+import Io;
+
 prototype NullableString {
     bool is_null;
     string value;
@@ -169,9 +179,31 @@ function main() : void {
 }
 ```
 
-Pourquoi ?
+### 3.3.3 Cas standard : `JSONValue` et `null` JSON
 
-Cette approche rend l'absence explicite et statiquement typée, sans introduire de nullité implicite.
+Le prototype standard `JSONValue` représente un JSON complet, y compris `null`.
+On utilise les constructeurs explicites du module `JSON`.
+
+Exemple :
+
+```c
+import JSON;
+import Io;
+
+function main() : void {
+    JSONValue v = JSON.null();
+    if (v.isNull()) {
+        Io.printLine("json null");
+    }
+
+    JSONValue obj = JSON.object({
+        "a": JSON.null(),
+        "b": JSON.number(1)
+    });
+    string s = JSON.encode(obj);
+    Io.printLine(s);
+}
+```
 
 ### 3.4 Valeurs par défaut
 
@@ -345,7 +377,7 @@ function main() : void {
 
 Erreur attendue :
 
-- erreur statique (famille `E4xxx`) liée à l'absence d'assignation définitive
+- erreur statique `E4001` (`UNINITIALIZED_READ`)
 
 ### 5.4 Ce qui n'existe pas
 

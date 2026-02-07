@@ -1654,6 +1654,7 @@ typedef struct Sym {
   char *name;
   char *type;
   int known_list_len; // -1 = unknown
+  int initialized;
   struct Sym *next;
 } Sym;
 
@@ -2140,12 +2141,13 @@ static int ast_is_terminator(AstNode *n) {
   return strcmp(n->kind, "BreakStmt") == 0 || strcmp(n->kind, "ReturnStmt") == 0 || strcmp(n->kind, "ThrowStmt") == 0;
 }
 
-static int scope_define(Scope *s, const char *name, const char *type, int known_list_len) {
+static int scope_define(Scope *s, const char *name, const char *type, int known_list_len, int initialized) {
   Sym *e = (Sym *)calloc(1, sizeof(Sym));
   if (!e) return 0;
   e->name = strdup(name ? name : "");
   e->type = strdup(type ? type : "unknown");
   e->known_list_len = known_list_len;
+  e->initialized = initialized;
   if (!e->name || !e->type) {
     free(e->name);
     free(e->type);
@@ -2617,7 +2619,18 @@ static char *infer_expr_type(Analyzer *a, AstNode *e, Scope *scope, int *ok) {
       return strdup(is_float_token(e->text) ? "float" : "int");
     return strdup("string");
   }
-  if (strcmp(e->kind, "Identifier") == 0) return strdup(scope_lookup(scope, e->text ? e->text : ""));
+  if (strcmp(e->kind, "Identifier") == 0) {
+    Sym *sym = scope_lookup_sym(scope, e->text ? e->text : "");
+    if (sym) {
+      if (!sym->initialized) {
+        set_diag(a->diag, a->file, e->line, e->col, "E4001", "UNINITIALIZED_READ", "variable not initialized");
+        *ok = 0;
+        return NULL;
+      }
+      return strdup(sym->type ? sym->type : "unknown");
+    }
+    return strdup(scope_lookup(scope, e->text ? e->text : ""));
+  }
   if (strcmp(e->kind, "UnaryExpr") == 0 || strcmp(e->kind, "PostfixExpr") == 0 || strcmp(e->kind, "MemberExpr") == 0) {
     if (strcmp(e->kind, "MemberExpr") == 0 && e->child_len > 0) {
       AstNode *target = e->children[0];
@@ -2821,7 +2834,7 @@ static int analyze_stmt(Analyzer *a, AstNode *st, Scope *scope) {
       if (lhs) {
         int known_len = -1;
         if (init && strcmp(init->kind, "ListLiteral") == 0) known_len = (int)init->child_len;
-        if (!scope_define(scope, st->text ? st->text : "", lhs, known_len)) {
+        if (!scope_define(scope, st->text ? st->text : "", lhs, known_len, 1)) {
           free(lhs);
           free(rhs);
           return 0;
@@ -2833,7 +2846,7 @@ static int analyze_stmt(Analyzer *a, AstNode *st, Scope *scope) {
     }
     if (tn) {
       char *lhs = canon_type(tn->text);
-      if (!lhs || !scope_define(scope, st->text ? st->text : "", lhs, -1)) {
+      if (!lhs || !scope_define(scope, st->text ? st->text : "", lhs, -1, 0)) {
         free(lhs);
         return 0;
       }
@@ -2845,7 +2858,7 @@ static int analyze_stmt(Analyzer *a, AstNode *st, Scope *scope) {
         free(rhs);
         return 0;
       }
-      if (!scope_define(scope, st->text ? st->text : "", rhs ? rhs : "unknown", -1)) {
+      if (!scope_define(scope, st->text ? st->text : "", rhs ? rhs : "unknown", -1, 1)) {
         free(rhs);
         return 0;
       }
@@ -2899,6 +2912,7 @@ static int analyze_stmt(Analyzer *a, AstNode *st, Scope *scope) {
       if (sym) {
         if (st->children[1] && strcmp(st->children[1]->kind, "ListLiteral") == 0) sym->known_list_len = (int)st->children[1]->child_len;
         else sym->known_list_len = -1;
+        sym->initialized = 1;
       }
     }
     free(lhs);
@@ -2933,7 +2947,7 @@ static int analyze_stmt(Analyzer *a, AstNode *st, Scope *scope) {
       if (strcmp(c->kind, "IterVar") == 0) {
         AstNode *tn = ast_child_kind(c, "Type");
         char *tt = canon_type(tn ? tn->text : "unknown");
-        int okd = scope_define(&s2, c->text ? c->text : "", tt ? tt : "unknown", -1);
+        int okd = scope_define(&s2, c->text ? c->text : "", tt ? tt : "unknown", -1, 1);
         free(tt);
         if (!okd) {
           free_syms(s2.syms);
@@ -2979,7 +2993,7 @@ static int analyze_stmt(Analyzer *a, AstNode *st, Scope *scope) {
         s2.parent = scope;
         AstNode *tn = ast_child_kind(c, "Type");
         char *tt = canon_type(tn ? tn->text : "unknown");
-        if (!scope_define(&s2, c->text ? c->text : "", tt ? tt : "unknown", -1)) {
+        if (!scope_define(&s2, c->text ? c->text : "", tt ? tt : "unknown", -1, 1)) {
           free(tt);
           free_syms(s2.syms);
           return 0;
@@ -3008,7 +3022,7 @@ static int analyze_function(Analyzer *a, AstNode *fn) {
     if (strcmp(c->kind, "Param") != 0) continue;
     AstNode *tn = ast_child_kind(c, "Type");
     char *tt = canon_type(tn ? tn->text : "unknown");
-    if (!tt || !scope_define(&root, c->text ? c->text : "", tt, -1)) {
+    if (!tt || !scope_define(&root, c->text ? c->text : "", tt, -1, 1)) {
       free(tt);
       free_syms(root.syms);
       return 0;
@@ -3027,7 +3041,7 @@ static int analyze_method(Analyzer *a, AstNode *fn, const char *self_type) {
   root.parent = NULL;
   if (self_type) {
     char *st = canon_type(self_type);
-    if (!st || !scope_define(&root, "self", st, -1)) {
+    if (!st || !scope_define(&root, "self", st, -1, 1)) {
       free(st);
       free_syms(root.syms);
       return 0;
@@ -3039,7 +3053,7 @@ static int analyze_method(Analyzer *a, AstNode *fn, const char *self_type) {
     if (strcmp(c->kind, "Param") != 0) continue;
     AstNode *tn = ast_child_kind(c, "Type");
     char *tt = canon_type(tn ? tn->text : "unknown");
-    if (!tt || !scope_define(&root, c->text ? c->text : "", tt, -1)) {
+    if (!tt || !scope_define(&root, c->text ? c->text : "", tt, -1, 1)) {
       free(tt);
       free_syms(root.syms);
       return 0;

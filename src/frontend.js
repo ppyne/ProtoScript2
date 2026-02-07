@@ -1337,7 +1337,7 @@ class Analyzer {
           if (!t) t = initType;
           if (stmt.init.kind === "ListLiteral") knownListLen = stmt.init.items.length;
         }
-        scope.define(stmt.name, t || { kind: "PrimitiveType", name: "void" }, true, knownListLen, fileMode);
+        scope.define(stmt.name, t || { kind: "PrimitiveType", name: "void" }, !!stmt.init, knownListLen, fileMode);
         break;
       }
       case "AssignStmt": {
@@ -1392,6 +1392,7 @@ class Analyzer {
           if (s) {
             if (stmt.expr && stmt.expr.kind === "ListLiteral") s.knownListLen = stmt.expr.items.length;
             else s.knownListLen = null;
+            s.initialized = true;
           }
         }
         break;
@@ -1516,6 +1517,9 @@ class Analyzer {
           if (expr.name === "Sys") return { kind: "BuiltinType", name: "Sys" };
           this.addDiag(expr, "E2001", "UNRESOLVED_NAME", `unknown identifier '${expr.name}'`);
           return null;
+        }
+        if (!s.initialized) {
+          this.addDiag(expr, "E4001", "UNINITIALIZED_READ", `variable '${expr.name}' is not initialized`);
         }
         return s.type;
       }

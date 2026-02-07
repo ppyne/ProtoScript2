@@ -13,6 +13,7 @@
       "invalid/type/string_index_write",
       "invalid/type/view_index_write",
       "invalid/type/list_pop_empty_static",
+      "invalid/type/uninitialized_read",
       "invalid/type/module_missing",
       "invalid/type/module_symbol_missing",
       "invalid/type/module_registry_invalid_type"
