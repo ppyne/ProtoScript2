@@ -1135,6 +1135,43 @@ ProtoScript V2 adopte ainsi un modèle que l’on peut qualifier de :
 
 Ce positionnement vise la clarté conceptuelle, la sûreté sémantique et l’efficacité de compilation.
 
+### 10.8 Filiation conceptuelle : Self → Io → ProtoScript V2
+
+Le langage Self (Ungar & Smith, 1987) a introduit le modèle prototype-based en supprimant toute notion de classe au profit d’objets clonés et de délégation.
+Cette approche a démontré qu’un modèle orienté objet pouvait être à la fois plus simple et plus expressif qu’un système class-based traditionnel.
+Le langage Io, conçu par Steve Dekorte, s’inscrit directement dans cette lignée en radicalisant la simplicité syntaxique et la réflexivité du modèle.
+Io adopte une délégation entièrement dynamique et une métaprogrammation étendue.
+ProtoScript V2 reprend le principe fondamental du prototype comme objet concret.
+Il s’en distingue par un choix volontairement opposé sur le plan technique.
+Les relations de prototypes y sont figées à la compilation.
+La résolution des champs et méthodes est strictement statique.
+Aucune mutation dynamique des prototypes n’est autorisée.
+Ce positionnement vise la clarté sémantique, la sûreté et l’efficacité de compilation.
+
+### 10.9 Comparaison des modèles prototype-based
+
+*(Self / Io / JavaScript / ProtoScript V2)*
+
+| Critère                       | **Self**               | **Io**               | **JavaScript**             | **ProtoScript V2**              |
+| ----------------------------- | ---------------------- | -------------------- | -------------------------- | ------------------------------- |
+| Modèle objet                  | Prototype-based pur    | Prototype-based pur  | Prototype-based hybride    | Prototype-based statique        |
+| Classes                       | Absentes               | Absentes             | Introduites syntaxiquement | Absentes                        |
+| Création d’objets             | Clonage                | Clonage              | Constructeurs / prototypes | Clonage explicite               |
+| Délégation                    | Dynamique              | Dynamique            | Dynamique                  | **Statique**                    |
+| Chaîne de prototypes          | Dynamique              | Dynamique            | Dynamique mutable          | **Figée à la compilation**      |
+| Mutation des prototypes       | Autorisée              | Autorisée            | Autorisée                  | **Interdite**                   |
+| Lookup des méthodes           | Tardif (runtime)       | Tardif (runtime)     | Tardif (runtime)           | **Compilation**                 |
+| Résolution de `self` / `this` | Dynamique              | Dynamique            | Dynamique et contextuelle  | **Statique (`self`)**           |
+| `super`                       | Non                    | Non                  | Oui (syntaxe class)        | **Absent**                      |
+| Override                      | Dynamique              | Dynamique            | Dynamique                  | **Statique, signature stricte** |
+| Surcharge                     | Possible dynamiquement | Possible             | Possible                   | **Interdite**                   |
+| RTTI utilisateur              | Présente               | Présente             | Présente                   | **Absente**                     |
+| Métaprogrammation             | Étendue                | Très étendue         | Étendue                    | **Absente**                     |
+| Typage                        | Dynamique              | Dynamique            | Dynamique                  | **Statique**                    |
+| Layout mémoire                | Non garanti            | Non garanti          | Non garanti                | **Déterministe**                |
+| Compilation native            | Non prioritaire        | Non prioritaire      | Secondaire                 | **Objectif central**            |
+| Objectif principal            | Recherche conceptuelle | Simplicité réflexive | Généraliste                | **Clarté, sûreté, performance** |
+
 ---
 
 ## 11. Collections
