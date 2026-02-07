@@ -102,6 +102,15 @@ make -C c
 ./c/ps check file.pts
 ./c/ps ast file.pts
 ./c/ps ir file.pts
+./c/ps emit-c file.pts       # forward vers bin/protoscriptc
+```
+
+Options utiles (position libres, avant ou après la commande) :
+
+```bash
+./c/ps --trace run file.pts
+./c/ps run file.pts --trace-ir
+./c/ps run file.pts --time
 ```
 
 Frontend C (pscc) :

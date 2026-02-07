@@ -1600,6 +1600,7 @@ Exemples :
 ps run fichier.pts
 ps -e "Io.printLine(42);"
 ps check fichier.pts
+ps emit-c fichier.pts
 ps test
 ```
 
@@ -1613,6 +1614,13 @@ Options courantes :
 --time
 ```
 
+Position des options :
+
+- les options peuvent apparaître **avant ou après** la commande.
+- exemples équivalents :
+  - `ps --trace run fichier.pts`
+  - `ps run fichier.pts --trace`
+
 Détails des commandes :
 
 - `ps run fichier.pts` : exécute le programme (runtime C).
@@ -1620,12 +1628,13 @@ Détails des commandes :
 - `ps check fichier.pts` : parse + analyse statique uniquement (aucune exécution).
 - `ps ast fichier.pts` : affiche l’AST (arbre de syntaxe) en JSON stable pour inspection.
 - `ps ir fichier.pts` : affiche l’IR (intermédiaire) en JSON stable pour inspection.
+- `ps emit-c fichier.pts` : génère du C via l’oracle `protoscriptc` (Node).
 - `ps test` : lance la suite de conformité (tests normatifs).
 
 Détails des options :
 
-- `--trace` : journalisation des étapes d’exécution (runtime), utile pour déboguer l’ordre d’évaluation.
-- `--trace-ir` : journalisation des instructions IR au moment de l’exécution.
+- `--trace` : journalisation des étapes d’exécution (runtime). Sorties préfixées par `[trace]`.
+- `--trace-ir` : journalisation des instructions IR au moment de l’exécution. Sorties préfixées par `[ir]`.
 - `--time` : affiche le temps d’exécution total (ms).
 
 ### 16.2.1 CLI `ps` : commande `test`
