@@ -40,9 +40,9 @@ function collectChildrenNodeStyle(n) {
     'decls','params','retType',
     'init','cond','step','iterVar','iterExpr',
     'declaredType','type','target','index',
-    'expr','value','thenExpr','elseExpr','left','right',
+    'expr','key','value','thenExpr','elseExpr','left','right',
     'body','stmts','cases','defaultCase',
-    'callee','args','pairs','key'
+    'callee','args','pairs'
   ];
   const seen = new Set();
   for (const k of keyOrder) {

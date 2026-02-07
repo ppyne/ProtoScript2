@@ -2,14 +2,12 @@ import Io;
 
 function main() : void {
     var f = Io.open("io_eof.txt", "w");
-    f.write("x");
     f.close();
 
     var r = Io.open("io_eof.txt", "r");
-    var a = r.read(1);
-    var b = r.read(1);
+    var chunk = r.read(1);
     r.close();
 
-    bool ok = (b == Io.EOF);
+    bool ok = (chunk.length() == 0);
     Io.printLine(ok.toString());
 }

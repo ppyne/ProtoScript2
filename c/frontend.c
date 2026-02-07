@@ -290,6 +290,55 @@ static int is_two_sym(const char *s) {
   return 0;
 }
 
+static int hex_val(char c, uint32_t *out) {
+  if (c >= '0' && c <= '9') {
+    *out = (uint32_t)(c - '0');
+    return 1;
+  }
+  if (c >= 'a' && c <= 'f') {
+    *out = 10u + (uint32_t)(c - 'a');
+    return 1;
+  }
+  if (c >= 'A' && c <= 'F') {
+    *out = 10u + (uint32_t)(c - 'A');
+    return 1;
+  }
+  return 0;
+}
+
+static int buf_push(char **buf, size_t *len, size_t *cap, char c) {
+  if (*len + 1 >= *cap) {
+    size_t nc = (*cap == 0) ? 64 : (*cap * 2);
+    while (nc < *len + 2) nc *= 2;
+    char *nb = (char *)realloc(*buf, nc);
+    if (!nb) return 0;
+    *buf = nb;
+    *cap = nc;
+  }
+  (*buf)[(*len)++] = c;
+  return 1;
+}
+
+static int buf_push_utf8(char **buf, size_t *len, size_t *cap, uint32_t cp) {
+  if (cp > 0x10FFFF || (cp >= 0xD800 && cp <= 0xDFFF)) return 0;
+  if (cp <= 0x7F) {
+    return buf_push(buf, len, cap, (char)cp);
+  }
+  if (cp <= 0x7FF) {
+    return buf_push(buf, len, cap, (char)(0xC0 | (cp >> 6))) &&
+           buf_push(buf, len, cap, (char)(0x80 | (cp & 0x3F)));
+  }
+  if (cp <= 0xFFFF) {
+    return buf_push(buf, len, cap, (char)(0xE0 | (cp >> 12))) &&
+           buf_push(buf, len, cap, (char)(0x80 | ((cp >> 6) & 0x3F))) &&
+           buf_push(buf, len, cap, (char)(0x80 | (cp & 0x3F)));
+  }
+  return buf_push(buf, len, cap, (char)(0xF0 | (cp >> 18))) &&
+         buf_push(buf, len, cap, (char)(0x80 | ((cp >> 12) & 0x3F))) &&
+         buf_push(buf, len, cap, (char)(0x80 | ((cp >> 6) & 0x3F))) &&
+         buf_push(buf, len, cap, (char)(0x80 | (cp & 0x3F)));
+}
+
 static int is_one_sym(char c) {
   const char *s = "{}()[];,:.?+-*/%&|^~!=<>";
   return strchr(s, c) != NULL;
@@ -371,29 +420,80 @@ static int run_lexer(Lexer *l) {
 
     if (c == '"') {
       l_advance(l);
-      size_t a = l->i;
+      char *out = NULL;
+      size_t out_len = 0;
+      size_t out_cap = 0;
       int ok_close = 0;
       while (!l_eof(l)) {
-        if (l_ch(l, 0) == '\\') {
-          l_advance(l);
-          if (!l_eof(l)) l_advance(l);
-          continue;
-        }
-        if (l_ch(l, 0) == '"') {
+        char ch = l_ch(l, 0);
+        if (ch == '"') {
           ok_close = 1;
+          l_advance(l);
           break;
         }
+        if (ch == '\\') {
+          l_advance(l);
+          if (l_eof(l)) {
+            set_diag(l->diag, l->file, line, col, "E1001", "PARSE_UNEXPECTED_TOKEN", "invalid escape sequence");
+            free(out);
+            return 0;
+          }
+          char esc = l_ch(l, 0);
+          l_advance(l);
+          if (esc == '"') {
+            if (!buf_push(&out, &out_len, &out_cap, '"')) return 0;
+          } else if (esc == '\\') {
+            if (!buf_push(&out, &out_len, &out_cap, '\\')) return 0;
+          } else if (esc == 'n') {
+            if (!buf_push(&out, &out_len, &out_cap, '\n')) return 0;
+          } else if (esc == 't') {
+            if (!buf_push(&out, &out_len, &out_cap, '\t')) return 0;
+          } else if (esc == 'r') {
+            if (!buf_push(&out, &out_len, &out_cap, '\r')) return 0;
+          } else if (esc == 'b') {
+            if (!buf_push(&out, &out_len, &out_cap, '\b')) return 0;
+          } else if (esc == 'f') {
+            if (!buf_push(&out, &out_len, &out_cap, '\f')) return 0;
+          } else if (esc == 'u') {
+            uint32_t v = 0;
+            for (int i = 0; i < 4; i += 1) {
+              if (l_eof(l)) {
+                set_diag(l->diag, l->file, line, col, "E1001", "PARSE_UNEXPECTED_TOKEN", "invalid escape sequence");
+                free(out);
+                return 0;
+              }
+              uint32_t h = 0;
+              if (!hex_val(l_ch(l, 0), &h)) {
+                set_diag(l->diag, l->file, line, col, "E1001", "PARSE_UNEXPECTED_TOKEN", "invalid escape sequence");
+                free(out);
+                return 0;
+              }
+              v = (v << 4) | h;
+              l_advance(l);
+            }
+            if (!buf_push_utf8(&out, &out_len, &out_cap, v)) {
+              set_diag(l->diag, l->file, line, col, "E1001", "PARSE_UNEXPECTED_TOKEN", "invalid escape sequence");
+              free(out);
+              return 0;
+            }
+          } else {
+            set_diag(l->diag, l->file, line, col, "E1001", "PARSE_UNEXPECTED_TOKEN", "invalid escape sequence");
+            free(out);
+            return 0;
+          }
+          continue;
+        }
+        if (!buf_push(&out, &out_len, &out_cap, ch)) return 0;
         l_advance(l);
       }
       if (!ok_close) {
         set_diag(l->diag, l->file, line, col, "E1002", "PARSE_UNCLOSED_BLOCK", "Unclosed string literal");
+        free(out);
         return 0;
       }
-      char *s = dup_range(l->src, a, l->i);
-      if (!s) return 0;
-      l_advance(l);
-      int ok = lex_add(l, TK_STR, s, line, col);
-      free(s);
+      if (!buf_push(&out, &out_len, &out_cap, '\0')) return 0;
+      int ok = lex_add(l, TK_STR, out ? out : "", line, col);
+      free(out);
       if (!ok) return 0;
       continue;
     }
@@ -1969,8 +2069,6 @@ static ModuleRegistry *registry_load(void) {
             continue;
           }
           rc->value = strdup(cval->as.str_v);
-        } else if (strcmp(ctype->as.str_v, "eof") == 0) {
-          rc->value = strdup("");
         } else {
           free(rc->name);
           free(rc->type);
@@ -2531,7 +2629,6 @@ static char *infer_expr_type(Analyzer *a, AstNode *e, Scope *scope, int *ok) {
             if (strcmp(rc->type, "float") == 0) return strdup("float");
             if (strcmp(rc->type, "string") == 0) return strdup("string");
             if (strcmp(rc->type, "file") == 0) return strdup("File");
-            if (strcmp(rc->type, "eof") == 0) return strdup("EOF");
           }
         }
       }
@@ -3346,7 +3443,6 @@ static char *ir_guess_expr_type(AstNode *e, IrFnCtx *ctx) {
               if (strcmp(rc->type, "float") == 0) return strdup("float");
               if (strcmp(rc->type, "string") == 0) return strdup("string");
               if (strcmp(rc->type, "file") == 0) return strdup("File");
-              if (strcmp(rc->type, "eof") == 0) return strdup("EOF");
             }
           }
         }

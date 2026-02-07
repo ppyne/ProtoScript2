@@ -167,8 +167,6 @@ function loadModuleRegistry() {
       } else if (c.type === "file") {
         if (typeof c.value !== "string") continue;
         consts.set(c.name, { type: "file", value: c.value });
-      } else if (c.type === "eof") {
-        consts.set(c.name, { type: "eof", value: "" });
       }
     }
     modules.set(m.name, { functions: fns, constants: consts });
@@ -284,16 +282,71 @@ class Lexer {
         let s = "";
         while (!this.eof() && this.ch() !== '"') {
           if (this.ch() === "\\") {
-            s += this.advance();
-            if (!this.eof()) s += this.advance();
+            const escLine = this.line;
+            const escCol = this.col;
+            this.advance();
+            if (this.eof()) {
+              throw new FrontendError(diag(this.file, escLine, escCol, "E1001", "PARSE_UNEXPECTED_TOKEN", "invalid escape sequence"));
+            }
+            const esc = this.ch();
+            this.advance();
+            switch (esc) {
+              case '"':
+                s += '"';
+                break;
+              case "\\":
+                s += "\\";
+                break;
+              case "n":
+                s += "\n";
+                break;
+              case "t":
+                s += "\t";
+                break;
+              case "r":
+                s += "\r";
+                break;
+              case "b":
+                s += "\b";
+                break;
+              case "f":
+                s += "\f";
+                break;
+              case "u": {
+                let hex = "";
+                for (let i = 0; i < 4; i += 1) {
+                  if (this.eof()) {
+                    throw new FrontendError(
+                      diag(this.file, escLine, escCol, "E1001", "PARSE_UNEXPECTED_TOKEN", "invalid escape sequence")
+                    );
+                  }
+                  const h = this.ch();
+                  if (!/[0-9A-Fa-f]/.test(h)) {
+                    throw new FrontendError(
+                      diag(this.file, escLine, escCol, "E1001", "PARSE_UNEXPECTED_TOKEN", "invalid escape sequence")
+                    );
+                  }
+                  hex += h;
+                  this.advance();
+                }
+                const cp = parseInt(hex, 16);
+                if (cp >= 0xd800 && cp <= 0xdfff) {
+                  throw new FrontendError(
+                    diag(this.file, escLine, escCol, "E1001", "PARSE_UNEXPECTED_TOKEN", "invalid escape sequence")
+                  );
+                }
+                s += String.fromCodePoint(cp);
+                break;
+              }
+              default:
+                throw new FrontendError(diag(this.file, escLine, escCol, "E1001", "PARSE_UNEXPECTED_TOKEN", "invalid escape sequence"));
+            }
             continue;
           }
           s += this.advance();
         }
         if (this.eof()) {
-          throw new FrontendError(
-            diag(this.file, line, col, "E1002", "PARSE_UNCLOSED_BLOCK", "Unclosed string literal")
-          );
+          throw new FrontendError(diag(this.file, line, col, "E1002", "PARSE_UNCLOSED_BLOCK", "Unclosed string literal"));
         }
         this.advance();
         this.add("str", s, line, col);
@@ -1172,6 +1225,7 @@ class Analyzer {
     if (!child || !parent) return false;
     const cn = typeToString(child);
     const pn = typeToString(parent);
+    if (pn === "File" && (cn === "FileBinary" || cn === "FileText")) return true;
     if (cn === pn) return true;
     let p = this.prototypes.get(cn);
     while (p) {
@@ -1247,7 +1301,9 @@ class Analyzer {
       case "VarDecl": {
         let t = stmt.declaredType;
         let knownListLen = null;
+        let fileMode = null;
         if (stmt.init) {
+          fileMode = this.inferFileModeFromIoOpen(stmt.init);
           const initType = this.typeOfExpr(stmt.init, scope);
           const emptyMapInit =
             !!t &&
@@ -1269,10 +1325,19 @@ class Analyzer {
           ) {
             this.addDiag(stmt, "E3001", "TYPE_MISMATCH_ASSIGNMENT", `cannot assign ${typeToString(initType)} to ${typeToString(t)}`);
           }
+          if (
+            t &&
+            initType &&
+            typeToString(t) === "File" &&
+            initType.kind === "NamedType" &&
+            (initType.name === "FileBinary" || initType.name === "FileText")
+          ) {
+            t = initType;
+          }
           if (!t) t = initType;
           if (stmt.init.kind === "ListLiteral") knownListLen = stmt.init.items.length;
         }
-        scope.define(stmt.name, t || { kind: "PrimitiveType", name: "void" }, true, knownListLen);
+        scope.define(stmt.name, t || { kind: "PrimitiveType", name: "void" }, true, knownListLen, fileMode);
         break;
       }
       case "AssignStmt": {
@@ -1305,6 +1370,22 @@ class Analyzer {
           !emptyListAssign
         ) {
           this.addDiag(stmt, "E3001", "TYPE_MISMATCH_ASSIGNMENT", `cannot assign ${typeToString(rhsType)} to ${typeToString(lhsType)}`);
+        }
+        if (
+          stmt.target &&
+          stmt.target.kind === "Identifier" &&
+          lhsType &&
+          rhsType &&
+          typeToString(lhsType) === "File" &&
+          rhsType.kind === "NamedType" &&
+          (rhsType.name === "FileBinary" || rhsType.name === "FileText")
+        ) {
+          const s = scope.lookup(stmt.target.name);
+          if (s) s.type = rhsType;
+        }
+        if (stmt.target && stmt.target.kind === "Identifier") {
+          const fm = this.inferFileModeFromIoOpen(stmt.expr);
+          if (fm) scope.setFileMode(stmt.target.name, fm);
         }
         if (stmt.target && stmt.target.kind === "Identifier") {
           const s = scope.lookup(stmt.target.name);
@@ -1451,11 +1532,7 @@ class Analyzer {
         if (!lt || !rt) return null;
         const ls = typeToString(lt);
         const rs = typeToString(rt);
-        const isEq = ["==", "!="].includes(expr.op);
         if (!sameType(lt, rt)) {
-          if (isEq && (ls === "EOF" || rs === "EOF")) {
-            return { kind: "PrimitiveType", name: "bool" };
-          }
           this.addDiag(expr, "E3001", "TYPE_MISMATCH_ASSIGNMENT", `incompatible operands ${typeToString(lt)} and ${typeToString(rt)}`);
           return lt;
         }
@@ -1496,7 +1573,6 @@ class Analyzer {
             if (c.type === "float") return { kind: "PrimitiveType", name: "float" };
             if (c.type === "string") return { kind: "PrimitiveType", name: "string" };
             if (c.type === "file") return { kind: "NamedType", name: "File" };
-            if (c.type === "eof") return { kind: "NamedType", name: "EOF" };
           }
         }
         {
@@ -1528,6 +1604,18 @@ class Analyzer {
       default:
         return null;
     }
+  }
+
+  inferFileModeFromIoOpen(expr) {
+    if (!expr || expr.kind !== "CallExpr") return null;
+    if (!expr.callee || expr.callee.kind !== "MemberExpr") return null;
+    const callee = expr.callee;
+    if (!callee.target || callee.target.kind !== "Identifier") return null;
+    if (callee.target.name !== "Io" || callee.name !== "open") return null;
+    if (!Array.isArray(expr.args) || expr.args.length < 2) return null;
+    const mode = expr.args[1];
+    if (!mode || mode.kind !== "Literal" || mode.literalType !== "string") return null;
+    return mode.value.includes("b") ? "binary" : "text";
   }
 
   typeOfCall(expr, scope) {
@@ -1575,6 +1663,12 @@ class Analyzer {
       if (member.target && member.target.kind === "Identifier") {
         const ns = this.namespaces.get(member.target.name);
         if (ns) {
+          if (ns === "Io" && member.name === "open") {
+            const fm = this.inferFileModeFromIoOpen(expr);
+            if (fm === "binary") return { kind: "NamedType", name: "FileBinary" };
+            if (fm === "text") return { kind: "NamedType", name: "FileText" };
+            return { kind: "NamedType", name: "File" };
+          }
           const registry = loadModuleRegistry();
           const modEntry = registry ? registry.modules.get(ns) : null;
           const fn = modEntry ? modEntry.functions.get(member.name) : null;
@@ -1681,9 +1775,15 @@ class Analyzer {
           return { kind: "GenericType", name: "view", args: [elem] };
         }
       }
-      if (t === "File") {
+      if (t === "File" || t === "FileBinary" || t === "FileText") {
         if (name === "read") {
-          if (expr.args.length > 0) return { kind: "NamedType", name: "EOF" };
+          if (t === "FileBinary") return { kind: "GenericType", name: "list", args: [prim("byte")] };
+          if (t === "File") {
+            if (member.target.kind === "Identifier") {
+              const s = scope.lookup(member.target.name);
+              if (s && s.fileMode === "binary") return { kind: "GenericType", name: "list", args: [prim("byte")] };
+            }
+          }
           return prim("string");
         }
         if (name === "write") return prim("void");
@@ -1763,8 +1863,17 @@ class Scope {
     this.parent = parent;
     this.syms = new Map();
   }
-  define(name, type, initialized, knownListLen = null) {
-    this.syms.set(name, { type, initialized, knownListLen });
+  define(name, type, initialized, knownListLen = null, fileMode = null) {
+    this.syms.set(name, { type, initialized, knownListLen, fileMode });
+  }
+  setFileMode(name, fileMode) {
+    if (this.syms.has(name)) {
+      const s = this.syms.get(name);
+      s.fileMode = fileMode;
+      return true;
+    }
+    if (this.parent) return this.parent.setFileMode(name, fileMode);
+    return false;
   }
   lookup(name) {
     if (this.syms.has(name)) return this.syms.get(name);

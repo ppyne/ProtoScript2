@@ -92,8 +92,10 @@ while IFS= read -r case_id; do
   requires_modules="$(jq -r '.requires | index("modules") // empty' "$expect")"
 
   if [[ -n "$requires_modules" ]]; then
-    echo "SKIP $case_id (modules not supported in crosscheck)"
-    continue
+    if grep -Eq 'import[[:space:]]+test\.' "$src"; then
+      echo "SKIP $case_id (dynamic modules not supported in crosscheck)"
+      continue
+    fi
   fi
 
   out_node="$(mktemp)"

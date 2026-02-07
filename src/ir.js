@@ -639,7 +639,7 @@ class IRBuilder {
             if (c.type === "float") return { value: dst, type: { kind: "PrimitiveType", name: "float" } };
             if (c.type === "string") return { value: dst, type: { kind: "PrimitiveType", name: "string" } };
             if (c.type === "file") return { value: dst, type: { kind: "NamedType", name: "File" } };
-            return { value: dst, type: { kind: "NamedType", name: "EOF" } };
+            return { value: dst, type: { kind: "PrimitiveType", name: "unknown" } };
           }
         }
         const base = this.lowerExpr(expr.target, block, irFn, scope);

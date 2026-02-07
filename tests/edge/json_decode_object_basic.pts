@@ -1,0 +1,14 @@
+import JSON;
+import Io;
+
+function main() : void {
+    map<string, JSONValue> m = {
+        "a": JSON.number(1.0),
+        "b": JSON.number(2.0)
+    };
+    string s = JSON.encode(m);
+    JSONValue v = JSON.decode(s);
+    map<string, JSONValue> obj = v.asObject();
+    bool ok = (obj["a"].asNumber() == 1.0) && (obj["b"].asNumber() == 2.0);
+    Io.printLine(ok.toString());
+}

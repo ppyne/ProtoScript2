@@ -428,7 +428,6 @@ const PS_FILE_WRITE = 0x02;
 const PS_FILE_APPEND = 0x04;
 const PS_FILE_BINARY = 0x08;
 
-const EOF_SENTINEL = { __eof: true };
 
 function decodeUtf8Strict(file, node, bytes, atStart) {
   for (const b of bytes) {
@@ -551,7 +550,6 @@ function buildModuleEnv(ast, file) {
 
   const ioMod = makeModule("Io");
   ioMod.constants.set("EOL", "\n");
-  ioMod.constants.set("EOF", EOF_SENTINEL);
   ioMod.constants.set("stdin", new IoFile(0, PS_FILE_READ, true));
   ioMod.constants.set("stdout", new IoFile(1, PS_FILE_WRITE, true));
   ioMod.constants.set("stderr", new IoFile(2, PS_FILE_WRITE, true));
@@ -1564,7 +1562,9 @@ function evalCall(expr, scope, functions, moduleEnv, protoEnv, file, callFunctio
           }
           const buf = Buffer.alloc(size);
           const n = fs.readSync(target.fd, buf, 0, size, null);
-          if (n === 0) return EOF_SENTINEL;
+          if (n === 0) {
+            return isBinary ? makeList([]) : "";
+          }
           const bytes = Array.from(buf.slice(0, n));
           if (isBinary) return makeList(bytes.map((b) => BigInt(b)));
           const s = decodeUtf8Strict(file, m, bytes, target.atStart);

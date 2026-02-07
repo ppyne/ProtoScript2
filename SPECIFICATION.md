@@ -3281,6 +3281,16 @@ Catégories :
 - entier décimal, hexadécimal (`0x`), binaire (`0b`), octal (`0` préfixé)
 - flottant décimal/scientifique
 - chaîne UTF-8 entre guillemets doubles
+- échappements reconnus dans un littéral de chaîne :
+  - `\"` → `"`
+  - `\\` → `\`
+  - `\n` → U+000A
+  - `\t` → U+0009
+  - `\r` → U+000D
+  - `\b` → U+0008
+  - `\f` → U+000C
+  - `\uXXXX` → point de code Unicode (4 hexadécimaux), encodé en UTF-8
+- toute séquence d’échappement invalide est une erreur lexicale
 - les littéraux entiers sont non signés lexicalement ; le signe `-` est un opérateur unaire
 
 ## A.6 Identifiants

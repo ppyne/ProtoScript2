@@ -120,12 +120,14 @@
       "edge/math_random_loop",
       "edge/json_encode_basic",
       "edge/json_decode_basic",
+      "edge/json_decode_object_basic",
+      "edge/json_decode_unicode_escape",
       "edge/json_isvalid",
       "edge/io_text_roundtrip",
-      "edge/io_eof",
       "edge/io_print",
       "edge/io_stdout_stderr",
-      "edge/io_binary_read_write"
+      "edge/io_binary_read_write",
+      "edge/io_eof_length_text"
     ]
   }
 }

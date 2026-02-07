@@ -240,6 +240,19 @@ float f2 = 1e-3;
 string s = "Bonjour";
 ```
 
+Échappements reconnus dans les littéraux de chaîne :
+
+```c
+string q = "\"";     // guillemet
+string b = "\\";     // antislash
+string n = "\n";     // LF
+string t = "\t";     // TAB
+string r = "\r";     // CR
+string bs = "\b";    // BS
+string ff = "\f";    // FF
+string u = "\u263A"; // Unicode (☺)
+```
+
 ### 4.4 Listes et maps
 
 ```c
@@ -1259,7 +1272,6 @@ Documentation officielle : `docs/native-modules.md`.
 | Nom | Type | Description |
 |---|---|---|
 | `Io.EOL` | `string` | fin de ligne (`"\n"`) |
-| `Io.EOF` | sentinelle | valeur unique pour signaler EOF en lecture binaire |
 | `Io.stdin` | `File` | flux standard d’entrée (texte) |
 | `Io.stdout` | `File` | flux standard de sortie (texte) |
 | `Io.stderr` | `File` | flux standard d’erreur (texte) |
@@ -1282,7 +1294,7 @@ Notes :
 | Méthode | Signature | Description | Erreurs |
 |---|---|---|---|
 | `read()` | `() -> string \| list<byte>` | lit tout (texte ou binaire selon mode) | runtime si UTF‑8 invalide |
-| `read(size)` | `(int) -> string \| list<byte> \| Io.EOF` | lit jusqu’à `size` | runtime si size < 1 |
+| `read(size)` | `(int) -> string \| list<byte>` | lit jusqu’à `size` | runtime si size < 1 |
 | `write(x)` | `(string \| list<byte>) -> void` | écrit texte/binaire selon mode | runtime si type invalide |
 | `close()` | `() -> void` | ferme le fichier | runtime si stdin/stdout/stderr |
 
@@ -1290,7 +1302,7 @@ Notes :
 
 - en mode texte (sans `b`), `read()`/`read(size)` retournent une `string`.
 - en mode binaire (`b`), `read()`/`read(size)` retournent une `list<byte>`.
-- `read(size)` retourne `Io.EOF` **uniquement** si zéro octet est lu (mode binaire).
+- `read(size)` retourne une **valeur de longueur nulle** (`length == 0`) si zéro octet est lu.
 
 Exemple :
 

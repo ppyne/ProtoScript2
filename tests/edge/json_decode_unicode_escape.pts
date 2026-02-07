@@ -1,0 +1,8 @@
+import JSON;
+import Io;
+
+function main() : void {
+    JSONValue v = JSON.decode("\"\\u263A\"");
+    bool ok = v.isString() && v.asString().length() == 1;
+    Io.printLine(ok.toString());
+}

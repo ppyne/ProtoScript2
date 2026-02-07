@@ -107,7 +107,6 @@
       ],
       "constants": [
         { "name": "EOL", "type": "string", "value": "\n" },
-        { "name": "EOF", "type": "eof" },
         { "name": "stdin", "type": "file", "value": "stdin" },
         { "name": "stdout", "type": "file", "value": "stdout" },
         { "name": "stderr", "type": "file", "value": "stderr" }

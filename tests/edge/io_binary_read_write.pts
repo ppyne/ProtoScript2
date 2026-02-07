@@ -8,8 +8,9 @@ function main() : void {
 
     var r = Io.open("io_bin.bin", "rb");
     var chunk = r.read(3);
+    var tail = r.read(1);
     r.close();
 
-    bool ok = (chunk != Io.EOF);
+    bool ok = (chunk.length() == 3) && (tail.length() == 0);
     Io.printLine(ok.toString());
 }

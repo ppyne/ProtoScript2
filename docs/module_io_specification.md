@@ -33,7 +33,7 @@ Le module expose :
 
 - des fonctions globales,
 - un type opaque **File**,
-- des constantes (`Io.EOL`, `Io.EOF`),
+- une constante (`Io.EOL`),
 - des flux standards.
 
 ---
@@ -117,15 +117,6 @@ Io.EOL == "\n"
 
 Constante universelle de fin de ligne.
 
-### 5.2 Io.EOF
-
-Valeur sentinelle unique signalant la fin de fichier en lecture séquentielle.
-
-Règles normatives :
-
-- Comparaison **par identité uniquement**.
-- Retournée uniquement par `file.read(size)` lorsque **zéro octet** est lu.
-
 ---
 
 ## 6. Io.print(value)
@@ -196,17 +187,19 @@ file.read(size)
 
 ### Valeurs de retour
 
-| Mode    | read()        | read(size)              |
-| ------- | ------------- | ----------------------- |
-| texte   | `string`      | `string` ou `Io.EOF`    |
-| binaire | `list<byte>`  | `list<byte>` ou `Io.EOF`|
+| Mode    | read()        | read(size)        |
+| ------- | ------------- | ----------------- |
+| texte   | `string`      | `string`          |
+| binaire | `list<byte>`  | `list<byte>`      |
 
 ### EOF (normatif)
 
-- `file.read()` (sans `size`) **lit jusqu’à EOF** et **NE DOIT JAMAIS** retourner `Io.EOF`.
-- `Io.EOF` est retourné **si et seulement si** :
-  - `file.read(size)` est appelé,
-  - et **zéro octet** est lu (curseur déjà à EOF).
+- `file.read()` (sans `size`) **lit jusqu’à EOF** et retourne une valeur éventuellement **vide**.
+- `file.read(size)` retourne **toujours** une valeur de même type que le mode :
+  - `string` en mode texte,
+  - `list<byte>` en mode binaire.
+- **Une longueur nulle** (`length == 0`) **indique EOF**.
+- L’EOF n’est pas une erreur.
 
 ---
 
@@ -279,7 +272,7 @@ Règles normatives en lecture texte :
 var f = Io.open("data.bin", "rb");
 while (true) {
   var chunk = f.read(1024);
-  if (chunk === Io.EOF) break;
+  if (chunk.length == 0) break;
   process(chunk);
 }
 f.close();
@@ -318,6 +311,6 @@ try {
 
 - Module natif C.
 - Respect strict des règles de type.
-- Tests couvrant texte, binaire, EOF, erreurs.
+- Tests couvrant texte, binaire, EOF via longueur nulle, erreurs.
 
 Fin de la spécification.
