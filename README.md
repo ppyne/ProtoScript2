@@ -7,6 +7,8 @@ ProtoScript V2 est un langage conçu pour une promesse simple :
 
 ProtoScript V2 peut être qualifié de langage prototype-based statique à layout figé, dans lequel les relations de délégation, les champs et les méthodes sont entièrement déterminés à la compilation.
 
+Article en anglais qui annonce le lancement du langage : [ProtoScript2: A Static Prototype-Based Language](https://alexandre.vialle.ovh/Articles/Programming/protoscript2-a-static-prototype-based-language)
+
 Le projet est désormais spécifié, gouverné, et testable de façon indépendante.
 
 ![La magie cache les coûts. ProtoScript les rend visibles](slogan.png)
