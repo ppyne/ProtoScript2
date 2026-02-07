@@ -440,6 +440,14 @@ Interdire l'affectation en expression supprime une source classique d'effets de 
 
 ## 7. Opérateurs
 
+```c
+int a = 4;
+int b = 2;
+int c = a + b;
+bool k = (a > b) && (b != 0);
+int s = a << 1;
+```
+
 ### 7.1 Catégories
 
 - Arithmétiques : `+ - * / %`
@@ -469,6 +477,7 @@ Notes :
 - `a / b` sur `int` est une division entière ; sur `float`, division flottante.
 - `a % b` est défini pour `int`/`byte` uniquement.
 - `-x` est un opérateur unaire ; `-INT_MIN` déclenche une **exception runtime** (`R1001` / `RUNTIME_INT_OVERFLOW`).
+- précédence (rappel) : `* / %` avant `+ -` ; les opérateurs unaires ont une précédence plus haute. La table complète est en annexe.
 
 #### 7.1.2 Opérateurs de comparaison
 
@@ -484,6 +493,8 @@ Notes :
 Notes :
 
 - comparaisons autorisées uniquement entre types identiques.
+- comparer des types différents est invalide → erreur statique `E3001` (`TYPE_MISMATCH_ASSIGNMENT`).
+- pour comparer des types différents, il faut convertir explicitement l’un des deux.
 - pour `string` : `==` / `!=` comparent le contenu exact ; `<` / `<=` / `>` / `>=` comparent lexicographiquement la séquence UTF‑8 (pas de locale, pas de normalisation).
 - pour les types structurés (objets/prototypes, `list`, `map`, `slice`, `view`), la comparaison porte sur l’identité de valeur (pas de deep compare implicite).
 
@@ -494,6 +505,14 @@ Notes :
 | `!a` | Not (Non) | `true` si `a` n'est pas `true`. |
 | `a && b` | And (Et) | `true` si `a` ET `b` sont `true` (court-circuit). |
 | `a || b` | Or (Ou) | `true` si `a` OU `b` est `true` (court-circuit). |
+
+Notes :
+
+- opérandes **obligatoirement** de type `bool`.
+- aucun transtypage implicite (`int`, `string`, etc. sont interdits ici).
+- type invalide → erreur statique `E3001` (`TYPE_MISMATCH_ASSIGNMENT`).
+- évaluation court‑circuitée pour `&&` et `||`.
+- précédence (rappel) : `!` avant `&&`, puis `||`.
 
 #### 7.1.4 Opérateurs sur les bits
 
@@ -506,6 +525,13 @@ Notes :
 | `a << b` | Décalage à gauche | Décale les bits de `a` de `b` positions vers la gauche. |
 | `a >> b` | Décalage à droite | Décale les bits de `a` de `b` positions vers la droite. |
 
+Notes :
+
+- opérandes **int/byte** uniquement (pas de `float`, pas de `string`).
+- type invalide → erreur statique `E3001` (`TYPE_MISMATCH_ASSIGNMENT`).
+- décalage hors plage (`b < 0` ou `b >= 64`) pour `a << b` / `a >> b` → **exception runtime** `R1005` (`RUNTIME_SHIFT_RANGE`).
+- précédence : `~` > `<<`/`>>` > `&` > `^` > `|`.
+
 #### 7.1.5 Opérateurs d'affectation
 
 | Exemple | Équivalent | Opération |
@@ -515,6 +541,13 @@ Notes :
 | `a -= b` | `a = a - b` | Soustraction. |
 | `a *= b` | `a = a * b` | Multiplication. |
 | `a /= b` | `a = a / b` | Division. |
+
+Notes :
+
+- opérandes numériques uniquement (`int`, `float`, `byte`) selon l’opération sous‑jacente.
+- type invalide → erreur statique `E3001` (`TYPE_MISMATCH_ASSIGNMENT`).
+- pas de conversion implicite (ex. `int += float` interdit ; conversion explicite requise).
+- les mêmes erreurs runtime que pour les opérations arythmétiques s’appliquent (overflow, division par zéro).
 
 #### 7.1.6 Incrémentation et décrémentation
 
@@ -527,17 +560,7 @@ Notes :
 
 En contexte d'expression, la forme pré/post indique si la modification intervient avant ou après l'utilisation de la valeur.
 
-### 7.2 Exemples
-
-```c
-int a = 4;
-int b = 2;
-int c = a + b;
-bool k = (a > b) && (b != 0);
-int s = a << 1;
-```
-
-### 7.3 Chaînes : pas de concaténation implicite
+### 7.2 Chaînes : pas de concaténation implicite
 
 Contre-exemple :
 
@@ -554,6 +577,9 @@ Exemple correct de concaténation explicite :
 string a = "Hello ";
 string b = "world";
 string c = a.concat(b);
+
+// Astuce
+string d = ["Hello", " ", "world"].concat();
 ```
 
 ### 7.4 Erreur fréquente
@@ -785,7 +811,7 @@ default:
 
 ### 8.5 Erreur fréquente
 
-Reproduire un style C classique avec fallthrough implicite. ProtoScript V2 le refuse.
+Reproduire un style C classique avec fallthrough implicite. ProtoScript V2 le refuse pour éviter les effets de bord implicites et imposer des branches de contrôle lisibles et explicitement terminées.
 
 ---
 
@@ -802,7 +828,7 @@ function add(int a, int b) : int {
 ### 9.2 Paramètres et retour
 
 - Paramètres explicitement typés.
-- Type de retour explicite.
+- Type de retour explicite (même pour `void`).
 - Pas de paramètres optionnels implicites.
 
 Contre-exemple :
@@ -839,6 +865,10 @@ Contre-exemple :
 // int r = sum();
 ```
 
+Note :
+
+Il doit toujours y avoir au moins un paramètre quand on utilise une fonction variadique, sous peine de se voir retourner l'erreur statique `E3002` (`VARIADIC_EMPTY_CALL`).
+
 ### 9.4 Ce qui n'existe pas
 
 - Pas de fonctions comme valeurs.
@@ -854,11 +884,13 @@ Pas de closures/fonctions anonymes comme valeurs de premier ordre. Les appels so
 
 ProtoScript V2 n'est pas un langage class-based. Il n'y a pas de classes, d'instances de classes, ni de mécanisme de construction dynamique.
 
-Le modèle est prototype-based :
+Le modèle orienté objet retenu est prototype-based :
 
 - un objet est créé par clonage d'un prototype explicite
 - la structure est figée à la compilation
 - la résolution des champs et méthodes est statique
+
+Ce choix rend le modèle objet à la fois simple à comprendre, pratique, efficace et fiable à compiler : pas de magie d’héritage dynamique, mais des structures explicites et prédictibles.
 
 Conceptuellement, un prototype est un gabarit concret, pas une classe abstraite.
 On parle donc de **délégation statique** plutôt que d'héritage dynamique.
