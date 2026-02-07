@@ -701,6 +701,7 @@ static int exec_function(PS_Context *ctx, PS_IR_Module *m, IRFunction *f, PS_Val
     for (ip = 0; ip < b->instr_count; ip++) {
       IRInstr *ins = &b->instrs[ip];
       if (!ins->op) continue;
+      if (ctx->trace) fprintf(stderr, "[trace] %s\n", ins->op);
       if (ctx->trace_ir) fprintf(stderr, "[ir] %s\n", ins->op);
       if (strcmp(ins->op, "nop") == 0) continue;
       if (strcmp(ins->op, "var_decl") == 0) {

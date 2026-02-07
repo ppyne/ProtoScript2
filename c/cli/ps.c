@@ -120,6 +120,17 @@ static int run_file(PS_Context *ctx, const char *file, PS_Value *args_list, PS_V
   return rc;
 }
 
+static int is_cli_option(const char *arg) {
+  return strcmp(arg, "--help") == 0 || strcmp(arg, "--version") == 0 || strcmp(arg, "--trace") == 0 ||
+         strcmp(arg, "--trace-ir") == 0 || strcmp(arg, "--time") == 0 || strcmp(arg, "--opt") == 0;
+}
+
+static int is_cli_command(const char *arg) {
+  return strcmp(arg, "run") == 0 || strcmp(arg, "-e") == 0 || strcmp(arg, "repl") == 0 ||
+         strcmp(arg, "check") == 0 || strcmp(arg, "ast") == 0 || strcmp(arg, "ir") == 0 ||
+         strcmp(arg, "emit-c") == 0 || strcmp(arg, "test") == 0;
+}
+
 int main(int argc, char **argv) {
   if (argc < 2) {
     usage();
@@ -130,6 +141,7 @@ int main(int argc, char **argv) {
   int trace_ir = 0;
   int do_time = 0;
   int opt = 0;
+  int cmd_index = -1;
   for (int i = 1; i < argc; i++) {
     if (strcmp(argv[i], "--help") == 0) {
       usage();
@@ -143,10 +155,17 @@ int main(int argc, char **argv) {
     if (strcmp(argv[i], "--trace-ir") == 0) trace_ir = 1;
     if (strcmp(argv[i], "--time") == 0) do_time = 1;
     if (strcmp(argv[i], "--opt") == 0) opt = 1;
+    if (cmd_index == -1 && !is_cli_option(argv[i]) && is_cli_command(argv[i])) {
+      cmd_index = i;
+    }
+  }
+  if (cmd_index == -1) {
+    usage();
+    return 2;
   }
 
-  if (strcmp(argv[1], "emit-c") == 0 && argc >= 3) {
-    return forward_emit_c(argv[2], opt);
+  if (strcmp(argv[cmd_index], "emit-c") == 0 && (cmd_index + 1) < argc) {
+    return forward_emit_c(argv[cmd_index + 1], opt);
   }
 
   PS_Context *ctx = ps_ctx_create();
@@ -160,13 +179,13 @@ int main(int argc, char **argv) {
   int rc = 0;
   int exit_code = 0;
   PS_Value *ret = NULL;
-  if (strcmp(argv[1], "run") == 0 && argc >= 3) {
+  if (strcmp(argv[cmd_index], "run") == 0 && (cmd_index + 1) < argc) {
     PS_Value *args_list = build_args_list(ctx, argc, argv, 0);
-    rc = run_file(ctx, argv[2], args_list, &ret);
+    rc = run_file(ctx, argv[cmd_index + 1], args_list, &ret);
     if (args_list) ps_value_release(args_list);
-  } else if (strcmp(argv[1], "-e") == 0 && argc >= 3) {
+  } else if (strcmp(argv[cmd_index], "-e") == 0 && (cmd_index + 1) < argc) {
     char path[256];
-    if (!write_temp_source(argv[2], path, sizeof(path))) {
+    if (!write_temp_source(argv[cmd_index + 1], path, sizeof(path))) {
       fprintf(stderr, "ps: failed to write temp source\n");
       rc = 2;
     } else {
@@ -174,7 +193,7 @@ int main(int argc, char **argv) {
       rc = run_file(ctx, path, args_list, &ret);
       if (args_list) ps_value_release(args_list);
     }
-  } else if (strcmp(argv[1], "repl") == 0) {
+  } else if (strcmp(argv[cmd_index], "repl") == 0) {
     char line[1024];
     while (1) {
       fprintf(stdout, "ps> ");
@@ -196,31 +215,34 @@ int main(int argc, char **argv) {
       }
     }
     rc = 0;
-  } else if (strcmp(argv[1], "check") == 0 && argc >= 3) {
+  } else if (strcmp(argv[cmd_index], "check") == 0 && (cmd_index + 1) < argc) {
     PsDiag d;
-    int r = ps_check_file_static(argv[2], &d);
+    int r = ps_check_file_static(argv[cmd_index + 1], &d);
     if (r != 0) {
-      fprintf(stderr, "%s:%d:%d %s %s: %s\n", d.file ? d.file : argv[2], d.line, d.col, d.code ? d.code : "E0001",
+      fprintf(stderr, "%s:%d:%d %s %s: %s\n", d.file ? d.file : argv[cmd_index + 1], d.line, d.col,
+              d.code ? d.code : "E0001",
               d.category ? d.category : "FRONTEND_ERROR", d.message);
       rc = (r == 2) ? 1 : 2;
     }
-  } else if (strcmp(argv[1], "ast") == 0 && argc >= 3) {
+  } else if (strcmp(argv[cmd_index], "ast") == 0 && (cmd_index + 1) < argc) {
     PsDiag d;
-    int r = ps_parse_file_ast(argv[2], &d, stdout);
+    int r = ps_parse_file_ast(argv[cmd_index + 1], &d, stdout);
     if (r != 0) {
-      fprintf(stderr, "%s:%d:%d %s %s: %s\n", d.file ? d.file : argv[2], d.line, d.col, d.code ? d.code : "E0001",
+      fprintf(stderr, "%s:%d:%d %s %s: %s\n", d.file ? d.file : argv[cmd_index + 1], d.line, d.col,
+              d.code ? d.code : "E0001",
               d.category ? d.category : "FRONTEND_ERROR", d.message);
       rc = (r == 2) ? 1 : 2;
     }
-  } else if (strcmp(argv[1], "ir") == 0 && argc >= 3) {
+  } else if (strcmp(argv[cmd_index], "ir") == 0 && (cmd_index + 1) < argc) {
     PsDiag d;
-    int r = ps_emit_ir_json(argv[2], &d, stdout);
+    int r = ps_emit_ir_json(argv[cmd_index + 1], &d, stdout);
     if (r != 0) {
-      fprintf(stderr, "%s:%d:%d %s %s: %s\n", d.file ? d.file : argv[2], d.line, d.col, d.code ? d.code : "E0001",
+      fprintf(stderr, "%s:%d:%d %s %s: %s\n", d.file ? d.file : argv[cmd_index + 1], d.line, d.col,
+              d.code ? d.code : "E0001",
               d.category ? d.category : "FRONTEND_ERROR", d.message);
       rc = (r == 2) ? 1 : 2;
     }
-  } else if (strcmp(argv[1], "test") == 0) {
+  } else if (strcmp(argv[cmd_index], "test") == 0) {
     rc = system("CONFORMANCE_CHECK_CMD=\"./c/ps check\" CONFORMANCE_RUN_CMD=\"./c/ps run\" tests/run_conformance.sh");
     if (rc != 0) rc = 2;
   } else {
