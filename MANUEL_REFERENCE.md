@@ -882,23 +882,48 @@ Pas de closures/fonctions anonymes comme valeurs de premier ordre. Les appels so
 
 ## 10. Prototypes et objets
 
-ProtoScript V2 n'est pas un langage class-based. Il n'y a pas de classes, d'instances de classes, ni de mécanisme de construction dynamique.
+ProtoScript V2 adopte un **modèle orienté objet prototype-based**, et rejette explicitement le modèle *class-based*.
 
-Le modèle orienté objet retenu est prototype-based :
+Il n’existe dans ProtoScript V2 :
 
-- un objet est créé par clonage d'un prototype explicite
-- la structure est figée à la compilation
-- la résolution des champs et méthodes est statique
+- ni classes,
 
-Ce choix rend le modèle objet à la fois simple à comprendre, pratique, efficace et fiable à compiler : pas de magie d’héritage dynamique, mais des structures explicites et prédictibles.
+- ni instances de classes,
 
-Conceptuellement, un prototype est un gabarit concret, pas une classe abstraite.
-On parle donc de **délégation statique** plutôt que d'héritage dynamique.
+- ni hiérarchie d’héritage dynamique,
+
+- ni mécanisme de construction implicite.
+
+Le choix fondamental est celui du **prototype concret**.
+
+Un prototype n’est pas une abstraction ni un type théorique :  
+c’est un **objet gabarit explicite**, entièrement défini à la compilation, servant de base à la création d’objets par clonage.
+
+---
+
+### Principes fondamentaux
+
+Le modèle objet de ProtoScript V2 repose sur les principes suivants :
+
+- un objet est créé par **clonage d’un prototype explicite**
+
+- la structure d’un prototype (champs, méthodes, relations) est **figée à la compilation**
+
+- la résolution des champs et des méthodes est **statique**
+
+- les relations entre prototypes sont **déclaratives et non dynamiques**
+
+Ce modèle élimine toute forme de magie d’héritage ou de résolution tardive.  
+Il privilégie des structures **lisibles, prédictibles et compilables efficacement**.
+
+Conceptuellement, ProtoScript V2 met en œuvre une **délégation statique**, et non un héritage dynamique.
+
+---
 
 ### 10.1 Modèle prototype-based
 
-Pas de classes.
-Les objets sont créés par clonage de prototypes.
+Il n’existe pas de classes dans ProtoScript V2.  
+Les objets sont créés exclusivement par clonage de prototypes.
 
 Exemple :
 
@@ -915,7 +940,22 @@ function main() : void {
 }
 ```
 
-### 10.2 Déclaration, champs, méthodes, self
+Le prototype `Point` définit :
+
+- un layout mémoire,
+
+- un ensemble de champs,
+
+- un ensemble de méthodes.
+
+Le clonage produit une instance conforme à cette définition, sans mécanisme implicite supplémentaire.
+
+---
+
+### 10.2 Déclaration, champs, méthodes et `self`
+
+Un prototype peut définir des champs et des méthodes.  
+À l’intérieur d’une méthode, le mot-clé `self` désigne l’objet courant.
 
 ```c
 prototype Point {
@@ -929,7 +969,14 @@ prototype Point {
 }
 ```
 
-### 10.3 Substitution parent / enfant
+`self` est **lexicalement et statiquement résolu**.  
+Il n’existe aucune ambiguïté liée à un contexte d’appel dynamique.
+
+---
+
+### 10.3 Relation parent / enfant (substitution statique)
+
+Un prototype peut être défini comme une **extension statique** d’un autre prototype :
 
 ```c
 prototype ColoredPoint : Point {
@@ -937,17 +984,31 @@ prototype ColoredPoint : Point {
 }
 ```
 
-Un `ColoredPoint` peut être utilisé là où `Point` est attendu, selon les règles statiques.
+Un `ColoredPoint` peut être utilisé là où un `Point` est attendu, **selon les règles de substitution statiques** définies par le langage.
 
-### 10.4 Override
+Cette relation :
 
-L'override conserve une signature compatible selon la spécification.
+- n’implique aucune chaîne dynamique de prototypes,
 
-En pratique :
+- ne repose sur aucun mécanisme de lookup tardif,
 
-- le nom et la liste des paramètres doivent être identiques
+- garantit la compatibilité structurelle à la compilation.
+
+---
+
+### 10.4 Override de méthodes
+
+Une méthode peut être redéfinie dans un prototype enfant **à condition de conserver une signature strictement compatible**.
+
+Règles normatives d’override :
+
+- le nom doit être identique
+
+- la liste des paramètres doit être identique
+
 - le type de retour doit être identique
-- il n'y a pas de surcharge par nombre ou type de paramètres
+
+- aucune surcharge par nombre ou type de paramètres n’est autorisée
 
 Exemple valide :
 
@@ -961,7 +1022,6 @@ prototype Point {
 
 prototype ColoredPoint : Point {
     function move(int dx, int dy) : void {
-        // spécialisation avec même signature
         self.x = self.x + dx;
         self.y = self.y + dy;
     }
@@ -972,32 +1032,106 @@ Contre-exemples :
 
 ```c
 prototype Bad1 : Point {
-    // invalide : signature différente (paramètres)
     function move(int dx) : void { }
 }
 
 prototype Bad2 : Point {
-    // invalide : type de retour différent
     function move(int dx, int dy) : int { return 0; }
 }
 ```
 
-Note :
+Les champs ne peuvent pas être redéfinis avec un type différent.  
+Il n’existe aucun mécanisme de surcharge structurelle implicite.
 
-Les propriétés (champs) ne se "surchargent" pas et ne peuvent pas être redéfinies avec un autre type.
-Il n'existe pas de mécanisme `super` implicite dans ProtoScript V2.
-Un appel explicite au parent n'est pas normativement défini à ce stade.
-En revanche, une méthode héritée non redéfinie reste disponible : un enfant peut appeler `self.jump()` si `jump()` est défini dans un parent.
+---
 
-### 10.5 Ce qui n'existe pas
+### 10.5 Absence de `super` et appels hérités
 
-- Pas de classes, interfaces, traits.
-- Pas de cast dynamique.
-- Pas de RTTI utilisateur.
+ProtoScript V2 ne définit **aucun mécanisme `super` implicite**.
 
-### 10.6 Pourquoi ?
+Une méthode héritée mais non redéfinie reste disponible dans le prototype enfant.  
+Un appel comme `self.jump()` est valide si `jump()` est défini dans un prototype parent.
 
-Le modèle prototype-based de ProtoScript V2 conserve un layout stable et une résolution statique des accès.
+L’absence de `super` :
+
+- élimine les dépendances implicites à l’implémentation parente
+
+- renforce l’indépendance des prototypes enfants
+
+- garantit une résolution simple et prédictible
+
+---
+
+### 10.6 Ce qui n’existe pas volontairement
+
+ProtoScript V2 exclut explicitement :
+
+- les classes
+
+- les interfaces
+
+- les traits ou mixins
+
+- les casts dynamiques
+
+- la RTTI utilisateur
+
+- la modification dynamique des prototypes
+
+Ces exclusions sont **des choix de conception**, et non des limitations accidentelles.
+
+---
+
+### 10.7 Prototypes et compilation
+
+Le modèle prototype-based de ProtoScript V2 est conçu pour être **pleinement compilable**.
+
+Il permet :
+
+- un layout mémoire déterministe
+
+- une résolution des champs et méthodes à la compilation
+
+- l’absence de tables virtuelles dynamiques
+
+- une génération directe de structures C stables
+
+Chaque prototype correspond à une structure concrète connue à la compilation.  
+La délégation est **résolue statiquement**, sans coût d’indirection dynamique.
+
+---
+
+## Note de positionnement : Self et JavaScript
+
+Le modèle de ProtoScript V2 s’inscrit dans la lignée conceptuelle du langage **Self: The Power of Simplicity**  (Ungar & Smith, 1987), qui a posé les bases du prototype-based programming :
+
+- objets sans classes
+
+- clonage explicite
+
+- délégation comme mécanisme fondamental
+
+Cependant, ProtoScript V2 s’en distingue par un choix assumé :
+
+> **la délégation est statique et non dynamique**.
+
+Contrairement à JavaScript (cf. **ECMAScript Language Specification**), ProtoScript V2 :
+
+- ne permet pas la mutation des chaînes de prototypes,
+
+- ne mélange pas prototypes et classes syntaxiques,
+
+- n’introduit aucune ambiguïté liée à `this`.
+
+Les confusions historiques mises en lumière par  
+**JavaScript: The Good Parts**  
+sont volontairement évitées.
+
+ProtoScript V2 adopte ainsi un modèle que l’on peut qualifier de :
+
+> **prototype-based statique à layout figé**
+
+Ce positionnement vise la clarté conceptuelle, la sûreté sémantique et l’efficacité de compilation.
 
 ---
 
