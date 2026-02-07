@@ -1105,7 +1105,7 @@ La délégation est **résolue statiquement**, sans coût d’indirection dynami
 
 ---
 
-## Note de positionnement : Self et JavaScript
+### 10.8 Note de positionnement : Self et JavaScript
 
 Le modèle de ProtoScript V2 s’inscrit dans la lignée conceptuelle du langage [**Self: The Power of Simplicity**](https://bibliography.selflanguage.org/_static/self-power.pdf)  (Ungar & Smith, 1987), qui a posé les bases du prototype-based programming :
 
@@ -1135,7 +1135,7 @@ ProtoScript V2 adopte ainsi un modèle que l’on peut qualifier de :
 
 Ce positionnement vise la clarté conceptuelle, la sûreté sémantique et l’efficacité de compilation.
 
-### 10.8 Filiation conceptuelle : Self → Io → ProtoScript V2
+### 10.9 Filiation conceptuelle : Self → Io → ProtoScript V2
 
 Le langage Self (Ungar & Smith, 1987) a introduit le modèle prototype-based en supprimant toute notion de classe au profit d’objets clonés et de délégation.
 Cette approche a démontré qu’un modèle orienté objet pouvait être à la fois plus simple et plus expressif qu’un système class-based traditionnel.
@@ -1148,7 +1148,7 @@ La résolution des champs et méthodes est strictement statique.
 Aucune mutation dynamique des prototypes n’est autorisée.
 Ce positionnement vise la clarté sémantique, la sûreté et l’efficacité de compilation.
 
-### 10.9 Comparaison des modèles prototype-based
+### 10.10 Comparaison des modèles prototype-based
 
 *(Self / Io / JavaScript / ProtoScript V2)*
 
