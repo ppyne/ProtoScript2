@@ -462,11 +462,13 @@ Interdire l'affectation en expression supprime une source classique d'effets de 
 Notes :
 
 - opérateurs arithmétiques valides sur `int`, `float`, `byte` (pas sur `string`).
-- division par zéro → **exception runtime**.
-- overflow sur `int`/`byte` → **exception runtime**.
+- division par zéro → **exception runtime** (`R1004` / `RUNTIME_DIVIDE_BY_ZERO`).
+- overflow sur `int`/`byte` → **exception runtime** (`R1001` / `RUNTIME_INT_OVERFLOW`).
+- pas de promotion implicite : `int + float` est **interdit** → erreur statique `E3001` (`TYPE_MISMATCH_ASSIGNMENT`).
+  Pour mélanger les types, il faut convertir explicitement l’un des deux (ex. `x.toFloat()`).
 - `a / b` sur `int` est une division entière ; sur `float`, division flottante.
 - `a % b` est défini pour `int`/`byte` uniquement.
-- `-x` est un opérateur unaire ; `-INT_MIN` provoque un overflow runtime.
+- `-x` est un opérateur unaire ; `-INT_MIN` déclenche une **exception runtime** (`R1001` / `RUNTIME_INT_OVERFLOW`).
 
 #### 7.1.2 Opérateurs de comparaison
 
@@ -478,6 +480,12 @@ Notes :
 | `a > b` | Plus grand que | `true` si `a` est strictement plus grand que `b`. |
 | `a <= b` | Inférieur ou égal | `true` si `a` est plus petit ou égal à `b`. |
 | `a >= b` | Supérieur ou égal | `true` si `a` est plus grand ou égal à `b`. |
+
+Notes :
+
+- comparaisons autorisées uniquement entre types identiques.
+- pour `string` : `==` / `!=` comparent le contenu exact ; `<` / `<=` / `>` / `>=` comparent lexicographiquement la séquence UTF‑8 (pas de locale, pas de normalisation).
+- pour les types structurés (objets/prototypes, `list`, `map`, `slice`, `view`), la comparaison porte sur l’identité de valeur (pas de deep compare implicite).
 
 #### 7.1.3 Opérateurs logiques
 

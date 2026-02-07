@@ -1723,7 +1723,8 @@ Résultat : `bool`
 Règles :
 
 - comparaisons autorisées uniquement entre types identiques
-- pour les types structurés, la comparaison porte sur l’identité de valeur (pas de deep compare implicite)
+- pour `string`, `==`/`!=` comparent le contenu exact ; `<`/`<=`/`>`/`>=` comparent lexicographiquement la séquence UTF‑8 (pas de locale, pas de normalisation)
+- pour les types structurés (objets/prototypes, `list`, `map`, `slice`, `view`), la comparaison porte sur l’identité de valeur (pas de deep compare implicite)
 
 ---
 
