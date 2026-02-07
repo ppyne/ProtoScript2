@@ -1043,6 +1043,10 @@ prototype Bad2 : Point {
 Les champs ne peuvent pas être redéfinis avec un type différent.  
 Il n’existe aucun mécanisme de surcharge structurelle implicite.
 
+Erreurs attendues :
+
+- `E3001` (`TYPE_MISMATCH_ASSIGNMENT`) pour une signature de méthode incompatible ou un champ redéfini avec un type différent.
+
 ---
 
 ### 10.5 Absence de `super` et appels hérités
@@ -1103,7 +1107,7 @@ La délégation est **résolue statiquement**, sans coût d’indirection dynami
 
 ## Note de positionnement : Self et JavaScript
 
-Le modèle de ProtoScript V2 s’inscrit dans la lignée conceptuelle du langage **Self: The Power of Simplicity**  (Ungar & Smith, 1987), qui a posé les bases du prototype-based programming :
+Le modèle de ProtoScript V2 s’inscrit dans la lignée conceptuelle du langage [**Self: The Power of Simplicity**](https://bibliography.selflanguage.org/_static/self-power.pdf)  (Ungar & Smith, 1987), qui a posé les bases du prototype-based programming :
 
 - objets sans classes
 
@@ -1115,7 +1119,7 @@ Cependant, ProtoScript V2 s’en distingue par un choix assumé :
 
 > **la délégation est statique et non dynamique**.
 
-Contrairement à JavaScript (cf. **ECMAScript Language Specification**), ProtoScript V2 :
+Contrairement à JavaScript (cf. [**ECMAScript Language Specification**](https://tc39.es/ecma262/)), ProtoScript V2 :
 
 - ne permet pas la mutation des chaînes de prototypes,
 
@@ -1123,9 +1127,7 @@ Contrairement à JavaScript (cf. **ECMAScript Language Specification**), ProtoSc
 
 - n’introduit aucune ambiguïté liée à `this`.
 
-Les confusions historiques mises en lumière par  
-**JavaScript: The Good Parts**  
-sont volontairement évitées.
+Les confusions historiques mises en lumière par [**JavaScript: The Good Parts**](https://openlibrary.org/works/OL9486352W/JavaScript?edition=key:/books/OL23093977M) (Crockford, 2008) sont volontairement évitées.
 
 ProtoScript V2 adopte ainsi un modèle que l’on peut qualifier de :
 
