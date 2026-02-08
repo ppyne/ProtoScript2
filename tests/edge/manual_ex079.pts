@@ -1,0 +1,8 @@
+import Io;
+
+function main() : void {
+    TextFile f = Io.openText("out.txt", "w");
+    f.write("hello");
+    f.close();
+    Io.printLine("done");
+}

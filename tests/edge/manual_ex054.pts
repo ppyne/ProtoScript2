@@ -1,0 +1,11 @@
+
+prototype Point {
+    int x;
+    int y;
+}
+
+function main() : void {
+    Point p = Point.clone();
+    p.x = 1;
+    p.y = 2;
+}

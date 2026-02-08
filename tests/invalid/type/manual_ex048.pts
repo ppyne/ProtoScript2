@@ -1,0 +1,13 @@
+import Io;
+
+function main() : void {
+    switch (x) {
+    case 1:
+    case 2:
+        Io.printLine("one and two"); // invalide : fallthrough implicite
+        break;
+    default:
+        Io.printLine("other");
+        break;
+    }
+}

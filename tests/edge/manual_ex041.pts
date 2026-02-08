@@ -1,0 +1,8 @@
+import Io;
+
+function main() : void {
+    map<string, int> m = {"a": 1, "b": 2};
+    for (int v of m) {
+        Io.printLine(v.toString());
+    }
+}

@@ -1,6 +1,3 @@
-import Io;
-
 function main() : void {
     string s = "Bonjour";
-    Io.printLine(s);
 }

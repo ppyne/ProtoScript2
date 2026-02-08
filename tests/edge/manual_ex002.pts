@@ -1,0 +1,13 @@
+import Io;
+
+
+import Io;
+
+function main() : void {
+    int x = 1;
+    {
+        int y = 2;
+        Io.printLine(y.toString());
+    }
+    Io.printLine(x.toString());
+}

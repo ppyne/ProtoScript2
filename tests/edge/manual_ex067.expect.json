@@ -1,0 +1,7 @@
+{
+  "status": "accept-runtime",
+  "expected_stdout": "vue invalid\u00e9e\n",
+  "requires": [
+    "modules"
+  ]
+}

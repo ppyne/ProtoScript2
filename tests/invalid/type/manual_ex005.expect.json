@@ -1,0 +1,11 @@
+{
+  "status": "reject-static",
+  "error_family": "Exxx",
+  "error_code": "E2001",
+  "category": "UNRESOLVED_NAME",
+  "position": {
+    "file": "EX-005.pts",
+    "line": 3,
+    "column": 16
+  }
+}

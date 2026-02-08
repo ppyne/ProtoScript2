@@ -9,6 +9,34 @@ export PS_MODULE_PATH="${PS_MODULE_PATH:-$ROOT_DIR/modules}"
 pass=0
 fail=0
 
+json_status() {
+  local file="$1"
+  if command -v jq >/dev/null 2>&1; then
+    jq -r '.status // ""' "$file"
+  else
+    python3 - "$file" <<'PY'
+import json, sys
+with open(sys.argv[1], "r", encoding="utf-8") as f:
+    data = json.load(f)
+print(data.get("status", ""))
+PY
+  fi
+}
+
+json_stdout() {
+  local file="$1"
+  if command -v jq >/dev/null 2>&1; then
+    jq -r -j '.expected_stdout // ""' "$file"
+  else
+    python3 - "$file" <<'PY'
+import json, sys
+with open(sys.argv[1], "r", encoding="utf-8") as f:
+    data = json.load(f)
+sys.stdout.write(data.get("expected_stdout", "") or "")
+PY
+  fi
+}
+
 expect_exit() {
   local desc="$1"
   local expected="$2"
@@ -150,6 +178,74 @@ expect_exit "trace enabled" 0 "$PS" run "$ROOT_DIR/tests/cli/hello.pts" --trace
 expect_output_contains "trace-ir enabled" "[ir]" "$PS" run "$ROOT_DIR/tests/cli/hello.pts" --trace-ir
 expect_output_contains "time enabled" "time:" "$PS" run "$ROOT_DIR/tests/cli/hello.pts" --time
 expect_output_contains "emit-c outputs C" "int main" "$PS" emit-c "$ROOT_DIR/tests/cli/exit_code.pts"
+
+expect_output_exact() {
+  local desc="$1"
+  local expected_file="$2"
+  shift 2
+  set +e
+  "$@" >/tmp/ps_cli_test.out 2>&1
+  local rc=$?
+  set -e
+  if [[ "$rc" -ne 0 ]]; then
+    echo "FAIL $desc"
+    echo "  expected exit 0, got $rc"
+    echo "  cmd: $*"
+    echo "  output:"
+    sed -n '1,80p' /tmp/ps_cli_test.out
+    fail=$((fail + 1))
+    return
+  fi
+  if cmp -s /tmp/ps_cli_test.out "$expected_file"; then
+    echo "PASS $desc"
+    pass=$((pass + 1))
+  else
+    echo "FAIL $desc"
+    echo "  output differs from expected"
+    echo "  cmd: $*"
+    echo "  expected:"
+    sed -n '1,80p' "$expected_file"
+    echo "  actual:"
+    sed -n '1,80p' /tmp/ps_cli_test.out
+    fail=$((fail + 1))
+  fi
+}
+
+# Manual examples (runtime, exact stdout)
+for exp in "$ROOT_DIR/tests/edge/manual_ex"*.expect.json; do
+  [[ -f "$exp" ]] || continue
+  status="$(json_status "$exp")"
+  if [[ "$status" != "accept-runtime" ]]; then
+    continue
+  fi
+  case_id="$(basename "$exp" .expect.json)"
+  expected_file="/tmp/ps_cli_expected.out"
+  json_stdout "$exp" >"$expected_file"
+  expect_output_exact "run $case_id" "$expected_file" "$PS" run "$ROOT_DIR/tests/edge/$case_id.pts"
+done
+
+# Manual examples (static errors)
+for exp in "$ROOT_DIR/tests/invalid/parse/manual_ex"*.expect.json "$ROOT_DIR/tests/invalid/type/manual_ex"*.expect.json; do
+  [[ -f "$exp" ]] || continue
+  case_id="$(basename "$exp" .expect.json)"
+  suite_dir="$(dirname "$exp")"
+  expect_exit "check $case_id" 2 "$PS" check "$suite_dir/$case_id.pts"
+done
+
+# Manual examples (runtime errors)
+for exp in "$ROOT_DIR/tests/invalid/runtime/manual_ex"*.expect.json; do
+  [[ -f "$exp" ]] || continue
+  case_id="$(basename "$exp" .expect.json)"
+  suite_dir="$(dirname "$exp")"
+  expect_exit "run $case_id runtime" 2 "$PS" run "$suite_dir/$case_id.pts"
+done
+
+# pscc checks for manual examples
+for src in "$ROOT_DIR/tests/edge/manual_ex"*.pts; do
+  [[ -f "$src" ]] || continue
+  case_id="$(basename "$src" .pts)"
+  expect_exit "pscc check $case_id" 0 "$ROOT_DIR/c/pscc" --check "$src"
+done
 
 echo
 echo "Summary: PASS=$pass FAIL=$fail TOTAL=$((pass + fail))"

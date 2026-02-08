@@ -95,6 +95,26 @@ echo
 
 while IFS= read -r case_id; do
   [[ -z "$case_id" ]] && continue
+  if [[ -n "${CROSSCHECK_ONLY:-}" ]]; then
+    case ",$CROSSCHECK_ONLY," in
+      *,"$case_id",*) ;;
+      *) continue ;;
+    esac
+  fi
+  if [[ -n "${CROSSCHECK_START_AFTER:-}" ]]; then
+    if [[ "$case_id" == "$CROSSCHECK_START_AFTER" ]]; then
+      CROSSCHECK_START_AFTER=""
+      continue
+    else
+      continue
+    fi
+  fi
+  if [[ -n "${CROSSCHECK_MAX_CASES:-}" && "${CROSSCHECK_MAX_CASES}" -le 0 ]]; then
+    break
+  fi
+  if [[ "${CROSSCHECK_TRACE:-0}" == "1" ]]; then
+    echo "RUN $case_id"
+  fi
   src="$TESTS_DIR/$case_id.pts"
   expect="$TESTS_DIR/$case_id.expect.json"
   status="$(jq -r '.status // empty' "$expect")"
@@ -144,6 +164,9 @@ while IFS= read -r case_id; do
   fi
 
   rm -f "$node_json" "$c_json" "$node_sig" "$c_sig"
+  if [[ -n "${CROSSCHECK_MAX_CASES:-}" ]]; then
+    CROSSCHECK_MAX_CASES=$((CROSSCHECK_MAX_CASES - 1))
+  fi
 done < <(jq -r '.suites | to_entries[] | .value[]' "$MANIFEST")
 
 echo

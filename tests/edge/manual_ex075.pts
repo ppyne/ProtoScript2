@@ -1,0 +1,4 @@
+function main() : void {
+    string s = "a😀b";
+    string t = s.substring(1, 1); // "😀"
+}

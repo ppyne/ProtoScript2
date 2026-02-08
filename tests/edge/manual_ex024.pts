@@ -1,20 +1,9 @@
 import Io;
 
-function leftFalse() : bool { Io.printLine("L0"); return false; }
-function leftTrue() : bool { Io.printLine("L1"); return true; }
-function rightTrue() : bool { Io.printLine("R"); return true; }
-function rightFalse() : bool { Io.printLine("R0"); return false; }
+
+function left() : bool { Io.printLine("L"); return false; }
+function right() : bool { Io.printLine("R"); return true; }
 
 function main() : void {
-    bool v1 = leftFalse() && rightTrue();
-    bool v2 = leftTrue() && rightTrue();
-    bool v3 = leftTrue() || rightTrue();
-    bool v4 = leftFalse() || rightTrue();
-    bool v5 = leftFalse() || rightFalse();
-
-    Io.printLine(v1.toString());
-    Io.printLine(v2.toString());
-    Io.printLine(v3.toString());
-    Io.printLine(v4.toString());
-    Io.printLine(v5.toString());
+    bool v = left() && right(); // affiche seulement L
 }

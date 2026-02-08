@@ -4,6 +4,9 @@ const fs = require("fs");
 const path = require("path");
 
 let PROTO_MAP = new Map();
+let VARIADIC_PARAM_TYPE = new Map();
+let VARARG_COUNTER = 0;
+let JSON_TMP_COUNTER = 0;
 
 function loadModuleRegistry() {
   const candidates = [
@@ -158,6 +161,13 @@ function inferTempTypes(ir, protoMap) {
               changed = true;
             }
           };
+          const forceSet = (k, v) => {
+            if (!k || !v) return;
+            if (tempTypes.get(k) !== v) {
+              tempTypes.set(k, v);
+              changed = true;
+            }
+          };
           const getType = (k) => tempTypes.get(k) || varTypes.get(k) || null;
           switch (i.op) {
             case "var_decl":
@@ -187,7 +197,22 @@ function inferTempTypes(ir, protoMap) {
                   varTypes.set(i.name, tempTypes.get(i.src));
                 }
               }
-              if (varTypes.has(i.name) && !tempTypes.has(i.src)) set(i.src, varTypes.get(i.name));
+              if (varTypes.has(i.name)) {
+                if (!tempTypes.has(i.src)) {
+                  set(i.src, varTypes.get(i.name));
+                } else if (tempTypes.get(i.src) !== varTypes.get(i.name)) {
+                  const vt = varTypes.get(i.name);
+                  const st = tempTypes.get(i.src);
+                  const vCont = parseContainer(vt);
+                  const sCont = parseContainer(st);
+                  if (
+                    st === "unknown" ||
+                    (vCont && sCont && vCont.kind === sCont.kind)
+                  ) {
+                    forceSet(i.src, vt);
+                  }
+                }
+              }
               break;
             case "unary_op":
             case "postfix_op":
@@ -352,7 +377,20 @@ function inferTempTypes(ir, protoMap) {
             case "make_map":
               if (i.pairs.length > 0) {
                 const first = i.pairs[0];
-                if (getType(first.key) && getType(first.value)) set(i.dst, `map<${getType(first.key)},${getType(first.value)}>`);
+                if (getType(first.key) && getType(first.value)) {
+                  const keyType = getType(first.key);
+                  const valueType = getType(first.value);
+                  let mixed = false;
+                  for (let pi = 1; pi < i.pairs.length; pi += 1) {
+                    const pk = i.pairs[pi];
+                    if (getType(pk.key) !== keyType || getType(pk.value) !== valueType) {
+                      mixed = true;
+                      break;
+                    }
+                  }
+                  if (mixed && keyType === "string") set(i.dst, "map<string,JSONValue>");
+                  else set(i.dst, `map<${keyType},${valueType}>`);
+                }
               }
               break;
             case "index_get":
@@ -1897,7 +1935,7 @@ function emitFunctionPrototypes(ir) {
   return ir.functions.map((fn) => {
     const ret = fn.name === "main" ? "int" : cTypeFromName(fn.returnType.name);
     const params = fn.params.map((p) => `${cTypeFromName(p.type.name)} ${cIdent(p.name)}`).join(", ");
-    return `${ret} ${cIdent(fn.name)}(${params || "void"});`;
+    return `${ret} ${cIdent(cFunctionName(fn))}(${params || "void"});`;
   });
 }
 
@@ -2028,7 +2066,27 @@ function emitInstr(i, fnInf, state) {
       }
       break;
     case "call_static":
-      if (i.callee === "Exception") {
+      if (i.variadic && VARIADIC_PARAM_TYPE.has(i.callee)) {
+        const listType = VARIADIC_PARAM_TYPE.get(i.callee);
+        const cont = parseContainer(listType);
+        const inner = cont?.inner || "int";
+        const listC = cTypeFromName(listType);
+        const innerC = cTypeFromName(inner);
+        const tmp = `__va_${VARARG_COUNTER++}`;
+        out.push(`{ ${listC} ${tmp};`);
+        out.push(`${tmp}.len = ${i.args.length};`);
+        out.push(`${tmp}.cap = ${i.args.length};`);
+        out.push(`${tmp}.version = 0;`);
+        if (i.args.length > 0) {
+          out.push(`${tmp}.ptr = (${innerC}*)malloc(sizeof(*${tmp}.ptr) * ${i.args.length});`);
+          i.args.forEach((a, idx) => out.push(`${tmp}.ptr[${idx}] = ${n(a)};`));
+        } else {
+          out.push(`${tmp}.ptr = NULL;`);
+        }
+        if (t(i.dst) === "void") out.push(`${cIdent(i.callee)}(${tmp});`);
+        else out.push(`${n(i.dst)} = ${cIdent(i.callee)}(${tmp});`);
+        out.push("}");
+      } else if (i.callee === "Exception") {
         if (i.args.length > 2) {
           out.push('ps_panic("R1010", "RUNTIME_TYPE_ERROR", "Exception expects (string message, Exception cause?)");');
         } else if (i.args.length >= 1) {
@@ -2064,7 +2122,17 @@ function emitInstr(i, fnInf, state) {
           out.push(`${n(i.dst)} = ${cIdent(i.callee)}(${i.args.map(n).join(", ")});`);
         }
       } else if (i.callee === "Io.print" || i.callee === "Io.printLine" || i.callee === "Io_print" || i.callee === "Io_printLine") {
-        out.push(`${cIdent(i.callee)}(${i.args.map(n).join(", ")});`);
+        const arg = i.args[0];
+        const at = t(arg);
+        if (at && at !== "string") {
+          if (at === "int") out.push(`${cIdent(i.callee)}(ps_i64_to_string(${n(arg)}));`);
+          else if (at === "float") out.push(`${cIdent(i.callee)}(ps_f64_to_string(${n(arg)}));`);
+          else if (at === "bool") out.push(`${cIdent(i.callee)}(${n(arg)} ? ps_cstr("true") : ps_cstr("false"));`);
+          else if (at === "byte" || at === "glyph") out.push(`${cIdent(i.callee)}(ps_glyph_to_string((uint32_t)${n(arg)}));`);
+          else out.push(`${cIdent(i.callee)}(${i.args.map(n).join(", ")});`);
+        } else {
+          out.push(`${cIdent(i.callee)}(${i.args.map(n).join(", ")});`);
+        }
       } else if (t(i.dst) === "void") {
         out.push(`${cIdent(i.callee)}(${i.args.map(n).join(", ")});`);
       } else {
@@ -2441,7 +2509,50 @@ function emitInstr(i, fnInf, state) {
       {
         const m = parseMapType(t(i.dst));
         if (m) {
-          i.pairs.forEach((p) => out.push(`ps_map_set_${m.base}(&${n(i.dst)}, ${n(p.key)}, ${n(p.value)});`));
+          if (m.valueType === "JSONValue") {
+            i.pairs.forEach((p) => {
+              const vt = t(p.value);
+              if (vt === "JSONValue") {
+                out.push(`ps_map_set_${m.base}(&${n(i.dst)}, ${n(p.key)}, ${n(p.value)});`);
+              } else if (vt === "string") {
+                out.push(`ps_map_set_${m.base}(&${n(i.dst)}, ${n(p.key)}, JSON_string(${n(p.value)}));`);
+              } else if (vt === "bool") {
+                out.push(`ps_map_set_${m.base}(&${n(i.dst)}, ${n(p.key)}, JSON_bool(${n(p.value)}));`);
+              } else if (vt === "int") {
+                out.push(`ps_map_set_${m.base}(&${n(i.dst)}, ${n(p.key)}, JSON_number((double)${n(p.value)}));`);
+              } else if (vt === "float") {
+                out.push(`ps_map_set_${m.base}(&${n(i.dst)}, ${n(p.key)}, JSON_number(${n(p.value)}));`);
+              } else {
+                const vc = parseContainer(vt);
+                if (vc && vc.kind === "list") {
+                  if (vc.inner === "JSONValue") {
+                    out.push(`ps_map_set_${m.base}(&${n(i.dst)}, ${n(p.key)}, JSON_array(${n(p.value)}));`);
+                  } else if (["bool", "int", "float", "string"].includes(vc.inner)) {
+                    const tmp = `__json_list_${JSON_TMP_COUNTER++}`;
+                    const idx = `__json_i_${JSON_TMP_COUNTER++}`;
+                    out.push(`{ ps_list_JSONValue ${tmp};`);
+                    out.push(`${tmp}.len = ${n(p.value)}.len;`);
+                    out.push(`${tmp}.cap = ${n(p.value)}.len;`);
+                    out.push(`${tmp}.ptr = ${n(p.value)}.len > 0 ? (ps_jsonvalue*)malloc(sizeof(*${tmp}.ptr) * ${n(p.value)}.len) : NULL;`);
+                    out.push(`for (size_t ${idx} = 0; ${idx} < ${n(p.value)}.len; ${idx} += 1) {`);
+                    if (vc.inner === "bool") out.push(`  ${tmp}.ptr[${idx}] = JSON_bool(${n(p.value)}.ptr[${idx}]);`);
+                    else if (vc.inner === "int") out.push(`  ${tmp}.ptr[${idx}] = JSON_number((double)${n(p.value)}.ptr[${idx}]);`);
+                    else if (vc.inner === "float") out.push(`  ${tmp}.ptr[${idx}] = JSON_number(${n(p.value)}.ptr[${idx}]);`);
+                    else if (vc.inner === "string") out.push(`  ${tmp}.ptr[${idx}] = JSON_string(${n(p.value)}.ptr[${idx}]);`);
+                    out.push("}");
+                    out.push(`ps_map_set_${m.base}(&${n(i.dst)}, ${n(p.key)}, JSON_array(${tmp}));`);
+                    out.push("}");
+                  } else {
+                    out.push('ps_panic("R1010", "RUNTIME_TYPE_ERROR", "JSON.encode unsupported list type");');
+                  }
+                } else {
+                  out.push('ps_panic("R1010", "RUNTIME_TYPE_ERROR", "JSON.encode unsupported map value");');
+                }
+              }
+            });
+          } else {
+            i.pairs.forEach((p) => out.push(`ps_map_set_${m.base}(&${n(i.dst)}, ${n(p.key)}, ${n(p.value)});`));
+          }
         }
       }
       break;
@@ -2521,7 +2632,8 @@ function emitInstr(i, fnInf, state) {
         }
       }
       out.push(`${n(i.dst)}.i = 0;`);
-      out.push(`${n(i.dst)}.n = ${n(i.source)}.len;`);
+      if (t(i.source) === "string") out.push(`${n(i.dst)}.n = ps_utf8_glyph_len(${n(i.source)});`);
+      else out.push(`${n(i.dst)}.n = ${n(i.source)}.len;`);
       break;
     case "branch_iter_has_next":
       out.push(`if (${n(i.iter)}.i < ${n(i.iter)}.n) goto ${i.then}; else goto ${i.else};`);
@@ -2536,7 +2648,7 @@ function emitInstr(i, fnInf, state) {
           out.push(`ps_check_view_valid(${n(i.source)}.version_ptr, ${n(i.source)}.version);`);
           out.push(`${n(i.dst)} = ps_view_glyph_get(${n(i.source)}, ${n(i.iter)}.i);`);
         }
-        else if (srcType === "string") out.push(`${n(i.dst)} = (uint8_t)${n(i.source)}.ptr[${n(i.iter)}.i];`);
+        else if (srcType === "string") out.push(`${n(i.dst)} = ps_string_index_glyph(${n(i.source)}, (int64_t)${n(i.iter)}.i);`);
         else {
           const srcCont = parseContainer(srcType);
           if (srcCont && (srcCont.kind === "view" || srcCont.kind === "slice")) {
@@ -2570,7 +2682,7 @@ function emitFunctionBody(fn, fnInf) {
   const out = [];
   const ret = fn.name === "main" ? "int" : cTypeFromName(fn.returnType.name);
   const params = fn.params.map((p) => `${cTypeFromName(p.type.name)} ${cIdent(p.name)}`).join(", ");
-  out.push(`${ret} ${cIdent(fn.name)}(${params || "void"}) {`);
+  out.push(`${ret} ${cIdent(cFunctionName(fn))}(${params || "void"}) {`);
 
   const varDecls = Array.from(fnInf.varTypes.entries()).sort((a, b) => a[0].localeCompare(b[0]));
   for (const [name, typeName] of varDecls) {
@@ -2592,7 +2704,10 @@ function emitFunctionBody(fn, fnInf) {
   for (const b of blocks) {
     const idx = b.instrs.findIndex((i) => ["jump", "branch_if", "return", "rethrow"].includes(i.op));
     if (idx >= 0 && idx < b.instrs.length - 1) {
-      postJumpInstrs.push(...b.instrs.slice(idx + 1));
+      const trailing = b.instrs
+        .slice(idx + 1)
+        .filter((i) => !["jump", "branch_if", "return", "rethrow", "break", "continue", "nop"].includes(i.op));
+      postJumpInstrs.push(...trailing);
       b.instrs = b.instrs.slice(0, idx + 1);
     }
   }
@@ -2622,10 +2737,18 @@ function emitFunctionBody(fn, fnInf) {
 }
 
 function generateC(ir) {
-  const protoMap = buildProtoMap(ir);
-  const inferred = inferTempTypes(ir, protoMap);
-  const typeNames = collectTypeNames(ir, inferred);
+  const functions = dedupeFunctions(ir.functions || []);
+  const irLocal = { ...ir, functions };
+  const protoMap = buildProtoMap(irLocal);
+  const inferred = inferTempTypes(irLocal, protoMap);
+  const typeNames = collectTypeNames(irLocal, inferred);
   PROTO_MAP = protoMap;
+  VARIADIC_PARAM_TYPE = new Map();
+  for (const fn of functions) {
+    if (!fn || !Array.isArray(fn.params)) continue;
+    const variadic = fn.params.find((p) => p.variadic);
+    if (variadic) VARIADIC_PARAM_TYPE.set(fn.name, variadic.type.name);
+  }
   const out = [];
   out.push("/* ProtoScript V2 reference C backend (non-optimized) */");
   out.push("/* This C is intended as a semantic oracle. */");
@@ -2646,13 +2769,46 @@ function generateC(ir) {
   out.push("");
   out.push(...emitContainerHelpers(typeNames));
   out.push("");
-  out.push(...emitFunctionPrototypes(ir));
+  out.push(...emitFunctionPrototypes(irLocal));
   out.push("");
-  for (const fn of ir.functions) {
+  for (const fn of functions) {
     out.push(...emitFunctionBody(fn, inferred.get(fn.name)));
     out.push("");
   }
+  const mainFn = functions.find((fn) => fn.name === "main");
+  if (mainFn && mainFn.params && mainFn.params.length > 0) {
+    const argsType = mainFn.params[0].type?.name || "list<string>";
+    const argsC = cTypeFromName(argsType);
+    out.push("int main(void) {");
+    out.push(`  ${argsC} args;`);
+    out.push("  args.ptr = NULL;");
+    out.push("  args.len = 0;");
+    out.push("  args.cap = 0;");
+    out.push("  args.version = 0;");
+    if (mainFn.returnType.name === "void") {
+      out.push(`  ${cIdent(cFunctionName(mainFn))}(args);`);
+      out.push("  return 0;");
+    } else {
+      out.push(`  return ${cIdent(cFunctionName(mainFn))}(args);`);
+    }
+    out.push("}");
+    out.push("");
+  }
   return `${out.join("\n")}\n`;
+}
+
+function cFunctionName(fn) {
+  if (fn.name === "main" && fn.params && fn.params.length > 0) return "ps_main";
+  return fn.name;
+}
+
+function dedupeFunctions(functions) {
+  const map = new Map();
+  for (const fn of functions) {
+    if (!fn || typeof fn.name !== "string") continue;
+    map.set(fn.name, fn);
+  }
+  return Array.from(map.values());
 }
 
 function cIdent(name) {

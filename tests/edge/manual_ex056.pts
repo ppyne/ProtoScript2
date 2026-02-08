@@ -1,0 +1,8 @@
+prototype Point { }
+
+prototype ColoredPoint : Point {
+    int color;
+}
+
+function main() : void {
+}

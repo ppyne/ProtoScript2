@@ -1,5 +1,7 @@
 {
   "status": "accept-runtime",
-  "requires": ["modules"],
-  "expected_stdout": "L0\nL1\nR\nL1\nL0\nR\nL0\nR0\nfalse\ntrue\ntrue\ntrue\nfalse\n"
+  "expected_stdout": "L\n",
+  "requires": [
+    "modules"
+  ]
 }

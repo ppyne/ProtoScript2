@@ -1,0 +1,8 @@
+
+function main() : void {
+    list<int> s = [1,2,3];
+    view<int> v = s.view(0, 2);
+    // autorisé
+    s[0] = 99;
+
+}

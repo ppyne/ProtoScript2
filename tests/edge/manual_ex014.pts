@@ -1,28 +1,10 @@
-import Io;
-
 function main() : void {
-    string q = "\"";
-    string b = "\\";
-    string n = "\n";
-    string t = "\t";
-    string r = "\r";
-    string bs = "\b";
-    string ff = "\f";
-    string u = "\u263A";
-
-    Io.printLine(q);
-    Io.printLine(b);
-    Io.printLine(n);
-    Io.printLine(t);
-    Io.printLine(r);
-    Io.printLine(bs);
-    Io.printLine(ff);
-    Io.printLine(u);
-
-    Io.printLine(n.length().toString());
-    Io.printLine(t.length().toString());
-    Io.printLine(r.length().toString());
-    Io.printLine(bs.length().toString());
-    Io.printLine(ff.length().toString());
-    Io.printLine(u.length().toString());
+    string q = "\"";     // guillemet
+    string b = "\\";     // antislash
+    string n = "\n";     // LF
+    string t = "\t";     // TAB
+    string r = "\r";     // CR
+    string bs = "\b";    // BS
+    string ff = "\f";    // FF
+    string u = "\u263A"; // Unicode (☺)
 }

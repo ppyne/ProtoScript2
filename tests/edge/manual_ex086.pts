@@ -1,0 +1,9 @@
+import JSON;
+import JSON.{encode};
+import JSON.{decode};
+
+function main() : void {
+    string s = JSON.encode({"a": 1, "b": [true, false]});
+    JSONValue v = JSON.decode(s);
+    bool ok = JSON.isValid("{\"x\":1}");
+}

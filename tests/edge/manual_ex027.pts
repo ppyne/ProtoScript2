@@ -1,0 +1,7 @@
+function main() : void {
+    int a = 4;
+    int b = 2;
+    int c = a + b;
+    bool k = (a > b) && (b != 0);
+    int s = a << 1;
+}

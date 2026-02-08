@@ -1,0 +1,9 @@
+function main() : void {
+    list<int> xs = [1, 2, 3];
+    view<int> v = xs.view(0, 2); // v -> [1,2]
+
+    xs.push(4); // mutation structurelle : v peut être invalidée
+
+    // l’accès ci‑dessous est invalide si le buffer a bougé
+    // int a = v[0];
+}

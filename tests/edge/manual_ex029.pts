@@ -1,0 +1,8 @@
+function main() : void {
+    string a = "Hello ";
+    string b = "world";
+    string c = a.concat(b);
+
+    // Astuce
+    string d = ["Hello", " ", "world"].concat();
+}

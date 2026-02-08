@@ -1,0 +1,11 @@
+{
+  "status": "reject-static",
+  "error_family": "Exxx",
+  "error_code": "E3006",
+  "category": "MISSING_TYPE_CONTEXT",
+  "position": {
+    "file": "EX-017.pts",
+    "line": 2,
+    "column": 13
+  }
+}

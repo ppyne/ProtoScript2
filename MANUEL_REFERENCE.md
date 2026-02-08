@@ -137,7 +137,7 @@ Contre-exemple :
 
 ```c
 // invalide : `null` n'est pas une valeur du langage
-string s = null; // Erreur : E2001 UNRESOLVED_NAME
+string s = null; // Erreur : E2001 UNRESOLVED_NAME
 ```
 Ref: EX-005
 
@@ -228,7 +228,7 @@ Contre-exemple :
 function main() : void {
     int x;
     Io.printLine(x.toString()); // Erreur : E4001 UNINITIALIZED_READ
-}
+} // Erreur : E4001 UNINITIALIZED_READ
 ```
 Ref: EX-009
 
@@ -315,7 +315,7 @@ Contre-exemple :
 
 ```c
 var x = []; // Erreur : E3006 MISSING_TYPE_CONTEXT
-var m = {}; // Erreur : E3006 MISSING_TYPE_CONTEXT
+var m = {}; // Erreur : E3006 MISSING_TYPE_CONTEXT
 ```
 Ref: EX-017
 
@@ -350,7 +350,7 @@ Ref: EX-019
 Contre-exemple :
 
 ```c
-var x; // Erreur : E1001 PARSE_UNEXPECTED_TOKEN (var sans initialiseur)
+var x; // Erreur : E1001 PARSE_UNEXPECTED_TOKEN
 ```
 Ref: EX-020
 
@@ -389,7 +389,7 @@ Contre-exemple :
 function main() : void {
     int x;
     Io.printLine(x.toString()); // Erreur : E4001 (UNINITIALIZED_READ)
-}
+} // Erreur : E4001 UNINITIALIZED_READ
 ```
 Ref: EX-023
 
@@ -444,7 +444,7 @@ Contre-exemple :
 
 ```c
 // invalide
-// int x = (a = 1);
+// int x = (a = 1); // Erreur : E1001 PARSE_UNEXPECTED_TOKEN
 // a = b = c;
 ```
 Ref: EX-026
@@ -584,7 +584,7 @@ Contre-exemple :
 
 ```c
 // invalide selon la spec
-// string s = "a" + "b";
+// string s = "a" + "b"; // Erreur : E3001 TYPE_MISMATCH_ASSIGNMENT
 ```
 Ref: EX-028
 
@@ -756,7 +756,7 @@ Contre-exemple :
 ```c
 list<int> xs = [1, 2, 3];
 // invalide : `for ... in` ne s'applique pas à `list<T>`
-// for (int v in xs) { ... }
+// for (int v in xs) { ... } // Erreur : E2001 UNRESOLVED_NAME
 
 string s = "abc";
 // invalide : `for ... in` ne s'applique pas à `string`
@@ -829,7 +829,7 @@ case 1:
 default:
     Io.printLine("other");
     break;
-}
+} // Erreur : E2001 UNRESOLVED_NAME
 ```
 Ref: EX-047
 
@@ -844,7 +844,7 @@ case 2:
 default:
     Io.printLine("other");
     break;
-}
+} // Erreur : E2001 UNRESOLVED_NAME
 ```
 Ref: EX-048
 
@@ -875,7 +875,7 @@ Contre-exemple :
 
 ```c
 // invalide : paramètres par défaut non supportés
-// function greet(string name = "world") : void {
+// function greet(string name = "world") : void { // Erreur : E1001 PARSE_UNEXPECTED_TOKEN
 //     Io.printLine(name);
 // }
 ```
@@ -905,7 +905,7 @@ Contre-exemple :
 
 ```c
 // invalide : variadique vide
-// int r = sum();
+// int r = sum(); // Erreur : E1001 PARSE_UNEXPECTED_TOKEN
 ```
 Ref: EX-053
 
@@ -1085,7 +1085,7 @@ prototype Bad1 : Point {
 
 prototype Bad2 : Point {
     function move(int dx, int dy) : int { return 0; }
-}
+} // Erreur : E2001 UNRESOLVED_NAME
 ```
 Ref: EX-058
 
@@ -1246,7 +1246,7 @@ Contre-exemple :
 
 ```c
 list<int> xs = [1];
-// xs[3] = 10; // runtime OOB
+// xs[3] = 10; // runtime OOB // Erreur : R1002 RUNTIME_INDEX_OOB
 ```
 Ref: EX-060
 
@@ -1288,7 +1288,7 @@ Contre-exemple :
 
 ```c
 map<string, int> m = {};
-int x = m["absent"]; // runtime missing key
+int x = m["absent"]; // runtime missing key // Erreur : R1003 RUNTIME_MISSING_KEY
 ```
 Ref: EX-063
 
@@ -1549,9 +1549,9 @@ Ref: EX-076
 Exemples d'usage :
 
 ```c
-float x = Io.readLine().toFloat();
+float x = abs(-9.0);
 float y = racine(x);
-string s = encode(y);
+string s = encode(decode("{\"value\":1}"));
 ```
 Ref: EX-077
 
@@ -1565,7 +1565,7 @@ Contre-exemple :
 
 ```c
 // invalide
-// import std.io.*;
+// import std.io.*; // Erreur : E1001 PARSE_UNEXPECTED_TOKEN
 ```
 Ref: EX-078
 

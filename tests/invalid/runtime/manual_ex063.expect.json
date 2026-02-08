@@ -1,0 +1,11 @@
+{
+  "status": "reject-runtime",
+  "error_family": "Rxxx",
+  "error_code": "R1003",
+  "category": "RUNTIME_MISSING_KEY",
+  "position": {
+    "file": "EX-063.pts",
+    "line": 5,
+    "column": 13
+  }
+}

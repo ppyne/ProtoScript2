@@ -1,0 +1,5 @@
+function main() : void {
+    string s = "a😀b";
+    int n = s.length(); // 3 glyphes
+    glyph g = s[1];     // 😀
+}

@@ -1,5 +1,7 @@
 {
   "status": "accept-runtime",
-  "requires": ["modules"],
-  "expected_stdout": "Hello world\nHello world\nHello world\n"
+  "expected_stdout": "Hello world\nHello world\nHello world\n",
+  "requires": [
+    "modules"
+  ]
 }

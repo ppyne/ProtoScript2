@@ -1,0 +1,7 @@
+function main() : void {
+    bool cond = false;
+
+    while (cond) {
+        // 0;
+    }
+}

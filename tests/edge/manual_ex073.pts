@@ -1,0 +1,9 @@
+function main() : void {
+    string s = "  abc  ";
+    bool a = s.startsWith("  ");
+    bool b = s.endsWith("  ");
+    int p = s.indexOf("bc"); // index en glyphes
+    string t = s.trim();     // retire espaces ASCII en début/fin
+    string u = s.replace("a", "A"); // première occurrence
+    list<string> parts = "a,b,c".split(",");
+}

@@ -1,0 +1,7 @@
+import Io;
+
+
+function main() : void {
+    int x;
+    Io.printLine(x.toString()); // Erreur : E4001 UNINITIALIZED_READ
+}

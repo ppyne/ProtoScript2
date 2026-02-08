@@ -1,0 +1,14 @@
+import Io;
+
+
+function main() : void {
+    BinaryFile f = Io.openBinary("/tmp/ps_manual_in.bin", "w");
+    list<byte> bytes = [1,2,3];
+    f.write(bytes);
+    f.close();
+    BinaryFile g = Io.openBinary("/tmp/ps_manual_in.bin", "r");
+    list<byte> out = g.read(3);
+    g.close();
+    Io.printLine(out.length().toString());
+
+}

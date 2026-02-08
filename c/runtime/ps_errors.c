@@ -66,5 +66,9 @@ const char *ps_runtime_category(PS_ErrorCode code, const char *msg, const char *
     *out_code = "R1007";
     return "RUNTIME_INVALID_UTF8";
   }
+  if (code == PS_ERR_TYPE) {
+    *out_code = "R1010";
+    return "RUNTIME_TYPE_ERROR";
+  }
   return NULL;
 }

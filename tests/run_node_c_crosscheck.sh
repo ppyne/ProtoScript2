@@ -65,6 +65,22 @@ contains_category() {
 
 pass=0
 fail=0
+slowest_case=""
+slowest_sec=0
+slow_cases=()
+
+note_slow() {
+  local case_id="$1"
+  local dur="$2"
+  if [[ "$dur" -gt "$slowest_sec" ]]; then
+    slowest_sec="$dur"
+    slowest_case="$case_id"
+  fi
+  if [[ "$dur" -ge "${CROSSCHECK_SLOW_SEC:-5}" ]]; then
+    slow_cases+=("$case_id:${dur}s")
+    echo "SLOW $case_id ${dur}s"
+  fi
+}
 
 echo "== Node/C Crosscheck (diagnostics + comportement) =="
 echo "Compiler: $COMPILER"
@@ -75,8 +91,29 @@ echo
 
 while IFS= read -r case_id; do
   [[ -z "$case_id" ]] && continue
+  if [[ -n "${CROSSCHECK_ONLY:-}" ]]; then
+    case ",$CROSSCHECK_ONLY," in
+      *,"$case_id",*) ;;
+      *) continue ;;
+    esac
+  fi
+  if [[ -n "${CROSSCHECK_START_AFTER:-}" ]]; then
+    if [[ "$case_id" == "$CROSSCHECK_START_AFTER" ]]; then
+      CROSSCHECK_START_AFTER=""
+      continue
+    else
+      continue
+    fi
+  fi
+  if [[ -n "${CROSSCHECK_MAX_CASES:-}" && "${CROSSCHECK_MAX_CASES}" -le 0 ]]; then
+    break
+  fi
   src="$TESTS_DIR/$case_id.pts"
   expect="$TESTS_DIR/$case_id.expect.json"
+  case_start=$SECONDS
+  if [[ "${CROSSCHECK_TRACE:-0}" == "1" ]]; then
+    echo "RUN $case_id"
+  fi
 
   if [[ ! -f "$src" || ! -f "$expect" ]]; then
     echo "FAIL $case_id"
@@ -142,6 +179,12 @@ while IFS= read -r case_id; do
       ;;
   esac
   set -e
+
+  case_dur=$((SECONDS - case_start))
+  note_slow "$case_id" "$case_dur"
+  if [[ -n "${CROSSCHECK_MAX_CASES:-}" ]]; then
+    CROSSCHECK_MAX_CASES=$((CROSSCHECK_MAX_CASES - 1))
+  fi
 
   ok=true
   reason=""
@@ -216,6 +259,17 @@ while IFS= read -r case_id; do
 done < <(jq -r '.suites | to_entries[] | .value[]' "$MANIFEST")
 
 echo
+if [[ "${#slow_cases[@]}" -gt 0 ]]; then
+  echo "Slow cases (>= ${CROSSCHECK_SLOW_SEC:-5}s):"
+  for item in "${slow_cases[@]}"; do
+    echo "  $item"
+  done
+  echo
+fi
+if [[ -n "$slowest_case" ]]; then
+  echo "Slowest case: $slowest_case (${slowest_sec}s)"
+  echo
+fi
 echo "Summary: PASS=$pass FAIL=$fail TOTAL=$((pass + fail))"
 if [[ "$fail" -ne 0 ]]; then
   exit 1

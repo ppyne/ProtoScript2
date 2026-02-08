@@ -1,0 +1,13 @@
+import Io;
+
+function main() : void {
+    list<int> xs = [1, 2, 3];
+    view<int> v = xs.view(0, 2);
+    xs.push(4); // peut invalider v
+
+    try {
+        int a = v[0]; // accès potentiellement invalide
+    } catch (Exception e) {
+        Io.printLine("vue invalidée");
+    }
+}

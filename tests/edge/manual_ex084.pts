@@ -1,0 +1,8 @@
+import Math;
+
+function main() : void {
+    float a = Math.abs(-3.5);
+    float b = Math.sqrt(9.0);      // 3.0
+    float c = Math.log(Math.E);    // 1.0
+    float d = Math.pow(2.0, 3.0);  // 8.0
+}

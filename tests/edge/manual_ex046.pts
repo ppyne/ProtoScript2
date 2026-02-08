@@ -1,0 +1,14 @@
+import Io;
+
+function main() : void {
+    int x = 1;
+
+    switch (x) {
+    case 1:
+        Io.printLine("one");
+        break;
+    default:
+        Io.printLine("other");
+        break;
+    }
+}

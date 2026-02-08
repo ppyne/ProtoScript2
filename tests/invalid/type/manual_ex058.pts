@@ -1,0 +1,11 @@
+
+prototype Bad1 : Point {
+    function move(int dx) : void { }
+}
+
+prototype Bad2 : Point {
+    function move(int dx, int dy) : int { return 0; }
+}
+
+function main() : void {
+}

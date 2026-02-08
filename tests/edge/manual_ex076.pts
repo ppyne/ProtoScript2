@@ -1,0 +1,10 @@
+import Io;
+import Io as io;
+import Math.{abs, sqrt as racine};
+import JSON.{encode, decode};
+import Math;
+import JSON;
+
+function main() : void {
+
+}

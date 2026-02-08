@@ -1,0 +1,4 @@
+function main() : void {
+    // invalide : `null` n'est pas une valeur du langage
+    string s = null; // Erreur : E2001 UNRESOLVED_NAME
+}

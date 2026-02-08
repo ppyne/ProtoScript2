@@ -1,0 +1,11 @@
+{
+  "status": "reject-runtime",
+  "error_family": "Rxxx",
+  "error_code": "R1002",
+  "category": "RUNTIME_INDEX_OOB",
+  "position": {
+    "file": "EX-060.pts",
+    "line": 4,
+    "column": 5
+  }
+}

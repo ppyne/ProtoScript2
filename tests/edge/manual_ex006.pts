@@ -1,0 +1,29 @@
+import Io;
+
+
+import Io;
+
+prototype NullableString {
+    bool is_null;
+    string value;
+
+    function isNull() : bool {
+        return self.is_null;
+    }
+}
+
+function main() : void {
+    NullableString a = NullableString.clone();
+    a.is_null = true;
+
+    NullableString b = NullableString.clone();
+    b.is_null = false;
+    b.value = "ok";
+
+    if (a.isNull()) {
+        Io.printLine("empty");
+    }
+    if (!b.isNull()) {
+        Io.printLine(b.value);
+    }
+}

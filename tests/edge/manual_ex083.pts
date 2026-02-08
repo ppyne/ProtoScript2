@@ -1,0 +1,7 @@
+import Math;
+
+function main() : void {
+    float a = Math.log(-1.0); // NaN
+    float b = Math.sqrt(-1.0); // NaN
+    float c = Math.exp(1000.0); // +Infinity (overflow)
+}

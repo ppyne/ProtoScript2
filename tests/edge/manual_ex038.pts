@@ -1,0 +1,10 @@
+import Io;
+
+function main() : void {
+    map<string, int> m = {"a": 1, "b": 2};
+    list<string> ks = m.keys();
+    for (int i = 0; i < ks.length(); i++) {
+        int v = m[ks[i]];
+        Io.printLine(v.toString());
+    }
+}

@@ -1,0 +1,3 @@
+function main() : void {
+    var x; // Erreur : E1001 PARSE_UNEXPECTED_TOKEN (var sans initialiseur)
+}

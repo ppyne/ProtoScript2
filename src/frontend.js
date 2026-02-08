@@ -664,6 +664,8 @@ class Parser {
     if (this.at("kw", "var")) return this.parseVarDeclStmt();
     if (this.looksLikeTypedVarDecl()) return this.parseVarDeclStmt();
     if (this.at("kw", "if")) return this.parseIfStmt();
+    if (this.at("kw", "while")) return this.parseWhileStmt();
+    if (this.at("kw", "do")) return this.parseDoWhileStmt();
     if (this.at("kw", "for")) return this.parseForStmt();
     if (this.at("kw", "switch")) return this.parseSwitchStmt();
     if (this.at("kw", "try")) return this.parseTryStmt();
@@ -688,6 +690,26 @@ class Parser {
       else elseBranch = this.parseStmt();
     }
     return { kind: "IfStmt", cond, thenBranch, elseBranch, line: t.line, col: t.col };
+  }
+
+  parseWhileStmt() {
+    const t = this.eat("kw", "while");
+    this.eat("sym", "(");
+    const cond = this.parseExpr();
+    this.eat("sym", ")");
+    const body = this.parseStmt();
+    return { kind: "WhileStmt", cond, body, line: t.line, col: t.col };
+  }
+
+  parseDoWhileStmt() {
+    const t = this.eat("kw", "do");
+    const body = this.parseStmt();
+    this.eat("kw", "while");
+    this.eat("sym", "(");
+    const cond = this.parseExpr();
+    this.eat("sym", ")");
+    this.eat("sym", ";");
+    return { kind: "DoWhileStmt", cond, body, line: t.line, col: t.col };
   }
 
   looksLikeTypedVarDecl() {
@@ -1141,6 +1163,25 @@ function typeToString(t) {
   return "unknown";
 }
 
+function intLiteralToBigInt(expr) {
+  if (!expr || expr.kind !== "Literal" || expr.literalType !== "int") return null;
+  const raw = String(expr.value);
+  if (/^0[xX]/.test(raw)) return BigInt(raw);
+  if (/^0[bB]/.test(raw)) return BigInt(raw);
+  if (/^0[0-7]+$/.test(raw)) return BigInt(`0o${raw.slice(1)}`);
+  return BigInt(raw);
+}
+
+function isByteLiteralExpr(expr) {
+  const v = intLiteralToBigInt(expr);
+  return v !== null && v >= 0n && v <= 255n;
+}
+
+function isByteListLiteral(expr) {
+  if (!expr || expr.kind !== "ListLiteral") return false;
+  return expr.items.every((it) => isByteLiteralExpr(it));
+}
+
 function sameType(a, b) {
   return typeToString(a) === typeToString(b);
 }
@@ -1355,13 +1396,23 @@ class Analyzer {
             stmt.init.kind === "ListLiteral" &&
             stmt.init.items.length === 0 &&
             typeToString(t).startsWith("list<");
+          const allowByteLiteral =
+            t && typeToString(t) === "byte" && stmt.init && isByteLiteralExpr(stmt.init);
+          const allowByteList =
+            t &&
+            typeToString(t) === "list<byte>" &&
+            stmt.init &&
+            stmt.init.kind === "ListLiteral" &&
+            isByteListLiteral(stmt.init);
           if (
             t &&
             initType &&
             !sameType(t, initType) &&
             !this.isSubtype(initType, t) &&
             !emptyMapInit &&
-            !emptyListInit
+            !emptyListInit &&
+            !allowByteLiteral &&
+            !allowByteList
           ) {
             this.addDiag(stmt, "E3001", "TYPE_MISMATCH_ASSIGNMENT", `cannot assign ${typeToString(initType)} to ${typeToString(t)}`);
           }
@@ -1403,7 +1454,9 @@ class Analyzer {
           !sameType(lhsType, rhsType) &&
           !this.isSubtype(rhsType, lhsType) &&
           !emptyMapAssign &&
-          !emptyListAssign
+          !emptyListAssign &&
+          !(typeToString(lhsType) === "byte" && isByteLiteralExpr(stmt.expr)) &&
+          !(typeToString(lhsType) === "list<byte>" && stmt.expr && stmt.expr.kind === "ListLiteral" && isByteListLiteral(stmt.expr))
         ) {
           this.addDiag(stmt, "E3001", "TYPE_MISMATCH_ASSIGNMENT", `cannot assign ${typeToString(rhsType)} to ${typeToString(lhsType)}`);
         }
@@ -1428,6 +1481,22 @@ class Analyzer {
         }
         this.analyzeStmt(stmt.thenBranch, new Scope(scope), fn);
         if (stmt.elseBranch) this.analyzeStmt(stmt.elseBranch, new Scope(scope), fn);
+        break;
+      }
+      case "WhileStmt": {
+        const ct = this.typeOfExpr(stmt.cond, scope);
+        if (ct && typeToString(ct) !== "bool") {
+          this.addDiag(stmt.cond, "E3001", "TYPE_MISMATCH_ASSIGNMENT", "condition must be bool");
+        }
+        this.analyzeStmt(stmt.body, new Scope(scope), fn);
+        break;
+      }
+      case "DoWhileStmt": {
+        const ct = this.typeOfExpr(stmt.cond, scope);
+        if (ct && typeToString(ct) !== "bool") {
+          this.addDiag(stmt.cond, "E3001", "TYPE_MISMATCH_ASSIGNMENT", "condition must be bool");
+        }
+        this.analyzeStmt(stmt.body, new Scope(scope), fn);
         break;
       }
       case "ForStmt":
@@ -1568,6 +1637,15 @@ class Analyzer {
         if (!sameType(lt, rt)) {
           this.addDiag(expr, "E3001", "TYPE_MISMATCH_ASSIGNMENT", `incompatible operands ${typeToString(lt)} and ${typeToString(rt)}`);
           return lt;
+        }
+        if (["&&", "||"].includes(expr.op) && ls !== "bool") {
+          this.addDiag(expr, "E3001", "TYPE_MISMATCH_ASSIGNMENT", "logical operators require bool operands");
+        }
+        if (["+", "-", "*", "/", "%"].includes(expr.op) && !["int", "float", "byte", "glyph"].includes(ls)) {
+          this.addDiag(expr, "E3001", "TYPE_MISMATCH_ASSIGNMENT", "arithmetic operators require numeric operands");
+        }
+        if (["&", "|", "^", "<<", ">>"].includes(expr.op) && !["int", "byte"].includes(ls)) {
+          this.addDiag(expr, "E3001", "TYPE_MISMATCH_ASSIGNMENT", "bitwise operators require int or byte operands");
         }
         if (["==", "!=", "<", "<=", ">", ">=", "&&", "||"].includes(expr.op)) {
           return { kind: "PrimitiveType", name: "bool" };
@@ -1725,8 +1803,17 @@ class Analyzer {
     }
     if (expr.callee.kind === "Identifier") {
       const name = expr.callee.name;
+      if (name === "Exception") {
+        if (expr.args.length === 0 || expr.args.length > 2) {
+          this.addDiag(expr, "E1003", "ARITY_MISMATCH", "arity mismatch for 'Exception'");
+        }
+        return { kind: "NamedType", name: "Exception" };
+      }
       const fn = this.functions.get(name);
-      if (!fn) return null;
+      if (!fn) {
+        this.addDiag(expr.callee, "E2001", "UNRESOLVED_NAME", `unknown function '${name}'`);
+        return null;
+      }
       const variadic = fn.params.find((p) => p.variadic);
       if (!variadic) {
         if (expr.args.length !== fn.params.length) {

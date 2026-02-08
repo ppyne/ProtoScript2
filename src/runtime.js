@@ -150,6 +150,9 @@ class ReturnSignal {
   }
 }
 
+class BreakSignal {}
+class ContinueSignal {}
+
 class Glyph {
   constructor(codepoint) {
     this.value = codepoint >>> 0;
@@ -932,7 +935,13 @@ function runProgram(ast, file, argv) {
       argIndex = 1;
     }
     for (let i = 0; i < fn.params.length; i += 1) {
-      scope.define(fn.params[i].name, args[argIndex + i]);
+      const p = fn.params[i];
+      if (p.variadic) {
+        const rest = args.slice(argIndex + i);
+        scope.define(p.name, makeList(rest));
+        break;
+      }
+      scope.define(p.name, args[argIndex + i]);
     }
     try {
       execBlock(fn.body, scope, functions, moduleEnv, protoEnv, file, callFunction);
@@ -1002,6 +1011,12 @@ function execStmt(stmt, scope, functions, moduleEnv, protoEnv, file, callFunctio
     case "IfStmt":
       execIf(stmt, scope, functions, moduleEnv, protoEnv, file, callFunction);
       return;
+    case "WhileStmt":
+      execWhile(stmt, scope, functions, moduleEnv, protoEnv, file, callFunction);
+      return;
+    case "DoWhileStmt":
+      execDoWhile(stmt, scope, functions, moduleEnv, protoEnv, file, callFunction);
+      return;
     case "ForStmt":
       execFor(stmt, scope, functions, moduleEnv, protoEnv, file, callFunction);
       return;
@@ -1040,8 +1055,9 @@ function execStmt(stmt, scope, functions, moduleEnv, protoEnv, file, callFunctio
       return;
     }
     case "BreakStmt":
+      throw new BreakSignal();
     case "ContinueStmt":
-      return;
+      throw new ContinueSignal();
     default:
       return;
   }
@@ -1059,7 +1075,17 @@ function execFor(stmt, scope, functions, moduleEnv, protoEnv, file, callFunction
         const c = evalExpr(stmt.cond, s, functions, moduleEnv, protoEnv, file, callFunction);
         if (!Boolean(c)) break;
       }
-      execStmt(stmt.body, s, functions, moduleEnv, protoEnv, file, callFunction);
+      try {
+        execStmt(stmt.body, s, functions, moduleEnv, protoEnv, file, callFunction);
+      } catch (e) {
+        if (e instanceof ContinueSignal) {
+          // continue to step
+        } else if (e instanceof BreakSignal) {
+          break;
+        } else {
+          throw e;
+        }
+      }
       if (stmt.step) {
         if (stmt.step.kind === "VarDecl" || stmt.step.kind === "AssignStmt") execStmt(stmt.step, s, functions, moduleEnv, protoEnv, file, callFunction);
         else evalExpr(stmt.step, s, functions, moduleEnv, protoEnv, file, callFunction);
@@ -1093,7 +1119,16 @@ function execFor(stmt, scope, functions, moduleEnv, protoEnv, file, callFunction
   }
   for (const item of items) {
     if (stmt.iterVar) s.define(stmt.iterVar.name, item);
-    execStmt(stmt.body, s, functions, moduleEnv, protoEnv, file, callFunction);
+    try {
+      execStmt(stmt.body, s, functions, moduleEnv, protoEnv, file, callFunction);
+    } catch (e) {
+      if (e instanceof ContinueSignal) {
+        continue;
+      } else if (e instanceof BreakSignal) {
+        break;
+      }
+      throw e;
+    }
   }
 }
 
@@ -1102,12 +1137,54 @@ function execSwitch(stmt, scope, functions, moduleEnv, protoEnv, file, callFunct
   for (const c of stmt.cases) {
     const cv = evalExpr(c.value, scope, functions, moduleEnv, protoEnv, file, callFunction);
     if (eqValue(v, cv)) {
-      for (const st of c.stmts) execStmt(st, scope, functions, moduleEnv, protoEnv, file, callFunction);
+      try {
+        for (const st of c.stmts) execStmt(st, scope, functions, moduleEnv, protoEnv, file, callFunction);
+      } catch (e) {
+        if (e instanceof BreakSignal) return;
+        throw e;
+      }
       return;
     }
   }
   if (stmt.defaultCase) {
-    for (const st of stmt.defaultCase.stmts) execStmt(st, scope, functions, moduleEnv, protoEnv, file, callFunction);
+    try {
+      for (const st of stmt.defaultCase.stmts) execStmt(st, scope, functions, moduleEnv, protoEnv, file, callFunction);
+    } catch (e) {
+      if (e instanceof BreakSignal) return;
+      throw e;
+    }
+  }
+}
+
+function execWhile(stmt, scope, functions, moduleEnv, protoEnv, file, callFunction) {
+  while (true) {
+    const c = evalExpr(stmt.cond, scope, functions, moduleEnv, protoEnv, file, callFunction);
+    if (!Boolean(c)) break;
+    try {
+      execStmt(stmt.body, scope, functions, moduleEnv, protoEnv, file, callFunction);
+    } catch (e) {
+      if (e instanceof ContinueSignal) continue;
+      if (e instanceof BreakSignal) break;
+      throw e;
+    }
+  }
+}
+
+function execDoWhile(stmt, scope, functions, moduleEnv, protoEnv, file, callFunction) {
+  while (true) {
+    try {
+      execStmt(stmt.body, scope, functions, moduleEnv, protoEnv, file, callFunction);
+    } catch (e) {
+      if (e instanceof ContinueSignal) {
+        // continue to condition
+      } else if (e instanceof BreakSignal) {
+        break;
+      } else {
+        throw e;
+      }
+    }
+    const c = evalExpr(stmt.cond, scope, functions, moduleEnv, protoEnv, file, callFunction);
+    if (!Boolean(c)) break;
   }
 }
 
@@ -1139,6 +1216,28 @@ function evalExpr(expr, scope, functions, moduleEnv, protoEnv, file, callFunctio
     case "Identifier":
       return scope.get(expr.name);
     case "UnaryExpr": {
+      if (expr.op === "++" || expr.op === "--") {
+        const ref = lvalueRef(expr.expr, scope, functions, moduleEnv, protoEnv, file, callFunction);
+        if (!ref) {
+          throw new RuntimeError(rdiag(file, expr, "R1010", "RUNTIME_TYPE_ERROR", "invalid increment target"));
+        }
+        const v = ref.get();
+        if (isGlyph(v)) {
+          throw new RuntimeError(rdiag(file, expr, "R1010", "RUNTIME_TYPE_ERROR", "invalid glyph operation"));
+        }
+        let next = v;
+        if (typeof v === "bigint") {
+          const d = expr.op === "++" ? 1n : -1n;
+          next = checkIntRange(file, expr.expr, v + d);
+        } else if (typeof v === "number") {
+          const d = expr.op === "++" ? 1 : -1;
+          next = v + d;
+        } else {
+          throw new RuntimeError(rdiag(file, expr, "R1010", "RUNTIME_TYPE_ERROR", "invalid increment target"));
+        }
+        ref.set(next);
+        return next;
+      }
       const v = evalExpr(expr.expr, scope, functions, moduleEnv, protoEnv, file, callFunction);
       if (isGlyph(v) && (expr.op === "-" || expr.op === "++" || expr.op === "--" || expr.op === "~")) {
         throw new RuntimeError(rdiag(file, expr, "R1010", "RUNTIME_TYPE_ERROR", "invalid glyph operation"));
@@ -1149,10 +1248,6 @@ function evalExpr(expr, scope, functions, moduleEnv, protoEnv, file, callFunctio
       }
       if (expr.op === "!") return !Boolean(v);
       if (expr.op === "~") return ~BigInt(v);
-      if (expr.op === "++" || expr.op === "--") {
-        const d = expr.op === "++" ? 1n : -1n;
-        return checkIntRange(file, expr.expr, BigInt(v) + d);
-      }
       return v;
     }
     case "BinaryExpr": {
@@ -1210,7 +1305,25 @@ function evalExpr(expr, scope, functions, moduleEnv, protoEnv, file, callFunctio
       return { __member__: true, target, name: expr.name, node: expr };
     }
     case "PostfixExpr": {
-      const v = evalExpr(expr.expr, scope, functions, moduleEnv, protoEnv, file, callFunction);
+      const ref = lvalueRef(expr.expr, scope, functions, moduleEnv, protoEnv, file, callFunction);
+      if (!ref) {
+        throw new RuntimeError(rdiag(file, expr, "R1010", "RUNTIME_TYPE_ERROR", "invalid increment target"));
+      }
+      const v = ref.get();
+      if (isGlyph(v)) {
+        throw new RuntimeError(rdiag(file, expr, "R1010", "RUNTIME_TYPE_ERROR", "invalid glyph operation"));
+      }
+      let next = v;
+      if (typeof v === "bigint") {
+        const d = expr.op === "++" ? 1n : -1n;
+        next = checkIntRange(file, expr.expr, v + d);
+      } else if (typeof v === "number") {
+        const d = expr.op === "++" ? 1 : -1;
+        next = v + d;
+      } else {
+        throw new RuntimeError(rdiag(file, expr, "R1010", "RUNTIME_TYPE_ERROR", "invalid increment target"));
+      }
+      ref.set(next);
       return v;
     }
     case "ListLiteral":
@@ -1246,6 +1359,39 @@ function unmapKey(k) {
   if (type === "boolean") return raw === "true";
   if (type === "number") return Number(raw);
   return raw;
+}
+
+function lvalueRef(expr, scope, functions, moduleEnv, protoEnv, file, callFunction) {
+  if (expr.kind === "Identifier") {
+    return {
+      get: () => scope.get(expr.name),
+      set: (v) => scope.set(expr.name, v),
+    };
+  }
+  if (expr.kind === "MemberExpr") {
+    const target = evalExpr(expr.target, scope, functions, moduleEnv, protoEnv, file, callFunction);
+    if (!isObjectInstance(target)) {
+      throw new RuntimeError(rdiag(file, expr, "R1010", "RUNTIME_TYPE_ERROR", "member assignment on non-object"));
+    }
+    if (!(expr.name in target.__fields)) {
+      throw new RuntimeError(rdiag(file, expr, "R1010", "RUNTIME_TYPE_ERROR", "unknown field"));
+    }
+    return {
+      get: () => target.__fields[expr.name],
+      set: (v) => {
+        target.__fields[expr.name] = v;
+      },
+    };
+  }
+  if (expr.kind === "IndexExpr") {
+    const target = evalExpr(expr.target, scope, functions, moduleEnv, protoEnv, file, callFunction);
+    const idx = evalExpr(expr.index, scope, functions, moduleEnv, protoEnv, file, callFunction);
+    return {
+      get: () => indexGet(file, expr.target, expr.index, target, idx),
+      set: (v) => assignIndex(file, expr.target, expr.index, target, idx, v),
+    };
+  }
+  return null;
 }
 
 function evalBinary(file, expr, l, r) {

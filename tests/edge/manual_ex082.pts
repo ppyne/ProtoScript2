@@ -1,0 +1,5 @@
+import Io;
+
+function main() : void {
+    Io.stderr.write("error\n");
+}

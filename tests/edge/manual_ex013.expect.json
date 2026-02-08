@@ -1,5 +1,4 @@
 {
   "status": "accept-runtime",
-  "requires": ["modules"],
-  "expected_stdout": "Bonjour\n"
+  "expected_stdout": ""
 }

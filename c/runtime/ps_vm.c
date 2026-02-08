@@ -245,6 +245,8 @@ typedef struct {
   char *name;
   char **params;
   size_t param_count;
+  int variadic;
+  size_t variadic_index;
   char *ret_type;
   IRBlock *blocks;
   size_t block_count;
@@ -624,6 +626,11 @@ PS_IR_Module *ps_ir_load_json(PS_Context *ctx, const char *json, size_t len) {
         PS_JsonValue *p = params->as.array_v.items[i];
         PS_JsonValue *pn = ps_json_obj_get(p, "name");
         m->fns[fi].params[i] = dup_json_string(pn);
+        PS_JsonValue *pv = ps_json_obj_get(p, "variadic");
+        if (pv && pv->type == PS_JSON_BOOL && pv->as.bool_v) {
+          m->fns[fi].variadic = 1;
+          m->fns[fi].variadic_index = i;
+        }
       }
     }
     PS_JsonValue *ret = ps_json_obj_get(f, "returnType");
@@ -734,18 +741,19 @@ static PS_Value *value_from_literal(PS_Context *ctx, const char *literalType, PS
     }
     return ps_value_retain(ctx->eof_value);
   }
-  if (strcmp(literalType, "file") == 0) {
+  if (strcmp(literalType, "file") == 0 || strcmp(literalType, "TextFile") == 0 || strcmp(literalType, "BinaryFile") == 0) {
     const char *name = raw ? raw : "";
+    const int is_binary = (strcmp(literalType, "BinaryFile") == 0);
     if (strcmp(name, "stdin") == 0) {
-      if (!ctx->stdin_value) ctx->stdin_value = ps_make_file(ctx, stdin, PS_FILE_READ | PS_FILE_STD, "stdin");
+      if (!ctx->stdin_value) ctx->stdin_value = ps_make_file(ctx, stdin, PS_FILE_READ | PS_FILE_STD | (is_binary ? PS_FILE_BINARY : 0), "stdin");
       return ctx->stdin_value ? ps_value_retain(ctx->stdin_value) : NULL;
     }
     if (strcmp(name, "stdout") == 0) {
-      if (!ctx->stdout_value) ctx->stdout_value = ps_make_file(ctx, stdout, PS_FILE_WRITE | PS_FILE_STD, "stdout");
+      if (!ctx->stdout_value) ctx->stdout_value = ps_make_file(ctx, stdout, PS_FILE_WRITE | PS_FILE_STD | (is_binary ? PS_FILE_BINARY : 0), "stdout");
       return ctx->stdout_value ? ps_value_retain(ctx->stdout_value) : NULL;
     }
     if (strcmp(name, "stderr") == 0) {
-      if (!ctx->stderr_value) ctx->stderr_value = ps_make_file(ctx, stderr, PS_FILE_WRITE | PS_FILE_STD, "stderr");
+      if (!ctx->stderr_value) ctx->stderr_value = ps_make_file(ctx, stderr, PS_FILE_WRITE | PS_FILE_STD | (is_binary ? PS_FILE_BINARY : 0), "stderr");
       return ctx->stderr_value ? ps_value_retain(ctx->stderr_value) : NULL;
     }
     ps_throw(ctx, PS_ERR_RANGE, "invalid file constant");
@@ -967,8 +975,22 @@ static int exec_function(PS_Context *ctx, PS_IR_Module *m, IRFunction *f, PS_Val
   size_t try_len = 0;
   size_t try_cap = 0;
   PS_Value *last_exception = NULL;
-  for (size_t i = 0; i < f->param_count && i < argc; i++) {
+  size_t fixed = f->variadic ? f->variadic_index : f->param_count;
+  for (size_t i = 0; i < fixed && i < argc; i++) {
     bindings_set(&vars, f->params[i], args[i]);
+  }
+  if (f->variadic && f->variadic_index < f->param_count) {
+    PS_Value *list = ps_list_new(ctx);
+    if (!list) {
+      bindings_free(&vars);
+      bindings_free(&temps);
+      return 1;
+    }
+    for (size_t i = fixed; i < argc; i++) {
+      ps_list_push_internal(ctx, list, args[i]);
+    }
+    bindings_set(&vars, f->params[f->variadic_index], list);
+    ps_value_release(list);
   }
   size_t block_idx = 0;
   size_t ip = 0;
@@ -1191,17 +1213,51 @@ static int exec_function(PS_Context *ctx, PS_IR_Module *m, IRFunction *f, PS_Val
         PS_Value *l = get_value(&temps, &vars, ins->left);
         PS_Value *r = get_value(&temps, &vars, ins->right);
         if (!l || !r) goto raise;
+        int is_numeric = (l->tag == PS_V_INT || l->tag == PS_V_BYTE || l->tag == PS_V_FLOAT) &&
+                         (r->tag == PS_V_INT || r->tag == PS_V_BYTE || r->tag == PS_V_FLOAT);
+        int is_float = (l->tag == PS_V_FLOAT || r->tag == PS_V_FLOAT);
+        int64_t li = (l->tag == PS_V_BYTE) ? (int64_t)l->as.byte_v : l->as.int_v;
+        int64_t ri = (r->tag == PS_V_BYTE) ? (int64_t)r->as.byte_v : r->as.int_v;
+        double lf = (l->tag == PS_V_FLOAT) ? l->as.float_v : (double)li;
+        double rf = (r->tag == PS_V_FLOAT) ? r->as.float_v : (double)ri;
         PS_Value *res = NULL;
-        if (strcmp(ins->operator, "+") == 0) res = ps_make_int(ctx, l->as.int_v + r->as.int_v);
-        else if (strcmp(ins->operator, "-") == 0) res = ps_make_int(ctx, l->as.int_v - r->as.int_v);
-        else if (strcmp(ins->operator, "*") == 0) res = ps_make_int(ctx, l->as.int_v * r->as.int_v);
-        else if (strcmp(ins->operator, "/") == 0) res = ps_make_int(ctx, l->as.int_v / r->as.int_v);
-        else if (strcmp(ins->operator, "==") == 0) res = ps_make_bool(ctx, values_equal(l, r));
-        else if (strcmp(ins->operator, "!=") == 0) res = ps_make_bool(ctx, !values_equal(l, r));
-        else if (strcmp(ins->operator, "<") == 0) res = ps_make_bool(ctx, l->as.int_v < r->as.int_v);
-        else if (strcmp(ins->operator, "<=") == 0) res = ps_make_bool(ctx, l->as.int_v <= r->as.int_v);
-        else if (strcmp(ins->operator, ">") == 0) res = ps_make_bool(ctx, l->as.int_v > r->as.int_v);
-        else if (strcmp(ins->operator, ">=") == 0) res = ps_make_bool(ctx, l->as.int_v >= r->as.int_v);
+        if (strcmp(ins->operator, "+") == 0) {
+          if (!is_numeric) { ps_throw(ctx, PS_ERR_TYPE, "invalid glyph operation"); goto raise; }
+          res = is_float ? ps_make_float(ctx, lf + rf) : ps_make_int(ctx, li + ri);
+        } else if (strcmp(ins->operator, "-") == 0) {
+          if (!is_numeric) { ps_throw(ctx, PS_ERR_TYPE, "invalid glyph operation"); goto raise; }
+          res = is_float ? ps_make_float(ctx, lf - rf) : ps_make_int(ctx, li - ri);
+        } else if (strcmp(ins->operator, "*") == 0) {
+          if (!is_numeric) { ps_throw(ctx, PS_ERR_TYPE, "invalid glyph operation"); goto raise; }
+          res = is_float ? ps_make_float(ctx, lf * rf) : ps_make_int(ctx, li * ri);
+        } else if (strcmp(ins->operator, "/") == 0) {
+          if (!is_numeric) { ps_throw(ctx, PS_ERR_TYPE, "invalid glyph operation"); goto raise; }
+          res = is_float ? ps_make_float(ctx, lf / rf) : ps_make_int(ctx, li / ri);
+        } else if (strcmp(ins->operator, "%") == 0) {
+          if (!is_numeric || is_float) { ps_throw(ctx, PS_ERR_TYPE, "invalid glyph operation"); goto raise; }
+          res = ps_make_int(ctx, li % ri);
+        } else if (strcmp(ins->operator, "<<") == 0) {
+          if (!is_numeric || is_float) { ps_throw(ctx, PS_ERR_TYPE, "invalid glyph operation"); goto raise; }
+          res = ps_make_int(ctx, li << ri);
+        } else if (strcmp(ins->operator, ">>") == 0) {
+          if (!is_numeric || is_float) { ps_throw(ctx, PS_ERR_TYPE, "invalid glyph operation"); goto raise; }
+          res = ps_make_int(ctx, li >> ri);
+        } else if (strcmp(ins->operator, "&") == 0) {
+          if (!is_numeric || is_float) { ps_throw(ctx, PS_ERR_TYPE, "invalid glyph operation"); goto raise; }
+          res = ps_make_int(ctx, li & ri);
+        } else if (strcmp(ins->operator, "|") == 0) {
+          if (!is_numeric || is_float) { ps_throw(ctx, PS_ERR_TYPE, "invalid glyph operation"); goto raise; }
+          res = ps_make_int(ctx, li | ri);
+        } else if (strcmp(ins->operator, "^") == 0) {
+          if (!is_numeric || is_float) { ps_throw(ctx, PS_ERR_TYPE, "invalid glyph operation"); goto raise; }
+          res = ps_make_int(ctx, li ^ ri);
+        }
+        else if (strcmp(ins->operator, "==") == 0) res = ps_make_bool(ctx, is_float ? (lf == rf) : values_equal(l, r));
+        else if (strcmp(ins->operator, "!=") == 0) res = ps_make_bool(ctx, is_float ? (lf != rf) : !values_equal(l, r));
+        else if (strcmp(ins->operator, "<") == 0) res = ps_make_bool(ctx, is_float ? (lf < rf) : (li < ri));
+        else if (strcmp(ins->operator, "<=") == 0) res = ps_make_bool(ctx, is_float ? (lf <= rf) : (li <= ri));
+        else if (strcmp(ins->operator, ">") == 0) res = ps_make_bool(ctx, is_float ? (lf > rf) : (li > ri));
+        else if (strcmp(ins->operator, ">=") == 0) res = ps_make_bool(ctx, is_float ? (lf >= rf) : (li >= ri));
         else if (strcmp(ins->operator, "&&") == 0) res = ps_make_bool(ctx, is_truthy(l) && is_truthy(r));
         else if (strcmp(ins->operator, "||") == 0) res = ps_make_bool(ctx, is_truthy(l) || is_truthy(r));
         if (!res) goto raise;

@@ -1,0 +1,4 @@
+function main() : void {
+    for (int v in xs) { 0; }
+    for (glyph g in s) { 0; }
+}

@@ -1,0 +1,11 @@
+{
+  "status": "reject-parse",
+  "error_family": "Exxx",
+  "error_code": "E1001",
+  "category": "PARSE_UNEXPECTED_TOKEN",
+  "position": {
+    "file": "EX-053.pts",
+    "line": 2,
+    "column": 5
+  }
+}

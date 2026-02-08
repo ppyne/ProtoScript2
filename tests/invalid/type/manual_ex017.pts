@@ -1,0 +1,4 @@
+function main() : void {
+    var x = []; // Erreur : E3006 MISSING_TYPE_CONTEXT
+    var m = {}; // Erreur : E3006 MISSING_TYPE_CONTEXT
+}

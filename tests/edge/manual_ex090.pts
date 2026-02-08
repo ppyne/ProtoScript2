@@ -1,0 +1,5 @@
+
+function main() : void { }
+function main() : int { return 0; }
+function main(list<string> args) : void { }
+function main(list<string> args) : int { return 0; }

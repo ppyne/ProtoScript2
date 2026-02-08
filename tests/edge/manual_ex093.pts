@@ -1,0 +1,11 @@
+import Math.{sqrt};
+import Io;
+import Math;
+
+
+import Math.{sqrt};
+
+function main() : void {
+    float x = sqrt(9.0);
+    Io.printLine(x);
+}

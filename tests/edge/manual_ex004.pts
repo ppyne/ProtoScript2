@@ -1,0 +1,8 @@
+function main() : void {
+    bool ok = true;
+    byte b = 255;
+    int n = 42;
+    float f = 3.14;
+    glyph g = "A"[0];
+    string s = "abc";
+}

@@ -1,15 +1,4 @@
-import Io;
-
 function main() : void {
     list<int> xs = [1, 2, 3];
     map<string, int> mm = {"a": 1, "b": 2};
-
-    for (int v of xs) {
-        Io.printLine(v.toString());
-    }
-
-    for (string k in mm) {
-        int v = mm[k];
-        Io.printLine(k.concat("=").concat(v.toString()));
-    }
 }

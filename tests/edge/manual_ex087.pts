@@ -1,0 +1,14 @@
+import Io;
+
+function risky() : void { throw Exception("boom"); }
+
+function main() : void {
+    try {
+        risky();
+    } catch (Exception e) {
+        Io.printLine("handled");
+    } finally {
+        Io.printLine("cleanup");
+    }
+
+}

@@ -1,4 +1,7 @@
 {
   "status": "accept-runtime",
-  "requires": ["modules"]
+  "expected_stdout": "json null\n{\"a\":null,\"b\":1}\n",
+  "requires": [
+    "modules"
+  ]
 }

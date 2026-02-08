@@ -1,0 +1,4 @@
+function main() : void {
+    string s = "abc";
+    string t = s.concat("x"); // s reste inchangée
+}

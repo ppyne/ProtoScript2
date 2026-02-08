@@ -1,0 +1,6 @@
+function main() : void {
+    map<string, int> m = {};
+    m["a"] = 1;    // insertion (clé absente)
+    m["a"] = 2;    // mise à jour (clé présente)
+    int x = m["a"]; // lecture valide
+}

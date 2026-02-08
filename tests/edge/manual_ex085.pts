@@ -1,0 +1,5 @@
+import Math;
+
+function main() : void {
+    float s = Math.sin(Math.PI / 2.0); // ~1.0
+}

@@ -1,0 +1,9 @@
+import Io;
+
+
+function greet(string name = "world") : void {
+Io.printLine(name);
+}
+
+function main() : void {
+}

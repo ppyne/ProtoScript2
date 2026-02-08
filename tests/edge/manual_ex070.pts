@@ -1,0 +1,4 @@
+function main() : void {
+    // runtime OOB
+    // glyph g = s[99];
+}

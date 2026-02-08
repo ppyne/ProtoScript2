@@ -1,0 +1,7 @@
+{
+  "status": "accept-runtime",
+  "expected_stdout": "handled\ncleanup\n",
+  "requires": [
+    "modules"
+  ]
+}

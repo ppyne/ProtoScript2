@@ -1,0 +1,6 @@
+function main() : void {
+    list<int> xs = [10, 20];
+    xs[1] = 30; // mise à jour
+    xs.push(40);
+    int v = xs.pop();
+}

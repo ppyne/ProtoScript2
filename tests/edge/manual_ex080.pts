@@ -1,0 +1,14 @@
+import Io;
+
+
+function main() : void {
+    TextFile f = Io.openText("/tmp/ps_manual_in.txt", "w");
+    f.write("hello");
+    f.close();
+    TextFile r = Io.openText("/tmp/ps_manual_in.txt", "r");
+    int n = r.size();
+    string data = r.read(n);
+    r.close();
+    Io.printLine(data);
+
+}

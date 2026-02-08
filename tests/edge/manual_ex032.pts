@@ -1,0 +1,13 @@
+import Io;
+
+function main() : void {
+    int x = 0;
+
+    if (x > 0) {
+        Io.printLine("pos");
+    } else if (x < 0) {
+        Io.printLine("neg");
+    } else {
+        Io.printLine("zero");
+    }
+}

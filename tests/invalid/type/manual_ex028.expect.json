@@ -1,0 +1,11 @@
+{
+  "status": "reject-static",
+  "error_family": "Exxx",
+  "error_code": "E3001",
+  "category": "TYPE_MISMATCH_ASSIGNMENT",
+  "position": {
+    "file": "EX-028.pts",
+    "line": 2,
+    "column": 20
+  }
+}

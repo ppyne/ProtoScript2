@@ -1,0 +1,11 @@
+import Io;
+
+function main() : void {
+    switch (x) {
+    case 1:
+        Io.printLine("one"); // invalide sans terminaison explicite
+    default:
+        Io.printLine("other");
+        break;
+    }
+}

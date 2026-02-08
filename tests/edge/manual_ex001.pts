@@ -1,9 +1,12 @@
 import Io;
 
+
+import Io;
+
 function main() : void {
     Io.printLine("Hello world");
 
     Io.print("Hello world".concat(Io.EOL));
-
+    
     Io.print(["Hello", " ", "world", Io.EOL].concat());
 }

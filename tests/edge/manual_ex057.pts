@@ -1,0 +1,19 @@
+
+prototype Point {
+    int x;
+    int y;
+    function move(int dx, int dy) : void {
+        self.x = self.x + dx;
+        self.y = self.y + dy;
+    }
+}
+
+prototype ColoredPoint : Point {
+    function move(int dx, int dy) : void {
+        self.x = self.x + dx;
+        self.y = self.y + dy;
+    }
+}
+
+function main() : void {
+}

@@ -1,0 +1,14 @@
+{
+  "status": "reject-static",
+  "error_family": "Exxx",
+  "error_code": "E4001",
+  "category": "UNINITIALIZED_READ",
+  "position": {
+    "file": "EX-023.pts",
+    "line": 6,
+    "column": 18
+  },
+  "requires": [
+    "modules"
+  ]
+}

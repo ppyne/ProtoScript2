@@ -1,0 +1,8 @@
+import Io;
+
+function main() : void {
+    string s = "a😀b";
+    for (glyph g of s) {
+        Io.printLine(g.toString());
+    }
+}

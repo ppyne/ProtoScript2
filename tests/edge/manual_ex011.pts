@@ -1,12 +1,6 @@
-import Io;
-
 function main() : void {
     int a = 10;
     int b = 0x2A;
     int c = 0b1010;
-    int d = -5;
-    Io.printLine(a.toString());
-    Io.printLine(b.toString());
-    Io.printLine(c.toString());
-    Io.printLine(d.toString());
+    int d = -5; // unaire '-' appliqué à 5
 }

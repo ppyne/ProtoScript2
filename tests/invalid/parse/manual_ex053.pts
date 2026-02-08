@@ -1,0 +1,11 @@
+function main() : void {
+    function sum(list<int> values...) : int {
+        int acc = 0;
+        for (int v of values) {
+            acc = acc + v;
+        }
+        return acc;
+    }
+
+    int r = sum();
+}

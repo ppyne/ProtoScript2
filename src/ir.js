@@ -144,6 +144,8 @@ class IRBuilder {
     this.tempId = 0;
     this.blockId = 0;
     this.varId = 0;
+    this.breakStack = [];
+    this.continueStack = [];
     this.functions = new Map();
     this.prototypes = new Map();
     const imports = buildImportMap(ast);
@@ -180,6 +182,24 @@ class IRBuilder {
 
   emit(block, instr) {
     block.instrs.push(instr);
+  }
+
+  pushLoopTargets(breakTarget, continueTarget) {
+    this.breakStack.push(breakTarget);
+    this.continueStack.push(continueTarget);
+  }
+
+  popLoopTargets() {
+    this.breakStack.pop();
+    this.continueStack.pop();
+  }
+
+  pushBreakTarget(breakTarget) {
+    this.breakStack.push(breakTarget);
+  }
+
+  popBreakTarget() {
+    this.breakStack.pop();
   }
 
   build() {
@@ -401,6 +421,10 @@ class IRBuilder {
         return this.lowerFor(stmt, block, irFn, scope);
       case "IfStmt":
         return this.lowerIf(stmt, block, irFn, scope);
+      case "WhileStmt":
+        return this.lowerWhile(stmt, block, irFn, scope);
+      case "DoWhileStmt":
+        return this.lowerDoWhile(stmt, block, irFn, scope);
       case "SwitchStmt":
         return this.lowerSwitch(stmt, block, irFn, scope);
       case "Block":
@@ -485,10 +509,18 @@ class IRBuilder {
         return bDone;
       }
       case "BreakStmt":
-        this.emit(block, { op: "break" });
+        if (this.breakStack.length > 0) {
+          this.emit(block, { op: "jump", target: this.breakStack[this.breakStack.length - 1] });
+        } else {
+          this.emit(block, { op: "unhandled_stmt", kind: stmt.kind });
+        }
         return block;
       case "ContinueStmt":
-        this.emit(block, { op: "continue" });
+        if (this.continueStack.length > 0) {
+          this.emit(block, { op: "jump", target: this.continueStack[this.continueStack.length - 1] });
+        } else {
+          this.emit(block, { op: "unhandled_stmt", kind: stmt.kind });
+        }
         return block;
       default:
         this.emit(block, { op: "unhandled_stmt", kind: stmt.kind });
@@ -503,25 +535,29 @@ class IRBuilder {
       const body = this.nextBlock("for_body_");
       const step = this.nextBlock("for_step_");
       const done = this.nextBlock("for_done_");
+      const forScope = new Scope(scope);
       const bInit = { kind: "Block", label: init, instrs: [] };
       const bCond = { kind: "Block", label: cond, instrs: [] };
       const bBody = { kind: "Block", label: body, instrs: [] };
       const bStep = { kind: "Block", label: step, instrs: [] };
       const bDone = { kind: "Block", label: done, instrs: [] };
-      irFn.blocks.push(bInit, bCond, bBody, bStep, bDone);
+      irFn.blocks.push(bInit, bCond, bBody, bStep);
       this.emit(block, { op: "jump", target: init });
-      const bInitEnd = stmt.init ? this.lowerStmtLikeForPart(stmt.init, bInit, irFn, new Scope(scope)) : bInit;
+      const bInitEnd = stmt.init ? this.lowerStmtLikeForPart(stmt.init, bInit, irFn, forScope) : bInit;
       this.emit(bInitEnd, { op: "jump", target: cond });
       if (stmt.cond) {
-        const c = this.lowerExpr(stmt.cond, bCond, irFn, scope);
+        const c = this.lowerExpr(stmt.cond, bCond, irFn, forScope);
         this.emit(c.block, { op: "branch_if", cond: c.value, then: body, else: done });
       } else {
         this.emit(bCond, { op: "jump", target: body });
       }
-      const bodyEnd = this.lowerStmt(stmt.body, bBody, irFn, new Scope(scope));
+      this.pushLoopTargets(done, step);
+      const bodyEnd = this.lowerStmt(stmt.body, bBody, irFn, new Scope(forScope));
       this.emit(bodyEnd, { op: "jump", target: step });
-      const bStepEnd = stmt.step ? this.lowerStmtLikeForPart(stmt.step, bStep, irFn, new Scope(scope)) : bStep;
+      this.popLoopTargets();
+      const bStepEnd = stmt.step ? this.lowerStmtLikeForPart(stmt.step, bStep, irFn, forScope) : bStep;
       this.emit(bStepEnd, { op: "jump", target: cond });
+      irFn.blocks.push(bDone);
       this.emit(bDone, { op: "nop" });
       return bDone;
     }
@@ -534,7 +570,7 @@ class IRBuilder {
     const bCond = { kind: "Block", label: cond, instrs: [] };
     const bBody = { kind: "Block", label: body, instrs: [] };
     const bDone = { kind: "Block", label: done, instrs: [] };
-    irFn.blocks.push(bInit, bCond, bBody, bDone);
+    irFn.blocks.push(bInit, bCond, bBody);
 
     const seq = this.lowerExpr(stmt.iterExpr, bInit, irFn, scope);
     const cursor = this.nextTemp();
@@ -553,8 +589,49 @@ class IRBuilder {
       this.emit(bBody, { op: "var_decl", name: irName, type: lowerType(vt) });
       this.emit(bBody, { op: "store_var", name: irName, src: elem, type: lowerType(vt) });
     }
+    this.pushLoopTargets(done, cond);
     const bodyEnd = this.lowerStmt(stmt.body, bBody, irFn, sBody);
     this.emit(bodyEnd, { op: "jump", target: cond });
+    this.popLoopTargets();
+    irFn.blocks.push(bDone);
+    this.emit(bDone, { op: "nop" });
+    return bDone;
+  }
+
+  lowerWhile(stmt, block, irFn, scope) {
+    const cond = this.nextBlock("while_cond_");
+    const body = this.nextBlock("while_body_");
+    const done = this.nextBlock("while_done_");
+    const bCond = { kind: "Block", label: cond, instrs: [] };
+    const bBody = { kind: "Block", label: body, instrs: [] };
+    const bDone = { kind: "Block", label: done, instrs: [] };
+    irFn.blocks.push(bCond, bBody, bDone);
+    this.emit(block, { op: "jump", target: cond });
+    const c = this.lowerExpr(stmt.cond, bCond, irFn, scope);
+    this.emit(c.block, { op: "branch_if", cond: c.value, then: body, else: done });
+    this.pushLoopTargets(done, cond);
+    const bodyEnd = this.lowerStmt(stmt.body, bBody, irFn, new Scope(scope));
+    this.emit(bodyEnd, { op: "jump", target: cond });
+    this.popLoopTargets();
+    this.emit(bDone, { op: "nop" });
+    return bDone;
+  }
+
+  lowerDoWhile(stmt, block, irFn, scope) {
+    const body = this.nextBlock("do_body_");
+    const cond = this.nextBlock("do_cond_");
+    const done = this.nextBlock("do_done_");
+    const bBody = { kind: "Block", label: body, instrs: [] };
+    const bCond = { kind: "Block", label: cond, instrs: [] };
+    const bDone = { kind: "Block", label: done, instrs: [] };
+    irFn.blocks.push(bBody, bCond, bDone);
+    this.emit(block, { op: "jump", target: body });
+    this.pushLoopTargets(done, cond);
+    const bodyEnd = this.lowerStmt(stmt.body, bBody, irFn, new Scope(scope));
+    this.emit(bodyEnd, { op: "jump", target: cond });
+    this.popLoopTargets();
+    const c = this.lowerExpr(stmt.cond, bCond, irFn, scope);
+    this.emit(c.block, { op: "branch_if", cond: c.value, then: body, else: done });
     this.emit(bDone, { op: "nop" });
     return bDone;
   }
@@ -569,17 +646,31 @@ class IRBuilder {
     const bDone = { kind: "Block", label: doneLabel, instrs: [] };
     irFn.blocks.push(bThen);
     if (bElse) irFn.blocks.push(bElse);
-    irFn.blocks.push(bDone);
 
     this.emit(cond.block, { op: "branch_if", cond: cond.value, then: thenLabel, else: elseLabel });
     const thenEnd = this.lowerStmt(stmt.thenBranch, bThen, irFn, new Scope(scope));
-    this.emit(thenEnd, { op: "jump", target: doneLabel });
+    if (!this.blockHasTerminator(thenEnd)) this.emit(thenEnd, { op: "jump", target: doneLabel });
     if (bElse) {
       const elseEnd = this.lowerStmt(stmt.elseBranch, bElse, irFn, new Scope(scope));
-      this.emit(elseEnd, { op: "jump", target: doneLabel });
+      if (!this.blockHasTerminator(elseEnd)) this.emit(elseEnd, { op: "jump", target: doneLabel });
     }
+    irFn.blocks.push(bDone);
     this.emit(bDone, { op: "nop" });
     return bDone;
+  }
+
+  blockHasTerminator(block) {
+    if (!block || !block.instrs || block.instrs.length === 0) return false;
+    const op = block.instrs[block.instrs.length - 1]?.op;
+    return (
+      op === "jump" ||
+      op === "branch_if" ||
+      op === "branch_iter_has_next" ||
+      op === "ret" ||
+      op === "ret_void" ||
+      op === "throw" ||
+      op === "rethrow"
+    );
   }
 
   lowerStmtLikeForPart(node, block, irFn, scope) {
@@ -591,6 +682,7 @@ class IRBuilder {
     const value = this.lowerExpr(stmt.expr, block, irFn, scope);
     const done = this.nextBlock("switch_done_");
     const doneBlock = { kind: "Block", label: done, instrs: [] };
+    this.pushBreakTarget(done);
 
     let nextLabel = null;
     for (let idx = 0; idx < stmt.cases.length; idx += 1) {
@@ -627,6 +719,7 @@ class IRBuilder {
     }
     irFn.blocks.push(doneBlock);
     this.emit(doneBlock, { op: "nop" });
+    this.popBreakTarget();
     return doneBlock;
   }
 
@@ -647,6 +740,9 @@ class IRBuilder {
         return { value: dst, type: t, block };
       }
       case "UnaryExpr": {
+        if (expr.op === "++" || expr.op === "--") {
+          return this.lowerIncDec(expr.expr, block, irFn, scope, true, expr.op);
+        }
         const v = this.lowerExpr(expr.expr, block, irFn, scope);
         const dst = this.nextTemp();
         if (expr.op === "-" && isIntLike(v.type)) {
@@ -758,6 +854,9 @@ class IRBuilder {
         return { value: dst, type: { kind: "PrimitiveType", name: "unknown" }, block: base.block };
       }
       case "PostfixExpr": {
+        if (expr.op === "++" || expr.op === "--") {
+          return this.lowerIncDec(expr.expr, block, irFn, scope, false, expr.op);
+        }
         const v = this.lowerExpr(expr.expr, block, irFn, scope);
         const dst = this.nextTemp();
         this.emit(v.block, { op: "postfix_op", dst, operator: expr.op, src: v.value });
@@ -945,6 +1044,58 @@ class IRBuilder {
       return;
     }
     this.emit(block, { op: "check_index_bounds", target: target.value, index: index.value });
+  }
+
+  lowerIncDec(expr, block, irFn, scope, isPrefix, op) {
+    const valueType = this.inferExprType(expr, scope);
+    const typeName = typeToString(valueType);
+    const literalType = typeName === "float" ? "float" : typeName === "byte" ? "byte" : "int";
+    const literalValue = literalType === "float" ? "1.0" : "1";
+    const operator = op === "++" ? "+" : "-";
+
+    if (expr.kind === "Identifier") {
+      const entry = scope.get(expr.name);
+      const irName = entry ? entry.irName : expr.name;
+      const cur = this.nextTemp();
+      this.emit(block, { op: "load_var", dst: cur, name: irName, type: lowerType(valueType) });
+      const one = this.nextTemp();
+      this.emit(block, { op: "const", dst: one, literalType, value: literalValue });
+      const next = this.nextTemp();
+      this.emit(block, { op: "bin_op", dst: next, operator, left: cur, right: one });
+      this.emit(block, { op: "store_var", name: irName, src: next, type: lowerType(valueType) });
+      return { value: isPrefix ? next : cur, type: valueType, block };
+    }
+
+    if (expr.kind === "MemberExpr") {
+      const base = this.lowerExpr(expr.target, block, irFn, scope);
+      const cur = this.nextTemp();
+      this.emit(base.block, { op: "member_get", dst: cur, target: base.value, name: expr.name });
+      const one = this.nextTemp();
+      this.emit(base.block, { op: "const", dst: one, literalType, value: literalValue });
+      const next = this.nextTemp();
+      this.emit(base.block, { op: "bin_op", dst: next, operator, left: cur, right: one });
+      this.emit(base.block, { op: "member_set", target: base.value, name: expr.name, src: next });
+      return { value: isPrefix ? next : cur, type: valueType, block: base.block };
+    }
+
+    if (expr.kind === "IndexExpr") {
+      const target = this.lowerExpr(expr.target, block, irFn, scope);
+      const index = this.lowerExpr(expr.index, target.block, irFn, scope);
+      this.emitIndexChecks(index.block, target, index, { forWrite: false });
+      const cur = this.nextTemp();
+      this.emit(index.block, { op: "index_get", dst: cur, target: target.value, index: index.value });
+      const one = this.nextTemp();
+      this.emit(index.block, { op: "const", dst: one, literalType, value: literalValue });
+      const next = this.nextTemp();
+      this.emit(index.block, { op: "bin_op", dst: next, operator, left: cur, right: one });
+      this.emit(index.block, { op: "index_set", target: target.value, index: index.value, src: next });
+      return { value: isPrefix ? next : cur, type: valueType, block: index.block };
+    }
+
+    const v = this.lowerExpr(expr, block, irFn, scope);
+    const dst = this.nextTemp();
+    this.emit(v.block, { op: "unary_op", dst, operator: op, src: v.value });
+    return { value: dst, type: v.type, block: v.block };
   }
 
   elementTypeForIndex(t) {
