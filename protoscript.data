@@ -1,0 +1,130 @@
+{
+  "modules": [
+    {
+      "name": "test.simple",
+      "functions": [
+        { "name": "add", "ret": "int", "params": ["int", "int"] }
+      ]
+    },
+    {
+      "name": "test.utf8",
+      "functions": [
+        { "name": "roundtrip", "ret": "string", "params": ["string"] }
+      ]
+    },
+    {
+      "name": "test.throw",
+      "functions": [
+        { "name": "fail", "ret": "void", "params": [] }
+      ]
+    },
+    {
+      "name": "test.noinit",
+      "functions": [
+        { "name": "ping", "ret": "int", "params": [] }
+      ]
+    },
+    {
+      "name": "test.badver",
+      "functions": [
+        { "name": "ping", "ret": "int", "params": [] }
+      ]
+    },
+    {
+      "name": "test.nosym",
+      "functions": [
+        { "name": "missing", "ret": "int", "params": [] }
+      ]
+    },
+    {
+      "name": "test.missing",
+      "functions": [
+        { "name": "ping", "ret": "int", "params": [] }
+      ]
+    },
+    {
+      "name": "test.invalid",
+      "functions": [
+        { "name": "bad", "ret": "badtype", "params": ["int"] }
+      ]
+    },
+    {
+      "name": "Math",
+      "functions": [
+        { "name": "abs", "ret": "float", "params": ["float"] },
+        { "name": "min", "ret": "float", "params": ["float", "float"] },
+        { "name": "max", "ret": "float", "params": ["float", "float"] },
+        { "name": "floor", "ret": "float", "params": ["float"] },
+        { "name": "ceil", "ret": "float", "params": ["float"] },
+        { "name": "round", "ret": "float", "params": ["float"] },
+        { "name": "sqrt", "ret": "float", "params": ["float"] },
+        { "name": "pow", "ret": "float", "params": ["float", "float"] },
+        { "name": "sin", "ret": "float", "params": ["float"] },
+        { "name": "cos", "ret": "float", "params": ["float"] },
+        { "name": "tan", "ret": "float", "params": ["float"] },
+        { "name": "asin", "ret": "float", "params": ["float"] },
+        { "name": "acos", "ret": "float", "params": ["float"] },
+        { "name": "atan", "ret": "float", "params": ["float"] },
+        { "name": "atan2", "ret": "float", "params": ["float", "float"] },
+        { "name": "sinh", "ret": "float", "params": ["float"] },
+        { "name": "cosh", "ret": "float", "params": ["float"] },
+        { "name": "tanh", "ret": "float", "params": ["float"] },
+        { "name": "asinh", "ret": "float", "params": ["float"] },
+        { "name": "acosh", "ret": "float", "params": ["float"] },
+        { "name": "atanh", "ret": "float", "params": ["float"] },
+        { "name": "exp", "ret": "float", "params": ["float"] },
+        { "name": "expm1", "ret": "float", "params": ["float"] },
+        { "name": "log", "ret": "float", "params": ["float"] },
+        { "name": "log1p", "ret": "float", "params": ["float"] },
+        { "name": "log2", "ret": "float", "params": ["float"] },
+        { "name": "log10", "ret": "float", "params": ["float"] },
+        { "name": "cbrt", "ret": "float", "params": ["float"] },
+        { "name": "hypot", "ret": "float", "params": ["float", "float"] },
+        { "name": "trunc", "ret": "float", "params": ["float"] },
+        { "name": "sign", "ret": "float", "params": ["float"] },
+        { "name": "fround", "ret": "float", "params": ["float"] },
+        { "name": "clz32", "ret": "float", "params": ["float"] },
+        { "name": "imul", "ret": "float", "params": ["float", "float"] },
+        { "name": "random", "ret": "float", "params": [] }
+      ],
+      "constants": [
+        { "name": "PI", "type": "float", "value": "3.141592653589793" },
+        { "name": "E", "type": "float", "value": "2.718281828459045" },
+        { "name": "LN2", "type": "float", "value": "0.6931471805599453" },
+        { "name": "LN10", "type": "float", "value": "2.302585092994046" },
+        { "name": "LOG2E", "type": "float", "value": "1.4426950408889634" },
+        { "name": "LOG10E", "type": "float", "value": "0.4342944819032518" },
+        { "name": "SQRT1_2", "type": "float", "value": "0.7071067811865476" },
+        { "name": "SQRT2", "type": "float", "value": "1.4142135623730951" }
+      ]
+    },
+    {
+      "name": "Io",
+      "functions": [
+        { "name": "open", "ret": "File", "params": ["string", "string"] },
+        { "name": "print", "ret": "void", "params": ["string"] },
+        { "name": "printLine", "ret": "void", "params": ["string"] }
+      ],
+      "constants": [
+        { "name": "EOL", "type": "string", "value": "\n" },
+        { "name": "stdin", "type": "file", "value": "stdin" },
+        { "name": "stdout", "type": "file", "value": "stdout" },
+        { "name": "stderr", "type": "file", "value": "stderr" }
+      ]
+    },
+    {
+      "name": "JSON",
+      "functions": [
+        { "name": "encode", "ret": "string", "params": ["JSONValue"] },
+        { "name": "decode", "ret": "JSONValue", "params": ["string"] },
+        { "name": "isValid", "ret": "bool", "params": ["string"] },
+        { "name": "null", "ret": "JSONValue", "params": [] },
+        { "name": "bool", "ret": "JSONValue", "params": ["bool"] },
+        { "name": "number", "ret": "JSONValue", "params": ["float"] },
+        { "name": "string", "ret": "JSONValue", "params": ["string"] },
+        { "name": "array", "ret": "JSONValue", "params": ["list<JSONValue>"] },
+        { "name": "object", "ret": "JSONValue", "params": ["map<string,JSONValue>"] }
+      ]
+    }
+  ]
+}

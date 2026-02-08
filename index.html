@@ -1,0 +1,228 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>ProtoScript V2 Playground</title>
+    <link
+      rel="stylesheet"
+      href="https://unpkg.com/codemirror@5.65.16/lib/codemirror.css"
+    />
+    <style>
+      @import url("https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&family=Space+Grotesk:wght@400;600&display=swap");
+
+      :root {
+        --bg: #0f1417;
+        --panel: #141b1f;
+        --panel-2: #1a2328;
+        --accent: #f6c356;
+        --accent-2: #e16b5c;
+        --text: #f2f2f2;
+        --muted: #a2b0b8;
+        --border: #2a353c;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        font-family: "Space Grotesk", system-ui, sans-serif;
+        color: var(--text);
+        background:
+          radial-gradient(1200px 600px at 10% -10%, #24323a 0%, transparent 55%),
+          radial-gradient(800px 500px at 90% -20%, #3a2b1f 0%, transparent 50%),
+          var(--bg);
+        min-height: 100vh;
+      }
+
+      header {
+        padding: 32px 24px 16px;
+        max-width: 1100px;
+        margin: 0 auto;
+      }
+
+      h1 {
+        margin: 0 0 8px;
+        font-size: 32px;
+        letter-spacing: 0.4px;
+      }
+
+      .tagline {
+        color: var(--muted);
+        margin: 0;
+      }
+
+      main {
+        max-width: 1100px;
+        margin: 0 auto;
+        padding: 16px 24px 40px;
+        display: grid;
+        gap: 16px;
+        grid-template-columns: 1fr;
+      }
+
+      .panel {
+        background: linear-gradient(180deg, var(--panel) 0%, var(--panel-2) 100%);
+        border: 1px solid var(--border);
+        border-radius: 14px;
+        padding: 16px;
+        box-shadow: 0 12px 30px rgba(0, 0, 0, 0.25);
+      }
+
+      .panel h2 {
+        font-size: 14px;
+        text-transform: uppercase;
+        letter-spacing: 0.2em;
+        color: var(--muted);
+        margin: 0 0 12px;
+      }
+
+      textarea {
+        width: 100%;
+        min-height: 320px;
+        background: #0c1114;
+        color: var(--text);
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        padding: 12px;
+        font-family: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+        font-size: 13px;
+        line-height: 1.5;
+      }
+
+      a:link, a:visited, a:hover {
+        color: #7fd1ff;
+      }
+
+      a:active {
+        color: hotpink;
+      }
+
+      .CodeMirror {
+        height: 320px;
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        background: #0c1114;
+        color: var(--text);
+        font-family: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+        font-size: 13px;
+        line-height: 1.5;
+        padding: 4px;
+        overflow: hidden;
+      }
+
+      .CodeMirror .cm-keyword { color: #f08d49; }
+      .CodeMirror .cm-atom { color: #7fd1ff; }
+      .CodeMirror .cm-number { color: #7fd1ff; }
+      .CodeMirror .cm-def { color: #ffd166; }
+      .CodeMirror .cm-variable { color: #e6edf3; }
+      .CodeMirror .cm-variable-2 { color: #8ecae6; }
+      .CodeMirror .cm-variable-3 { color: #b388eb; }
+      .CodeMirror .cm-property { color: #9ad5ff; }
+      .CodeMirror .cm-operator { color: #f2f2f2; }
+      .CodeMirror .cm-string { color: #7bd88f; }
+      .CodeMirror .cm-string-2 { color: #a7f3d0; }
+      .CodeMirror .cm-comment { color: #6b7b86; }
+      .CodeMirror .cm-builtin { color: #ffd166; }
+      .CodeMirror .cm-tag { color: #ff7b7b; }
+      .CodeMirror .cm-attribute { color: #ffd166; }
+      .CodeMirror .cm-qualifier { color: #9ad5ff; }
+      .CodeMirror .cm-meta { color: #f6c356; }
+      .CodeMirror .cm-error { color: #ff6b6b; background: #3a1c1c; }
+
+      .CodeMirror-gutters {
+        background: #0c1114;
+        border-right: 1px solid var(--border);
+        color: var(--muted);
+      }
+
+      .CodeMirror-cursor {
+        border-left: 2px solid #f6c356;
+      }
+
+      .CodeMirror-hscrollbar,
+      .CodeMirror-scrollbar-filler {
+        display: none !important;
+      }
+
+      .CodeMirror-scrollbar-filler,
+      .CodeMirror-gutter-filler {
+        background: #0c1114;
+      }
+
+      .controls {
+        display: flex;
+        gap: 12px;
+        align-items: center;
+      }
+
+      button {
+        background: linear-gradient(135deg, var(--accent), var(--accent-2));
+        color: #1a1a1a;
+        border: none;
+        border-radius: 10px;
+        padding: 10px 16px;
+        font-weight: 600;
+        cursor: pointer;
+      }
+
+      button:disabled {
+        opacity: 0.6;
+        cursor: not-allowed;
+      }
+
+      .status {
+        color: var(--muted);
+        font-size: 13px;
+      }
+
+      pre {
+        margin: 0;
+        white-space: pre-wrap;
+        word-break: break-word;
+        font-family: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+        font-size: 13px;
+      }
+
+      @media (min-width: 900px) {
+        main {
+          grid-template-columns: 1.2fr 0.8fr;
+        }
+        .panel.output {
+          min-height: 440px;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <header>
+      <h1>ProtoScript V2 Playground</h1>
+      <p class="tagline">Write ProtoScript, run it in your browser.</p>
+      <p>Note: To flush the buffer use <code>Io.print("\n");</code> or <code>Io.print(Io.EOL);</code>.</p>
+      <p>You can find the manual <a href="https://github.com/ppyne/ProtoScript2/blob/main/MANUEL_REFERENCE.md" target="_blank">here</a>.</p>
+    </header>
+    <main>
+      <section class="panel">
+        <h2>Program</h2>
+        <textarea id="source"></textarea>
+        <div class="controls">
+          <button id="run">Run</button>
+          <span class="status" id="status">Loading runtime...</span>
+        </div>
+      </section>
+      <section class="panel output">
+        <h2>Output</h2>
+        <pre id="output"></pre>
+      </section>
+    </main>
+    <script src="https://unpkg.com/codemirror@5.65.16/lib/codemirror.js"></script>
+    <script src="https://unpkg.com/codemirror@5.65.16/mode/clike/clike.js"></script>
+    <script src="app.js"></script>
+    <script src="protoscript.js"></script>
+    <script>
+      window.startProtoScript && window.startProtoScript();
+    </script>
+  </body>
+</html>
