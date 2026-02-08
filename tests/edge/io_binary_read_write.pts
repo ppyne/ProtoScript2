@@ -1,12 +1,12 @@
 import Io;
 
 function main() : void {
-    var f = Io.open("io_bin.bin", "wb");
-    var data = [1, 2, 255];
+    var f = Io.openBinary("io_bin.bin", "w");
+    list<byte> data = [0x01.toByte(), 0x02.toByte(), 0xFF.toByte()];
     f.write(data);
     f.close();
 
-    var r = Io.open("io_bin.bin", "rb");
+    var r = Io.openBinary("io_bin.bin", "r");
     var chunk = r.read(3);
     var tail = r.read(1);
     r.close();

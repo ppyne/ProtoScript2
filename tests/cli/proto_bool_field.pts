@@ -1,0 +1,11 @@
+import Io;
+
+prototype Flag {
+    bool ok;
+}
+
+function main() : void {
+    Flag f = Flag.clone();
+    f.ok = true;
+    Io.printLine(f.ok.toString());
+}

@@ -1,0 +1,4 @@
+{
+  "status": "accept-runtime",
+  "requires": ["modules"]
+}

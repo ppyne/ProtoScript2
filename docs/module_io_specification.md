@@ -18,8 +18,10 @@ Cette spécification est **normative**.
 - Sémantique **explicite et déterministe**.
 - Aucune conversion implicite texte/binaire.
 - Durée de vie des ressources **manuelle** (close explicite).
-- UTF‑8 **strict** en lecture en mode texte.
+- UTF-8 **strict** en lecture en mode texte.
 - Aucun buffering ou flushing implicite.
+- Les fichiers texte opèrent en **glyphes** (positions, tailles, read).
+- Les fichiers binaires opèrent en **octets**.
 
 ---
 
@@ -32,47 +34,46 @@ import Io;
 Le module expose :
 
 - des fonctions globales,
-- un type opaque **File**,
+- deux prototypes fermés **TextFile** et **BinaryFile**,
 - une constante (`Io.EOL`),
 - des flux standards.
 
+Les prototypes **TextFile** et **BinaryFile** sont **fermés** : aucun champ public, uniquement les méthodes spécifiées ici.
+
 ---
 
-## 3. Io.open(path, mode) -> File
+## 3. Io.openText(path, mode) -> TextFile
 
-Ouvre un fichier et retourne un handle **File**.
+Ouvre un fichier texte et retourne un handle **TextFile**.
 
 ### Paramètres
 
 - `path` : `string`
 - `mode` : `string`
 
-### Flags de mode (normatif)
+### Modes (normatif)
 
-| Flag | Signification |
+| Mode | Signification |
 | ---- | ------------- |
 | `r`  | lecture |
-| `w`  | écriture (truncate) |
-| `a`  | écriture (append) |
-| `b`  | mode binaire |
+| `w`  | ecriture (truncate) |
+| `a`  | ecriture (append) |
 
 Règles normatives :
 
-- Exactement **un** des flags `r`, `w`, `a` **DOIT** être présent.
-- Le flag `b` est **optionnel** :
-  - absent → **mode texte**
-  - présent → **mode binaire**
-- Les combinaisons valides sont donc : `r`, `w`, `a`, `rb`, `wb`, `ab`.
-- Toute autre combinaison **DOIT** lever une erreur runtime (mode invalide).
+- Le `mode` **DOIT** être exactement `r`, `w` ou `a`.
+- Toute autre valeur **DOIT** lever une erreur runtime (mode invalide).
 
-### Sémantique texte vs binaire
+### Sémantique texte
 
-- **Texte** : lecture/écriture de `string`. En lecture, décodage UTF‑8 strict (cf. §10).
-- **Binaire** : lecture/écriture de `list<byte>` (aucun décodage).
+- Lecture/écriture de `string`.
+- Décodage UTF-8 strict en lecture (cf. §11).
+- Aucune conversion implicite de fins de ligne.
+- Aucun traitement implicite de BOM (un BOM est lu/écrit comme un glyphe normal).
 
 ### Erreurs
 
-`Io.open` **DOIT** lever une erreur runtime dans les cas suivants (liste non exhaustive) :
+`Io.openText` **DOIT** lever une erreur runtime dans les cas suivants (liste non exhaustive) :
 
 - fichier introuvable (selon mode)
 - permissions insuffisantes
@@ -81,22 +82,44 @@ Règles normatives :
 
 ---
 
-## 4. Standard Streams (normatif)
+## 4. Io.openBinary(path, mode) -> BinaryFile
 
-Les flux standards suivants sont fournis comme **handles File déjà ouverts** :
+Ouvre un fichier binaire et retourne un handle **BinaryFile**.
+
+### Paramètres
+
+- `path` : `string`
+- `mode` : `string`
+
+### Modes (normatif)
+
+Identiques a `Io.openText` : `r`, `w`, `a` uniquement.
+
+### Sémantique binaire
+
+- Lecture/écriture de `list<byte>`.
+- Aucun décodage.
+
+### Erreurs
+
+Identiques a `Io.openText`.
+
+---
+
+## 5. Standard Streams (normatif)
+
+Les flux standards suivants sont fournis comme **TextFile deja ouverts** :
 
 - `Io.stdin` (lecture)
-- `Io.stdout` (écriture)
-- `Io.stderr` (écriture)
+- `Io.stdout` (ecriture)
+- `Io.stderr` (ecriture)
 
 Règles normatives :
 
-- Ces flux sont **en mode texte** (comme si ouverts sans flag `b`).
+- Ces flux sont **en mode texte**.
 - Ces flux **NE DOIVENT PAS** être fermés par le code utilisateur.
-- Tout appel à `file.close()` sur l’un d’eux **DOIT lever une erreur runtime**.
+- Tout appel à `close()` sur l’un d’eux **DOIT** lever une erreur runtime.
 - Leur durée de vie est celle du processus.
-
-Les flux standards sont des **File ordinaires** et supportent les opérations définies sur `File`.
 
 Exemples valides :
 
@@ -107,9 +130,9 @@ Io.stderr.write("Error: something went wrong\n");
 
 ---
 
-## 5. Constantes
+## 6. Constantes
 
-### 5.1 Io.EOL
+### 6.1 Io.EOL
 
 ```ps
 Io.EOL == "\n"
@@ -119,9 +142,9 @@ Constante universelle de fin de ligne.
 
 ---
 
-## 6. Io.print(value)
+## 7. Io.print(value)
 
-Écrit `value` sur `Io.stdout` **sans ajouter de fin de ligne**.
+Ecrit `value` sur `Io.stdout` **sans ajouter de fin de ligne**.
 
 Sémantique exacte (normative) :
 
@@ -129,7 +152,7 @@ Sémantique exacte (normative) :
 Io.print(value)
 ```
 
-est strictement équivalent à :
+est strictement equivalent a :
 
 ```ps
 Io.stdout.write(String(value))
@@ -137,9 +160,9 @@ Io.stdout.write(String(value))
 
 ---
 
-## 6.1 Io.printLine(value)
+## 8. Io.printLine(value)
 
-Écrit `value` sur `Io.stdout` **et ajoute une fin de ligne**.
+Ecrit `value` sur `Io.stdout` **et ajoute une fin de ligne**.
 
 Sémantique exacte (normative) :
 
@@ -147,7 +170,7 @@ Sémantique exacte (normative) :
 Io.printLine(value)
 ```
 
-est strictement équivalent à :
+est strictement equivalent a :
 
 ```ps
 Io.print(value)
@@ -156,120 +179,267 @@ Io.stdout.write(Io.EOL)
 
 ---
 
-## 7. File.read([size])
+## 9. TextFile.read(size)
 
-Lit des données à partir de la position courante.
+Lit `size` **glyphes** a partir de la position courante.
 
-### Principe fondamental (normatif)
-
-- **En l’absence du flag `b`, toute lecture est en mode texte et retourne une `string`.**
-- **Le mode binaire (`list<byte>`) n’est actif que si et seulement si le fichier a été ouvert avec le flag `b`.**
-- Il n’existe **aucune conversion implicite** entre texte et binaire.
-- En mode texte, il n’y a **aucune traduction** de fin de ligne (pas de conversion `\r\n` → `\n`).
-
-### Signatures
+### Signature
 
 ```ps
-file.read()
-file.read(size)
+textFile.read(size)
 ```
 
-### Paramètre `size` (normatif)
+### Parametre `size` (normatif)
 
 - `size` **DOIT** être un entier strictement positif (`size >= 1`).
 - Si `size` n’est pas un entier, ou si `size <= 0`, l’appel **DOIT** lever une erreur runtime.
 
 ### Comportement
 
-- La lecture démarre à la position courante.
-- Le curseur avance du nombre d’octets effectivement lus.
+- La lecture démarre a la position courante (en **glyphes**).
+- Le curseur avance du nombre de **glyphes** effectivement lus.
 - L’EOF n’est pas une erreur.
 
-### Valeurs de retour
+### Valeur de retour
 
-| Mode    | read()        | read(size)        |
-| ------- | ------------- | ----------------- |
-| texte   | `string`      | `string`          |
-| binaire | `list<byte>`  | `list<byte>`      |
-
-### EOF (normatif)
-
-- `file.read()` (sans `size`) **lit jusqu’à EOF** et retourne une valeur éventuellement **vide**.
-- `file.read(size)` retourne **toujours** une valeur de même type que le mode :
-  - `string` en mode texte,
-  - `list<byte>` en mode binaire.
-- **Une longueur nulle** (`length == 0`) **indique EOF**.
-- L’EOF n’est pas une erreur.
+- `string`.
+- Une longueur nulle (`length == 0`) **indique EOF**.
 
 ---
 
-## 8. File.write(data)
+## 10. TextFile.write(text)
 
-Écrit des données à la position courante.
+Ecrit `text` a la position courante.
 
-### Principe fondamental (normatif)
+### Signature
 
-- **En l’absence du flag `b`, `file.write` attend une `string`.**
-- **En présence du flag `b`, `file.write` attend un `list<byte>`.**
-- Aucune conversion implicite n’est effectuée.
+```ps
+textFile.write(text)
+```
 
-### Types acceptés (normatif)
+### Parametre `text` (normatif)
 
-| Mode    | Type attendu |
-| ------- | ------------ |
-| texte   | `string` |
-| binaire | `list<byte>` |
-
-Contraintes supplémentaires en mode binaire (normatif) :
-
-- Le `list<byte>` **DOIT** contenir uniquement des entiers `0..255`.
-- Toute valeur hors plage, ou non entière, **DOIT** lever une erreur runtime.
+- `text` **DOIT** être une `string`.
 
 ### Comportement
 
-- Le curseur avance du nombre d’octets effectivement écrits.
-- Aucune fin de ligne implicite n’est ajoutée.
+- Le curseur avance du nombre de **glyphes** ecrits.
+- Aucune fin de ligne implicite n’est ajoutee.
 
-Toute incohérence de type ou de contenu **DOIT** lever une erreur runtime.
+Toute incoherence de type **DOIT** lever une erreur runtime.
 
 ---
 
-## 9. File.close()
+## 11. TextFile.tell()
+
+Retourne la position courante **en glyphes**.
+
+```ps
+textFile.tell() -> int
+```
+
+---
+
+## 12. TextFile.seek(pos)
+
+Positionne le curseur a la position `pos` **en glyphes**.
+
+```ps
+textFile.seek(pos)
+```
+
+Règles normatives :
+
+- `pos` **DOIT** être un entier `>= 0`.
+- Si `pos` est superieur a `size()`, l’appel **DOIT** lever une erreur runtime.
+
+---
+
+## 13. TextFile.size()
+
+Retourne la taille du fichier en **glyphes**.
+
+```ps
+textFile.size() -> int
+```
+
+---
+
+## 14. TextFile.name()
+
+Retourne le chemin/nom associe au handle.
+
+```ps
+textFile.name() -> string
+```
+
+---
+
+## 15. TextFile.close()
 
 Ferme explicitement le fichier.
 
 Règles normatives :
 
-- L’opération est **idempotente** pour un fichier normal : fermer un fichier déjà fermé ne doit pas échouer.
-- Après fermeture, toute opération (`read`, `write`, etc.) **DOIT lever une erreur runtime**.
-- Appeler `close()` sur `Io.stdin`, `Io.stdout` ou `Io.stderr` **DOIT lever une erreur runtime** (cf. §4).
+- L’operation est **idempotente** pour un fichier normal : fermer un fichier deja ferme ne doit pas echouer.
+- Apres fermeture, toute operation (`read`, `write`, `tell`, `seek`, `size`, etc.) **DOIT** lever une erreur runtime.
+- Appeler `close()` sur `Io.stdin`, `Io.stdout` ou `Io.stderr` **DOIT** lever une erreur runtime (cf. §5).
 
 ---
 
-## 10. UTF‑8 strict (mode texte)
+## 16. BinaryFile.read(size)
 
-Règles normatives en lecture texte :
+Lit `size` **octets** a partir de la position courante.
 
-- Décodage UTF‑8 obligatoire.
-- BOM UTF‑8 accepté **uniquement** au début du fichier (ignoré).
-- BOM ailleurs → erreur.
-- Séquences UTF‑8 invalides → erreur.
-- Octet NUL interdit → erreur.
-
----
-
-## 11. Mode binaire
-
-- Aucun décodage.
-- Valeurs d’octet 0–255 autorisées.
-- Représentation : `list<byte>`.
-
----
-
-## 12. Exemple binaire séquentiel
+### Signature
 
 ```ps
-var f = Io.open("data.bin", "rb");
+binaryFile.read(size)
+```
+
+### Parametre `size` (normatif)
+
+- `size` **DOIT** être un entier strictement positif (`size >= 1`).
+- Si `size` n’est pas un entier, ou si `size <= 0`, l’appel **DOIT** lever une erreur runtime.
+
+### Comportement
+
+- La lecture démarre a la position courante (en **octets**).
+- Le curseur avance du nombre d’**octets** effectivement lus.
+- L’EOF n’est pas une erreur.
+
+### Valeur de retour
+
+- `list<byte>`.
+- Une longueur nulle (`length == 0`) **indique EOF**.
+
+---
+
+## 17. BinaryFile.write(bytes)
+
+Ecrit `bytes` a la position courante.
+
+### Signature
+
+```ps
+binaryFile.write(bytes)
+```
+
+### Parametre `bytes` (normatif)
+
+- `bytes` **DOIT** être un `list<byte>`.
+- Chaque element **DOIT** être dans `0..255`.
+
+### Comportement
+
+- Le curseur avance du nombre d’**octets** ecrits.
+- Aucune conversion implicite n’est effectuee.
+
+Toute incoherence de type ou de contenu **DOIT** lever une erreur runtime.
+
+---
+
+## 18. BinaryFile.tell()
+
+Retourne la position courante **en octets**.
+
+```ps
+binaryFile.tell() -> int
+```
+
+---
+
+## 19. BinaryFile.seek(pos)
+
+Positionne le curseur a la position `pos` **en octets**.
+
+```ps
+binaryFile.seek(pos)
+```
+
+Règles normatives :
+
+- `pos` **DOIT** être un entier `>= 0`.
+- Si `pos` est superieur a `size()`, l’appel **DOIT** lever une erreur runtime.
+
+---
+
+## 20. BinaryFile.size()
+
+Retourne la taille du fichier en **octets**.
+
+```ps
+binaryFile.size() -> int
+```
+
+---
+
+## 21. BinaryFile.name()
+
+Retourne le chemin/nom associe au handle.
+
+```ps
+binaryFile.name() -> string
+```
+
+---
+
+## 22. BinaryFile.close()
+
+Identique a `TextFile.close()`.
+
+---
+
+## 23. UTF-8 strict (mode texte)
+
+Regles normatives en lecture texte :
+
+- Decodage UTF-8 obligatoire.
+- Sequences UTF-8 invalides → erreur.
+- Octet NUL interdit → erreur.
+- Aucun traitement implicite de BOM.
+
+---
+
+## 24. Mode binaire
+
+- Aucun decodage.
+- Valeurs d’octet 0-255 autorisees.
+- Representation : `list<byte>`.
+
+---
+
+## 25. Index des glyphes (mode texte)
+
+Les operations `read(size)`, `tell()`, `seek(pos)` et `size()` travaillent en **glyphes**.
+
+L’implementation **peut** construire un index des positions de glyphes en parcourant le fichier (passe UTF-8). Cela peut impliquer :
+
+- un cout **O(n)** pour la premiere demande de `size()` ou `seek()`,
+- une invalidation/reconstruction apres `write()`.
+
+Ce comportement est **autorise** tant que la semantique observable reste conforme.
+
+---
+
+## 26. Exemples
+
+### 26.1 Texte sequentiel
+
+```ps
+var f = Io.openText("notes.txt", "r");
+while (true) {
+  var s = f.read(128);
+  if (s.length == 0) break;
+  Io.print(s);
+}
+f.close();
+```
+
+### 26.2 Binaire sequentiel
+
+```ps
+var f = Io.openBinary("data.bin", "r");
 while (true) {
   var chunk = f.read(1024);
   if (chunk.length == 0) break;
@@ -280,37 +450,19 @@ f.close();
 
 ---
 
-## 13. Gestion des ressources
-
-Aucune fermeture automatique.
-
-Usage recommandé :
-
-```ps
-var f = Io.open("notes.txt", "w");
-try {
-  f.write("hello" + Io.EOL);
-} finally {
-  f.close();
-}
-```
-
----
-
-## 14. Non‑objectifs
+## 27. Non-objectifs
 
 - I/O asynchrone
-- seek / tell
 - mmap
 - encodages alternatifs
 - fermeture automatique
 
 ---
 
-## 15. Exigences d’implémentation
+## 28. Exigences d’implementation
 
 - Module natif C.
-- Respect strict des règles de type.
-- Tests couvrant texte, binaire, EOF via longueur nulle, erreurs.
+- Respect strict des regles de type.
+- Tests couvrant texte, binaire, EOF via longueur nulle, erreurs, seek/tell/size.
 
-Fin de la spécification.
+Fin de la specification.

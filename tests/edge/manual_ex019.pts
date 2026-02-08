@@ -1,0 +1,18 @@
+import Io;
+
+function main() : void {
+    var s = "ok";
+    var n = 12;
+    var b = false;
+    var f = .2;
+
+    string s2 = s;
+    int n2 = n;
+    bool b2 = b;
+    float f2 = f;
+
+    Io.printLine(s2);
+    Io.printLine(n2.toString());
+    Io.printLine(b2.toString());
+    Io.printLine(f2.toString());
+}

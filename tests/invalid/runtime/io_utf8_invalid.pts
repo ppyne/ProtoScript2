@@ -1,11 +1,11 @@
 import Io;
 
 function main() : void {
-    var f = Io.open("io_utf8_bad.bin", "wb");
-    var data = [195, 40];
+    var f = Io.openBinary("io_utf8_bad.bin", "w");
+    list<byte> data = [0xC3.toByte(), 0x28.toByte()];
     f.write(data);
     f.close();
 
-    var r = Io.open("io_utf8_bad.bin", "r");
-    r.read();
+    var r = Io.openText("io_utf8_bad.bin", "r");
+    r.read(1);
 }

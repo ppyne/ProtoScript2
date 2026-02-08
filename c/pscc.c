@@ -72,6 +72,24 @@ int main(int argc, char **argv) {
     return 2;
   }
 
+  char exe_buf[PATH_MAX];
+  if (realpath(argv[0], exe_buf)) {
+    char *slash = strrchr(exe_buf, '/');
+    if (slash) {
+      *slash = '\0';
+      ps_set_registry_exe_dir(exe_buf);
+    }
+  } else {
+    char *slash = strrchr(argv[0], '/');
+    if (slash) {
+      size_t n = (size_t)(slash - argv[0]);
+      if (n >= sizeof(exe_buf)) n = sizeof(exe_buf) - 1;
+      memcpy(exe_buf, argv[0], n);
+      exe_buf[n] = '\0';
+      ps_set_registry_exe_dir(exe_buf);
+    }
+  }
+
   const char *mode = argv[1];
   const char *input = argv[2];
   int opt_count = 0;

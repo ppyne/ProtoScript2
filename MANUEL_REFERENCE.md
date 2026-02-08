@@ -31,16 +31,13 @@ import Io;
 
 function main() : void {
     Io.printLine("Hello world");
-}
 
-function main() : void {
     Io.print("Hello world".concat(Io.EOL));
-}
-
-function main() : void {
+    
     Io.print(["Hello", " ", "world", Io.EOL].concat());
 }
 ```
+Ref: EX-001
 
 ### 1.4 Contre-exemple
 
@@ -84,6 +81,7 @@ function main() : void {
     Io.printLine(x.toString());
 }
 ```
+Ref: EX-002
 
 ### 2.3 Commentaires
 
@@ -91,6 +89,7 @@ function main() : void {
 // commentaire ligne
 /* commentaire bloc */
 ```
+Ref: EX-003
 
 ### 2.4 Ce que le langage ne fait pas
 
@@ -128,6 +127,7 @@ float f = 3.14;
 glyph g = "A"[0];
 string s = "abc";
 ```
+Ref: EX-004
 
 ### 3.3 Absence de null
 
@@ -137,8 +137,9 @@ Contre-exemple :
 
 ```c
 // invalide : `null` n'est pas une valeur du langage
-// string s = null;
+string s = null; // Erreur : E2001 UNRESOLVED_NAME
 ```
+Ref: EX-005
 
 ### 3.3.1 Pourquoi ?
 
@@ -178,6 +179,7 @@ function main() : void {
     }
 }
 ```
+Ref: EX-006
 
 ### 3.3.3 Cas standard : `JSONValue` et `null` JSON
 
@@ -204,6 +206,7 @@ function main() : void {
     Io.printLine(s);
 }
 ```
+Ref: EX-007
 
 ### 3.4 Valeurs par défaut
 
@@ -217,15 +220,17 @@ function main() : void {
     Io.printLine(x.toString());
 }
 ```
+Ref: EX-008
 
 Contre-exemple :
 
 ```c
 function main() : void {
     int x;
-    Io.printLine(x.toString()); // invalide : x non initialisée
+    Io.printLine(x.toString()); // Erreur : E4001 UNINITIALIZED_READ
 }
 ```
+Ref: EX-009
 
 ### 3.5 Conversions explicites
 
@@ -234,6 +239,7 @@ int n = 12;
 string s = n.toString();
 float f = s.toFloat();
 ```
+Ref: EX-010
 
 ### 3.6 Erreur fréquente
 
@@ -258,6 +264,7 @@ int b = 0x2A;
 int c = 0b1010;
 int d = -5; // unaire '-' appliqué à 5
 ```
+Ref: EX-011
 
 ### 4.2 Flottants
 
@@ -265,12 +272,14 @@ int d = -5; // unaire '-' appliqué à 5
 float f1 = 1.5;
 float f2 = 1e-3;
 ```
+Ref: EX-012
 
 ### 4.3 Chaînes
 
 ```c
 string s = "Bonjour";
 ```
+Ref: EX-013
 
 Échappements reconnus dans les littéraux de chaîne :
 
@@ -284,6 +293,7 @@ string bs = "\b";    // BS
 string ff = "\f";    // FF
 string u = "\u263A"; // Unicode (☺)
 ```
+Ref: EX-014
 
 ### 4.4 Listes et maps
 
@@ -291,6 +301,7 @@ string u = "\u263A"; // Unicode (☺)
 list<int> xs = [1, 2, 3];
 map<string, int> mm = {"a": 1, "b": 2};
 ```
+Ref: EX-015
 
 ### 4.5 Littéraux vides et typage contextuel
 
@@ -298,13 +309,15 @@ map<string, int> mm = {"a": 1, "b": 2};
 list<int> xs = [];
 map<string, int> mm = {};
 ```
+Ref: EX-016
 
 Contre-exemple :
 
 ```c
-var x = []; // invalide sans contexte de type
-var m = {}; // invalide sans contexte de type
+var x = []; // Erreur : E3006 MISSING_TYPE_CONTEXT
+var m = {}; // Erreur : E3006 MISSING_TYPE_CONTEXT
 ```
+Ref: EX-017
 
 ### 4.6 Erreur fréquente
 
@@ -320,6 +333,7 @@ Confondre `{}` map vide avec un bloc vide. Dans une expression, `{}` est un litt
 var n = 10;
 int x = 20;
 ```
+Ref: EX-018
 
 `var` déclenche une inférence locale du type à partir de l'initialiseur.
 Le type reste statique et connu à la compilation.
@@ -331,13 +345,14 @@ Exemple :
 var s = "ok";  // s : string
 var n = 12;    // n : int
 ```
+Ref: EX-019
 
 Contre-exemple :
 
 ```c
-// invalide : `var` sans initialiseur
-// var x;
+var x; // Erreur : E1001 PARSE_UNEXPECTED_TOKEN (var sans initialiseur)
 ```
+Ref: EX-020
 
 ### 5.2 Portée lexicale et shadowing
 
@@ -351,6 +366,7 @@ function main() : void {
     Io.printLine(x.toString()); // 1
 }
 ```
+Ref: EX-021
 
 ### 5.3 Initialisation obligatoire
 
@@ -365,19 +381,17 @@ function main() : void {
     Io.printLine(y.toString());
 }
 ```
+Ref: EX-022
 
 Contre-exemple :
 
 ```c
 function main() : void {
     int x;
-    Io.printLine(x.toString()); // invalide : x non initialisée
+    Io.printLine(x.toString()); // Erreur : E4001 (UNINITIALIZED_READ)
 }
 ```
-
-Erreur attendue :
-
-- erreur statique `E4001` (`UNINITIALIZED_READ`)
+Ref: EX-023
 
 ### 5.4 Ce qui n'existe pas
 
@@ -409,6 +423,7 @@ function main() : void {
     bool v = left() && right(); // affiche seulement L
 }
 ```
+Ref: EX-024
 
 ### 6.3 Ternaire
 
@@ -417,6 +432,7 @@ int a = 1;
 int b = 2;
 int m = (a < b) ? a : b;
 ```
+Ref: EX-025
 
 ### 6.4 Affectation
 
@@ -431,6 +447,7 @@ Contre-exemple :
 // int x = (a = 1);
 // a = b = c;
 ```
+Ref: EX-026
 
 ### 6.5 Pourquoi ?
 
@@ -447,6 +464,7 @@ int c = a + b;
 bool k = (a > b) && (b != 0);
 int s = a << 1;
 ```
+Ref: EX-027
 
 ### 7.1 Catégories
 
@@ -568,6 +586,7 @@ Contre-exemple :
 // invalide selon la spec
 // string s = "a" + "b";
 ```
+Ref: EX-028
 
 Utiliser la concaténation explicite disponible par API/méthode.
 
@@ -581,6 +600,7 @@ string c = a.concat(b);
 // Astuce
 string d = ["Hello", " ", "world"].concat();
 ```
+Ref: EX-029
 
 ### 7.4 Erreur fréquente
 
@@ -599,6 +619,7 @@ if (x > 0) {
     Io.printLine("non-pos");
 }
 ```
+Ref: EX-030
 
 Le bloc est optionnel si la branche contient une seule instruction.
 
@@ -606,6 +627,7 @@ Le bloc est optionnel si la branche contient une seule instruction.
 if (x > 0)
     Io.printLine("pos");
 ```
+Ref: EX-031
 
 Exemple avec `else if` :
 
@@ -618,6 +640,7 @@ if (x > 0) {
     Io.printLine("zero");
 }
 ```
+Ref: EX-032
 
 ### 8.2 Boucles
 
@@ -630,6 +653,7 @@ while (cond) {
     // ...
 }
 ```
+Ref: EX-033
 
 #### 8.2.2 do / while
 
@@ -638,6 +662,7 @@ do {
     // ...
 } while (cond);
 ```
+Ref: EX-034
 
 #### 8.2.3 for classique
 
@@ -646,6 +671,7 @@ for (int i = 0; i < 10; i++) {
     // ...
 }
 ```
+Ref: EX-035
 
 Exemples d'itération indexée :
 
@@ -655,6 +681,7 @@ for (int i = 0; i < xs.length(); i = i + 1) {
     Io.printLine(xs[i].toString());
 }
 ```
+Ref: EX-036
 
 ```c
 string s = "abc";
@@ -663,6 +690,7 @@ for (int i = 0; i < s.length(); ++i) {
     Io.printLine(g.toString());
 }
 ```
+Ref: EX-037
 
 Note :
 
@@ -677,6 +705,7 @@ for (int i = 0; i < ks.length(); i++) {
     Io.printLine(v.toString());
 }
 ```
+Ref: EX-038
 
 #### 8.2.4 for ... of (itération sur les valeurs)
 
@@ -688,6 +717,7 @@ for (int v of xs) {
     Io.printLine(v.toString());
 }
 ```
+Ref: EX-039
 
 Sur `string`, `for ... of` itère sur les glyphes :
 
@@ -697,6 +727,7 @@ for (glyph g of s) {
     Io.printLine(g.toString());
 }
 ```
+Ref: EX-040
 
 Sur `map<K,V>`, `for ... of` itère sur les valeurs `V` :
 
@@ -706,6 +737,7 @@ for (int v of m) {
     Io.printLine(v.toString());
 }
 ```
+Ref: EX-041
 
 #### 8.2.5 for ... in (itération sur les clés)
 
@@ -717,6 +749,7 @@ for (string k in m) {
     Io.printLine(k);
 }
 ```
+Ref: EX-042
 
 Contre-exemple :
 
@@ -729,6 +762,7 @@ string s = "abc";
 // invalide : `for ... in` ne s'applique pas à `string`
 // for (glyph g in s) { ... }
 ```
+Ref: EX-043
 
 Erreur fréquente :
 
@@ -752,6 +786,7 @@ for (int v of xs) {
     Io.printLine(v.toString());
 }
 ```
+Ref: EX-044
 
 Exemple `continue` :
 
@@ -763,6 +798,7 @@ for (int i = 0; i < 5; i++) {
     Io.printLine(i.toString());
 }
 ```
+Ref: EX-045
 
 ### 8.4 switch sans fallthrough implicite
 
@@ -776,6 +812,7 @@ default:
     break;
 }
 ```
+Ref: EX-046
 
 Chaque `case` / `default` doit se terminer par une instruction de terminaison explicite :
 
@@ -794,6 +831,7 @@ default:
     break;
 }
 ```
+Ref: EX-047
 
 Contre-exemple (fallthrough implicite) :
 
@@ -808,6 +846,7 @@ default:
     break;
 }
 ```
+Ref: EX-048
 
 ### 8.5 Erreur fréquente
 
@@ -824,6 +863,7 @@ function add(int a, int b) : int {
     return a + b;
 }
 ```
+Ref: EX-049
 
 ### 9.2 Paramètres et retour
 
@@ -839,6 +879,7 @@ Contre-exemple :
 //     Io.printLine(name);
 // }
 ```
+Ref: EX-050
 
 ### 9.3 Variadique
 
@@ -851,12 +892,14 @@ function sum(list<int> values...) : int {
     return acc;
 }
 ```
+Ref: EX-051
 
 Appel valide :
 
 ```c
 int r = sum(1, 2, 3);
 ```
+Ref: EX-052
 
 Contre-exemple :
 
@@ -864,6 +907,7 @@ Contre-exemple :
 // invalide : variadique vide
 // int r = sum();
 ```
+Ref: EX-053
 
 Note :
 
@@ -939,6 +983,7 @@ function main() : void {
     p.y = 2;
 }
 ```
+Ref: EX-054
 
 Le prototype `Point` définit :
 
@@ -968,6 +1013,7 @@ prototype Point {
     }
 }
 ```
+Ref: EX-055
 
 `self` est **lexicalement et statiquement résolu**.  
 Il n’existe aucune ambiguïté liée à un contexte d’appel dynamique.
@@ -983,6 +1029,7 @@ prototype ColoredPoint : Point {
     int color;
 }
 ```
+Ref: EX-056
 
 Un `ColoredPoint` peut être utilisé là où un `Point` est attendu, **selon les règles de substitution statiques** définies par le langage.
 
@@ -1027,6 +1074,7 @@ prototype ColoredPoint : Point {
     }
 }
 ```
+Ref: EX-057
 
 Contre-exemples :
 
@@ -1039,6 +1087,7 @@ prototype Bad2 : Point {
     function move(int dx, int dy) : int { return 0; }
 }
 ```
+Ref: EX-058
 
 Les champs ne peuvent pas être redéfinis avec un type différent.  
 Il n’existe aucun mécanisme de surcharge structurelle implicite.
@@ -1191,6 +1240,7 @@ xs[1] = 30; // mise à jour
 xs.push(40);
 int v = xs.pop();
 ```
+Ref: EX-059
 
 Contre-exemple :
 
@@ -1198,6 +1248,7 @@ Contre-exemple :
 list<int> xs = [1];
 // xs[3] = 10; // runtime OOB
 ```
+Ref: EX-060
 
 ### 11.1.1 API `list<T>`
 
@@ -1224,12 +1275,14 @@ m["a"] = 1;    // insertion (clé absente)
 m["a"] = 2;    // mise à jour (clé présente)
 int x = m["a"]; // lecture valide
 ```
+Ref: EX-061
 
 Littéral direct :
 
 ```c
 map<string, int> m = {"a": 3, "b": 2, "c": 1};
 ```
+Ref: EX-062
 
 Contre-exemple :
 
@@ -1237,6 +1290,7 @@ Contre-exemple :
 map<string, int> m = {};
 int x = m["absent"]; // runtime missing key
 ```
+Ref: EX-063
 
 ### 11.2.1 API `map<K,V>`
 
@@ -1263,6 +1317,7 @@ for (int v of xs) { ... }
 for (string k in m) { ... } // clés
 for (int v of m) { ... }    // valeurs
 ```
+Ref: EX-064
 
 ### 11.6 Erreur fréquente
 
@@ -1286,6 +1341,7 @@ list<int> xs = [1, 2, 3, 4];
 slice<int> s = xs.slice(1, 2);
 view<int> v = xs.view(0, 3);
 ```
+Ref: EX-065
 
 ### 12.3 Écriture
 
@@ -1293,6 +1349,7 @@ view<int> v = xs.view(0, 3);
 s[0] = 99; // autorisé
 // v[0] = 99; // invalide (view en lecture seule)
 ```
+Ref: EX-066
 
 ### 12.3.1 API `slice<T>` / `view<T>`
 
@@ -1337,6 +1394,7 @@ try {
     Io.printLine("vue invalidée");
 }
 ```
+Ref: EX-067
 
 Exemple :
 
@@ -1349,6 +1407,7 @@ xs.push(4); // mutation structurelle : v peut être invalidée
 // l’accès ci‑dessous est invalide si le buffer a bougé
 // int a = v[0];
 ```
+Ref: EX-068
 
 ### 12.5 Erreur fréquente
 
@@ -1371,6 +1430,7 @@ string s = "a😀b";
 int n = s.length(); // 3 glyphes
 glyph g = s[1];     // 😀
 ```
+Ref: EX-069
 
 Index hors bornes :
 
@@ -1378,6 +1438,7 @@ Index hors bornes :
 // runtime OOB
 // glyph g = s[99];
 ```
+Ref: EX-070
 
 ### 13.3 Combining marks
 
@@ -1389,6 +1450,7 @@ Index hors bornes :
 string s = "abc";
 // s[0] = "x"[0]; // invalide
 ```
+Ref: EX-071
 
 Exemple d'approche correcte (création d'une nouvelle chaîne) :
 
@@ -1396,6 +1458,7 @@ Exemple d'approche correcte (création d'une nouvelle chaîne) :
 string s = "abc";
 string t = s.concat("x"); // s reste inchangée
 ```
+Ref: EX-072
 
 ### 13.5 Comparaison utile (PHP/JS/C)
 
@@ -1419,6 +1482,7 @@ string t = s.trim();     // retire espaces ASCII en début/fin
 string u = s.replace("a", "A"); // première occurrence
 list<string> parts = "a,b,c".split(",");
 ```
+Ref: EX-073
 
 Notes :
 
@@ -1440,6 +1504,7 @@ string s = "Le cœur déçu mais l'âme plutôt naïve, Louÿs rêva de crapaüt
 list<byte> bytes = s.toUtf8Bytes();
 string back = bytes.toUtf8String();
 ```
+Ref: EX-074
 
 Si la liste de bytes n'est pas un UTF-8 valide, `toUtf8String()` lève une exception runtime.
 
@@ -1452,6 +1517,7 @@ Elle retourne une **nouvelle** chaîne et ne crée pas de vue partagée.
 string s = "a😀b";
 string t = s.substring(1, 1); // "😀"
 ```
+Ref: EX-075
 
 Erreurs :
 
@@ -1478,6 +1544,7 @@ import Io as io;
 import Math.{abs, sqrt as racine};
 import JSON.{encode, decode};
 ```
+Ref: EX-076
 
 Exemples d'usage :
 
@@ -1486,6 +1553,7 @@ float x = Io.readLine().toFloat();
 float y = racine(x);
 string s = encode(y);
 ```
+Ref: EX-077
 
 ### 14.2 Visibilité et noms
 
@@ -1499,6 +1567,7 @@ Contre-exemple :
 // invalide
 // import std.io.*;
 ```
+Ref: EX-078
 
 ### 14.3 Résolution statique
 
@@ -1510,6 +1579,20 @@ Aucun chargement dynamique.
 Les modules natifs étendent l'environnement de noms, pas la sémantique du langage.
 Documentation officielle : `docs/native-modules.md`.
 
+### 14.5 Registry des modules standards
+
+Le chargeur utilise un registry JSON pour résoudre `import Io`, `import Math`, `import JSON`.
+
+- Surcharge possible via `PS_MODULE_REGISTRY` (chemin absolu ou relatif).
+- Ordre de recherche par défaut :
+`PS_MODULE_REGISTRY`,
+`registry.json` à côté du binaire `ps`,
+`./registry.json`,
+`/etc/ps/registry.json`,
+`/usr/local/etc/ps/registry.json`,
+`/opt/local/etc/ps/registry.json`,
+`./modules/registry.json`.
+
 ### 14.4.1 Module standard : Io
 
 **Constantes**
@@ -1517,74 +1600,95 @@ Documentation officielle : `docs/native-modules.md`.
 | Nom | Type | Description |
 |---|---|---|
 | `Io.EOL` | `string` | fin de ligne (`"\n"`) |
-| `Io.stdin` | `File` | flux standard d’entrée (texte) |
-| `Io.stdout` | `File` | flux standard de sortie (texte) |
-| `Io.stderr` | `File` | flux standard d’erreur (texte) |
+| `Io.stdin` | `TextFile` | flux standard d’entrée (texte) |
+| `Io.stdout` | `TextFile` | flux standard de sortie (texte) |
+| `Io.stderr` | `TextFile` | flux standard d’erreur (texte) |
 
 **Fonctions globales**
 
 | Fonction | Signature | Description | Erreurs |
 |---|---|---|---|
-| `Io.open` | `(string path, string mode) -> File` | ouvre un fichier | runtime si mode invalide |
+| `Io.openText` | `(string path, string mode) -> TextFile` | ouvre un fichier texte | runtime si mode invalide |
+| `Io.openBinary` | `(string path, string mode) -> BinaryFile` | ouvre un fichier binaire | runtime si mode invalide |
 | `Io.print` | `(any value) -> void` | écrit sans fin de ligne | type si valeur incompatible |
 | `Io.printLine` | `(any value) -> void` | écrit + `Io.EOL` | type si valeur incompatible |
 
 Notes :
 
-- `Io.open(...)` **lève une exception runtime** si l’ouverture échoue (fichier introuvable, permissions, mode invalide, etc.).
-- en cas d’échec, **aucun `File` n’est retourné**.
+- `Io.openText(...)` / `Io.openBinary(...)` **lèvent une exception runtime** si l’ouverture échoue (fichier introuvable, permissions, mode invalide, etc.).
+- en cas d’échec, **aucun handle n’est retourné**.
 
-**Méthodes sur `File` ouvert**
+**Méthodes sur `TextFile`**
 
 | Méthode | Signature | Description | Erreurs |
 |---|---|---|---|
-| `read()` | `() -> string \| list<byte>` | lit tout (texte ou binaire selon mode) | runtime si UTF‑8 invalide |
-| `read(size)` | `(int) -> string \| list<byte>` | lit jusqu’à `size` | runtime si size < 1 |
-| `write(x)` | `(string \| list<byte>) -> void` | écrit texte/binaire selon mode | runtime si type invalide |
+| `read(size)` | `(int) -> string` | lit `size` glyphes | runtime si size < 1 |
+| `write(text)` | `(string) -> void` | écrit du texte | runtime si type invalide |
+| `tell()` | `() -> int` | position en glyphes | runtime si fichier fermé |
+| `seek(pos)` | `(int) -> void` | positionne en glyphes | runtime si pos invalide |
+| `size()` | `() -> int` | taille en glyphes | runtime si fichier fermé |
+| `name()` | `() -> string` | nom/chemin | runtime si fichier fermé |
+| `close()` | `() -> void` | ferme le fichier | runtime si stdin/stdout/stderr |
+
+**Méthodes sur `BinaryFile`**
+
+| Méthode | Signature | Description | Erreurs |
+|---|---|---|---|
+| `read(size)` | `(int) -> list<byte>` | lit `size` octets | runtime si size < 1 |
+| `write(bytes)` | `(list<byte>) -> void` | écrit des octets | runtime si type invalide |
+| `tell()` | `() -> int` | position en octets | runtime si fichier fermé |
+| `seek(pos)` | `(int) -> void` | positionne en octets | runtime si pos invalide |
+| `size()` | `() -> int` | taille en octets | runtime si fichier fermé |
+| `name()` | `() -> string` | nom/chemin | runtime si fichier fermé |
 | `close()` | `() -> void` | ferme le fichier | runtime si stdin/stdout/stderr |
 
 Notes :
 
-- en mode texte (sans `b`), `read()`/`read(size)` retournent une `string`.
-- en mode binaire (`b`), `read()`/`read(size)` retournent une `list<byte>`.
-- `read(size)` retourne une **valeur de longueur nulle** (`length == 0`) si zéro octet est lu.
+- en texte, `read(size)` retourne une `string` dont la longueur est le nombre de **glyphes** lus.
+- en binaire, `read(size)` retourne un `list<byte>`.
+- `read(size)` retourne une **valeur de longueur nulle** (`length == 0`) si EOF.
 
 Exemple :
 
 Écriture de texte :
 
 ```c
-File f = Io.open("out.txt", "w");
+TextFile f = Io.openText("out.txt", "w");
 f.write("hello");
 f.close();
 Io.printLine("done");
 ```
+Ref: EX-079
 
 Lecture de texte :
 
 ```c
-File f = Io.open("in.txt", "r");
-string data = f.read();
+TextFile f = Io.openText("in.txt", "r");
+int n = f.size();
+string data = f.read(n);
 f.close();
 ```
+Ref: EX-080
 
 Lecture binaire et écriture binaire :
 
 ```c
-File f = Io.open("in.bin", "rb");
-list<byte> bytes = f.read();
+BinaryFile f = Io.openBinary("in.bin", "r");
+list<byte> bytes = f.read(1024);
 f.close();
 
-File g = Io.open("out.bin", "wb");
+BinaryFile g = Io.openBinary("out.bin", "w");
 g.write(bytes);
 g.close();
 ```
+Ref: EX-081
 
 Écrire sur `Io.stderr` :
 
 ```c
 Io.stderr.write("error\n");
 ```
+Ref: EX-082
 
 ### 14.4.2 Module standard : Math
 
@@ -1662,6 +1766,7 @@ float a = Math.log(-1.0); // NaN
 float b = Math.sqrt(-1.0); // NaN
 float c = Math.exp(1000.0); // +Infinity (overflow)
 ```
+Ref: EX-083
 
 ### 14.4.2.1 Contrat NaN / ±Infinity / −0
 
@@ -1703,12 +1808,14 @@ float b = Math.sqrt(9.0);      // 3.0
 float c = Math.log(Math.E);    // 1.0
 float d = Math.pow(2.0, 3.0);  // 8.0
 ```
+Ref: EX-084
 
 Exemple trigonométrique (radians) :
 
 ```c
 float s = Math.sin(Math.PI / 2.0); // ~1.0
 ```
+Ref: EX-085
 
 ### 14.4.3 Module standard : JSON
 
@@ -1759,6 +1866,7 @@ string s = JSON.encode({"a": 1, "b": [true, false]});
 JSONValue v = JSON.decode(s);
 bool ok = JSON.isValid("{\"x\":1}");
 ```
+Ref: EX-086
 
 Le comportement complet est normatif et défini dans :
 
@@ -1815,6 +1923,7 @@ try {
     Io.printLine("cleanup");
 }
 ```
+Ref: EX-087
 
 ### 15.4 Contre-exemple
 
@@ -1848,6 +1957,7 @@ ps check fichier.pts
 ps emit-c fichier.pts
 ps test
 ```
+Ref: EX-088
 
 Options courantes :
 
@@ -1858,6 +1968,7 @@ Options courantes :
 --trace-ir
 --time
 ```
+Ref: EX-089
 
 Position des options :
 
@@ -1902,6 +2013,7 @@ function main() : int { return 0; }
 function main(list<string> args) : void { }
 function main(list<string> args) : int { return 0; }
 ```
+Ref: EX-090
 
 `args` reçoit **tous** les arguments tels que fournis par le système, sans filtrage, y compris le binaire et la sous‑commande.
 Exemple avec le CLI :
@@ -1909,12 +2021,14 @@ Exemple avec le CLI :
 ```
 ./ps run fichier.pts a b
 ```
+Ref: EX-091
 
 `args` vaut :
 
 ```
 ["./ps", "run", "fichier.pts", "a", "b"]
 ```
+Ref: EX-092
 
 Codes de sortie par défaut :
 
@@ -1942,6 +2056,7 @@ function main() : void {
     Io.printLine(x);
 }
 ```
+Ref: EX-093
 
 Le binaire C généré doit être exécuté avec le runtime et les modules natifs disponibles.
 
@@ -1962,6 +2077,7 @@ cc -std=c11 -O2 -I./include \
 # Exécuter (les modules natifs requis doivent être accessibles)
 ./hello
 ```
+Ref: EX-094
 
 ### 16.5 CLI `pscc` (frontend C)
 
@@ -1978,6 +2094,7 @@ Commandes principales :
 ./c/pscc --emit-ir file.pts      # forward vers bin/protoscriptc
 ./c/pscc --emit-c file.pts       # forward vers bin/protoscriptc
 ```
+Ref: EX-095
 
 ### 16.6 Comparaison utile (JS/PHP)
 
@@ -2090,6 +2207,7 @@ function main() : void {
     Io.printLine(r.toString());
 }
 ```
+Ref: EX-096
 
 ### 18.4 Notes de comparaison (clarification)
 

@@ -1,0 +1,10 @@
+import Io;
+
+function main() : void {
+    int x = 1;
+    if (x == 1) {
+        Io.printLine("yes");
+    } else {
+        Io.printLine("no");
+    }
+}

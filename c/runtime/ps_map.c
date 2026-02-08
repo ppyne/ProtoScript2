@@ -151,3 +151,32 @@ int ps_map_set(PS_Context *ctx, PS_Value *map, PS_Value *key, PS_Value *value) {
   m->len += 1;
   return 1;
 }
+
+size_t ps_map_len(PS_Value *map) {
+  if (!map || map->tag != PS_V_MAP) return 0;
+  return map->as.map_v.len;
+}
+
+PS_Status ps_map_entry(PS_Context *ctx, PS_Value *map, size_t index, PS_Value **out_key, PS_Value **out_value) {
+  if (!map || map->tag != PS_V_MAP) {
+    ps_throw(ctx, PS_ERR_TYPE, "not a map");
+    return PS_ERR;
+  }
+  PS_Map *m = &map->as.map_v;
+  if (index >= m->len) {
+    ps_throw(ctx, PS_ERR_RANGE, "index out of bounds");
+    return PS_ERR;
+  }
+  size_t seen = 0;
+  for (size_t i = 0; i < m->cap; i++) {
+    if (!m->used[i]) continue;
+    if (seen == index) {
+      if (out_key) *out_key = m->keys[i];
+      if (out_value) *out_value = m->values[i];
+      return PS_OK;
+    }
+    seen += 1;
+  }
+  ps_throw(ctx, PS_ERR_RANGE, "index out of bounds");
+  return PS_ERR;
+}

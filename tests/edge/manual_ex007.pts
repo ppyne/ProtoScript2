@@ -1,0 +1,16 @@
+import JSON;
+import Io;
+
+function main() : void {
+    JSONValue v = JSON.null();
+    if (v.isNull()) {
+        Io.printLine("json null");
+    }
+
+    JSONValue obj = JSON.object({
+        "a": JSON.null(),
+        "b": JSON.number(1)
+    });
+    string s = JSON.encode(obj);
+    Io.printLine(s);
+}

@@ -56,6 +56,7 @@ void ps_value_free(PS_Value *v) {
       if (v->as.file_v.fp && !v->as.file_v.closed && !(v->as.file_v.flags & PS_FILE_STD)) {
         fclose(v->as.file_v.fp);
       }
+      if (v->as.file_v.path) free(v->as.file_v.path);
       break;
     case PS_V_EXCEPTION:
       if (v->as.exc_v.file) ps_value_release(v->as.exc_v.file);

@@ -1,0 +1,19 @@
+import Io;
+
+function main() : void {
+    var f = Io.openText("io_text.txt", "w");
+    f.write("a🙂b");
+    f.close();
+
+    var r = Io.openText("io_text.txt", "r");
+    int n = r.size();
+    r.seek(1);
+    string mid = r.read(1);
+    r.seek(2);
+    int pos = r.tell();
+    string tail = r.read(1);
+    r.close();
+
+    bool ok = (n == 3) && (pos == 2) && (mid.length() == 1) && (tail == "b");
+    Io.printLine(ok.toString());
+}

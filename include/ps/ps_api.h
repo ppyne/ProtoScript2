@@ -26,6 +26,7 @@ typedef enum {
   PS_T_STRING,
   PS_T_BYTES,
   PS_T_LIST,
+  PS_T_MAP,
   PS_T_OBJECT,
   PS_T_FILE,
   PS_T_VOID
@@ -107,7 +108,7 @@ PS_Value *ps_make_string_utf8(PS_Context *ctx, const char *utf8, size_t len);
 PS_Value *ps_make_bytes(PS_Context *ctx, const uint8_t *bytes, size_t len);
 PS_Value *ps_make_list(PS_Context *ctx);
 PS_Value *ps_make_object(PS_Context *ctx);
-PS_Value *ps_make_file(PS_Context *ctx, FILE *fp, uint32_t flags);
+PS_Value *ps_make_file(PS_Context *ctx, FILE *fp, uint32_t flags, const char *path);
 
 // Accessors (do not transfer ownership).
 int ps_as_bool(PS_Value *v);
@@ -125,6 +126,9 @@ size_t ps_list_len(PS_Value *list);
 PS_Value *ps_list_get(PS_Context *ctx, PS_Value *list, size_t index);
 PS_Status ps_list_set(PS_Context *ctx, PS_Value *list, size_t index, PS_Value *value);
 PS_Status ps_list_push(PS_Context *ctx, PS_Value *list, PS_Value *value);
+
+size_t ps_map_len(PS_Value *map);
+PS_Status ps_map_entry(PS_Context *ctx, PS_Value *map, size_t index, PS_Value **out_key, PS_Value **out_value);
 
 PS_Value *ps_object_get_str(PS_Context *ctx, PS_Value *obj, const char *key_utf8, size_t key_len);
 PS_Status ps_object_set_str(PS_Context *ctx, PS_Value *obj, const char *key_utf8, size_t key_len, PS_Value *value);

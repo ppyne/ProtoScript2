@@ -1,0 +1,15 @@
+import Io;
+import JSON;
+
+function main() : void {
+    string s0 = JSON.encode(JSON.null());
+    string s1 = JSON.encode(JSON.bool(true));
+    string s2 = JSON.encode(JSON.number(3.5));
+    string s3 = JSON.encode(JSON.string("hi"));
+    list<JSONValue> arr = [JSON.number(1.0), JSON.bool(false)];
+    string s4 = JSON.encode(JSON.array(arr));
+    map<string, JSONValue> obj = {"a": JSON.number(2.0)};
+    string s5 = JSON.encode(JSON.object(obj));
+    bool ok = (s0 == "null") && (s1 == "true") && (s2 == "3.5") && (s3 == "\"hi\"") && (s4 == "[1,false]") && (s5 == "{\"a\":2}");
+    Io.printLine(ok.toString());
+}

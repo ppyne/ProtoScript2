@@ -1,0 +1,10 @@
+import Io;
+
+function main() : void {
+    int n = 12;
+    string s = n.toString();
+    float f = s.toFloat();
+    Io.printLine(n.toString());
+    Io.printLine(s);
+    Io.printLine(f.toString());
+}

@@ -58,7 +58,7 @@ function defaultValueForTypeNode(protos, t) {
   if (t.kind === "NamedType") {
     if (protos.has(t.name)) return clonePrototype(protos, t.name);
     if (t.name === "JSONValue") return makeJsonValue("null", null);
-    if (t.name === "File") return null;
+    if (t.name === "TextFile" || t.name === "BinaryFile") return null;
     return null;
   }
   if (t.kind === "GenericType") {
@@ -397,10 +397,16 @@ class Scope {
 
 function loadModuleRegistry() {
   const env = process.env.PS_MODULE_REGISTRY;
+  const cliDir = process.argv[1] ? path.dirname(process.argv[1]) : null;
   const candidates = [];
   if (env) candidates.push(env);
+  if (cliDir) candidates.push(path.join(cliDir, "registry.json"));
+  candidates.push(path.join(__dirname, "registry.json"));
+  candidates.push(path.join(process.cwd(), "registry.json"));
+  candidates.push("/etc/ps/registry.json");
+  candidates.push("/usr/local/etc/ps/registry.json");
+  candidates.push("/opt/local/etc/ps/registry.json");
   candidates.push(path.join(process.cwd(), "modules", "registry.json"));
-  candidates.push(path.join(__dirname, "..", "modules", "registry.json"));
   for (const c of candidates) {
     if (c && fs.existsSync(c)) {
       try {
@@ -414,12 +420,27 @@ function loadModuleRegistry() {
 }
 
 class IoFile {
-  constructor(fd, flags, isStd = false) {
+  constructor(fd, flags, isStd = false, path = "") {
     this.fd = fd;
     this.flags = flags;
     this.isStd = isStd;
     this.closed = false;
-    this.atStart = true;
+    this.path = path;
+    this.posBytes = 0;
+  }
+}
+
+class TextFile extends IoFile {
+  constructor(fd, flags, isStd = false, path = "") {
+    super(fd, flags, isStd, path);
+    this.kind = "text";
+  }
+}
+
+class BinaryFile extends IoFile {
+  constructor(fd, flags, isStd = false, path = "") {
+    super(fd, flags, isStd, path);
+    this.kind = "binary";
   }
 }
 
@@ -429,25 +450,132 @@ const PS_FILE_APPEND = 0x04;
 const PS_FILE_BINARY = 0x08;
 
 
-function decodeUtf8Strict(file, node, bytes, atStart) {
+function decodeUtf8Strict(file, node, bytes) {
   for (const b of bytes) {
     if (b === 0) throw new RuntimeError(rdiag(file, node, "R1007", "RUNTIME_INVALID_UTF8", "NUL byte not allowed"));
   }
-  let start = 0;
-  if (atStart && bytes.length >= 3 && bytes[0] === 0xef && bytes[1] === 0xbb && bytes[2] === 0xbf) {
-    start = 3;
-  }
-  for (let i = start; i + 2 < bytes.length; i += 1) {
-    if (bytes[i] === 0xef && bytes[i + 1] === 0xbb && bytes[i + 2] === 0xbf) {
-      throw new RuntimeError(rdiag(file, node, "R1007", "RUNTIME_INVALID_UTF8", "BOM not allowed here"));
-    }
-  }
   try {
     const dec = new TextDecoder("utf-8", { fatal: true });
-    return dec.decode(Uint8Array.from(bytes.slice(start)));
+    return dec.decode(Uint8Array.from(bytes));
   } catch {
     throw new RuntimeError(rdiag(file, node, "R1007", "RUNTIME_INVALID_UTF8", "invalid UTF-8"));
   }
+}
+
+function readByteAt(fd, pos) {
+  const buf = Buffer.alloc(1);
+  const n = fs.readSync(fd, buf, 0, 1, pos);
+  if (n === 0) return null;
+  return buf[0];
+}
+
+function readUtf8GlyphAt(fd, pos, file, node) {
+  const b0 = readByteAt(fd, pos);
+  if (b0 === null) return null;
+  if (b0 === 0) {
+    throw new RuntimeError(rdiag(file, node, "R1007", "RUNTIME_INVALID_UTF8", "NUL byte not allowed"));
+  }
+  let len = 0;
+  let cp = 0;
+  if (b0 < 0x80) {
+    len = 1;
+    cp = b0;
+  } else if ((b0 & 0xe0) === 0xc0) {
+    len = 2;
+    cp = b0 & 0x1f;
+  } else if ((b0 & 0xf0) === 0xe0) {
+    len = 3;
+    cp = b0 & 0x0f;
+  } else if ((b0 & 0xf8) === 0xf0) {
+    len = 4;
+    cp = b0 & 0x07;
+  } else {
+    throw new RuntimeError(rdiag(file, node, "R1007", "RUNTIME_INVALID_UTF8", "invalid UTF-8"));
+  }
+  const bytes = [b0];
+  for (let i = 1; i < len; i += 1) {
+    const bi = readByteAt(fd, pos + i);
+    if (bi === null) {
+      throw new RuntimeError(rdiag(file, node, "R1007", "RUNTIME_INVALID_UTF8", "invalid UTF-8"));
+    }
+    if ((bi & 0xc0) !== 0x80) {
+      throw new RuntimeError(rdiag(file, node, "R1007", "RUNTIME_INVALID_UTF8", "invalid UTF-8"));
+    }
+    if (bi === 0) {
+      throw new RuntimeError(rdiag(file, node, "R1007", "RUNTIME_INVALID_UTF8", "NUL byte not allowed"));
+    }
+    bytes.push(bi);
+    cp = (cp << 6) | (bi & 0x3f);
+  }
+  if (len === 2 && cp < 0x80) {
+    throw new RuntimeError(rdiag(file, node, "R1007", "RUNTIME_INVALID_UTF8", "invalid UTF-8"));
+  }
+  if (len === 3 && cp < 0x800) {
+    throw new RuntimeError(rdiag(file, node, "R1007", "RUNTIME_INVALID_UTF8", "invalid UTF-8"));
+  }
+  if (len === 4 && (cp < 0x10000 || cp > 0x10ffff)) {
+    throw new RuntimeError(rdiag(file, node, "R1007", "RUNTIME_INVALID_UTF8", "invalid UTF-8"));
+  }
+  return { bytes, nextPos: pos + len };
+}
+
+function readTextGlyphs(fileObj, node, glyphCount) {
+  let pos = fileObj.posBytes;
+  const bytes = [];
+  for (let i = 0; i < glyphCount; i += 1) {
+    const g = readUtf8GlyphAt(fileObj.fd, pos, fileObj.path || "<file>", node);
+    if (!g) break;
+    bytes.push(...g.bytes);
+    pos = g.nextPos;
+  }
+  if (bytes.length === 0) return { text: "", newPos: pos };
+  const text = decodeUtf8Strict(fileObj.path || "<file>", node, bytes);
+  return { text, newPos: pos };
+}
+
+function glyphIndexAtBytePos(fileObj, node) {
+  const targetPos = fileObj.posBytes;
+  let pos = 0;
+  let glyphs = 0;
+  if (targetPos === 0) return 0;
+  while (true) {
+    const g = readUtf8GlyphAt(fileObj.fd, pos, fileObj.path || "<file>", node);
+    if (!g) break;
+    pos = g.nextPos;
+    glyphs += 1;
+    if (pos === targetPos) return glyphs;
+    if (pos > targetPos) {
+      throw new RuntimeError(rdiag(fileObj.path || "<file>", node, "R1010", "RUNTIME_IO_ERROR", "tell position not at glyph boundary"));
+    }
+  }
+  if (targetPos === pos) return glyphs;
+  throw new RuntimeError(rdiag(fileObj.path || "<file>", node, "R1010", "RUNTIME_IO_ERROR", "tell out of range"));
+}
+
+function glyphCountTotal(fileObj, node) {
+  let pos = 0;
+  let glyphs = 0;
+  while (true) {
+    const g = readUtf8GlyphAt(fileObj.fd, pos, fileObj.path || "<file>", node);
+    if (!g) break;
+    pos = g.nextPos;
+    glyphs += 1;
+  }
+  return glyphs;
+}
+
+function byteOffsetForGlyph(fileObj, node, glyphPos) {
+  if (glyphPos === 0) return 0;
+  let pos = 0;
+  let glyphs = 0;
+  while (true) {
+    const g = readUtf8GlyphAt(fileObj.fd, pos, fileObj.path || "<file>", node);
+    if (!g) break;
+    pos = g.nextPos;
+    glyphs += 1;
+    if (glyphs === glyphPos) return pos;
+  }
+  throw new RuntimeError(rdiag(fileObj.path || "<file>", node, "R1010", "RUNTIME_IO_ERROR", "seek out of range"));
 }
 
 function buildModuleEnv(ast, file) {
@@ -550,28 +678,55 @@ function buildModuleEnv(ast, file) {
 
   const ioMod = makeModule("Io");
   ioMod.constants.set("EOL", "\n");
-  ioMod.constants.set("stdin", new IoFile(0, PS_FILE_READ, true));
-  ioMod.constants.set("stdout", new IoFile(1, PS_FILE_WRITE, true));
-  ioMod.constants.set("stderr", new IoFile(2, PS_FILE_WRITE, true));
-  ioMod.functions.set("open", (pathStr, modeStr, node) => {
+  ioMod.constants.set("stdin", new TextFile(0, PS_FILE_READ, true, "stdin"));
+  ioMod.constants.set("stdout", new TextFile(1, PS_FILE_WRITE, true, "stdout"));
+  ioMod.constants.set("stderr", new TextFile(2, PS_FILE_WRITE, true, "stderr"));
+  ioMod.functions.set("openText", (pathStr, modeStr, node) => {
     if (typeof pathStr !== "string" || typeof modeStr !== "string") {
-      throw new RuntimeError(rdiag(file, node, "R1010", "RUNTIME_IO_ERROR", "Io.open expects (string, string)"));
+      throw new RuntimeError(rdiag(file, node, "R1010", "RUNTIME_IO_ERROR", "Io.openText expects (string, string)"));
     }
     const m = modeStr;
-    const valid = ["r", "w", "a", "rb", "wb", "ab"];
+    const valid = ["r", "w", "a"];
     if (!valid.includes(m)) {
       throw new RuntimeError(rdiag(file, node, "R1010", "RUNTIME_IO_ERROR", "invalid mode"));
     }
-    const binary = m.includes("b");
-    const base = m[0];
     let flags = 0;
-    if (base === "r") flags = PS_FILE_READ;
-    else if (base === "w") flags = PS_FILE_WRITE;
-    else if (base === "a") flags = PS_FILE_APPEND | PS_FILE_WRITE;
-    if (binary) flags |= PS_FILE_BINARY;
+    if (m === "r") flags = PS_FILE_READ;
+    else if (m === "w") flags = PS_FILE_WRITE;
+    else if (m === "a") flags = PS_FILE_APPEND | PS_FILE_WRITE;
     try {
-      const fd = fs.openSync(pathStr, base);
-      return new IoFile(fd, flags, false);
+      const fd = fs.openSync(pathStr, m);
+      const f = new TextFile(fd, flags, false, pathStr);
+      if (m === "a") {
+        f.posBytes = fs.fstatSync(fd).size;
+      }
+      return f;
+    } catch (e) {
+      throw new RuntimeError(rdiag(file, node, "R1010", "RUNTIME_IO_ERROR", String(e.message || "open failed")));
+    }
+  });
+  ioMod.functions.set("openBinary", (pathStr, modeStr, node) => {
+    if (typeof pathStr !== "string" || typeof modeStr !== "string") {
+      throw new RuntimeError(rdiag(file, node, "R1010", "RUNTIME_IO_ERROR", "Io.openBinary expects (string, string)"));
+    }
+    const m = modeStr;
+    const valid = ["r", "w", "a"];
+    if (!valid.includes(m)) {
+      throw new RuntimeError(rdiag(file, node, "R1010", "RUNTIME_IO_ERROR", "invalid mode"));
+    }
+    let flags = 0;
+    if (m === "r") flags = PS_FILE_READ;
+    else if (m === "w") flags = PS_FILE_WRITE;
+    else if (m === "a") flags = PS_FILE_APPEND | PS_FILE_WRITE;
+    flags |= PS_FILE_BINARY;
+    try {
+      const openMode = m === "r" ? "r" : m === "w" ? "w" : "a";
+      const fd = fs.openSync(pathStr, openMode);
+      const f = new BinaryFile(fd, flags, false, pathStr);
+      if (m === "a") {
+        f.posBytes = fs.fstatSync(fd).size;
+      }
+      return f;
     } catch (e) {
       throw new RuntimeError(rdiag(file, node, "R1010", "RUNTIME_IO_ERROR", String(e.message || "open failed")));
     }
@@ -844,6 +999,9 @@ function execStmt(stmt, scope, functions, moduleEnv, protoEnv, file, callFunctio
     case "Block":
       execBlock(stmt, scope, functions, moduleEnv, protoEnv, file, callFunction);
       return;
+    case "IfStmt":
+      execIf(stmt, scope, functions, moduleEnv, protoEnv, file, callFunction);
+      return;
     case "ForStmt":
       execFor(stmt, scope, functions, moduleEnv, protoEnv, file, callFunction);
       return;
@@ -953,6 +1111,17 @@ function execSwitch(stmt, scope, functions, moduleEnv, protoEnv, file, callFunct
   }
 }
 
+function execIf(stmt, scope, functions, moduleEnv, protoEnv, file, callFunction) {
+  const cond = evalExpr(stmt.cond, scope, functions, moduleEnv, protoEnv, file, callFunction);
+  if (cond === true) {
+    execStmt(stmt.thenBranch, new Scope(scope), functions, moduleEnv, protoEnv, file, callFunction);
+    return;
+  }
+  if (stmt.elseBranch) {
+    execStmt(stmt.elseBranch, new Scope(scope), functions, moduleEnv, protoEnv, file, callFunction);
+  }
+}
+
 function eqValue(a, b) {
   if (isGlyph(a) && isGlyph(b)) return a.value === b.value;
   if (typeof a === "bigint" || typeof b === "bigint") return BigInt(a) === BigInt(b);
@@ -987,6 +1156,18 @@ function evalExpr(expr, scope, functions, moduleEnv, protoEnv, file, callFunctio
       return v;
     }
     case "BinaryExpr": {
+      if (expr.op === "&&") {
+        const l = evalExpr(expr.left, scope, functions, moduleEnv, protoEnv, file, callFunction);
+        if (!Boolean(l)) return false;
+        const r = evalExpr(expr.right, scope, functions, moduleEnv, protoEnv, file, callFunction);
+        return Boolean(r);
+      }
+      if (expr.op === "||") {
+        const l = evalExpr(expr.left, scope, functions, moduleEnv, protoEnv, file, callFunction);
+        if (Boolean(l)) return true;
+        const r = evalExpr(expr.right, scope, functions, moduleEnv, protoEnv, file, callFunction);
+        return Boolean(r);
+      }
       const l = evalExpr(expr.left, scope, functions, moduleEnv, protoEnv, file, callFunction);
       const r = evalExpr(expr.right, scope, functions, moduleEnv, protoEnv, file, callFunction);
       return evalBinary(file, expr, l, r);
@@ -1387,7 +1568,14 @@ function evalCall(expr, scope, functions, moduleEnv, protoEnv, file, callFunctio
       }
     }
 
+    const expectArity = (min, max, category = "RUNTIME_TYPE_ERROR") => {
+      if (args.length < min || args.length > max) {
+        throw new RuntimeError(rdiag(file, m, "R1010", category, "arity mismatch"));
+      }
+    };
+
     if (m.name === "length") {
+      expectArity(0, 0);
       if (Array.isArray(target)) return BigInt(target.length);
       if (typeof target === "string") return BigInt(glyphStringsOf(target).length);
       if (target instanceof Map) return BigInt(target.size);
@@ -1398,6 +1586,7 @@ function evalCall(expr, scope, functions, moduleEnv, protoEnv, file, callFunctio
       return 0n;
     }
     if (m.name === "isEmpty") {
+      expectArity(0, 0);
       if (Array.isArray(target)) return target.length === 0;
       if (typeof target === "string") return glyphStringsOf(target).length === 0;
       if (target instanceof Map) return target.size === 0;
@@ -1409,6 +1598,7 @@ function evalCall(expr, scope, functions, moduleEnv, protoEnv, file, callFunctio
     }
     if (target instanceof Map) {
       if (m.name === "containsKey") {
+        expectArity(1, 1);
         if (target.size > 0) {
           const firstKey = target.keys().next().value;
           const expected = String(firstKey).split(":", 1)[0];
@@ -1419,15 +1609,31 @@ function evalCall(expr, scope, functions, moduleEnv, protoEnv, file, callFunctio
         }
         return target.has(mapKey(args[0]));
       }
-      if (m.name === "keys") return makeList(Array.from(target.keys()).map(unmapKey));
-      if (m.name === "values") return makeList(Array.from(target.values()));
+      if (m.name === "keys") {
+        expectArity(0, 0);
+        return makeList(Array.from(target.keys()).map(unmapKey));
+      }
+      if (m.name === "values") {
+        expectArity(0, 0);
+        return makeList(Array.from(target.values()));
+      }
     }
 
     if (typeof target === "string") {
-      if (m.name === "toUpper") return target.toUpperCase();
-      if (m.name === "toLower") return target.toLowerCase();
-      if (m.name === "concat") return String(target) + String(args[0] ?? "");
+      if (m.name === "toUpper") {
+        expectArity(0, 0);
+        return target.toUpperCase();
+      }
+      if (m.name === "toLower") {
+        expectArity(0, 0);
+        return target.toLowerCase();
+      }
+      if (m.name === "concat") {
+        expectArity(1, 1);
+        return String(target) + String(args[0]);
+      }
       if (m.name === "substring") {
+        expectArity(2, 2);
         const start = Number(args[0]);
         const length = Number(args[1]);
         const gs = glyphStringsOf(target);
@@ -1437,21 +1643,42 @@ function evalCall(expr, scope, functions, moduleEnv, protoEnv, file, callFunctio
         return gs.slice(start, start + length).join("");
       }
       if (m.name === "indexOf") {
-        const needle = String(args[0] ?? "");
+        expectArity(1, 1);
+        const needle = String(args[0]);
         return BigInt(indexOfGlyphs(target, needle));
       }
-      if (m.name === "startsWith") return target.startsWith(String(args[0] ?? ""));
-      if (m.name === "endsWith") return target.endsWith(String(args[0] ?? ""));
+      if (m.name === "startsWith") {
+        expectArity(1, 1);
+        return target.startsWith(String(args[0]));
+      }
+      if (m.name === "endsWith") {
+        expectArity(1, 1);
+        return target.endsWith(String(args[0]));
+      }
       if (m.name === "split") {
-        const sep = String(args[0] ?? "");
+        expectArity(1, 1);
+        const sep = String(args[0]);
         if (sep === "") return makeList(glyphStringsOf(target));
         return makeList(target.split(sep));
       }
-      if (m.name === "trim") return trimAscii(target, "both");
-      if (m.name === "trimStart") return trimAscii(target, "start");
-      if (m.name === "trimEnd") return trimAscii(target, "end");
-      if (m.name === "replace") return target.replace(String(args[0] ?? ""), String(args[1] ?? ""));
+      if (m.name === "trim") {
+        expectArity(0, 0);
+        return trimAscii(target, "both");
+      }
+      if (m.name === "trimStart") {
+        expectArity(0, 0);
+        return trimAscii(target, "start");
+      }
+      if (m.name === "trimEnd") {
+        expectArity(0, 0);
+        return trimAscii(target, "end");
+      }
+      if (m.name === "replace") {
+        expectArity(2, 2);
+        return target.replace(String(args[0]), String(args[1]));
+      }
       if (m.name === "toUtf8Bytes") {
+        expectArity(0, 0);
         const enc = new TextEncoder();
         const bytes = enc.encode(target);
         return makeList(Array.from(bytes, (b) => BigInt(b)));
@@ -1459,6 +1686,7 @@ function evalCall(expr, scope, functions, moduleEnv, protoEnv, file, callFunctio
     }
 
     if (Array.isArray(target) && m.name === "toUtf8String") {
+      expectArity(0, 0);
       const bytes = [];
       for (const v of target) {
         const n = typeof v === "bigint" ? Number(v) : Number(v);
@@ -1476,17 +1704,20 @@ function evalCall(expr, scope, functions, moduleEnv, protoEnv, file, callFunctio
     }
     if (Array.isArray(target)) {
       if (m.name === "push") {
+        expectArity(1, 1);
         target.push(args[0]);
         bumpList(target);
         return BigInt(target.length);
       }
       if (m.name === "contains") {
+        expectArity(1, 1);
         for (const v of target) {
           if (eqValue(v, args[0])) return true;
         }
         return false;
       }
       if (m.name === "sort") {
+        expectArity(0, 0);
         if (target.length === 0) return BigInt(0);
         const first = target[0];
         let kind = "unknown";
@@ -1522,21 +1753,24 @@ function evalCall(expr, scope, functions, moduleEnv, protoEnv, file, callFunctio
       }
     }
     if (Array.isArray(target) && (m.name === "join" || m.name === "concat")) {
+      if (m.name === "join") expectArity(1, 1);
+      if (m.name === "concat") expectArity(0, 0);
       for (const v of target) {
         if (typeof v !== "string") {
           throw new RuntimeError(rdiag(file, m, "R1010", "RUNTIME_TYPE_ERROR", "join expects list<string>"));
         }
       }
       if (m.name === "concat") return target.join("");
-      const sep = args.length > 0 ? args[0] : "";
+      const sep = args[0];
       if (typeof sep !== "string") {
         throw new RuntimeError(rdiag(file, m, "R1010", "RUNTIME_TYPE_ERROR", "join separator must be string"));
       }
       return target.join(sep);
     }
 
-    if (target instanceof IoFile) {
+    if (target instanceof TextFile || target instanceof BinaryFile) {
       if (m.name === "close") {
+        expectArity(0, 0, "RUNTIME_IO_ERROR");
         if (target.isStd) {
           throw new RuntimeError(rdiag(file, m, "R1010", "RUNTIME_IO_ERROR", "cannot close standard stream"));
         }
@@ -1549,48 +1783,39 @@ function evalCall(expr, scope, functions, moduleEnv, protoEnv, file, callFunctio
       if (target.closed) {
         throw new RuntimeError(rdiag(file, m, "R1010", "RUNTIME_IO_ERROR", "file is closed"));
       }
-      const isBinary = (target.flags & PS_FILE_BINARY) !== 0;
+      const isBinary = target instanceof BinaryFile;
       const canRead = (target.flags & PS_FILE_READ) !== 0;
       const canWrite = (target.flags & (PS_FILE_WRITE | PS_FILE_APPEND)) !== 0;
       if (m.name === "read") {
+        expectArity(1, 1, "RUNTIME_IO_ERROR");
         if (!canRead) throw new RuntimeError(rdiag(file, m, "R1010", "RUNTIME_IO_ERROR", "file not readable"));
-        const hasSize = args.length > 0;
-        if (hasSize) {
-          const size = Number(args[0]);
-          if (!Number.isInteger(size) || size <= 0) {
-            throw new RuntimeError(rdiag(file, m, "R1010", "RUNTIME_IO_ERROR", "read size must be >= 1"));
-          }
+        const size = Number(args[0]);
+        if (!Number.isInteger(size) || size <= 0) {
+          throw new RuntimeError(rdiag(file, m, "R1010", "RUNTIME_IO_ERROR", "read size must be >= 1"));
+        }
+        if (isBinary) {
           const buf = Buffer.alloc(size);
-          const n = fs.readSync(target.fd, buf, 0, size, null);
-          if (n === 0) {
-            return isBinary ? makeList([]) : "";
-          }
-          const bytes = Array.from(buf.slice(0, n));
-          if (isBinary) return makeList(bytes.map((b) => BigInt(b)));
-          const s = decodeUtf8Strict(file, m, bytes, target.atStart);
-          target.atStart = false;
-          return s;
+          const n = fs.readSync(target.fd, buf, 0, size, target.isStd ? null : target.posBytes);
+          if (n === 0) return makeList([]);
+          if (!target.isStd) target.posBytes += n;
+          return makeList(Array.from(buf.slice(0, n)).map((b) => BigInt(b)));
         }
-        const chunks = [];
-        const buf = Buffer.alloc(4096);
-        while (true) {
-          const n = fs.readSync(target.fd, buf, 0, buf.length, null);
-          if (n === 0) break;
-          chunks.push(...buf.slice(0, n));
-        }
-        if (isBinary) return makeList(chunks.map((b) => BigInt(b)));
-        const s = decodeUtf8Strict(file, m, chunks, target.atStart);
-        target.atStart = false;
-        return s;
+        const { text, newPos } = readTextGlyphs(target, m, size);
+        target.posBytes = newPos;
+        return text;
       }
       if (m.name === "write") {
+        expectArity(1, 1, "RUNTIME_IO_ERROR");
         if (!canWrite) throw new RuntimeError(rdiag(file, m, "R1010", "RUNTIME_IO_ERROR", "file not writable"));
         const v = args[0];
         if (!isBinary) {
           if (typeof v !== "string") {
             throw new RuntimeError(rdiag(file, m, "R1010", "RUNTIME_IO_ERROR", "write expects string"));
           }
-          if (v.length > 0) fs.writeSync(target.fd, v);
+          if (v.length > 0) {
+            const n = fs.writeSync(target.fd, v, target.isStd ? null : target.posBytes);
+            if (!target.isStd) target.posBytes += n;
+          }
           return null;
         }
         if (!Array.isArray(v)) {
@@ -1604,8 +1829,42 @@ function evalCall(expr, scope, functions, moduleEnv, protoEnv, file, callFunctio
           }
           bytes.push(n);
         }
-        if (bytes.length > 0) fs.writeSync(target.fd, Buffer.from(bytes));
+        if (bytes.length > 0) {
+          const n = fs.writeSync(target.fd, Buffer.from(bytes), 0, bytes.length, target.isStd ? null : target.posBytes);
+          if (!target.isStd) target.posBytes += n;
+        }
         return null;
+      }
+      if (m.name === "tell") {
+        expectArity(0, 0, "RUNTIME_IO_ERROR");
+        if (isBinary) return BigInt(target.posBytes);
+        return BigInt(glyphIndexAtBytePos(target, m));
+      }
+      if (m.name === "size") {
+        expectArity(0, 0, "RUNTIME_IO_ERROR");
+        if (isBinary) {
+          return BigInt(fs.fstatSync(target.fd).size);
+        }
+        return BigInt(glyphCountTotal(target, m));
+      }
+      if (m.name === "seek") {
+        expectArity(1, 1, "RUNTIME_IO_ERROR");
+        const pos = Number(args[0]);
+        if (!Number.isInteger(pos) || pos < 0) {
+          throw new RuntimeError(rdiag(file, m, "R1010", "RUNTIME_IO_ERROR", "seek expects pos >= 0"));
+        }
+        if (isBinary) {
+          const size = fs.fstatSync(target.fd).size;
+          if (pos > size) throw new RuntimeError(rdiag(file, m, "R1010", "RUNTIME_IO_ERROR", "seek out of range"));
+          target.posBytes = pos;
+          return null;
+        }
+        target.posBytes = byteOffsetForGlyph(target, m, pos);
+        return null;
+      }
+      if (m.name === "name") {
+        expectArity(0, 0, "RUNTIME_IO_ERROR");
+        return target.path || "";
       }
     }
 
@@ -1619,6 +1878,7 @@ function evalCall(expr, scope, functions, moduleEnv, protoEnv, file, callFunctio
     }
 
     if (m.name === "pop" && Array.isArray(target)) {
+      expectArity(0, 0);
       if (target.length === 0) {
         throw new RuntimeError(rdiag(file, m.target, "R1006", "RUNTIME_EMPTY_POP", "pop on empty list"));
       }

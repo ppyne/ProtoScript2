@@ -1,7 +1,7 @@
 import Io;
 
 function main() : void {
-    var f = Io.open("io_after_close.txt", "w");
+    var f = Io.openText("io_after_close.txt", "w");
     f.write("x");
     f.close();
     f.read(1);

@@ -1,0 +1,3 @@
+function main() : void {
+    string s = null;
+}

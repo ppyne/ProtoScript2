@@ -338,12 +338,110 @@ map.values();        // list<V>
 map.containsKey(k);
 ```
 
+### Arité (normative)
+
+**bool**
+
+| méthode | arité |
+| --- | --- |
+| `toString()` | 0 |
+
+**byte**
+
+| méthode | arité |
+| --- | --- |
+| `toInt()` | 0 |
+| `toFloat()` | 0 |
+| `toString()` | 0 |
+
+**int**
+
+| méthode | arité |
+| --- | --- |
+| `toByte()` | 0 |
+| `toFloat()` | 0 |
+| `toString()` | 0 |
+| `toBytes()` | 0 |
+| `abs()` | 0 |
+| `sign()` | 0 |
+
+**float**
+
+| méthode | arité |
+| --- | --- |
+| `toInt()` | 0 |
+| `toString()` | 0 |
+| `toBytes()` | 0 |
+| `abs()` | 0 |
+| `isNaN()` | 0 |
+| `isInfinite()` | 0 |
+| `isFinite()` | 0 |
+
+**string**
+
+| méthode | arité |
+| --- | --- |
+| `length()` | 0 |
+| `isEmpty()` | 0 |
+| `toString()` | 0 |
+| `toInt()` | 0 |
+| `toFloat()` | 0 |
+| `toUpper()` | 0 |
+| `toLower()` | 0 |
+| `toUtf8Bytes()` | 0 |
+| `trim()` | 0 |
+| `trimStart()` | 0 |
+| `trimEnd()` | 0 |
+| `concat(x)` | 1 |
+| `indexOf(x)` | 1 |
+| `startsWith(x)` | 1 |
+| `endsWith(x)` | 1 |
+| `split(x)` | 1 |
+| `substring(start, length)` | 2 |
+| `replace(old, new)` | 2 |
+
+**list<T>**
+
+| méthode | arité |
+| --- | --- |
+| `length()` | 0 |
+| `isEmpty()` | 0 |
+| `pop()` | 0 |
+| `sort()` | 0 |
+| `concat()` | 0 |
+| `toUtf8String()` | 0 |
+| `push(x)` | 1 |
+| `contains(x)` | 1 |
+| `join(sep)` | 1 |
+
+**map<K,V>**
+
+| méthode | arité |
+| --- | --- |
+| `length()` | 0 |
+| `isEmpty()` | 0 |
+| `keys()` | 0 |
+| `values()` | 0 |
+| `containsKey(k)` | 1 |
+
+**Modules standards (Io, Math, JSON)**
+
+- l’arité des fonctions est strictement celle de `modules/registry.json`
+- aucune arité variable n’est implicite : tout cas d’arité variable doit être explicitement listé (ex. `TextFile.read(size)` et `TextFile.tell()` sont des méthodes distinctes)
+
+Note (non-normative) :
+
+- L’implémentation de référence charge ce registry depuis `modules/registry.json` ou via la variable d’environnement `PS_MODULE_REGISTRY`.
+
 Règles générales :
 
 - les méthodes disponibles dépendent strictement du type
 - certaines méthodes sont conditionnelles (ex. `sort()`)
 - aucune méthode ne peut être ajoutée dynamiquement
 - l’appel de méthode n’implique pas que « tout est objet »
+- l’arité des méthodes/fonctions **est stricte** : tout appel avec trop ou pas assez d’arguments est une **erreur statique** (`E1003` `ARITY_MISMATCH`)
+- les signatures indiquées dans cette section font foi pour l’arité (ex. `string.concat(x)` → 1 argument, `list.concat()` → 0, `map.keys()` → 0)
+- l’exactitude fonctionnelle, la sécurité et les performances sont évaluées conjointement sur l’ensemble des chemins d’exécution
 
 ---
 
@@ -2857,13 +2955,14 @@ Une implémentation conforme doit classifier ses diagnostics statiques avec des 
 
 Familles minimales :
 
-- `E1xxx` : erreurs lexicales/syntaxiques
+- `E1xxx` : erreurs lexicales/syntaxiques **et arité invalide**
 - `E2xxx` : erreurs de nommage/résolution
 - `E3xxx` : erreurs de typage/compatibilité
 - `E4xxx` : erreurs de flux d’initialisation
 
 Codes canoniques minimaux :
 
+- `E1003` : `ARITY_MISMATCH`
 - `E3001` : `TYPE_MISMATCH_ASSIGNMENT`
 - `E3002` : `VARIADIC_EMPTY_CALL`
 - `E3003` : `SWITCH_CASE_NO_TERMINATION`
@@ -3158,9 +3257,18 @@ Le module `Io` fait partie de l’environnement standard et doit être résolu s
 
 Symboles requis (minimum) :
 
+- `Io.openText(path, mode)` : ouvre un fichier texte et retourne un `TextFile`.
+- `Io.openBinary(path, mode)` : ouvre un fichier binaire et retourne un `BinaryFile`.
 - `Io.print(value)` : écrit `value` sur la sortie standard, sans ajout implicite de fin de ligne.
 - `Io.printLine(value)` : équivalent à `Io.print(value)` suivi de l’écriture de `Io.EOL`.
 - `Io.EOL` : constante de fin de ligne (`"\n"`).
+- `Io.stdin`, `Io.stdout`, `Io.stderr` : flux standards (types `TextFile`).
+
+Prototypes scellés :
+
+- `TextFile` et `BinaryFile` sont des prototypes scellés fournis par le module `Io`.
+- Méthodes (noms identiques, types distincts) :
+  - `read(size)`, `write(value)`, `tell()`, `seek(pos)`, `size()`, `name()`, `close()`.
 
 Aucune conversion implicite texte ↔ binaire n’est autorisée. Le comportement complet du module `Io` est normatif et défini dans `docs/module_io_specification.md`.
 

@@ -101,15 +101,16 @@
     {
       "name": "Io",
       "functions": [
-        { "name": "open", "ret": "File", "params": ["string", "string"] },
+        { "name": "openText", "ret": "TextFile", "params": ["string", "string"] },
+        { "name": "openBinary", "ret": "BinaryFile", "params": ["string", "string"] },
         { "name": "print", "ret": "void", "params": ["string"] },
         { "name": "printLine", "ret": "void", "params": ["string"] }
       ],
       "constants": [
         { "name": "EOL", "type": "string", "value": "\n" },
-        { "name": "stdin", "type": "file", "value": "stdin" },
-        { "name": "stdout", "type": "file", "value": "stdout" },
-        { "name": "stderr", "type": "file", "value": "stderr" }
+        { "name": "stdin", "type": "TextFile", "value": "stdin" },
+        { "name": "stdout", "type": "TextFile", "value": "stdout" },
+        { "name": "stderr", "type": "TextFile", "value": "stderr" }
       ]
     },
     {

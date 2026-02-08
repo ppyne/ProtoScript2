@@ -1,0 +1,4 @@
+function main() : void {
+    int x;
+    string s = x.toString();
+}

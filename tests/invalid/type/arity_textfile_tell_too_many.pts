@@ -1,0 +1,6 @@
+import Io;
+
+function main() : void {
+    var f = Io.openText("io_text.txt", "r");
+    f.tell(1);
+}

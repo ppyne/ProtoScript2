@@ -1,13 +1,14 @@
 import Io;
 
 function main() : void {
-    var f = Io.open("io_text.txt", "w");
+    var f = Io.openText("io_text.txt", "w");
     f.write("Hello");
     f.write(Io.EOL);
     f.close();
 
-    var r = Io.open("io_text.txt", "r");
-    var s = r.read();
+    var r = Io.openText("io_text.txt", "r");
+    var n = r.size();
+    var s = r.read(n);
     r.close();
 
     Io.print(s);

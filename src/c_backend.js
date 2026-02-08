@@ -7,12 +7,18 @@ let PROTO_MAP = new Map();
 
 function loadModuleRegistry() {
   const candidates = [
+    process.env.PS_MODULE_REGISTRY,
+    process.argv[1] ? path.join(path.dirname(process.argv[1]), "registry.json") : null,
+    path.join(__dirname, "registry.json"),
+    path.join(process.cwd(), "registry.json"),
+    "/etc/ps/registry.json",
+    "/usr/local/etc/ps/registry.json",
+    "/opt/local/etc/ps/registry.json",
     path.join(process.cwd(), "modules", "registry.json"),
-    path.join(__dirname, "..", "modules", "registry.json"),
   ];
   for (const p of candidates) {
     try {
-      if (!fs.existsSync(p)) continue;
+      if (!p || !fs.existsSync(p)) continue;
       const doc = JSON.parse(fs.readFileSync(p, "utf8"));
       const map = new Map();
       if (doc && Array.isArray(doc.modules)) {
@@ -56,9 +62,8 @@ function cScalarType(typeName) {
       return "void";
     case "iter_cursor":
       return "ps_iter_cursor";
-    case "File":
-    case "FileBinary":
-    case "FileText":
+    case "TextFile":
+    case "BinaryFile":
       return "ps_file*";
     case "JSONValue":
       return "ps_jsonvalue";
@@ -159,7 +164,7 @@ function inferTempTypes(ir, protoMap) {
               varTypes.set(i.name, i.type.name);
               break;
             case "const":
-              if (i.literalType === "file") set(i.dst, "File");
+              if (i.literalType === "TextFile" || i.literalType === "BinaryFile") set(i.dst, i.literalType);
               else set(i.dst, i.literalType);
               if (i.literalType === "string") constStrings.set(i.dst, String(i.value));
               break;
@@ -195,14 +200,10 @@ function inferTempTypes(ir, protoMap) {
               break;
             }
             case "call_static":
-              if (i.callee === "Io.open") {
-                let mode = null;
-                if (i.args && i.args.length > 1 && constStrings.has(i.args[1])) {
-                  mode = constStrings.get(i.args[1]);
-                }
-                if (mode && mode.includes("b")) set(i.dst, "FileBinary");
-                else if (mode) set(i.dst, "FileText");
-                else set(i.dst, "File");
+              if (i.callee === "Io.openText") {
+                set(i.dst, "TextFile");
+              } else if (i.callee === "Io.openBinary") {
+                set(i.dst, "BinaryFile");
               } else if (fnRet.has(i.callee)) set(i.dst, fnRet.get(i.callee));
               else if (MODULE_RETURNS.has(i.callee)) set(i.dst, MODULE_RETURNS.get(i.callee));
               else if (i.callee === "Exception") set(i.dst, "Exception");
@@ -211,12 +212,14 @@ function inferTempTypes(ir, protoMap) {
               if (getType(i.receiver)) {
                 const rt = getType(i.receiver);
                 const rc = parseContainer(rt);
-                if (rt === "File" || rt === "FileBinary" || rt === "FileText") {
+                if (rt === "TextFile" || rt === "BinaryFile") {
                   if (i.method === "read") {
-                    if (rt === "FileBinary") set(i.dst, "list<byte>");
+                    if (rt === "BinaryFile") set(i.dst, "list<byte>");
                     else set(i.dst, "string");
-                  } else if (i.method === "readBytes") {
-                    set(i.dst, "list<byte>");
+                  } else if (i.method === "tell" || i.method === "size") {
+                    set(i.dst, "int");
+                  } else if (i.method === "name") {
+                    set(i.dst, "string");
                   } else {
                     set(i.dst, "void");
                   }
@@ -637,10 +640,10 @@ function emitRuntimeHelpers() {
     "  ps_raise_exception();",
     "}",
     "",
-    "typedef struct { FILE* fp; int binary; int is_std; int closed; int at_start; } ps_file;",
-    "static ps_file ps_stdin = { NULL, 0, 1, 0, 1 };",
-    "static ps_file ps_stdout = { NULL, 0, 1, 0, 1 };",
-    "static ps_file ps_stderr = { NULL, 0, 1, 0, 1 };",
+    "typedef struct { FILE* fp; int binary; int is_std; int closed; char* path; } ps_file;",
+    "static ps_file ps_stdin = { NULL, 0, 1, 0, \"stdin\" };",
+    "static ps_file ps_stdout = { NULL, 0, 1, 0, \"stdout\" };",
+    "static ps_file ps_stderr = { NULL, 0, 1, 0, \"stderr\" };",
     "static int ps_io_ready = 0;",
     "static void ps_io_init(void) {",
     "  if (ps_io_ready) return;",
@@ -662,16 +665,15 @@ function emitRuntimeHelpers() {
     "  ps_string out = { s ? s : \"\", s ? strlen(s) : 0 };",
     "  return out;",
     "}",
-    "static ps_file* ps_file_open(ps_string path, ps_string mode) {",
+    "static ps_file* ps_file_open_text(ps_string path, ps_string mode) {",
     "  ps_io_init();",
     "  char* cpath = ps_string_to_cstr(path);",
     "  char* cmode = ps_string_to_cstr(mode);",
-    "  if (strcmp(cmode, \"r\") != 0 && strcmp(cmode, \"w\") != 0 && strcmp(cmode, \"rb\") != 0 && strcmp(cmode, \"wb\") != 0 && strcmp(cmode, \"a\") != 0 && strcmp(cmode, \"ab\") != 0) {",
+    "  if (strcmp(cmode, \"r\") != 0 && strcmp(cmode, \"w\") != 0 && strcmp(cmode, \"a\") != 0) {",
     "    free(cpath);",
     "    free(cmode);",
     "    ps_panic(\"R1010\", \"RUNTIME_IO_ERROR\", \"invalid mode\");",
     "  }",
-    "  int binary = (strchr(cmode, 'b') != NULL);",
     "  FILE* fp = fopen(cpath, cmode);",
     "  free(cpath);",
     "  free(cmode);",
@@ -679,21 +681,51 @@ function emitRuntimeHelpers() {
     "  ps_file* f = (ps_file*)malloc(sizeof(ps_file));",
     "  if (!f) ps_panic(\"R1998\", \"RUNTIME_OOM\", \"out of memory\");",
     "  f->fp = fp;",
-    "  f->binary = binary;",
+    "  f->binary = 0;",
     "  f->is_std = 0;",
     "  f->closed = 0;",
-    "  f->at_start = 1;",
+    "  f->path = ps_string_to_cstr(path);",
+    "  return f;",
+    "}",
+    "static ps_file* ps_file_open_binary(ps_string path, ps_string mode) {",
+    "  ps_io_init();",
+    "  char* cpath = ps_string_to_cstr(path);",
+    "  char* cmode = ps_string_to_cstr(mode);",
+    "  const char* mapped = NULL;",
+    "  if (strcmp(cmode, \"r\") == 0) mapped = \"rb\";",
+    "  else if (strcmp(cmode, \"w\") == 0) mapped = \"wb\";",
+    "  else if (strcmp(cmode, \"a\") == 0) mapped = \"ab\";",
+    "  if (!mapped) {",
+    "    free(cpath);",
+    "    free(cmode);",
+    "    ps_panic(\"R1010\", \"RUNTIME_IO_ERROR\", \"invalid mode\");",
+    "  }",
+    "  FILE* fp = fopen(cpath, mapped);",
+    "  free(cpath);",
+    "  free(cmode);",
+    "  if (!fp) ps_panic(\"R1010\", \"RUNTIME_IO_ERROR\", \"cannot open file\");",
+    "  ps_file* f = (ps_file*)malloc(sizeof(ps_file));",
+    "  if (!f) ps_panic(\"R1998\", \"RUNTIME_OOM\", \"out of memory\");",
+    "  f->fp = fp;",
+    "  f->binary = 1;",
+    "  f->is_std = 0;",
+    "  f->closed = 0;",
+    "  f->path = ps_string_to_cstr(path);",
     "  return f;",
     "}",
     "static void ps_file_check_open(ps_file* f) {",
     "  ps_io_init();",
-    "  if (!f || f->closed) ps_panic(\"R1010\", \"RUNTIME_IO_ERROR\", \"file is closed\");",
+    "  if (!f || f->closed || !f->fp) ps_panic(\"R1010\", \"RUNTIME_IO_ERROR\", \"file is closed\");",
     "}",
     "static void ps_file_close(ps_file* f) {",
     "  ps_file_check_open(f);",
     "  if (f->is_std) ps_panic(\"R1010\", \"RUNTIME_IO_ERROR\", \"cannot close standard stream\");",
     "  fclose(f->fp);",
     "  f->closed = 1;",
+    "}",
+    "static ps_string ps_file_name(ps_file* f) {",
+    "  ps_file_check_open(f);",
+    "  return ps_cstr(f->path ? f->path : \"\");",
     "}",
     "static void ps_file_write_text(ps_file* f, ps_string s) {",
     "  ps_file_check_open(f);",
@@ -705,78 +737,78 @@ function emitRuntimeHelpers() {
     "  if (!f->binary) ps_panic(\"R1010\", \"RUNTIME_IO_ERROR\", \"write expects string\");",
     "  if (b.len > 0) fwrite(b.ptr, 1, b.len, f->fp);",
     "}",
-    "static void ps_file_write_bytes_from_ints(ps_file* f, ps_list_int b) {",
-    "  ps_file_check_open(f);",
-    "  if (!f->binary) ps_panic(\"R1010\", \"RUNTIME_IO_ERROR\", \"write expects string\");",
-    "  for (size_t i = 0; i < b.len; i += 1) {",
-    "    int64_t v = b.ptr[i];",
-    "    if (v < 0 || v > 255) ps_panic(\"R1008\", \"RUNTIME_BYTE_RANGE\", \"byte out of range\");",
-    "    unsigned char c = (unsigned char)v;",
-    "    fwrite(&c, 1, 1, f->fp);",
-    "  }",
-    "}",
-    "static ps_string ps_text_from_bytes(ps_file* f, const uint8_t* buf, size_t n) {",
+    "static ps_string ps_text_from_bytes(const uint8_t* buf, size_t n) {",
     "  for (size_t i = 0; i < n; i += 1) {",
     "    if (buf[i] == 0) ps_panic(\"R1007\", \"RUNTIME_INVALID_UTF8\", \"NUL byte not allowed\");",
     "  }",
-    "  size_t start = 0;",
-    "  if (f->at_start && n >= 3 && buf[0] == 0xEF && buf[1] == 0xBB && buf[2] == 0xBF) start = 3;",
-    "  for (size_t i = start; i + 2 < n; i += 1) {",
-    "    if (buf[i] == 0xEF && buf[i + 1] == 0xBB && buf[i + 2] == 0xBF) {",
-    "      ps_panic(\"R1007\", \"RUNTIME_INVALID_UTF8\", \"BOM not allowed here\");",
-    "    }",
-    "  }",
-    "  if (n > 0) f->at_start = 0;",
-    "  size_t out_len = n - start;",
+    "  size_t out_len = n;",
     "  char* out = (char*)malloc(out_len + 1);",
     "  if (!out) ps_panic(\"R1998\", \"RUNTIME_OOM\", \"out of memory\");",
-    "  if (out_len > 0) memcpy(out, buf + start, out_len);",
+    "  if (out_len > 0) memcpy(out, buf, out_len);",
     "  out[out_len] = '\\0';",
     "  if (!ps_utf8_validate((const uint8_t*)out, out_len)) ps_panic(\"R1007\", \"RUNTIME_INVALID_UTF8\", \"invalid UTF-8\");",
     "  return (ps_string){ out, out_len };",
     "}",
-    "static ps_string ps_file_read_all(ps_file* f) {",
-    "  ps_file_check_open(f);",
-    "  fseek(f->fp, 0, SEEK_END);",
-    "  long sz = ftell(f->fp);",
-    "  if (sz < 0) sz = 0;",
-    "  fseek(f->fp, 0, SEEK_SET);",
-    "  char* buf = (char*)malloc((size_t)sz + 1);",
-    "  if (!buf) ps_panic(\"R1998\", \"RUNTIME_OOM\", \"out of memory\");",
-    "  size_t n = fread(buf, 1, (size_t)sz, f->fp);",
-    "  ps_string out = ps_text_from_bytes(f, (const uint8_t*)buf, n);",
-    "  free(buf);",
-    "  return out;",
+    "static int ps_read_utf8_glyph(FILE* fp, uint8_t out[4], size_t* out_len) {",
+    "  int c0 = fgetc(fp);",
+    "  if (c0 == EOF) return 0;",
+    "  uint8_t b0 = (uint8_t)c0;",
+    "  if (b0 == 0) ps_panic(\"R1007\", \"RUNTIME_INVALID_UTF8\", \"NUL byte not allowed\");",
+    "  size_t len = 0;",
+    "  uint32_t cp = 0;",
+    "  if (b0 < 0x80) { len = 1; cp = b0; }",
+    "  else if ((b0 & 0xE0) == 0xC0) { len = 2; cp = (uint32_t)(b0 & 0x1F); }",
+    "  else if ((b0 & 0xF0) == 0xE0) { len = 3; cp = (uint32_t)(b0 & 0x0F); }",
+    "  else if ((b0 & 0xF8) == 0xF0) { len = 4; cp = (uint32_t)(b0 & 0x07); }",
+    "  else { ps_panic(\"R1007\", \"RUNTIME_INVALID_UTF8\", \"invalid UTF-8\"); }",
+    "  out[0] = b0;",
+    "  for (size_t i = 1; i < len; i += 1) {",
+    "    int ci = fgetc(fp);",
+    "    if (ci == EOF) ps_panic(\"R1007\", \"RUNTIME_INVALID_UTF8\", \"invalid UTF-8\");",
+    "    uint8_t bi = (uint8_t)ci;",
+    "    if ((bi & 0xC0) != 0x80) ps_panic(\"R1007\", \"RUNTIME_INVALID_UTF8\", \"invalid UTF-8\");",
+    "    out[i] = bi;",
+    "    cp = (cp << 6) | (uint32_t)(bi & 0x3F);",
+    "    if (bi == 0) ps_panic(\"R1007\", \"RUNTIME_INVALID_UTF8\", \"NUL byte not allowed\");",
+    "  }",
+    "  if (len == 2 && cp < 0x80) ps_panic(\"R1007\", \"RUNTIME_INVALID_UTF8\", \"invalid UTF-8\");",
+    "  if (len == 3 && cp < 0x800) ps_panic(\"R1007\", \"RUNTIME_INVALID_UTF8\", \"invalid UTF-8\");",
+    "  if (len == 4 && (cp < 0x10000 || cp > 0x10FFFF)) ps_panic(\"R1007\", \"RUNTIME_INVALID_UTF8\", \"invalid UTF-8\");",
+    "  *out_len = len;",
+    "  return 1;",
     "}",
-    "static ps_list_byte ps_file_read_all_bytes(ps_file* f) {",
-    "  ps_list_byte out = { NULL, 0, 0, 0 };",
+    "static ps_string ps_file_read_size_glyphs(ps_file* f, int64_t size) {",
     "  ps_file_check_open(f);",
-    "  fseek(f->fp, 0, SEEK_END);",
-    "  long sz = ftell(f->fp);",
-    "  if (sz < 0) sz = 0;",
-    "  fseek(f->fp, 0, SEEK_SET);",
-    "  out.len = (size_t)sz;",
-    "  out.cap = out.len;",
-    "  if (out.len == 0) return out;",
-    "  out.ptr = (uint8_t*)malloc(out.len);",
-    "  if (!out.ptr) ps_panic(\"R1998\", \"RUNTIME_OOM\", \"out of memory\");",
-    "  fread(out.ptr, 1, out.len, f->fp);",
-    "  return out;",
-    "}",
-    "static ps_string ps_file_read_size_text(ps_file* f, int64_t size) {",
-    "  ps_file_check_open(f);",
+    "  if (f->binary) ps_panic(\"R1010\", \"RUNTIME_IO_ERROR\", \"read expects text file\");",
     "  if (size <= 0) ps_panic(\"R1010\", \"RUNTIME_IO_ERROR\", \"read size must be >= 1\");",
-    "  char* buf = (char*)malloc((size_t)size);",
+    "  size_t cap = (size_t)size * 4;",
+    "  if (cap < 16) cap = 16;",
+    "  uint8_t* buf = (uint8_t*)malloc(cap);",
     "  if (!buf) ps_panic(\"R1998\", \"RUNTIME_OOM\", \"out of memory\");",
-    "  size_t n = fread(buf, 1, (size_t)size, f->fp);",
-    "  if (n == 0) { free(buf); return ps_cstr(\"\"); }",
-    "  ps_string out = ps_text_from_bytes(f, (const uint8_t*)buf, n);",
+    "  size_t len = 0;",
+    "  for (int64_t i = 0; i < size; i += 1) {",
+    "    uint8_t g[4];",
+    "    size_t glen = 0;",
+    "    int r = ps_read_utf8_glyph(f->fp, g, &glen);",
+    "    if (r == 0) break;",
+    "    if (len + glen > cap) {",
+    "      cap *= 2;",
+    "      uint8_t* nb = (uint8_t*)realloc(buf, cap);",
+    "      if (!nb) { free(buf); ps_panic(\"R1998\", \"RUNTIME_OOM\", \"out of memory\"); }",
+    "      buf = nb;",
+    "    }",
+    "    memcpy(buf + len, g, glen);",
+    "    len += glen;",
+    "  }",
+    "  if (len == 0) { free(buf); return ps_cstr(\"\"); }",
+    "  ps_string out = ps_text_from_bytes(buf, len);",
     "  free(buf);",
     "  return out;",
     "}",
     "static ps_list_byte ps_file_read_size_bytes(ps_file* f, int64_t size) {",
     "  ps_list_byte out = { NULL, 0, 0, 0 };",
     "  ps_file_check_open(f);",
+    "  if (!f->binary) ps_panic(\"R1010\", \"RUNTIME_IO_ERROR\", \"read expects binary file\");",
     "  if (size <= 0) ps_panic(\"R1010\", \"RUNTIME_IO_ERROR\", \"read size must be >= 1\");",
     "  out.ptr = (uint8_t*)malloc((size_t)size);",
     "  if (!out.ptr) ps_panic(\"R1998\", \"RUNTIME_OOM\", \"out of memory\");",
@@ -786,8 +818,93 @@ function emitRuntimeHelpers() {
     "  out.cap = n;",
     "  return out;",
     "}",
-    "static ps_file* Io_open(ps_string path, ps_string mode) {",
-    "  return ps_file_open(path, mode);",
+    "static int64_t ps_file_size_bytes(ps_file* f) {",
+    "  ps_file_check_open(f);",
+    "  long cur = ftell(f->fp);",
+    "  fseek(f->fp, 0, SEEK_END);",
+    "  long sz = ftell(f->fp);",
+    "  if (cur >= 0) fseek(f->fp, cur, SEEK_SET);",
+    "  if (sz < 0) sz = 0;",
+    "  return (int64_t)sz;",
+    "}",
+    "static int64_t ps_file_tell_bytes(ps_file* f) {",
+    "  ps_file_check_open(f);",
+    "  long cur = ftell(f->fp);",
+    "  if (cur < 0) ps_panic(\"R1010\", \"RUNTIME_IO_ERROR\", \"tell failed\");",
+    "  return (int64_t)cur;",
+    "}",
+    "static void ps_file_seek_bytes(ps_file* f, int64_t pos) {",
+    "  ps_file_check_open(f);",
+    "  if (pos < 0) ps_panic(\"R1010\", \"RUNTIME_IO_ERROR\", \"seek expects pos >= 0\");",
+    "  int64_t sz = ps_file_size_bytes(f);",
+    "  if (pos > sz) ps_panic(\"R1010\", \"RUNTIME_IO_ERROR\", \"seek out of range\");",
+    "  fseek(f->fp, (long)pos, SEEK_SET);",
+    "}",
+    "static int64_t ps_file_size_glyphs(ps_file* f) {",
+    "  ps_file_check_open(f);",
+    "  if (f->binary) ps_panic(\"R1010\", \"RUNTIME_IO_ERROR\", \"size expects text file\");",
+    "  long cur = ftell(f->fp);",
+    "  fseek(f->fp, 0, SEEK_SET);",
+    "  int64_t count = 0;",
+    "  while (1) {",
+    "    uint8_t g[4];",
+    "    size_t glen = 0;",
+    "    int r = ps_read_utf8_glyph(f->fp, g, &glen);",
+    "    if (r == 0) break;",
+    "    count += 1;",
+    "  }",
+    "  if (cur >= 0) fseek(f->fp, cur, SEEK_SET);",
+    "  return count;",
+    "}",
+    "static int64_t ps_file_tell_glyphs(ps_file* f) {",
+    "  ps_file_check_open(f);",
+    "  if (f->binary) ps_panic(\"R1010\", \"RUNTIME_IO_ERROR\", \"tell expects text file\");",
+    "  long cur = ftell(f->fp);",
+    "  if (cur < 0) ps_panic(\"R1010\", \"RUNTIME_IO_ERROR\", \"tell failed\");",
+    "  fseek(f->fp, 0, SEEK_SET);",
+    "  int64_t count = 0;",
+    "  long pos = 0;",
+    "  if (cur == 0) { fseek(f->fp, cur, SEEK_SET); return 0; }",
+    "  while (1) {",
+    "    uint8_t g[4];",
+    "    size_t glen = 0;",
+    "    int r = ps_read_utf8_glyph(f->fp, g, &glen);",
+    "    if (r == 0) break;",
+    "    pos += (long)glen;",
+    "    count += 1;",
+    "    if (pos == cur) { fseek(f->fp, cur, SEEK_SET); return count; }",
+    "    if (pos > cur) break;",
+    "  }",
+    "  fseek(f->fp, cur, SEEK_SET);",
+    "  ps_panic(\"R1010\", \"RUNTIME_IO_ERROR\", \"tell position not at glyph boundary\");",
+    "  return 0;",
+    "}",
+    "static void ps_file_seek_glyphs(ps_file* f, int64_t pos) {",
+    "  ps_file_check_open(f);",
+    "  if (f->binary) ps_panic(\"R1010\", \"RUNTIME_IO_ERROR\", \"seek expects text file\");",
+    "  if (pos < 0) ps_panic(\"R1010\", \"RUNTIME_IO_ERROR\", \"seek expects pos >= 0\");",
+    "  long cur = ftell(f->fp);",
+    "  fseek(f->fp, 0, SEEK_SET);",
+    "  if (pos == 0) { fseek(f->fp, 0, SEEK_SET); return; }",
+    "  int64_t count = 0;",
+    "  long byte_pos = 0;",
+    "  while (1) {",
+    "    uint8_t g[4];",
+    "    size_t glen = 0;",
+    "    int r = ps_read_utf8_glyph(f->fp, g, &glen);",
+    "    if (r == 0) break;",
+    "    count += 1;",
+    "    byte_pos += (long)glen;",
+    "    if (count == pos) { fseek(f->fp, byte_pos, SEEK_SET); return; }",
+    "  }",
+    "  if (cur >= 0) fseek(f->fp, cur, SEEK_SET);",
+    "  ps_panic(\"R1010\", \"RUNTIME_IO_ERROR\", \"seek out of range\");",
+    "}",
+    "static ps_file* Io_openText(ps_string path, ps_string mode) {",
+    "  return ps_file_open_text(path, mode);",
+    "}",
+    "static ps_file* Io_openBinary(ps_string path, ps_string mode) {",
+    "  return ps_file_open_binary(path, mode);",
     "}",
     "static void Io_print(ps_string s) {",
     "  ps_io_init();",
@@ -1716,8 +1833,60 @@ function emitRuntimeHelpers() {
     "  static char buf[4][64];",
     "  static int slot = 0;",
     "  slot = (slot + 1) & 3;",
-    "  int n = snprintf(buf[slot], sizeof(buf[slot]), \"%.17g\", v);",
+    "  char tmp[64];",
+    "  int n = snprintf(tmp, sizeof(tmp), \"%.17g\", v);",
     "  if (n < 0) n = 0;",
+    "  if (isfinite(v)) {",
+    "    char *exp = strchr(tmp, 'e');",
+    "    if (!exp) exp = strchr(tmp, 'E');",
+    "    if (!exp) {",
+    "      if (strchr(tmp, '.')) {",
+    "        size_t len = strlen(tmp);",
+    "        size_t best = len;",
+    "        for (size_t cut = len; cut > 0; cut--) {",
+    "          if (tmp[cut - 1] == '.') continue;",
+    "          char cand[64];",
+    "          memcpy(cand, tmp, cut);",
+    "          cand[cut] = 0;",
+    "          char *end = NULL;",
+    "          double parsed = strtod(cand, &end);",
+    "          if (end && *end == 0 && parsed == v) {",
+    "            best = cut;",
+    "            continue;",
+    "          }",
+    "          break;",
+    "        }",
+    "        tmp[best] = 0;",
+    "        n = (int)best;",
+    "      }",
+    "    } else {",
+    "      size_t mant_len = (size_t)(exp - tmp);",
+    "      size_t best = mant_len;",
+    "      for (size_t cut = mant_len; cut > 0; cut--) {",
+    "        if (tmp[cut - 1] == '.') continue;",
+    "        char cand[64];",
+    "        size_t exp_len = strlen(exp);",
+    "        if (cut + exp_len >= sizeof(cand)) continue;",
+    "        memcpy(cand, tmp, cut);",
+    "        memcpy(cand + cut, exp, exp_len + 1);",
+    "        char *end = NULL;",
+    "        double parsed = strtod(cand, &end);",
+    "        if (end && *end == 0 && parsed == v) {",
+    "          best = cut;",
+    "          continue;",
+    "        }",
+    "        break;",
+    "      }",
+    "      if (best != mant_len) {",
+    "        size_t exp_len = strlen(exp);",
+    "        memmove(tmp + best, exp, exp_len + 1);",
+    "        n = (int)(best + exp_len);",
+    "      }",
+    "    }",
+    "  }",
+    "  if (n >= (int)sizeof(buf[slot])) n = (int)sizeof(buf[slot]) - 1;",
+    "  memcpy(buf[slot], tmp, (size_t)n);",
+    "  buf[slot][n] = 0;",
     "  ps_string s = { buf[slot], (size_t)n };",
     "  return s;",
     "}",
@@ -1766,7 +1935,7 @@ function emitInstr(i, fnInf, state) {
       if (i.literalType === "string") {
         out.push(`${n(i.dst)}.ptr = ${JSON.stringify(String(i.value))};`);
         out.push(`${n(i.dst)}.len = strlen(${n(i.dst)}.ptr);`);
-      } else if (i.literalType === "file") {
+      } else if (i.literalType === "TextFile" || i.literalType === "BinaryFile") {
         if (i.value === "stdin") out.push(`${n(i.dst)} = &ps_stdin;`);
         else if (i.value === "stdout") out.push(`${n(i.dst)} = &ps_stdout;`);
         else if (i.value === "stderr") out.push(`${n(i.dst)} = &ps_stderr;`);
@@ -1906,30 +2075,43 @@ function emitInstr(i, fnInf, state) {
       {
         const rt = t(i.receiver);
         const rc = parseContainer(rt);
-        if (rt === "File" || rt === "FileBinary" || rt === "FileText") {
+        if (rt === "TextFile" || rt === "BinaryFile") {
           if (i.method === "read") {
-            if (i.args.length === 0) {
-              if (t(i.dst) === "list<byte>") out.push(`${n(i.dst)} = ps_file_read_all_bytes(${n(i.receiver)});`);
-              else out.push(`${n(i.dst)} = ps_file_read_all(${n(i.receiver)});`);
+            if (i.args.length !== 1) {
+              out.push('ps_panic("R1010", "RUNTIME_IO_ERROR", "read expects (size)");');
+            } else if (rt === "BinaryFile") {
+              out.push(`${n(i.dst)} = ps_file_read_size_bytes(${n(i.receiver)}, ${n(i.args[0])});`);
             } else {
-              if (t(i.dst) === "list<byte>") out.push(`${n(i.dst)} = ps_file_read_size_bytes(${n(i.receiver)}, ${n(i.args[0])});`);
-              else out.push(`${n(i.dst)} = ps_file_read_size_text(${n(i.receiver)}, ${n(i.args[0])});`);
+              out.push(`${n(i.dst)} = ps_file_read_size_glyphs(${n(i.receiver)}, ${n(i.args[0])});`);
             }
-          } else if (i.method === "readBytes") {
-            if (i.args.length === 0) out.push(`${n(i.dst)} = ps_file_read_all_bytes(${n(i.receiver)});`);
-            else out.push(`${n(i.dst)} = ps_file_read_size_bytes(${n(i.receiver)}, ${n(i.args[0])});`);
           } else if (i.method === "write") {
             const at = t(i.args[0]);
-            if (at === "string") out.push(`ps_file_write_text(${n(i.receiver)}, ${n(i.args[0])});`);
-            else if (parseContainer(at)?.kind === "list" && parseContainer(at)?.inner === "byte") {
-              out.push(`ps_file_write_bytes(${n(i.receiver)}, ${n(i.args[0])});`);
-            } else if (parseContainer(at)?.kind === "list" && parseContainer(at)?.inner === "int") {
-              out.push(`ps_file_write_bytes_from_ints(${n(i.receiver)}, ${n(i.args[0])});`);
+            if (rt === "TextFile") {
+              if (at === "string") out.push(`ps_file_write_text(${n(i.receiver)}, ${n(i.args[0])});`);
+              else out.push('ps_panic("R1010", "RUNTIME_IO_ERROR", "write expects string");');
             } else {
-              out.push('ps_panic("R1010", "RUNTIME_TYPE_ERROR", "invalid write argument");');
+              if (parseContainer(at)?.kind === "list" && parseContainer(at)?.inner === "byte") {
+                out.push(`ps_file_write_bytes(${n(i.receiver)}, ${n(i.args[0])});`);
+              } else {
+                out.push('ps_panic("R1010", "RUNTIME_IO_ERROR", "write expects list<byte>");');
+              }
             }
-          } else if (i.method === "writeBytes") {
-            out.push(`ps_file_write_bytes(${n(i.receiver)}, ${n(i.args[0])});`);
+          } else if (i.method === "tell") {
+            if (rt === "BinaryFile") out.push(`${n(i.dst)} = ps_file_tell_bytes(${n(i.receiver)});`);
+            else out.push(`${n(i.dst)} = ps_file_tell_glyphs(${n(i.receiver)});`);
+          } else if (i.method === "seek") {
+            if (i.args.length !== 1) {
+              out.push('ps_panic("R1010", "RUNTIME_IO_ERROR", "seek expects (pos)");');
+            } else if (rt === "BinaryFile") {
+              out.push(`ps_file_seek_bytes(${n(i.receiver)}, ${n(i.args[0])});`);
+            } else {
+              out.push(`ps_file_seek_glyphs(${n(i.receiver)}, ${n(i.args[0])});`);
+            }
+          } else if (i.method === "size") {
+            if (rt === "BinaryFile") out.push(`${n(i.dst)} = ps_file_size_bytes(${n(i.receiver)});`);
+            else out.push(`${n(i.dst)} = ps_file_size_glyphs(${n(i.receiver)});`);
+          } else if (i.method === "name") {
+            out.push(`${n(i.dst)} = ps_file_name(${n(i.receiver)});`);
           } else if (i.method === "close") {
             out.push(`ps_file_close(${n(i.receiver)});`);
           } else {

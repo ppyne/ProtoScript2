@@ -1,0 +1,6 @@
+import Io;
+
+function main() : void {
+    int x = 1;
+    Io.printLine(x.toString());
+}

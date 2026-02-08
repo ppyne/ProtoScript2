@@ -1,0 +1,35 @@
+import Io;
+
+function main() : void {
+    bool b = true;
+    if (b) {
+        Io.print("if");
+    }
+    Io.print("|after_if|");
+
+    list<int> xs = [1, 2];
+    int sum = 0;
+    for (int v of xs) {
+        sum = sum + v;
+    }
+    if (sum == 3) {
+        Io.print("after_for");
+    } else {
+        Io.print("bad_for");
+    }
+    Io.print("|");
+
+    switch (1) {
+        case 1:
+            Io.print("switch");
+            break;
+    }
+    Io.print("|after_switch|");
+
+    try {
+        Io.print("try");
+    } catch (Exception e) {
+        Io.print("catch");
+    }
+    Io.printLine("|after_try|");
+}

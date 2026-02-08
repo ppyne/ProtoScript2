@@ -125,15 +125,22 @@ static int encode_number(PS_Context *ctx, double v, StrBuf *sb) {
 }
 
 static int encode_object(PS_Context *ctx, PS_Value *obj, StrBuf *sb) {
-  size_t len = ps_object_len(obj);
+  if (!obj || ps_typeof(obj) != PS_T_MAP) {
+    ps_throw(ctx, PS_ERR_TYPE, "object expects map<string,JSONValue>");
+    return 0;
+  }
+  size_t len = ps_map_len(obj);
   if (!sb_append_c(sb, '{')) return 0;
   for (size_t i = 0; i < len; i++) {
-    const char *key = NULL;
-    size_t key_len = 0;
+    PS_Value *key = NULL;
     PS_Value *val = NULL;
-    if (ps_object_entry(ctx, obj, i, &key, &key_len, &val) != PS_OK) return 0;
+    if (ps_map_entry(ctx, obj, i, &key, &val) != PS_OK) return 0;
+    if (!key || ps_typeof(key) != PS_T_STRING) {
+      ps_throw(ctx, PS_ERR_TYPE, "object expects map<string,JSONValue>");
+      return 0;
+    }
     if (i > 0 && !sb_append_c(sb, ',')) return 0;
-    if (!encode_string(ctx, key, key_len, sb)) return 0;
+    if (!encode_string(ctx, ps_string_ptr(key), ps_string_len(key), sb)) return 0;
     if (!sb_append_c(sb, ':')) return 0;
     if (!json_encode_value(ctx, val, sb)) return 0;
   }
@@ -186,7 +193,7 @@ static int json_encode_value(PS_Context *ctx, PS_Value *v, StrBuf *sb) {
       return sb_append_c(sb, ']');
     }
     if (strcmp(kind, "object") == 0) {
-      if (!jval || ps_typeof(jval) != PS_T_OBJECT) {
+      if (!jval || ps_typeof(jval) != PS_T_MAP) {
         ps_throw(ctx, PS_ERR_TYPE, "invalid JsonObject");
         return 0;
       }
@@ -218,6 +225,8 @@ static int json_encode_value(PS_Context *ctx, PS_Value *v, StrBuf *sb) {
       }
       return sb_append_c(sb, ']');
     }
+    case PS_T_MAP:
+      return encode_object(ctx, v, sb);
     case PS_T_OBJECT:
       return encode_object(ctx, v, sb);
     default:
@@ -671,18 +680,19 @@ static PS_Status mod_array(PS_Context *ctx, int argc, PS_Value **argv, PS_Value 
 
 static PS_Status mod_object(PS_Context *ctx, int argc, PS_Value **argv, PS_Value **out) {
   (void)argc;
-  if (!argv[0] || ps_typeof(argv[0]) != PS_T_OBJECT) {
+  if (!argv[0] || ps_typeof(argv[0]) != PS_T_MAP) {
     ps_throw(ctx, PS_ERR_TYPE, "object expects map<string,JSONValue>");
     return PS_ERR;
   }
-  size_t n = ps_object_len(argv[0]);
+  size_t n = ps_map_len(argv[0]);
   for (size_t i = 0; i < n; i++) {
-    const char *key = NULL;
-    size_t key_len = 0;
+    PS_Value *key = NULL;
     PS_Value *val = NULL;
-    if (ps_object_entry(ctx, argv[0], i, &key, &key_len, &val) != PS_OK) return PS_ERR;
-    (void)key;
-    (void)key_len;
+    if (ps_map_entry(ctx, argv[0], i, &key, &val) != PS_OK) return PS_ERR;
+    if (!key || ps_typeof(key) != PS_T_STRING) {
+      ps_throw(ctx, PS_ERR_TYPE, "object expects map<string,JSONValue>");
+      return PS_ERR;
+    }
     if (!json_value_kind(ctx, val, NULL, NULL)) {
       ps_throw(ctx, PS_ERR_TYPE, "object expects map<string,JSONValue>");
       return PS_ERR;

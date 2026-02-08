@@ -1,10 +1,10 @@
 import Io;
 
 function main() : void {
-    var f = Io.open("io_eof.txt", "w");
+    var f = Io.openText("io_eof.txt", "w");
     f.close();
 
-    var r = Io.open("io_eof.txt", "r");
+    var r = Io.openText("io_eof.txt", "r");
     var chunk = r.read(1);
     r.close();
 

@@ -1,0 +1,5 @@
+import Math;
+
+function main() : void {
+    float x = Math.pow(2.0, 3.0, 4.0);
+}

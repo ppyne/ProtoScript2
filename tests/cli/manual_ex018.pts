@@ -1,0 +1,16 @@
+import Io;
+
+function main() : void {
+    var n = 10;
+    int x = 20;
+
+    int y = n;
+    byte b = n.toByte();
+    int a = n.abs();
+
+    Io.printLine(n.toString());
+    Io.printLine(x.toString());
+    Io.printLine(y.toString());
+    Io.printLine(b.toInt().toString());
+    Io.printLine(a.toString());
+}

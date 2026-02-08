@@ -1,4 +1,5 @@
 #include <errno.h>
+#include <limits.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -107,6 +108,13 @@ static PS_Value *build_args_list(PS_Context *ctx, int argc, char **argv, int sta
 }
 
 static int run_file(PS_Context *ctx, const char *file, PS_Value *args_list, PS_Value **out_ret) {
+  PsDiag d;
+  int r = ps_check_file_static(file, &d);
+  if (r != 0) {
+    fprintf(stderr, "%s:%d:%d %s %s: %s\n", d.file ? d.file : file, d.line, d.col, d.code ? d.code : "E0001",
+            d.category ? d.category : "FRONTEND_ERROR", d.message);
+    return (r == 2) ? 1 : 2;
+  }
   PS_IR_Module *m = load_ir_from_file(ctx, file);
   if (!m) return 1;
   PS_Value *argvs[1];
@@ -135,6 +143,24 @@ int main(int argc, char **argv) {
   if (argc < 2) {
     usage();
     return 2;
+  }
+
+  char exe_buf[PATH_MAX];
+  if (realpath(argv[0], exe_buf)) {
+    char *slash = strrchr(exe_buf, '/');
+    if (slash) {
+      *slash = '\0';
+      ps_set_registry_exe_dir(exe_buf);
+    }
+  } else {
+    char *slash = strrchr(argv[0], '/');
+    if (slash) {
+      size_t n = (size_t)(slash - argv[0]);
+      if (n >= sizeof(exe_buf)) n = sizeof(exe_buf) - 1;
+      memcpy(exe_buf, argv[0], n);
+      exe_buf[n] = '\0';
+      ps_set_registry_exe_dir(exe_buf);
+    }
   }
 
   int trace = 0;

@@ -1,10 +1,10 @@
 import Io;
 
 function main() : void {
-    var f = Io.open("io_read_size.txt", "w");
+    var f = Io.openText("io_read_size.txt", "w");
     f.write("x");
     f.close();
 
-    var r = Io.open("io_read_size.txt", "r");
+    var r = Io.openText("io_read_size.txt", "r");
     r.read(0);
 }

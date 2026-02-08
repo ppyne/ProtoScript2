@@ -1,0 +1,11 @@
+{
+  "status": "reject-static",
+  "error_family": "E3xxx",
+  "error_code": "E3006",
+  "category": "MISSING_TYPE_CONTEXT",
+  "position": {
+    "file": "invalid/type/empty_map_no_context.pts",
+    "line": 2,
+    "column": 13
+  }
+}

@@ -60,6 +60,35 @@ expect_output_contains() {
   fi
 }
 
+expect_no_output() {
+  local desc="$1"
+  shift
+  set +e
+  "$@" >/tmp/ps_cli_test.out 2>&1
+  local rc=$?
+  set -e
+  if [[ "$rc" -ne 0 ]]; then
+    echo "FAIL $desc"
+    echo "  expected exit 0, got $rc"
+    echo "  cmd: $*"
+    echo "  output:"
+    sed -n '1,80p' /tmp/ps_cli_test.out
+    fail=$((fail + 1))
+    return
+  fi
+  if [[ -s /tmp/ps_cli_test.out ]]; then
+    echo "FAIL $desc"
+    echo "  expected no output"
+    echo "  cmd: $*"
+    echo "  output:"
+    sed -n '1,80p' /tmp/ps_cli_test.out
+    fail=$((fail + 1))
+  else
+    echo "PASS $desc"
+    pass=$((pass + 1))
+  fi
+}
+
 echo "== ProtoScript CLI Tests =="
 echo "PS: $PS"
 echo
@@ -69,11 +98,52 @@ expect_exit "version" 0 "$PS" --version
 expect_exit "inline -e" 0 "$PS" -e "int x = 1 + 2;"
 expect_output_contains "repl prompt" "ps> " bash -c "printf 'exit\n' | \"$PS\" repl"
 expect_output_contains "run outputs" "hello" "$PS" run "$ROOT_DIR/tests/cli/hello.pts"
+expect_output_contains "run if basic" "yes" "$PS" run "$ROOT_DIR/tests/cli/if_basic.pts"
+expect_output_contains "run list concat" "hello world" "$PS" run "$ROOT_DIR/tests/cli/list_concat.pts"
+expect_output_contains "run proto bool field" "true" "$PS" run "$ROOT_DIR/tests/cli/proto_bool_field.pts"
+expect_output_contains "run control flow continuation" "after_try" "$PS" run "$ROOT_DIR/tests/cli/control_flow_continuation.pts"
+expect_output_contains "run manual ex008" "1" "$PS" run "$ROOT_DIR/tests/cli/manual_ex008.pts"
+expect_output_contains "run manual ex010" "12" "$PS" run "$ROOT_DIR/tests/cli/manual_ex010.pts"
+expect_output_contains "run manual ex011" "42" "$PS" run "$ROOT_DIR/tests/cli/manual_ex011.pts"
+expect_output_contains "run manual ex012" "0.001" "$PS" run "$ROOT_DIR/tests/cli/manual_ex012.pts"
+expect_output_contains "run manual ex013" "Bonjour" "$PS" run "$ROOT_DIR/tests/cli/manual_ex013.pts"
+expect_output_contains "run manual ex014" "☺" "$PS" run "$ROOT_DIR/tests/cli/manual_ex014.pts"
+expect_output_contains "run manual ex015" "a=1" "$PS" run "$ROOT_DIR/tests/cli/manual_ex015.pts"
+expect_output_contains "run manual ex016" "0" "$PS" run "$ROOT_DIR/tests/cli/manual_ex016.pts"
+expect_output_contains "run manual ex018" "10" "$PS" run "$ROOT_DIR/tests/cli/manual_ex018.pts"
+expect_output_contains "run manual ex019" "ok" "$PS" run "$ROOT_DIR/tests/cli/manual_ex019.pts"
+expect_output_contains "run manual ex021" "2" "$PS" run "$ROOT_DIR/tests/cli/manual_ex021.pts"
+expect_output_contains "run manual ex024" "L0" "$PS" run "$ROOT_DIR/tests/cli/manual_ex024.pts"
+expect_output_contains "run manual ex007" "json null" "$PS" run "$ROOT_DIR/tests/cli/manual_ex007.pts"
 expect_exit "run exit code" 100 "$PS" run "$ROOT_DIR/tests/cli/exit_code.pts"
+expect_exit "run static error exit" 2 "$PS" run "$ROOT_DIR/tests/invalid/type/uninitialized_read_call_arg.pts"
 expect_exit "argv passthrough" 0 "$PS" run "$ROOT_DIR/tests/cli/args.pts"
 expect_exit "runtime error exit" 2 "$PS" run "$ROOT_DIR/tests/cli/runtime_error.pts"
 expect_exit "static check success" 0 "$PS" check "$ROOT_DIR/tests/cli/hello.pts"
+expect_exit "pscc check if basic" 0 "$ROOT_DIR/c/pscc" --check "$ROOT_DIR/tests/cli/if_basic.pts"
+expect_exit "pscc check list concat" 0 "$ROOT_DIR/c/pscc" --check "$ROOT_DIR/tests/cli/list_concat.pts"
+expect_exit "pscc check proto bool field" 0 "$ROOT_DIR/c/pscc" --check "$ROOT_DIR/tests/cli/proto_bool_field.pts"
+expect_exit "pscc check control flow continuation" 0 "$ROOT_DIR/c/pscc" --check "$ROOT_DIR/tests/cli/control_flow_continuation.pts"
+expect_exit "pscc check manual ex008" 0 "$ROOT_DIR/c/pscc" --check "$ROOT_DIR/tests/cli/manual_ex008.pts"
+expect_exit "pscc check manual ex010" 0 "$ROOT_DIR/c/pscc" --check "$ROOT_DIR/tests/cli/manual_ex010.pts"
+expect_exit "pscc check manual ex011" 0 "$ROOT_DIR/c/pscc" --check "$ROOT_DIR/tests/cli/manual_ex011.pts"
+expect_exit "pscc check manual ex012" 0 "$ROOT_DIR/c/pscc" --check "$ROOT_DIR/tests/cli/manual_ex012.pts"
+expect_exit "pscc check manual ex013" 0 "$ROOT_DIR/c/pscc" --check "$ROOT_DIR/tests/cli/manual_ex013.pts"
+expect_exit "pscc check manual ex014" 0 "$ROOT_DIR/c/pscc" --check "$ROOT_DIR/tests/cli/manual_ex014.pts"
+expect_exit "pscc check manual ex015" 0 "$ROOT_DIR/c/pscc" --check "$ROOT_DIR/tests/cli/manual_ex015.pts"
+expect_exit "pscc check manual ex016" 0 "$ROOT_DIR/c/pscc" --check "$ROOT_DIR/tests/cli/manual_ex016.pts"
+expect_exit "pscc check manual ex018" 0 "$ROOT_DIR/c/pscc" --check "$ROOT_DIR/tests/cli/manual_ex018.pts"
+expect_exit "pscc check manual ex019" 0 "$ROOT_DIR/c/pscc" --check "$ROOT_DIR/tests/cli/manual_ex019.pts"
+expect_exit "pscc check manual ex021" 0 "$ROOT_DIR/c/pscc" --check "$ROOT_DIR/tests/cli/manual_ex021.pts"
+expect_exit "pscc check manual ex024" 0 "$ROOT_DIR/c/pscc" --check "$ROOT_DIR/tests/cli/manual_ex024.pts"
+expect_exit "pscc check empty list no context" 1 "$ROOT_DIR/c/pscc" --check "$ROOT_DIR/tests/invalid/type/empty_list_no_context.pts"
+expect_exit "pscc check empty map no context" 1 "$ROOT_DIR/c/pscc" --check "$ROOT_DIR/tests/invalid/type/empty_map_no_context.pts"
+expect_exit "pscc check manual ex007" 0 "$ROOT_DIR/c/pscc" --check "$ROOT_DIR/tests/cli/manual_ex007.pts"
 expect_exit "static check exit" 2 "$PS" check "$ROOT_DIR/tests/invalid/type/type_mismatch_assignment.pts"
+expect_exit "static check uninitialized call arg" 2 "$PS" check "$ROOT_DIR/tests/invalid/type/uninitialized_read_call_arg.pts"
+expect_exit "static check empty list no context" 2 "$PS" check "$ROOT_DIR/tests/invalid/type/empty_list_no_context.pts"
+expect_exit "static check empty map no context" 2 "$PS" check "$ROOT_DIR/tests/invalid/type/empty_map_no_context.pts"
+expect_exit "static check null literal" 2 "$PS" check "$ROOT_DIR/tests/invalid/type/null_literal.pts"
 expect_output_contains "ast outputs" "\"kind\"" "$PS" ast "$ROOT_DIR/tests/cli/exit_code.pts"
 expect_output_contains "ir outputs" "\"functions\"" "$PS" ir "$ROOT_DIR/tests/cli/exit_code.pts"
 expect_exit "trace enabled" 0 "$PS" run "$ROOT_DIR/tests/cli/hello.pts" --trace

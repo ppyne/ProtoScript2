@@ -97,6 +97,19 @@ Notes :
 - `bin/protoscriptc` (Node) est **le seul** qui produit du C (`--emit-c`) et de l’IR complet (`--emit-ir`).
 - `c/pscc` (C) fournit un frontend partiel et **redirige** vers `bin/protoscriptc` pour `--emit-c` / `--emit-ir`.
 
+Registry des modules standards :
+
+- Le runtime/CLI charge un registry JSON pour `import Io/Math/JSON`.
+- Vous pouvez forcer l’emplacement via la variable d’environnement `PS_MODULE_REGISTRY`.
+Ordre de recherche par défaut :
+`PS_MODULE_REGISTRY`,
+`registry.json` à côté du binaire `ps`,
+`./registry.json`,
+`/etc/ps/registry.json`,
+`/usr/local/etc/ps/registry.json`,
+`/opt/local/etc/ps/registry.json`,
+`./modules/registry.json`.
+
 CLI C (exécution) :
 
 ```bash

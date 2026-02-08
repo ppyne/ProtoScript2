@@ -1,0 +1,5 @@
+import Io;
+
+function main() : void {
+    string s = "a".concat("b", "c");
+}

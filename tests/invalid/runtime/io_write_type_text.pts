@@ -1,7 +1,7 @@
 import Io;
 
 function main() : void {
-    var f = Io.open("io_text_bad.txt", "w");
+    var f = Io.openText("io_text_bad.txt", "w");
     var data = [1, 2, 3];
     f.write(data);
 }

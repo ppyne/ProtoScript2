@@ -1,0 +1,11 @@
+{
+  "status": "reject-static",
+  "error_family": "E1xxx",
+  "error_code": "E1003",
+  "category": "ARITY_MISMATCH",
+  "position": {
+    "file": "invalid/type/arity_textfile_seek_too_few.pts",
+    "line": 5,
+    "column": 11
+  }
+}

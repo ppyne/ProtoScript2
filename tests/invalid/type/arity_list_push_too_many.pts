@@ -1,0 +1,4 @@
+function main() : void {
+    list<int> xs = [1];
+    xs.push(2, 3);
+}

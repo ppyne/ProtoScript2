@@ -1,0 +1,5 @@
+{
+  "status": "accept-runtime",
+  "requires": ["modules"],
+  "expected_stdout": "if|after_if|after_for|switch|after_switch|try|after_try|\n"
+}

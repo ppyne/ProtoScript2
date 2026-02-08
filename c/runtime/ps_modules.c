@@ -5,6 +5,12 @@
 #include "ps_modules.h"
 #include "ps_runtime.h"
 
+#ifdef PS_WASM
+PS_Status ps_module_init_Io(PS_Context *ctx, PS_Module *out);
+PS_Status ps_module_init_JSON(PS_Context *ctx, PS_Module *out);
+PS_Status ps_module_init_Math(PS_Context *ctx, PS_Module *out);
+#endif
+
 static int module_record_exists(PS_Context *ctx, const char *name) {
   for (size_t i = 0; i < ctx->module_count; i++) {
     if (ctx->modules[i].desc.module_name && strcmp(ctx->modules[i].desc.module_name, name) == 0) return 1;
@@ -80,6 +86,35 @@ static PS_Status try_load_from_dir(PS_Context *ctx, const char *module_name, con
 
 PS_Status ps_module_load(PS_Context *ctx, const char *module_name) {
   if (module_record_exists(ctx, module_name)) return PS_OK;
+#ifdef PS_WASM
+  PS_Status (*init_fn)(PS_Context *, PS_Module *) = NULL;
+  if (strcmp(module_name, "Io") == 0) init_fn = ps_module_init_Io;
+  if (strcmp(module_name, "JSON") == 0) init_fn = ps_module_init_JSON;
+  if (strcmp(module_name, "Math") == 0) init_fn = ps_module_init_Math;
+  if (init_fn) {
+    PS_Module mod;
+    memset(&mod, 0, sizeof(mod));
+    PS_Status st = init_fn(ctx, &mod);
+    if (st != PS_OK) {
+      if (ps_last_error_code(ctx) == PS_ERR_NONE) ps_throw(ctx, PS_ERR_IMPORT, "module init failed");
+      return PS_ERR;
+    }
+    if (mod.api_version != PS_API_VERSION) {
+      ps_throw(ctx, PS_ERR_IMPORT, "module ABI version mismatch");
+      return PS_ERR;
+    }
+    if (!ensure_module_cap(ctx)) {
+      ps_throw(ctx, PS_ERR_OOM, "out of memory");
+      return PS_ERR;
+    }
+    ctx->modules[ctx->module_count].desc = mod;
+    ctx->modules[ctx->module_count].lib = NULL;
+    ctx->module_count += 1;
+    return PS_OK;
+  }
+  ps_throw(ctx, PS_ERR_IMPORT, "module not found");
+  return PS_ERR;
+#else
   const char *env = getenv("PS_MODULE_PATH");
   if (env && *env) {
     char *dup = strdup(env);
@@ -101,6 +136,7 @@ PS_Status ps_module_load(PS_Context *ctx, const char *module_name) {
   if (try_load_from_dir(ctx, module_name, "./lib") == PS_OK) return PS_OK;
   ps_throw(ctx, PS_ERR_IMPORT, "module not found");
   return PS_ERR;
+#endif
 }
 
 const PS_NativeFnDesc *ps_module_find_fn(PS_Context *ctx, const char *module_name, const char *fn_name) {

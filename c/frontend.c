@@ -1,6 +1,7 @@
 #include "frontend.h"
 
 #include <ctype.h>
+#include <limits.h>
 #include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -9,6 +10,18 @@
 #include "runtime/ps_json.h"
 
 static char *str_printf(const char *fmt, ...);
+
+static char g_registry_exe_dir[PATH_MAX];
+static int g_registry_exe_dir_set = 0;
+
+void ps_set_registry_exe_dir(const char *dir) {
+  if (!dir || !dir[0]) return;
+  size_t n = strlen(dir);
+  if (n >= sizeof(g_registry_exe_dir)) n = sizeof(g_registry_exe_dir) - 1;
+  memcpy(g_registry_exe_dir, dir, n);
+  g_registry_exe_dir[n] = '\0';
+  g_registry_exe_dir_set = 1;
+}
 
 typedef enum {
   TK_EOF,
@@ -141,6 +154,12 @@ static void json_print_escaped(FILE *out, const char *s) {
       fputs("\\r", out);
     } else if (*p == '\t') {
       fputs("\\t", out);
+    } else if (*p == '\b') {
+      fputs("\\b", out);
+    } else if (*p == '\f') {
+      fputs("\\f", out);
+    } else if (*p < 0x20) {
+      fprintf(out, "\\u%04x", (unsigned int)*p);
     } else {
       fputc((int)*p, out);
     }
@@ -383,6 +402,23 @@ static int run_lexer(Lexer *l) {
       char *s = dup_range(l->src, a, l->i);
       if (!s) return 0;
       int ok = lex_add(l, is_keyword(s) ? TK_KW : TK_ID, s, line, col);
+      free(s);
+      if (!ok) return 0;
+      continue;
+    }
+
+    if (c == '.' && isdigit((unsigned char)l_ch(l, 1))) {
+      size_t a = l->i;
+      l_advance(l);
+      while (isdigit((unsigned char)l_ch(l, 0))) l_advance(l);
+      if (l_ch(l, 0) == 'e' || l_ch(l, 0) == 'E') {
+        l_advance(l);
+        if (l_ch(l, 0) == '+' || l_ch(l, 0) == '-') l_advance(l);
+        while (isdigit((unsigned char)l_ch(l, 0))) l_advance(l);
+      }
+      char *s = dup_range(l->src, a, l->i);
+      if (!s) return 0;
+      int ok = lex_add(l, TK_NUM, s, line, col);
       free(s);
       if (!ok) return 0;
       continue;
@@ -780,6 +816,48 @@ static int parse_switch_stmt(Parser *p) {
   return p_eat(p, TK_SYM, "}");
 }
 
+static int parse_if_stmt(Parser *p) {
+  Token *t = p_t(p, 0);
+  AstNode *node = NULL;
+  if (!p_ast_add(p, "IfStmt", NULL, t->line, t->col, &node)) return 0;
+  if (!p_ast_push(p, node)) return 0;
+  if (!p_eat(p, TK_KW, "if")) {
+    p_ast_pop(p);
+    return 0;
+  }
+  if (!p_eat(p, TK_SYM, "(")) {
+    p_ast_pop(p);
+    return 0;
+  }
+  AstNode *cond = NULL;
+  if (!parse_expr(p, &cond)) {
+    p_ast_pop(p);
+    return 0;
+  }
+  if (cond && !ast_add_child(node, cond)) {
+    ast_free(cond);
+    p_ast_pop(p);
+    return 0;
+  }
+  if (!p_eat(p, TK_SYM, ")")) {
+    p_ast_pop(p);
+    return 0;
+  }
+  if (!parse_stmt(p)) {
+    p_ast_pop(p);
+    return 0;
+  }
+  if (p_at(p, TK_KW, "else")) {
+    p_eat(p, TK_KW, "else");
+    if (!parse_stmt(p)) {
+      p_ast_pop(p);
+      return 0;
+    }
+  }
+  p_ast_pop(p);
+  return 1;
+}
+
 static int parse_try_stmt(Parser *p) {
   Token *t = p_t(p, 0);
   AstNode *node = NULL;
@@ -1002,6 +1080,7 @@ static int parse_stmt(Parser *p) {
     ast_free(decl);
     p->i = mark;
   }
+  if (p_at(p, TK_KW, "if")) return parse_if_stmt(p);
   if (p_at(p, TK_KW, "for")) return parse_for_stmt(p);
   if (p_at(p, TK_KW, "switch")) return parse_switch_stmt(p);
   if (p_at(p, TK_KW, "try")) return parse_try_stmt(p);
@@ -1941,7 +2020,7 @@ static int parse_registry_type(const char **p, int allow_void) {
   skip_ws(p);
   if (allow_void && consume_kw(p, "void")) return 1;
   if (consume_kw(p, "int") || consume_kw(p, "float") || consume_kw(p, "bool") || consume_kw(p, "byte") || consume_kw(p, "glyph") ||
-      consume_kw(p, "string") || consume_kw(p, "File") || consume_kw(p, "JSONValue")) {
+      consume_kw(p, "string") || consume_kw(p, "TextFile") || consume_kw(p, "BinaryFile") || consume_kw(p, "JSONValue")) {
     return 1;
   }
   if (consume_kw(p, "list") || consume_kw(p, "slice") || consume_kw(p, "view")) {
@@ -1974,9 +2053,83 @@ static int registry_type_valid(const char *s, int allow_void) {
   return *p == '\0';
 }
 
+static const char *ps_registry_json =
+    "{\n"
+    "  \"modules\": [\n"
+    "    {\n"
+    "      \"name\": \"Io\",\n"
+    "      \"functions\": [\n"
+    "        { \"name\": \"openText\", \"ret\": \"TextFile\", \"params\": [\"string\", \"string\"] },\n"
+    "        { \"name\": \"openBinary\", \"ret\": \"BinaryFile\", \"params\": [\"string\", \"string\"] },\n"
+    "        { \"name\": \"print\", \"ret\": \"void\", \"params\": [\"string\"] },\n"
+    "        { \"name\": \"printLine\", \"ret\": \"void\", \"params\": [\"string\"] }\n"
+    "      ],\n"
+    "      \"constants\": [\n"
+    "        { \"name\": \"EOL\", \"type\": \"string\", \"value\": \"\\n\" },\n"
+    "        { \"name\": \"stdin\", \"type\": \"TextFile\", \"value\": \"stdin\" },\n"
+    "        { \"name\": \"stdout\", \"type\": \"TextFile\", \"value\": \"stdout\" },\n"
+    "        { \"name\": \"stderr\", \"type\": \"TextFile\", \"value\": \"stderr\" }\n"
+    "      ]\n"
+    "    },\n"
+    "    {\n"
+    "      \"name\": \"Math\",\n"
+    "      \"functions\": [\n"
+    "        { \"name\": \"abs\", \"ret\": \"float\", \"params\": [\"float\"] },\n"
+    "        { \"name\": \"min\", \"ret\": \"float\", \"params\": [\"float\", \"float\"] },\n"
+    "        { \"name\": \"max\", \"ret\": \"float\", \"params\": [\"float\", \"float\"] },\n"
+    "        { \"name\": \"floor\", \"ret\": \"float\", \"params\": [\"float\"] },\n"
+    "        { \"name\": \"ceil\", \"ret\": \"float\", \"params\": [\"float\"] },\n"
+    "        { \"name\": \"round\", \"ret\": \"float\", \"params\": [\"float\"] },\n"
+    "        { \"name\": \"sqrt\", \"ret\": \"float\", \"params\": [\"float\"] },\n"
+    "        { \"name\": \"pow\", \"ret\": \"float\", \"params\": [\"float\", \"float\"] },\n"
+    "        { \"name\": \"sin\", \"ret\": \"float\", \"params\": [\"float\"] },\n"
+    "        { \"name\": \"cos\", \"ret\": \"float\", \"params\": [\"float\"] },\n"
+    "        { \"name\": \"tan\", \"ret\": \"float\", \"params\": [\"float\"] },\n"
+    "        { \"name\": \"asin\", \"ret\": \"float\", \"params\": [\"float\"] },\n"
+    "        { \"name\": \"acos\", \"ret\": \"float\", \"params\": [\"float\"] },\n"
+    "        { \"name\": \"atan\", \"ret\": \"float\", \"params\": [\"float\"] },\n"
+    "        { \"name\": \"atan2\", \"ret\": \"float\", \"params\": [\"float\", \"float\"] }\n"
+    "      ],\n"
+    "      \"constants\": [\n"
+    "        { \"name\": \"PI\", \"type\": \"float\", \"value\": \"3.141592653589793\" },\n"
+    "        { \"name\": \"E\", \"type\": \"float\", \"value\": \"2.718281828459045\" }\n"
+    "      ]\n"
+    "    },\n"
+    "    {\n"
+    "      \"name\": \"JSON\",\n"
+    "      \"functions\": [\n"
+    "        { \"name\": \"encode\", \"ret\": \"string\", \"params\": [\"JSONValue\"] },\n"
+    "        { \"name\": \"decode\", \"ret\": \"JSONValue\", \"params\": [\"string\"] },\n"
+    "        { \"name\": \"isValid\", \"ret\": \"bool\", \"params\": [\"string\"] },\n"
+    "        { \"name\": \"null\", \"ret\": \"JSONValue\", \"params\": [] },\n"
+    "        { \"name\": \"bool\", \"ret\": \"JSONValue\", \"params\": [\"bool\"] },\n"
+    "        { \"name\": \"number\", \"ret\": \"JSONValue\", \"params\": [\"float\"] },\n"
+    "        { \"name\": \"string\", \"ret\": \"JSONValue\", \"params\": [\"string\"] },\n"
+    "        { \"name\": \"array\", \"ret\": \"JSONValue\", \"params\": [\"list<JSONValue>\"] },\n"
+    "        { \"name\": \"object\", \"ret\": \"JSONValue\", \"params\": [\"map<string,JSONValue>\"] }\n"
+    "      ]\n"
+    "    }\n"
+    "  ]\n"
+    "}\n";
+
 static ModuleRegistry *registry_load(void) {
   const char *env = getenv("PS_MODULE_REGISTRY");
-  const char *candidates[] = {env, "modules/registry.json", "../modules/registry.json", NULL};
+  char exe_path[PATH_MAX];
+  const char *exe_candidate = NULL;
+  if (g_registry_exe_dir_set) {
+    snprintf(exe_path, sizeof(exe_path), "%s/registry.json", g_registry_exe_dir);
+    exe_candidate = exe_path;
+  }
+  const char *candidates[] = {
+    env,
+    exe_candidate,
+    "registry.json",
+    "/etc/ps/registry.json",
+    "/usr/local/etc/ps/registry.json",
+    "/opt/local/etc/ps/registry.json",
+    "modules/registry.json",
+    NULL
+  };
   char *data = NULL;
   size_t n = 0;
   for (int i = 0; candidates[i]; i++) {
@@ -1984,7 +2137,12 @@ static ModuleRegistry *registry_load(void) {
     data = read_file(candidates[i], &n);
     if (data) break;
   }
-  if (!data) return NULL;
+  if (!data) {
+    n = strlen(ps_registry_json);
+    data = (char *)malloc(n + 1);
+    if (!data) return NULL;
+    memcpy(data, ps_registry_json, n + 1);
+  }
   const char *err = NULL;
   PS_JsonValue *root = ps_json_parse(data, n, &err);
   free(data);
@@ -2453,6 +2611,16 @@ static int is_hex_token(const char *s) {
   return 1;
 }
 
+static int is_bin_token(const char *s) {
+  if (!s || !*s) return 0;
+  if (strlen(s) < 3) return 0;
+  if (!(s[0] == '0' && (s[1] == 'b' || s[1] == 'B'))) return 0;
+  for (const char *p = s + 2; *p; p++) {
+    if (!(*p == '0' || *p == '1')) return 0;
+  }
+  return 1;
+}
+
 static int is_float_token(const char *s) {
   if (!s || !*s) return 0;
   int i = 0;
@@ -2488,6 +2656,203 @@ static int is_float_token(const char *s) {
 
 static char *infer_expr_type(Analyzer *a, AstNode *e, Scope *scope, int *ok);
 
+static int check_method_arity(Analyzer *a, AstNode *e, const char *recv_t, const char *method, int argc) {
+  if (!recv_t || !method) return 1;
+  int min = -1;
+  int max = -1;
+  if (strcmp(recv_t, "string") == 0) {
+    if (strcmp(method, "length") == 0 || strcmp(method, "isEmpty") == 0 || strcmp(method, "toString") == 0 ||
+        strcmp(method, "toInt") == 0 || strcmp(method, "toFloat") == 0 || strcmp(method, "toUpper") == 0 ||
+        strcmp(method, "toLower") == 0 || strcmp(method, "toUtf8Bytes") == 0 || strcmp(method, "trim") == 0 ||
+        strcmp(method, "trimStart") == 0 || strcmp(method, "trimEnd") == 0) {
+      min = max = 0;
+    } else if (strcmp(method, "concat") == 0 || strcmp(method, "indexOf") == 0 || strcmp(method, "startsWith") == 0 ||
+               strcmp(method, "endsWith") == 0 || strcmp(method, "split") == 0) {
+      min = max = 1;
+    } else if (strcmp(method, "substring") == 0 || strcmp(method, "replace") == 0) {
+      min = max = 2;
+    }
+  } else if (strcmp(recv_t, "TextFile") == 0 || strcmp(recv_t, "BinaryFile") == 0) {
+    if (strcmp(method, "close") == 0 || strcmp(method, "tell") == 0 || strcmp(method, "size") == 0 || strcmp(method, "name") == 0) {
+      min = max = 0;
+    } else if (strcmp(method, "read") == 0 || strcmp(method, "write") == 0 || strcmp(method, "seek") == 0) {
+      min = max = 1;
+    }
+  } else if (strcmp(recv_t, "int") == 0) {
+    if (strcmp(method, "toByte") == 0 || strcmp(method, "toFloat") == 0 || strcmp(method, "toString") == 0 ||
+        strcmp(method, "toBytes") == 0 || strcmp(method, "abs") == 0 || strcmp(method, "sign") == 0) {
+      min = max = 0;
+    }
+  } else if (strcmp(recv_t, "byte") == 0) {
+    if (strcmp(method, "toInt") == 0 || strcmp(method, "toFloat") == 0 || strcmp(method, "toString") == 0) {
+      min = max = 0;
+    }
+  } else if (strcmp(recv_t, "float") == 0) {
+    if (strcmp(method, "toInt") == 0 || strcmp(method, "toString") == 0 || strcmp(method, "toBytes") == 0 ||
+        strcmp(method, "abs") == 0 || strcmp(method, "isNaN") == 0 || strcmp(method, "isInfinite") == 0 ||
+        strcmp(method, "isFinite") == 0) {
+      min = max = 0;
+    }
+  } else if (strcmp(recv_t, "glyph") == 0) {
+    if (strcmp(method, "toString") == 0 || strcmp(method, "toInt") == 0 || strcmp(method, "toUtf8Bytes") == 0 ||
+        strcmp(method, "isLetter") == 0 || strcmp(method, "isDigit") == 0 || strcmp(method, "isWhitespace") == 0 ||
+        strcmp(method, "isUpper") == 0 || strcmp(method, "isLower") == 0 || strcmp(method, "toUpper") == 0 ||
+        strcmp(method, "toLower") == 0) {
+      min = max = 0;
+    }
+  } else if (strncmp(recv_t, "list<", 5) == 0) {
+    if (strcmp(method, "length") == 0 || strcmp(method, "isEmpty") == 0 || strcmp(method, "pop") == 0 ||
+        strcmp(method, "sort") == 0 || strcmp(method, "concat") == 0 || strcmp(method, "toUtf8String") == 0) {
+      min = max = 0;
+    } else if (strcmp(method, "push") == 0 || strcmp(method, "contains") == 0 || strcmp(method, "join") == 0) {
+      min = max = 1;
+    }
+  } else if (strncmp(recv_t, "map<", 4) == 0) {
+    if (strcmp(method, "length") == 0 || strcmp(method, "isEmpty") == 0 || strcmp(method, "keys") == 0 ||
+        strcmp(method, "values") == 0) {
+      min = max = 0;
+    } else if (strcmp(method, "containsKey") == 0) {
+      min = max = 1;
+    }
+  }
+
+  if (min == -1) return 1;
+  if (argc < min || argc > max) {
+    set_diag(a->diag, a->file, e->line, e->col, "E1003", "ARITY_MISMATCH", "arity mismatch");
+    return 0;
+  }
+  return 1;
+}
+
+static int check_call_args(Analyzer *a, AstNode *e, Scope *scope, int *ok) {
+  if (!e || strcmp(e->kind, "CallExpr") != 0) return 1;
+  for (int i = 1; i < (int)e->child_len; i += 1) {
+    char *t = infer_expr_type(a, e->children[i], scope, ok);
+    if (!(*ok)) {
+      free(t);
+      return 0;
+    }
+    free(t);
+  }
+  return 1;
+}
+
+static char *ir_type_elem_for_index(const char *t);
+static char *ir_type_map_key(const char *t);
+static char *ir_type_map_value(const char *t);
+
+static char *method_ret_type(const char *recv_t, const char *m) {
+  if (!recv_t || !m) return NULL;
+  if (strcmp(recv_t, "int") == 0) {
+    if (strcmp(m, "toByte") == 0) return strdup("byte");
+    if (strcmp(m, "toFloat") == 0) return strdup("float");
+    if (strcmp(m, "toString") == 0) return strdup("string");
+    if (strcmp(m, "toBytes") == 0) return strdup("list<byte>");
+    if (strcmp(m, "abs") == 0 || strcmp(m, "sign") == 0) return strdup("int");
+  } else if (strcmp(recv_t, "byte") == 0) {
+    if (strcmp(m, "toInt") == 0) return strdup("int");
+    if (strcmp(m, "toFloat") == 0) return strdup("float");
+    if (strcmp(m, "toString") == 0) return strdup("string");
+  } else if (strcmp(recv_t, "float") == 0) {
+    if (strcmp(m, "toInt") == 0) return strdup("int");
+    if (strcmp(m, "toString") == 0) return strdup("string");
+    if (strcmp(m, "toBytes") == 0) return strdup("list<byte>");
+    if (strcmp(m, "abs") == 0) return strdup("float");
+    if (strcmp(m, "isNaN") == 0 || strcmp(m, "isInfinite") == 0 || strcmp(m, "isFinite") == 0) return strdup("bool");
+  } else if (strcmp(recv_t, "glyph") == 0) {
+    if (strcmp(m, "toString") == 0) return strdup("string");
+    if (strcmp(m, "toInt") == 0) return strdup("int");
+    if (strcmp(m, "toUtf8Bytes") == 0) return strdup("list<byte>");
+    if (strcmp(m, "isLetter") == 0 || strcmp(m, "isDigit") == 0 || strcmp(m, "isWhitespace") == 0 ||
+        strcmp(m, "isUpper") == 0 || strcmp(m, "isLower") == 0)
+      return strdup("bool");
+    if (strcmp(m, "toUpper") == 0 || strcmp(m, "toLower") == 0) return strdup("glyph");
+  } else if (strcmp(recv_t, "string") == 0) {
+    if (strcmp(m, "length") == 0) return strdup("int");
+    if (strcmp(m, "isEmpty") == 0) return strdup("bool");
+    if (strcmp(m, "toString") == 0) return strdup("string");
+    if (strcmp(m, "toInt") == 0) return strdup("int");
+    if (strcmp(m, "toFloat") == 0) return strdup("float");
+    if (strcmp(m, "substring") == 0) return strdup("string");
+    if (strcmp(m, "indexOf") == 0) return strdup("int");
+    if (strcmp(m, "startsWith") == 0 || strcmp(m, "endsWith") == 0) return strdup("bool");
+    if (strcmp(m, "split") == 0) return strdup("list<string>");
+    if (strcmp(m, "trim") == 0 || strcmp(m, "trimStart") == 0 || strcmp(m, "trimEnd") == 0) return strdup("string");
+    if (strcmp(m, "replace") == 0) return strdup("string");
+    if (strcmp(m, "toUpper") == 0 || strcmp(m, "toLower") == 0) return strdup("string");
+    if (strcmp(m, "toUtf8Bytes") == 0) return strdup("list<byte>");
+  } else if (strncmp(recv_t, "list<", 5) == 0) {
+    char *et = ir_type_elem_for_index(recv_t);
+    if (et && strcmp(et, "byte") == 0 && strcmp(m, "toUtf8String") == 0) {
+      free(et);
+      return strdup("string");
+    }
+    if (et && strcmp(et, "string") == 0 && (strcmp(m, "join") == 0 || strcmp(m, "concat") == 0)) {
+      free(et);
+      return strdup("string");
+    }
+    free(et);
+    if (strcmp(m, "length") == 0) return strdup("int");
+    if (strcmp(m, "isEmpty") == 0) return strdup("bool");
+    if (strcmp(m, "push") == 0) return strdup("int");
+    if (strcmp(m, "contains") == 0) return strdup("bool");
+    if (strcmp(m, "sort") == 0) return strdup("int");
+    if (strcmp(m, "view") == 0 || strcmp(m, "slice") == 0) {
+      char *et2 = ir_type_elem_for_index(recv_t);
+      char *out = NULL;
+      if (et2) out = str_printf("%s<%s>", m, et2);
+      free(et2);
+      return out ? out : strdup("unknown");
+    }
+  } else if (strncmp(recv_t, "slice<", 6) == 0) {
+    if (strcmp(m, "length") == 0) return strdup("int");
+    if (strcmp(m, "isEmpty") == 0) return strdup("bool");
+    if (strcmp(m, "slice") == 0) {
+      char *et2 = ir_type_elem_for_index(recv_t);
+      char *out = NULL;
+      if (et2) out = str_printf("slice<%s>", et2);
+      free(et2);
+      return out ? out : strdup("unknown");
+    }
+  } else if (strncmp(recv_t, "view<", 5) == 0) {
+    if (strcmp(m, "length") == 0) return strdup("int");
+    if (strcmp(m, "isEmpty") == 0) return strdup("bool");
+    if (strcmp(m, "view") == 0) {
+      char *et2 = ir_type_elem_for_index(recv_t);
+      char *out = NULL;
+      if (et2) out = str_printf("view<%s>", et2);
+      free(et2);
+      return out ? out : strdup("unknown");
+    }
+  } else if (strncmp(recv_t, "map<", 4) == 0) {
+    if (strcmp(m, "length") == 0) return strdup("int");
+    if (strcmp(m, "isEmpty") == 0) return strdup("bool");
+    if (strcmp(m, "containsKey") == 0) return strdup("bool");
+    if (strcmp(m, "keys") == 0) {
+      char *kt = ir_type_map_key(recv_t);
+      char *out = str_printf("list<%s>", kt ? kt : "unknown");
+      if (kt) free(kt);
+      return out ? out : strdup("unknown");
+    }
+    if (strcmp(m, "values") == 0) {
+      char *vt = ir_type_map_value(recv_t);
+      char *out = str_printf("list<%s>", vt ? vt : "unknown");
+      if (vt) free(vt);
+      return out ? out : strdup("unknown");
+    }
+  } else if (strcmp(recv_t, "JSONValue") == 0) {
+    if (strcmp(m, "isNull") == 0 || strcmp(m, "isBool") == 0 || strcmp(m, "isNumber") == 0 ||
+        strcmp(m, "isString") == 0 || strcmp(m, "isArray") == 0 || strcmp(m, "isObject") == 0)
+      return strdup("bool");
+    if (strcmp(m, "asBool") == 0) return strdup("bool");
+    if (strcmp(m, "asNumber") == 0) return strdup("float");
+    if (strcmp(m, "asString") == 0) return strdup("string");
+    if (strcmp(m, "asArray") == 0) return strdup("list<JSONValue>");
+    if (strcmp(m, "asObject") == 0) return strdup("map<string,JSONValue>");
+  }
+  return NULL;
+}
+
 static char *infer_call_type(Analyzer *a, AstNode *e, Scope *scope, int *ok) {
   (void)scope;
   if (e->child_len == 0) return strdup("unknown");
@@ -2498,7 +2863,7 @@ static char *infer_call_type(Analyzer *a, AstNode *e, Scope *scope, int *ok) {
     int argc = (int)e->child_len - 1;
     if (!f->variadic) {
       if (argc != f->param_count) {
-        set_diag(a->diag, a->file, e->line, e->col, "E3001", "TYPE_MISMATCH_ASSIGNMENT", "arity mismatch");
+        set_diag(a->diag, a->file, e->line, e->col, "E1003", "ARITY_MISMATCH", "arity mismatch");
         *ok = 0;
         return NULL;
       }
@@ -2509,6 +2874,7 @@ static char *infer_call_type(Analyzer *a, AstNode *e, Scope *scope, int *ok) {
         return NULL;
       }
     }
+    if (!check_call_args(a, e, scope, ok)) return NULL;
     return strdup(f->ret_type);
   }
   if (strcmp(callee->kind, "MemberExpr") == 0 && callee->child_len > 0) {
@@ -2520,7 +2886,7 @@ static char *infer_call_type(Analyzer *a, AstNode *e, Scope *scope, int *ok) {
         int argc = (int)e->child_len - 1;
         if (strcmp(mname, "clone") == 0) {
           if (argc != 0) {
-            set_diag(a->diag, a->file, e->line, e->col, "E3001", "TYPE_MISMATCH_ASSIGNMENT", "arity mismatch for 'clone'");
+            set_diag(a->diag, a->file, e->line, e->col, "E1003", "ARITY_MISMATCH", "arity mismatch for 'clone'");
             *ok = 0;
             return NULL;
           }
@@ -2534,10 +2900,11 @@ static char *infer_call_type(Analyzer *a, AstNode *e, Scope *scope, int *ok) {
         }
         int expected = pm->param_count + 1;
         if (argc != expected) {
-          set_diag(a->diag, a->file, e->line, e->col, "E3001", "TYPE_MISMATCH_ASSIGNMENT", "arity mismatch");
+          set_diag(a->diag, a->file, e->line, e->col, "E1003", "ARITY_MISMATCH", "arity mismatch");
           *ok = 0;
           return NULL;
         }
+        if (!check_call_args(a, e, scope, ok)) return NULL;
         return strdup(pm->ret_type ? pm->ret_type : "unknown");
       }
       ImportNamespace *ns = find_namespace(a, target->text ? target->text : "");
@@ -2546,10 +2913,11 @@ static char *infer_call_type(Analyzer *a, AstNode *e, Scope *scope, int *ok) {
         if (!rf) return strdup("unknown");
         int argc = (int)e->child_len - 1;
         if (argc != rf->param_count) {
-          set_diag(a->diag, a->file, e->line, e->col, "E3001", "TYPE_MISMATCH_ASSIGNMENT", "arity mismatch");
+          set_diag(a->diag, a->file, e->line, e->col, "E1003", "ARITY_MISMATCH", "arity mismatch");
           *ok = 0;
           return NULL;
         }
+        if (!check_call_args(a, e, scope, ok)) return NULL;
         return strdup(rf->ret_type);
       }
     }
@@ -2566,7 +2934,7 @@ static char *infer_call_type(Analyzer *a, AstNode *e, Scope *scope, int *ok) {
             return NULL;
           }
           if (argc != pm->param_count) {
-            set_diag(a->diag, a->file, e->line, e->col, "E3001", "TYPE_MISMATCH_ASSIGNMENT", "arity mismatch");
+            set_diag(a->diag, a->file, e->line, e->col, "E1003", "ARITY_MISMATCH", "arity mismatch");
             *ok = 0;
             free(tt);
             return NULL;
@@ -2577,34 +2945,45 @@ static char *infer_call_type(Analyzer *a, AstNode *e, Scope *scope, int *ok) {
         }
         if (strcmp(tt, "string") == 0 && strcmp(callee->text, "view") == 0) {
           if (!(argc == 0 || argc == 2)) {
-            set_diag(a->diag, a->file, e->line, e->col, "E3001", "TYPE_MISMATCH_ASSIGNMENT", "arity mismatch");
+            set_diag(a->diag, a->file, e->line, e->col, "E1003", "ARITY_MISMATCH", "arity mismatch");
             *ok = 0;
             free(tt);
             return NULL;
           }
         } else if (strncmp(tt, "list<", 5) == 0 && (strcmp(callee->text, "view") == 0 || strcmp(callee->text, "slice") == 0)) {
           if (argc != 2) {
-            set_diag(a->diag, a->file, e->line, e->col, "E3001", "TYPE_MISMATCH_ASSIGNMENT", "arity mismatch");
+            set_diag(a->diag, a->file, e->line, e->col, "E1003", "ARITY_MISMATCH", "arity mismatch");
             *ok = 0;
             free(tt);
             return NULL;
           }
         } else if (strncmp(tt, "slice<", 6) == 0 && strcmp(callee->text, "slice") == 0) {
           if (argc != 2) {
-            set_diag(a->diag, a->file, e->line, e->col, "E3001", "TYPE_MISMATCH_ASSIGNMENT", "arity mismatch");
+            set_diag(a->diag, a->file, e->line, e->col, "E1003", "ARITY_MISMATCH", "arity mismatch");
             *ok = 0;
             free(tt);
             return NULL;
           }
         } else if (strncmp(tt, "view<", 5) == 0 && strcmp(callee->text, "view") == 0) {
           if (argc != 2) {
-            set_diag(a->diag, a->file, e->line, e->col, "E3001", "TYPE_MISMATCH_ASSIGNMENT", "arity mismatch");
+            set_diag(a->diag, a->file, e->line, e->col, "E1003", "ARITY_MISMATCH", "arity mismatch");
             *ok = 0;
             free(tt);
             return NULL;
           }
         }
+        if (!check_method_arity(a, e, tt, callee->text, argc)) {
+          *ok = 0;
+          free(tt);
+          return NULL;
+        }
+        if (!check_call_args(a, e, scope, ok)) {
+          free(tt);
+          return NULL;
+        }
+        char *ret = method_ret_type(tt, callee->text);
         free(tt);
+        if (ret) return ret;
       }
     }
   }
@@ -2615,7 +2994,7 @@ static char *infer_expr_type(Analyzer *a, AstNode *e, Scope *scope, int *ok) {
   if (!e) return strdup("unknown");
   if (strcmp(e->kind, "Literal") == 0) {
     if (e->text && (strcmp(e->text, "true") == 0 || strcmp(e->text, "false") == 0)) return strdup("bool");
-    if (e->text && (is_all_digits(e->text) || is_hex_token(e->text) || is_float_token(e->text)))
+    if (e->text && (is_all_digits(e->text) || is_hex_token(e->text) || is_bin_token(e->text) || is_float_token(e->text)))
       return strdup(is_float_token(e->text) ? "float" : "int");
     return strdup("string");
   }
@@ -2629,7 +3008,11 @@ static char *infer_expr_type(Analyzer *a, AstNode *e, Scope *scope, int *ok) {
       }
       return strdup(sym->type ? sym->type : "unknown");
     }
-    return strdup(scope_lookup(scope, e->text ? e->text : ""));
+    if (e->text && strcmp(e->text, "Sys") == 0) return strdup("Sys");
+    if (e->text && find_namespace(a, e->text)) return strdup("module");
+    set_diag(a->diag, a->file, e->line, e->col, "E2001", "UNRESOLVED_NAME", "unknown identifier");
+    *ok = 0;
+    return NULL;
   }
   if (strcmp(e->kind, "UnaryExpr") == 0 || strcmp(e->kind, "PostfixExpr") == 0 || strcmp(e->kind, "MemberExpr") == 0) {
     if (strcmp(e->kind, "MemberExpr") == 0 && e->child_len > 0) {
@@ -2641,7 +3024,7 @@ static char *infer_expr_type(Analyzer *a, AstNode *e, Scope *scope, int *ok) {
           if (rc && rc->type) {
             if (strcmp(rc->type, "float") == 0) return strdup("float");
             if (strcmp(rc->type, "string") == 0) return strdup("string");
-            if (strcmp(rc->type, "file") == 0) return strdup("File");
+            if (strcmp(rc->type, "TextFile") == 0 || strcmp(rc->type, "BinaryFile") == 0) return strdup(rc->type);
           }
         }
       }
@@ -2858,6 +3241,13 @@ static int analyze_stmt(Analyzer *a, AstNode *st, Scope *scope) {
         free(rhs);
         return 0;
       }
+      if ((init->kind && (strcmp(init->kind, "ListLiteral") == 0 || strcmp(init->kind, "MapLiteral") == 0)) &&
+          rhs && (strcmp(rhs, "list<void>") == 0 || strcmp(rhs, "map<void,void>") == 0)) {
+        set_diag(a->diag, a->file, init->line, init->col, "E3006", "MISSING_TYPE_CONTEXT",
+                 "empty literal requires explicit type context");
+        free(rhs);
+        return 0;
+      }
       if (!scope_define(scope, st->text ? st->text : "", rhs ? rhs : "unknown", -1, 1)) {
         free(rhs);
         return 0;
@@ -2886,6 +3276,15 @@ static int analyze_stmt(Analyzer *a, AstNode *st, Scope *scope) {
     char *lhs = infer_assignable_type(a, st->children[0], scope, &ok);
     char *rhs = infer_expr_type(a, st->children[1], scope, &ok);
     if (!ok) {
+      free(lhs);
+      free(rhs);
+      return 0;
+    }
+    if ((!lhs || strcmp(lhs, "unknown") == 0) && st->children[1] &&
+        (strcmp(st->children[1]->kind, "ListLiteral") == 0 || strcmp(st->children[1]->kind, "MapLiteral") == 0) &&
+        rhs && (strcmp(rhs, "list<void>") == 0 || strcmp(rhs, "map<void,void>") == 0)) {
+      set_diag(a->diag, a->file, st->children[1]->line, st->children[1]->col, "E3006", "MISSING_TYPE_CONTEXT",
+               "empty literal requires explicit type context");
       free(lhs);
       free(rhs);
       return 0;
@@ -2925,6 +3324,45 @@ static int analyze_stmt(Analyzer *a, AstNode *st, Scope *scope) {
     free(t);
     if (!ok) return 0;
     return check_list_pop(a, st->children[0], scope);
+  }
+  if (strcmp(st->kind, "IfStmt") == 0) {
+    AstNode *cond = (st->child_len > 0) ? st->children[0] : NULL;
+    AstNode *then_st = (st->child_len > 1) ? st->children[1] : NULL;
+    AstNode *else_st = (st->child_len > 2) ? st->children[2] : NULL;
+    int ok = 1;
+    char *ct = cond ? infer_expr_type(a, cond, scope, &ok) : NULL;
+    if (!ok) {
+      free(ct);
+      return 0;
+    }
+    if (ct && strcmp(ct, "bool") != 0) {
+      set_diag(a->diag, a->file, cond ? cond->line : st->line, cond ? cond->col : st->col,
+               "E3001", "TYPE_MISMATCH_ASSIGNMENT", "condition must be bool");
+      free(ct);
+      return 0;
+    }
+    free(ct);
+    if (then_st) {
+      Scope s_then;
+      memset(&s_then, 0, sizeof(s_then));
+      s_then.parent = scope;
+      if (!analyze_stmt(a, then_st, &s_then)) {
+        free_syms(s_then.syms);
+        return 0;
+      }
+      free_syms(s_then.syms);
+    }
+    if (else_st) {
+      Scope s_else;
+      memset(&s_else, 0, sizeof(s_else));
+      s_else.parent = scope;
+      if (!analyze_stmt(a, else_st, &s_else)) {
+        free_syms(s_else.syms);
+        return 0;
+      }
+      free_syms(s_else.syms);
+    }
+    return 1;
   }
   if (strcmp(st->kind, "ReturnStmt") == 0 && st->child_len > 0) {
     int ok = 1;
@@ -3158,18 +3596,31 @@ typedef struct IrFnSig {
   struct IrFnSig *next;
 } IrFnSig;
 
+typedef struct IrVarName {
+  char *name;
+  char *ir;
+  struct IrVarName *next;
+} IrVarName;
+
+typedef struct IrScope {
+  IrVarName *vars;
+  struct IrScope *parent;
+} IrScope;
+
 typedef struct {
   IrBlockVec blocks;
   size_t cur_block;
   StrVec instrs;
   int temp_id;
   int label_id;
+  int var_id;
   IrVarTypeVec vars;
   IrFnSig *fn_sigs;
   ImportSymbol *imports;
   ImportNamespace *namespaces;
   ModuleRegistry *registry;
   ProtoInfo *protos;
+  IrScope *scope;
 } IrFnCtx;
 
 static void str_vec_free(StrVec *v) {
@@ -3261,6 +3712,56 @@ static const char *ir_get_var_type(IrFnCtx *ctx, const char *name) {
     if (strcmp(ctx->vars.items[i].name, name) == 0) return ctx->vars.items[i].type;
   }
   return NULL;
+}
+
+static void ir_scope_init(IrScope *s, IrScope *parent) {
+  if (!s) return;
+  s->vars = NULL;
+  s->parent = parent;
+}
+
+static void ir_scope_free(IrScope *s) {
+  if (!s) return;
+  IrVarName *cur = s->vars;
+  while (cur) {
+    IrVarName *next = cur->next;
+    free(cur->name);
+    free(cur->ir);
+    free(cur);
+    cur = next;
+  }
+  s->vars = NULL;
+}
+
+static int ir_scope_define(IrScope *s, const char *name, const char *ir) {
+  if (!s || !name || !ir) return 0;
+  IrVarName *e = (IrVarName *)calloc(1, sizeof(IrVarName));
+  if (!e) return 0;
+  e->name = strdup(name);
+  e->ir = strdup(ir);
+  if (!e->name || !e->ir) {
+    free(e->name);
+    free(e->ir);
+    free(e);
+    return 0;
+  }
+  e->next = s->vars;
+  s->vars = e;
+  return 1;
+}
+
+static const char *ir_scope_lookup(IrScope *s, const char *name) {
+  for (IrScope *cur = s; cur; cur = cur->parent) {
+    for (IrVarName *e = cur->vars; e; e = e->next) {
+      if (strcmp(e->name, name) == 0) return e->ir;
+    }
+  }
+  return NULL;
+}
+
+static char *ir_next_var(IrFnCtx *ctx, const char *name) {
+  const char *base = name ? name : "v";
+  return str_printf("%s$%d", base, ++ctx->var_id);
 }
 
 static const IrFnSig *ir_find_fn_sig(IrFnCtx *ctx, const char *name) {
@@ -3436,12 +3937,13 @@ static char *ir_guess_expr_type(AstNode *e, IrFnCtx *ctx) {
   if (!e) return strdup("unknown");
   if (strcmp(e->kind, "Literal") == 0) {
     if (e->text && (strcmp(e->text, "true") == 0 || strcmp(e->text, "false") == 0)) return strdup("bool");
-    if (e->text && (is_all_digits(e->text) || is_hex_token(e->text) || is_float_token(e->text)))
+    if (e->text && (is_all_digits(e->text) || is_hex_token(e->text) || is_bin_token(e->text) || is_float_token(e->text)))
       return strdup(is_float_token(e->text) ? "float" : "int");
     return strdup("string");
   }
   if (strcmp(e->kind, "Identifier") == 0) {
-    const char *t = ir_get_var_type(ctx, e->text ? e->text : "");
+    const char *mapped = ir_scope_lookup(ctx ? ctx->scope : NULL, e->text ? e->text : "");
+    const char *t = ir_get_var_type(ctx, mapped ? mapped : (e->text ? e->text : ""));
     return strdup(t ? t : "unknown");
   }
   if (strcmp(e->kind, "UnaryExpr") == 0 || strcmp(e->kind, "PostfixExpr") == 0 || strcmp(e->kind, "MemberExpr") == 0) {
@@ -3456,7 +3958,7 @@ static char *ir_guess_expr_type(AstNode *e, IrFnCtx *ctx) {
             if (rc && rc->type) {
               if (strcmp(rc->type, "float") == 0) return strdup("float");
               if (strcmp(rc->type, "string") == 0) return strdup("string");
-              if (strcmp(rc->type, "file") == 0) return strdup("File");
+              if (strcmp(rc->type, "TextFile") == 0 || strcmp(rc->type, "BinaryFile") == 0) return strdup(rc->type);
             }
           }
         }
@@ -3992,7 +4494,7 @@ static char *ir_lower_expr(AstNode *e, IrFnCtx *ctx) {
     char *val_esc = json_escape(e->text ? e->text : "");
     const char *lt = "string";
     if (e->text && (strcmp(e->text, "true") == 0 || strcmp(e->text, "false") == 0)) lt = "bool";
-    else if (e->text && (is_all_digits(e->text) || is_hex_token(e->text) || is_float_token(e->text)))
+    else if (e->text && (is_all_digits(e->text) || is_hex_token(e->text) || is_bin_token(e->text) || is_float_token(e->text)))
       lt = is_float_token(e->text) ? "float" : "int";
     char *ins = NULL;
     if (strcmp(lt, "bool") == 0) {
@@ -4014,8 +4516,10 @@ static char *ir_lower_expr(AstNode *e, IrFnCtx *ctx) {
     char *dst = ir_next_tmp(ctx);
     if (!dst) return NULL;
     char *dst_esc = json_escape(dst);
-    char *name_esc = json_escape(e->text ? e->text : "");
-    const char *vt = ir_get_var_type(ctx, e->text ? e->text : "");
+    const char *mapped = ir_scope_lookup(ctx ? ctx->scope : NULL, e->text ? e->text : "");
+    const char *use_name = mapped ? mapped : (e->text ? e->text : "");
+    char *name_esc = json_escape(use_name);
+    const char *vt = ir_get_var_type(ctx, use_name);
     char *type_esc = json_escape(vt ? vt : "unknown");
     char *ins = str_printf("{\"op\":\"load_var\",\"dst\":\"%s\",\"name\":\"%s\",\"type\":{\"kind\":\"IRType\",\"name\":\"%s\"}}",
                            dst_esc ? dst_esc : "", name_esc ? name_esc : "", type_esc ? type_esc : "unknown");
@@ -4030,6 +4534,111 @@ static char *ir_lower_expr(AstNode *e, IrFnCtx *ctx) {
   }
   if (strcmp(e->kind, "BinaryExpr") == 0 && e->child_len >= 2) {
     char *l = ir_lower_expr(e->children[0], ctx);
+    if (e->text && (strcmp(e->text, "&&") == 0 || strcmp(e->text, "||") == 0)) {
+      if (!l) return NULL;
+      char *right_label = ir_next_label(ctx, "logic_right_");
+      char *short_label = ir_next_label(ctx, "logic_short_");
+      char *done_label = ir_next_label(ctx, "logic_done_");
+      char *cont_label = ir_next_label(ctx, "logic_cont_");
+      size_t right_idx = 0, short_idx = 0, done_idx = 0;
+      size_t cont_idx = 0;
+      if (!right_label || !short_label || !done_label || !cont_label ||
+          !ir_add_block(ctx, right_label, &right_idx) ||
+          !ir_add_block(ctx, short_label, &short_idx) ||
+          !ir_add_block(ctx, done_label, &done_idx)) {
+        free(l);
+        free(right_label);
+        free(short_label);
+        free(done_label);
+        free(cont_label);
+        return NULL;
+      }
+      char *dst = ir_next_tmp(ctx);
+      if (!dst) {
+        free(l);
+        free(right_label);
+        free(short_label);
+        free(done_label);
+        return NULL;
+      }
+      const char *then_lbl = (strcmp(e->text, "&&") == 0) ? right_label : short_label;
+      const char *else_lbl = (strcmp(e->text, "&&") == 0) ? short_label : right_label;
+      char *cond_esc = json_escape(l);
+      char *then_esc = json_escape(then_lbl);
+      char *else_esc = json_escape(else_lbl);
+      char *br = str_printf("{\"op\":\"branch_if\",\"cond\":\"%s\",\"then\":\"%s\",\"else\":\"%s\"}", cond_esc ? cond_esc : "",
+                            then_esc ? then_esc : "", else_esc ? else_esc : "");
+      free(cond_esc);
+      free(then_esc);
+      free(else_esc);
+      if (!ir_emit(ctx, br)) {
+        free(l); free(dst); free(right_label); free(short_label); free(done_label); free(cont_label);
+        return NULL;
+      }
+
+      ctx->cur_block = short_idx;
+      char *d_esc = json_escape(dst);
+      const char *short_val = (strcmp(e->text, "&&") == 0) ? "false" : "true";
+      char *cst = str_printf("{\"op\":\"const\",\"dst\":\"%s\",\"literalType\":\"bool\",\"value\":%s}", d_esc ? d_esc : "", short_val);
+      free(d_esc);
+      if (!ir_emit(ctx, cst)) {
+        free(l); free(dst); free(right_label); free(short_label); free(done_label); free(cont_label);
+        return NULL;
+      }
+      char *done_esc = json_escape(done_label);
+      char *jmp_short = str_printf("{\"op\":\"jump\",\"target\":\"%s\"}", done_esc ? done_esc : "");
+      free(done_esc);
+      if (!ir_emit(ctx, jmp_short)) {
+        free(l); free(dst); free(right_label); free(short_label); free(done_label); free(cont_label);
+        return NULL;
+      }
+
+      ctx->cur_block = right_idx;
+      char *r = ir_lower_expr(e->children[1], ctx);
+      if (!r) {
+        free(l); free(dst); free(right_label); free(short_label); free(done_label); free(cont_label);
+        return NULL;
+      }
+      char *r_esc = json_escape(r);
+      char *d2_esc = json_escape(dst);
+      char *cpy = str_printf("{\"op\":\"copy\",\"dst\":\"%s\",\"src\":\"%s\"}", d2_esc ? d2_esc : "", r_esc ? r_esc : "");
+      free(r_esc);
+      free(d2_esc);
+      free(r);
+      if (!ir_emit(ctx, cpy)) {
+        free(l); free(dst); free(right_label); free(short_label); free(done_label); free(cont_label);
+        return NULL;
+      }
+      char *done2_esc = json_escape(done_label);
+      char *jmp_right = str_printf("{\"op\":\"jump\",\"target\":\"%s\"}", done2_esc ? done2_esc : "");
+      free(done2_esc);
+      if (!ir_emit(ctx, jmp_right)) {
+        free(l); free(dst); free(right_label); free(short_label); free(done_label); free(cont_label);
+        return NULL;
+      }
+
+      if (!ir_add_block(ctx, cont_label, &cont_idx)) {
+        free(l); free(dst); free(right_label); free(short_label); free(done_label); free(cont_label);
+        return NULL;
+      }
+      ctx->cur_block = done_idx;
+      ir_emit(ctx, strdup("{\"op\":\"nop\"}"));
+      char *cont_esc = json_escape(cont_label);
+      char *jmp_done = str_printf("{\"op\":\"jump\",\"target\":\"%s\"}", cont_esc ? cont_esc : "");
+      free(cont_esc);
+      if (!ir_emit(ctx, jmp_done)) {
+        free(l); free(dst); free(right_label); free(short_label); free(done_label); free(cont_label);
+        return NULL;
+      }
+
+      ctx->cur_block = cont_idx;
+      free(l);
+      free(right_label);
+      free(short_label);
+      free(done_label);
+      free(cont_label);
+      return dst;
+    }
     char *r = ir_lower_expr(e->children[1], ctx);
     char *lt = ir_guess_expr_type(e->children[0], ctx);
     char *rt = ir_guess_expr_type(e->children[1], ctx);
@@ -4321,33 +4930,51 @@ static char *ir_lower_expr(AstNode *e, IrFnCtx *ctx) {
 static int ir_lower_stmt(AstNode *st, IrFnCtx *ctx) {
   if (!st) return 1;
   if (strcmp(st->kind, "Block") == 0) {
+    IrScope local;
+    ir_scope_init(&local, ctx->scope);
+    IrScope *prev = ctx->scope;
+    ctx->scope = &local;
     for (size_t i = 0; i < st->child_len; i++) {
-      if (!ir_lower_stmt(st->children[i], ctx)) return 0;
+      if (!ir_lower_stmt(st->children[i], ctx)) {
+        ctx->scope = prev;
+        ir_scope_free(&local);
+        return 0;
+      }
     }
+    ctx->scope = prev;
+    ir_scope_free(&local);
     return 1;
   }
   if (strcmp(st->kind, "VarDecl") == 0) {
     AstNode *tn = ast_child_kind(st, "Type");
     char *type = ast_type_to_ir_name(tn);
     if (!type) type = strdup("unknown");
-    if (!ir_set_var_type(ctx, st->text ? st->text : "", type ? type : "unknown")) {
+    char *ir_name = ir_next_var(ctx, st->text ? st->text : "v");
+    if (!ir_name || !ir_scope_define(ctx->scope, st->text ? st->text : "", ir_name)) {
       free(type);
+      free(ir_name);
       return 0;
     }
-    char *name_esc = json_escape(st->text ? st->text : "");
+    if (!ir_set_var_type(ctx, ir_name, type ? type : "unknown")) {
+      free(type);
+      free(ir_name);
+      return 0;
+    }
+    char *name_esc = json_escape(ir_name);
     char *type_esc = json_escape(type ? type : "unknown");
     char *ins = str_printf("{\"op\":\"var_decl\",\"name\":\"%s\",\"type\":{\"kind\":\"IRType\",\"name\":\"%s\"}}", name_esc ? name_esc : "",
                            type_esc ? type_esc : "");
     free(name_esc);
     free(type_esc);
     free(type);
+    free(ir_name);
     if (!ir_emit(ctx, ins)) return 0;
     AstNode *last = ast_last_child(st);
     if (last && (!tn || last != tn)) {
       char *v = ir_lower_expr(last, ctx);
       if (!v) return 0;
       char *v_esc = json_escape(v);
-      char *n_esc = json_escape(st->text ? st->text : "");
+      char *n_esc = json_escape(ir_scope_lookup(ctx->scope, st->text ? st->text : "") ? ir_scope_lookup(ctx->scope, st->text ? st->text : "") : (st->text ? st->text : ""));
       char *ins2 = str_printf("{\"op\":\"store_var\",\"name\":\"%s\",\"src\":\"%s\",\"type\":{\"kind\":\"IRType\",\"name\":\"unknown\"}}",
                               n_esc ? n_esc : "", v_esc ? v_esc : "");
       free(v_esc);
@@ -4365,14 +4992,18 @@ static int ir_lower_stmt(AstNode *st, IrFnCtx *ctx) {
     if (strcmp(lhs->kind, "Identifier") == 0) {
       char *rhs_type = ir_guess_expr_type(rhs, ctx);
       if (rhs_type) {
-        if (!ir_set_var_type(ctx, lhs->text ? lhs->text : "", rhs_type)) {
+        const char *mapped = ir_scope_lookup(ctx->scope, lhs->text ? lhs->text : "");
+        const char *use_name = mapped ? mapped : (lhs->text ? lhs->text : "");
+        if (!ir_set_var_type(ctx, use_name, rhs_type)) {
           free(rhs_type);
           free(v);
           return 0;
         }
         free(rhs_type);
       }
-      char *n_esc = json_escape(lhs->text ? lhs->text : "");
+      const char *mapped2 = ir_scope_lookup(ctx->scope, lhs->text ? lhs->text : "");
+      const char *use_name2 = mapped2 ? mapped2 : (lhs->text ? lhs->text : "");
+      char *n_esc = json_escape(use_name2);
       char *v_esc = json_escape(v);
       char *ins = str_printf("{\"op\":\"store_var\",\"name\":\"%s\",\"src\":\"%s\",\"type\":{\"kind\":\"IRType\",\"name\":\"unknown\"}}",
                              n_esc ? n_esc : "", v_esc ? v_esc : "");
@@ -4723,6 +5354,91 @@ static int ir_lower_stmt(AstNode *st, IrFnCtx *ctx) {
   }
   if (strcmp(st->kind, "BreakStmt") == 0) return ir_emit(ctx, strdup("{\"op\":\"break\"}"));
   if (strcmp(st->kind, "ContinueStmt") == 0) return ir_emit(ctx, strdup("{\"op\":\"continue\"}"));
+  if (strcmp(st->kind, "IfStmt") == 0) {
+    AstNode *cond = (st->child_len > 0) ? st->children[0] : NULL;
+    AstNode *then_st = (st->child_len > 1) ? st->children[1] : NULL;
+    AstNode *else_st = (st->child_len > 2) ? st->children[2] : NULL;
+    char *cv = cond ? ir_lower_expr(cond, ctx) : NULL;
+    if (!cv) return 0;
+    char *then_label = ir_next_label(ctx, "if_then_");
+    char *done_label = ir_next_label(ctx, "if_done_");
+    char *else_label = else_st ? ir_next_label(ctx, "if_else_") : done_label;
+    if (!then_label || !done_label || !else_label) {
+      free(cv);
+      free(then_label);
+      free(done_label);
+      if (else_st) free(else_label);
+      return 0;
+    }
+    size_t then_idx = 0, else_idx = 0, done_idx = 0;
+    if (!ir_add_block(ctx, then_label, &then_idx) || !ir_add_block(ctx, done_label, &done_idx)) {
+      free(cv); free(then_label); free(done_label);
+      if (else_st) free(else_label);
+      return 0;
+    }
+    if (else_st && !ir_add_block(ctx, else_label, &else_idx)) {
+      free(cv); free(then_label); free(done_label); free(else_label);
+      return 0;
+    }
+
+    char *c_esc = json_escape(cv);
+    char *t_esc = json_escape(then_label);
+    char *e_esc = json_escape(else_label);
+    char *br = str_printf("{\"op\":\"branch_if\",\"cond\":\"%s\",\"then\":\"%s\",\"else\":\"%s\"}", c_esc ? c_esc : "",
+                          t_esc ? t_esc : "", e_esc ? e_esc : "");
+    free(c_esc); free(t_esc); free(e_esc);
+    if (!ir_emit(ctx, br)) {
+      free(cv); free(then_label); free(done_label);
+      if (else_st) free(else_label);
+      return 0;
+    }
+
+    ctx->cur_block = then_idx;
+    if (then_st && !ir_lower_stmt(then_st, ctx)) {
+      free(cv); free(then_label); free(done_label);
+      if (else_st) free(else_label);
+      return 0;
+    }
+    if (!ir_is_terminated_block(&ctx->blocks.items[ctx->cur_block].instrs)) {
+      char *d_esc = json_escape(done_label);
+      char *j = str_printf("{\"op\":\"jump\",\"target\":\"%s\"}", d_esc ? d_esc : "");
+      free(d_esc);
+      if (!ir_emit(ctx, j)) {
+        free(cv); free(then_label); free(done_label);
+        if (else_st) free(else_label);
+        return 0;
+      }
+    }
+
+    if (else_st) {
+      ctx->cur_block = else_idx;
+      if (!ir_lower_stmt(else_st, ctx)) {
+        free(cv); free(then_label); free(done_label); free(else_label);
+        return 0;
+      }
+      if (!ir_is_terminated_block(&ctx->blocks.items[ctx->cur_block].instrs)) {
+        char *d_esc = json_escape(done_label);
+        char *j = str_printf("{\"op\":\"jump\",\"target\":\"%s\"}", d_esc ? d_esc : "");
+        free(d_esc);
+        if (!ir_emit(ctx, j)) {
+          free(cv); free(then_label); free(done_label); free(else_label);
+          return 0;
+        }
+      }
+    }
+
+    ctx->cur_block = done_idx;
+    if (!ir_emit(ctx, strdup("{\"op\":\"nop\"}"))) {
+      free(cv); free(then_label); free(done_label);
+      if (else_st) free(else_label);
+      return 0;
+    }
+    free(cv);
+    free(then_label);
+    free(done_label);
+    if (else_st) free(else_label);
+    return 1;
+  }
   if (strcmp(st->kind, "SwitchStmt") == 0) {
     AstNode *sw_expr = (st->child_len > 0) ? st->children[0] : NULL;
     char *swv = sw_expr ? ir_lower_expr(sw_expr, ctx) : NULL;
@@ -5182,6 +5898,9 @@ int ps_emit_ir_json(const char *file, PsDiag *out_diag, FILE *out) {
     ctx.namespaces = a.namespaces;
     ctx.registry = a.registry;
     ctx.protos = a.protos;
+    IrScope root_scope;
+    ir_scope_init(&root_scope, NULL);
+    ctx.scope = &root_scope;
     if (!ir_add_block(&ctx, "entry", &ctx.cur_block)) {
       ast_free(root);
       ir_free_fn_sigs(fn_sigs);
@@ -5197,21 +5916,26 @@ int ps_emit_ir_json(const char *file, PsDiag *out_diag, FILE *out) {
       if (strcmp(p->kind, "Param") != 0) continue;
       AstNode *pt = ast_child_kind(p, "Type");
       char *ptn = ast_type_to_ir_name(pt);
-      if (!ptn || !ir_set_var_type(&ctx, p->text ? p->text : "", ptn)) {
+      char *irn = ir_next_var(&ctx, p->text ? p->text : "p");
+      if (!ptn || !irn || !ir_scope_define(&root_scope, p->text ? p->text : "", irn) || !ir_set_var_type(&ctx, irn, ptn)) {
         free(ptn);
+        free(irn);
         ir_block_vec_free(&ctx.blocks);
         ir_var_type_vec_free(&ctx.vars);
+        ir_scope_free(&root_scope);
         ast_free(root);
         ir_free_fn_sigs(fn_sigs);
         set_diag(out_diag, file, 1, 1, "E0002", "INTERNAL_ERROR", "IR param allocation failure");
         return 2;
       }
       free(ptn);
+      free(irn);
     }
     AstNode *blk = ast_child_kind(fn, "Block");
     if (blk && !ir_lower_stmt(blk, &ctx)) {
       ir_block_vec_free(&ctx.blocks);
       ir_var_type_vec_free(&ctx.vars);
+      ir_scope_free(&root_scope);
       ast_free(root);
       ir_free_fn_sigs(fn_sigs);
       set_diag(out_diag, file, 1, 1, "E0002", "INTERNAL_ERROR", "IR lowering allocation failure");
@@ -5238,7 +5962,8 @@ int ps_emit_ir_json(const char *file, PsDiag *out_diag, FILE *out) {
       if (strcmp(p->kind, "Param") != 0) continue;
       AstNode *pt = ast_child_kind(p, "Type");
       AstNode *pv = ast_child_kind(p, "Variadic");
-      char *pn = json_escape(p->text ? p->text : "");
+      const char *mapped = ir_scope_lookup(&root_scope, p->text ? p->text : "");
+      char *pn = json_escape(mapped ? mapped : (p->text ? p->text : ""));
       char *ptn_raw = ast_type_to_ir_name(pt);
       char *ptn = json_escape(ptn_raw ? ptn_raw : "unknown");
       if (!first_p) fputs(",", out);
@@ -5273,6 +5998,7 @@ int ps_emit_ir_json(const char *file, PsDiag *out_diag, FILE *out) {
     free(ret);
     ir_block_vec_free(&ctx.blocks);
     ir_var_type_vec_free(&ctx.vars);
+    ir_scope_free(&root_scope);
   }
 
   for (size_t pi = 0; pi < root->child_len; pi++) {
@@ -5293,6 +6019,9 @@ int ps_emit_ir_json(const char *file, PsDiag *out_diag, FILE *out) {
       ctx.namespaces = a.namespaces;
       ctx.registry = a.registry;
       ctx.protos = a.protos;
+      IrScope root_scope;
+      ir_scope_init(&root_scope, NULL);
+      ctx.scope = &root_scope;
       if (!ir_add_block(&ctx, "entry", &ctx.cur_block)) {
         ast_free(root);
         ir_free_fn_sigs(fn_sigs);
@@ -5304,34 +6033,43 @@ int ps_emit_ir_json(const char *file, PsDiag *out_diag, FILE *out) {
         set_diag(out_diag, file, 1, 1, "E0002", "INTERNAL_ERROR", "IR block allocation failure");
         return 2;
       }
-      if (!ir_set_var_type(&ctx, "self", proto_name)) {
+      char *self_ir = ir_next_var(&ctx, "self");
+      if (!self_ir || !ir_scope_define(&root_scope, "self", self_ir) || !ir_set_var_type(&ctx, self_ir, proto_name)) {
+        free(self_ir);
         ir_block_vec_free(&ctx.blocks);
         ir_var_type_vec_free(&ctx.vars);
+        ir_scope_free(&root_scope);
         ast_free(root);
         ir_free_fn_sigs(fn_sigs);
         set_diag(out_diag, file, 1, 1, "E0002", "INTERNAL_ERROR", "IR param allocation failure");
         return 2;
       }
+      free(self_ir);
       for (size_t pj = 0; pj < m->child_len; pj++) {
         AstNode *p = m->children[pj];
         if (strcmp(p->kind, "Param") != 0) continue;
         AstNode *pt = ast_child_kind(p, "Type");
         char *ptn = ast_type_to_ir_name(pt);
-        if (!ptn || !ir_set_var_type(&ctx, p->text ? p->text : "", ptn)) {
+        char *irn = ir_next_var(&ctx, p->text ? p->text : "p");
+        if (!ptn || !irn || !ir_scope_define(&root_scope, p->text ? p->text : "", irn) || !ir_set_var_type(&ctx, irn, ptn)) {
           free(ptn);
+          free(irn);
           ir_block_vec_free(&ctx.blocks);
           ir_var_type_vec_free(&ctx.vars);
+          ir_scope_free(&root_scope);
           ast_free(root);
           ir_free_fn_sigs(fn_sigs);
           set_diag(out_diag, file, 1, 1, "E0002", "INTERNAL_ERROR", "IR param allocation failure");
           return 2;
         }
         free(ptn);
+        free(irn);
       }
       AstNode *blk = ast_child_kind(m, "Block");
       if (blk && !ir_lower_stmt(blk, &ctx)) {
         ir_block_vec_free(&ctx.blocks);
         ir_var_type_vec_free(&ctx.vars);
+        ir_scope_free(&root_scope);
         ast_free(root);
         ir_free_fn_sigs(fn_sigs);
         set_diag(out_diag, file, 1, 1, "E0002", "INTERNAL_ERROR", "IR lowering allocation failure");
@@ -5354,7 +6092,8 @@ int ps_emit_ir_json(const char *file, PsDiag *out_diag, FILE *out) {
       fprintf(out, "        \"kind\": \"Function\",\n");
       fprintf(out, "        \"name\": \"%s\",\n", fn_name ? fn_name : "");
       fputs("        \"params\": [", out);
-      char *self_esc = json_escape("self");
+      const char *self_mapped = ir_scope_lookup(&root_scope, "self");
+      char *self_esc = json_escape(self_mapped ? self_mapped : "self");
       char *self_type_esc = json_escape(proto_name);
       fprintf(out, "{\"name\":\"%s\",\"type\":{\"kind\":\"IRType\",\"name\":\"%s\"},\"variadic\":false}",
               self_esc ? self_esc : "self", self_type_esc ? self_type_esc : proto_name);
@@ -5365,7 +6104,8 @@ int ps_emit_ir_json(const char *file, PsDiag *out_diag, FILE *out) {
         if (strcmp(p->kind, "Param") != 0) continue;
         AstNode *pt = ast_child_kind(p, "Type");
         AstNode *pv = ast_child_kind(p, "Variadic");
-        char *pn = json_escape(p->text ? p->text : "");
+        const char *mapped = ir_scope_lookup(&root_scope, p->text ? p->text : "");
+        char *pn = json_escape(mapped ? mapped : (p->text ? p->text : ""));
         char *ptn_raw = ast_type_to_ir_name(pt);
         char *ptn = json_escape(ptn_raw ? ptn_raw : "unknown");
         fprintf(out, ",{\"name\":\"%s\",\"type\":{\"kind\":\"IRType\",\"name\":\"%s\"},\"variadic\":%s}",
@@ -5397,6 +6137,7 @@ int ps_emit_ir_json(const char *file, PsDiag *out_diag, FILE *out) {
       free(ret);
       ir_block_vec_free(&ctx.blocks);
       ir_var_type_vec_free(&ctx.vars);
+      ir_scope_free(&root_scope);
     }
 
     if (!first_fn) fputs(",\n", out);

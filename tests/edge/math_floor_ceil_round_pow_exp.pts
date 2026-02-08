@@ -1,0 +1,12 @@
+import Io;
+import Math;
+
+function main() : void {
+    float a = Math.floor(1.9);
+    float b = Math.ceil(1.1);
+    float c = Math.round(1.5);
+    float d = Math.pow(2.0, 3.0);
+    float e = Math.exp(0.0);
+    bool ok = (a == 1.0) && (b == 2.0) && (c == 2.0) && (d == 8.0) && (e == 1.0);
+    Io.printLine(ok.toString());
+}

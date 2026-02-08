@@ -4,38 +4,35 @@
 
 #include "ps/ps_api.h"
 
-static int parse_mode(const char *mode, uint32_t *flags, char out[3]) {
+static int parse_mode(const char *mode, uint32_t *flags, char out[3], int binary) {
   if (!mode || !flags || !out) return 0;
-  size_t len = strlen(mode);
-  if (len != 1 && len != 2) return 0;
+  if (strlen(mode) != 1) return 0;
   char m0 = mode[0];
-  char m1 = (len == 2) ? mode[1] : '\0';
-  if (m1 && m1 != 'b') return 0;
   uint32_t f = 0;
   if (m0 == 'r') f |= PS_FILE_READ;
   else if (m0 == 'w') f |= PS_FILE_WRITE;
   else if (m0 == 'a') f |= PS_FILE_APPEND | PS_FILE_WRITE;
   else return 0;
-  if (m1 == 'b') f |= PS_FILE_BINARY;
+  if (binary) f |= PS_FILE_BINARY;
   out[0] = m0;
-  out[1] = m1 ? 'b' : '\0';
+  out[1] = binary ? 'b' : '\0';
   out[2] = '\0';
   *flags = f;
   return 1;
 }
 
-static PS_Status io_open(PS_Context *ctx, int argc, PS_Value **argv, PS_Value **out) {
+static PS_Status io_open_text(PS_Context *ctx, int argc, PS_Value **argv, PS_Value **out) {
   (void)argc;
   if (!argv || !out) return PS_ERR;
   if (ps_typeof(argv[0]) != PS_T_STRING || ps_typeof(argv[1]) != PS_T_STRING) {
-    ps_throw(ctx, PS_ERR_TYPE, "Io.open expects (string, string)");
+    ps_throw(ctx, PS_ERR_TYPE, "Io.openText expects (string, string)");
     return PS_ERR;
   }
   const char *path = ps_string_ptr(argv[0]);
   const char *mode = ps_string_ptr(argv[1]);
   uint32_t flags = 0;
   char fmode[3];
-  if (!parse_mode(mode, &flags, fmode)) {
+  if (!parse_mode(mode, &flags, fmode, 0)) {
     ps_throw(ctx, PS_ERR_RANGE, "invalid mode");
     return PS_ERR;
   }
@@ -44,7 +41,36 @@ static PS_Status io_open(PS_Context *ctx, int argc, PS_Value **argv, PS_Value **
     ps_throw(ctx, PS_ERR_INTERNAL, strerror(errno));
     return PS_ERR;
   }
-  PS_Value *f = ps_make_file(ctx, fp, flags);
+  PS_Value *f = ps_make_file(ctx, fp, flags, path);
+  if (!f) {
+    fclose(fp);
+    return PS_ERR;
+  }
+  *out = f;
+  return PS_OK;
+}
+
+static PS_Status io_open_binary(PS_Context *ctx, int argc, PS_Value **argv, PS_Value **out) {
+  (void)argc;
+  if (!argv || !out) return PS_ERR;
+  if (ps_typeof(argv[0]) != PS_T_STRING || ps_typeof(argv[1]) != PS_T_STRING) {
+    ps_throw(ctx, PS_ERR_TYPE, "Io.openBinary expects (string, string)");
+    return PS_ERR;
+  }
+  const char *path = ps_string_ptr(argv[0]);
+  const char *mode = ps_string_ptr(argv[1]);
+  uint32_t flags = 0;
+  char fmode[3];
+  if (!parse_mode(mode, &flags, fmode, 1)) {
+    ps_throw(ctx, PS_ERR_RANGE, "invalid mode");
+    return PS_ERR;
+  }
+  FILE *fp = fopen(path, fmode);
+  if (!fp) {
+    ps_throw(ctx, PS_ERR_INTERNAL, strerror(errno));
+    return PS_ERR;
+  }
+  PS_Value *f = ps_make_file(ctx, fp, flags, path);
   if (!f) {
     fclose(fp);
     return PS_ERR;
@@ -114,7 +140,8 @@ PS_Status ps_module_init(PS_Context *ctx, PS_Module *out) {
   setvbuf(stdout, NULL, _IONBF, 0);
   setvbuf(stderr, NULL, _IONBF, 0);
   static PS_NativeFnDesc fns[] = {
-      {.name = "open", .fn = io_open, .arity = 2, .ret_type = PS_T_FILE, .param_types = NULL, .flags = 0},
+      {.name = "openText", .fn = io_open_text, .arity = 2, .ret_type = PS_T_FILE, .param_types = NULL, .flags = 0},
+      {.name = "openBinary", .fn = io_open_binary, .arity = 2, .ret_type = PS_T_FILE, .param_types = NULL, .flags = 0},
       {.name = "print", .fn = io_print, .arity = 1, .ret_type = PS_T_VOID, .param_types = NULL, .flags = 0},
       {.name = "printLine", .fn = io_print_line, .arity = 1, .ret_type = PS_T_VOID, .param_types = NULL, .flags = 0},
   };

@@ -88,7 +88,7 @@ typedef struct {
   FILE *fp;
   uint32_t flags;
   int closed;
-  int at_start;
+  char *path;
 } PS_File;
 
 struct PS_Value {

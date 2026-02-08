@@ -96,7 +96,7 @@ function isValidRegistryType(s, allowVoid) {
   if (typeof s !== "string") return false;
   const t = stripWs(s);
   if (allowVoid && t === "void") return true;
-  const prim = ["int", "float", "bool", "byte", "glyph", "string", "File", "JSONValue"];
+  const prim = ["int", "float", "bool", "byte", "glyph", "string", "TextFile", "BinaryFile", "JSONValue"];
   if (prim.includes(t)) return true;
   if (t.startsWith("list<") || t.startsWith("slice<") || t.startsWith("view<")) {
     if (!t.endsWith(">")) return false;
@@ -116,10 +116,16 @@ function isValidRegistryType(s, allowVoid) {
 
 function loadModuleRegistry() {
   const env = process.env.PS_MODULE_REGISTRY;
+  const cliDir = process.argv[1] ? path.dirname(process.argv[1]) : null;
   const candidates = [];
   if (env) candidates.push(env);
+  if (cliDir) candidates.push(path.join(cliDir, "registry.json"));
+  candidates.push(path.join(__dirname, "registry.json"));
+  candidates.push(path.join(process.cwd(), "registry.json"));
+  candidates.push("/etc/ps/registry.json");
+  candidates.push("/usr/local/etc/ps/registry.json");
+  candidates.push("/opt/local/etc/ps/registry.json");
   candidates.push(path.join(process.cwd(), "modules", "registry.json"));
-  candidates.push(path.join(__dirname, "..", "modules", "registry.json"));
   let data = null;
   for (const c of candidates) {
     if (c && fs.existsSync(c)) {
@@ -164,9 +170,9 @@ function loadModuleRegistry() {
       } else if (c.type === "string") {
         if (typeof c.value !== "string") continue;
         consts.set(c.name, { type: "string", value: c.value });
-      } else if (c.type === "file") {
+      } else if (c.type === "TextFile" || c.type === "BinaryFile") {
         if (typeof c.value !== "string") continue;
-        consts.set(c.name, { type: "file", value: c.value });
+        consts.set(c.name, { type: c.type, value: c.value });
       }
     }
     modules.set(m.name, { functions: fns, constants: consts });
@@ -248,6 +254,19 @@ class Lexer {
         while (/[A-Za-z0-9_]/.test(this.ch())) s += this.advance();
         if (KEYWORDS.has(s)) this.add("kw", s, line, col);
         else this.add("id", s, line, col);
+        continue;
+      }
+
+      if (c === "." && /[0-9]/.test(this.ch(1))) {
+        let s = "";
+        s += this.advance();
+        while (/[0-9]/.test(this.ch())) s += this.advance();
+        if (/[eE]/.test(this.ch())) {
+          s += this.advance();
+          if (/[+-]/.test(this.ch())) s += this.advance();
+          while (/[0-9]/.test(this.ch())) s += this.advance();
+        }
+        this.add("num", s, line, col);
         continue;
       }
 
@@ -644,6 +663,7 @@ class Parser {
     if (this.at("sym", "{")) return this.parseBlock();
     if (this.at("kw", "var")) return this.parseVarDeclStmt();
     if (this.looksLikeTypedVarDecl()) return this.parseVarDeclStmt();
+    if (this.at("kw", "if")) return this.parseIfStmt();
     if (this.at("kw", "for")) return this.parseForStmt();
     if (this.at("kw", "switch")) return this.parseSwitchStmt();
     if (this.at("kw", "try")) return this.parseTryStmt();
@@ -653,6 +673,21 @@ class Parser {
     if (this.at("kw", "throw")) return this.parseThrowStmt();
     if (this.looksLikeAssignStmt()) return this.parseAssignStmt(true);
     return this.parseExprStmt();
+  }
+
+  parseIfStmt() {
+    const t = this.eat("kw", "if");
+    this.eat("sym", "(");
+    const cond = this.parseExpr();
+    this.eat("sym", ")");
+    const thenBranch = this.parseStmt();
+    let elseBranch = null;
+    if (this.at("kw", "else")) {
+      this.eat("kw", "else");
+      if (this.at("kw", "if")) elseBranch = this.parseIfStmt();
+      else elseBranch = this.parseStmt();
+    }
+    return { kind: "IfStmt", cond, thenBranch, elseBranch, line: t.line, col: t.col };
   }
 
   looksLikeTypedVarDecl() {
@@ -1225,7 +1260,6 @@ class Analyzer {
     if (!child || !parent) return false;
     const cn = typeToString(child);
     const pn = typeToString(parent);
-    if (pn === "File" && (cn === "FileBinary" || cn === "FileText")) return true;
     if (cn === pn) return true;
     let p = this.prototypes.get(cn);
     while (p) {
@@ -1301,10 +1335,16 @@ class Analyzer {
       case "VarDecl": {
         let t = stmt.declaredType;
         let knownListLen = null;
-        let fileMode = null;
         if (stmt.init) {
-          fileMode = this.inferFileModeFromIoOpen(stmt.init);
           const initType = this.typeOfExpr(stmt.init, scope);
+          if (
+            !stmt.declaredType &&
+            initType &&
+            ((initType.kind === "GenericType" && initType.name === "list" && typeToString(initType) === "list<void>") ||
+              (initType.kind === "GenericType" && initType.name === "map" && typeToString(initType) === "map<void,void>"))
+          ) {
+            this.addDiag(stmt.init, "E3006", "MISSING_TYPE_CONTEXT", "empty literal requires explicit type context");
+          }
           const emptyMapInit =
             !!t &&
             stmt.init.kind === "MapLiteral" &&
@@ -1325,19 +1365,13 @@ class Analyzer {
           ) {
             this.addDiag(stmt, "E3001", "TYPE_MISMATCH_ASSIGNMENT", `cannot assign ${typeToString(initType)} to ${typeToString(t)}`);
           }
-          if (
-            t &&
-            initType &&
-            typeToString(t) === "File" &&
-            initType.kind === "NamedType" &&
-            (initType.name === "FileBinary" || initType.name === "FileText")
-          ) {
-            t = initType;
-          }
           if (!t) t = initType;
           if (stmt.init.kind === "ListLiteral") knownListLen = stmt.init.items.length;
         }
-        scope.define(stmt.name, t || { kind: "PrimitiveType", name: "void" }, !!stmt.init, knownListLen, fileMode);
+        if (stmt.init && !t && (stmt.init.kind === "ListLiteral" || stmt.init.kind === "MapLiteral")) {
+          this.addDiag(stmt, "E3006", "MISSING_TYPE_CONTEXT", "empty literal requires explicit type context");
+        }
+        scope.define(stmt.name, t || { kind: "PrimitiveType", name: "void" }, !!stmt.init, knownListLen);
         break;
       }
       case "AssignStmt": {
@@ -1361,7 +1395,9 @@ class Analyzer {
           stmt.expr.kind === "ListLiteral" &&
           stmt.expr.items.length === 0 &&
           typeToString(lhsType).startsWith("list<");
-        if (
+        if (!rhsType && stmt.expr && (stmt.expr.kind === "ListLiteral" || stmt.expr.kind === "MapLiteral") && !lhsType) {
+          this.addDiag(stmt, "E3006", "MISSING_TYPE_CONTEXT", "empty literal requires explicit type context");
+        } else if (
           lhsType &&
           rhsType &&
           !sameType(lhsType, rhsType) &&
@@ -1370,22 +1406,6 @@ class Analyzer {
           !emptyListAssign
         ) {
           this.addDiag(stmt, "E3001", "TYPE_MISMATCH_ASSIGNMENT", `cannot assign ${typeToString(rhsType)} to ${typeToString(lhsType)}`);
-        }
-        if (
-          stmt.target &&
-          stmt.target.kind === "Identifier" &&
-          lhsType &&
-          rhsType &&
-          typeToString(lhsType) === "File" &&
-          rhsType.kind === "NamedType" &&
-          (rhsType.name === "FileBinary" || rhsType.name === "FileText")
-        ) {
-          const s = scope.lookup(stmt.target.name);
-          if (s) s.type = rhsType;
-        }
-        if (stmt.target && stmt.target.kind === "Identifier") {
-          const fm = this.inferFileModeFromIoOpen(stmt.expr);
-          if (fm) scope.setFileMode(stmt.target.name, fm);
         }
         if (stmt.target && stmt.target.kind === "Identifier") {
           const s = scope.lookup(stmt.target.name);
@@ -1401,6 +1421,15 @@ class Analyzer {
         this.typeOfExpr(stmt.expr, scope);
         this.checkListMethodEffects(stmt.expr, scope);
         break;
+      case "IfStmt": {
+        const ct = this.typeOfExpr(stmt.cond, scope);
+        if (ct && typeToString(ct) !== "bool") {
+          this.addDiag(stmt.cond, "E3001", "TYPE_MISMATCH_ASSIGNMENT", "condition must be bool");
+        }
+        this.analyzeStmt(stmt.thenBranch, new Scope(scope), fn);
+        if (stmt.elseBranch) this.analyzeStmt(stmt.elseBranch, new Scope(scope), fn);
+        break;
+      }
       case "ForStmt":
         if (stmt.forKind === "classic") {
           const s2 = new Scope(scope);
@@ -1576,7 +1605,7 @@ class Analyzer {
             const c = consts.get(expr.name);
             if (c.type === "float") return { kind: "PrimitiveType", name: "float" };
             if (c.type === "string") return { kind: "PrimitiveType", name: "string" };
-            if (c.type === "file") return { kind: "NamedType", name: "File" };
+            if (c.type === "TextFile" || c.type === "BinaryFile") return { kind: "NamedType", name: c.type };
           }
         }
         {
@@ -1594,7 +1623,9 @@ class Analyzer {
       case "PostfixExpr":
         return this.typeOfExpr(expr.expr, scope);
       case "ListLiteral":
-        if (expr.items.length === 0) return { kind: "GenericType", name: "list", args: [{ kind: "PrimitiveType", name: "void" }] };
+        if (expr.items.length === 0) {
+          return { kind: "GenericType", name: "list", args: [{ kind: "PrimitiveType", name: "void" }] };
+        }
         return { kind: "GenericType", name: "list", args: [this.typeOfExpr(expr.items[0], scope)] };
       case "MapLiteral":
         if (expr.pairs.length === 0) {
@@ -1610,19 +1641,88 @@ class Analyzer {
     }
   }
 
-  inferFileModeFromIoOpen(expr) {
-    if (!expr || expr.kind !== "CallExpr") return null;
-    if (!expr.callee || expr.callee.kind !== "MemberExpr") return null;
-    const callee = expr.callee;
-    if (!callee.target || callee.target.kind !== "Identifier") return null;
-    if (callee.target.name !== "Io" || callee.name !== "open") return null;
-    if (!Array.isArray(expr.args) || expr.args.length < 2) return null;
-    const mode = expr.args[1];
-    if (!mode || mode.kind !== "Literal" || mode.literalType !== "string") return null;
-    return mode.value.includes("b") ? "binary" : "text";
+
+  checkMethodArity(expr, t, name) {
+    if (!t || !name || !expr || !Array.isArray(expr.args)) return;
+    const argc = expr.args.length;
+    const fail = (min, max) => {
+      if (argc < min || argc > max) {
+        this.addDiag(expr, "E1003", "ARITY_MISMATCH", `arity mismatch for '${name}'`);
+      }
+    };
+    if (t === "string") {
+      if (["length", "isEmpty", "toString", "toInt", "toFloat", "toUpper", "toLower", "toUtf8Bytes", "trim", "trimStart", "trimEnd"].includes(name)) {
+        fail(0, 0);
+        return;
+      }
+      if (["concat", "indexOf", "startsWith", "endsWith", "split"].includes(name)) {
+        fail(1, 1);
+        return;
+      }
+      if (["substring", "replace"].includes(name)) {
+        fail(2, 2);
+        return;
+      }
+    }
+    if (t === "int") {
+      if (["toByte", "toFloat", "toString", "toBytes", "abs", "sign"].includes(name)) {
+        fail(0, 0);
+        return;
+      }
+    }
+    if (t === "byte") {
+      if (["toInt", "toFloat", "toString"].includes(name)) {
+        fail(0, 0);
+        return;
+      }
+    }
+    if (t === "float") {
+      if (["toInt", "toString", "toBytes", "abs", "isNaN", "isInfinite", "isFinite"].includes(name)) {
+        fail(0, 0);
+        return;
+      }
+    }
+    if (t === "glyph") {
+      if (["toString", "toInt", "toUtf8Bytes", "isLetter", "isDigit", "isWhitespace", "isUpper", "isLower", "toUpper", "toLower"].includes(name)) {
+        fail(0, 0);
+        return;
+      }
+    }
+    if (t === "TextFile" || t === "BinaryFile") {
+      if (["close", "tell", "size", "name"].includes(name)) {
+        fail(0, 0);
+        return;
+      }
+      if (name === "read" || name === "write" || name === "seek") {
+        fail(1, 1);
+        return;
+      }
+    }
+    if (t.startsWith("list<")) {
+      if (["length", "isEmpty", "pop", "sort", "concat", "toUtf8String"].includes(name)) {
+        fail(0, 0);
+        return;
+      }
+      if (["push", "contains", "join"].includes(name)) {
+        fail(1, 1);
+        return;
+      }
+    }
+    if (t.startsWith("map<")) {
+      if (["length", "isEmpty", "keys", "values"].includes(name)) {
+        fail(0, 0);
+        return;
+      }
+      if (name === "containsKey") {
+        fail(1, 1);
+      }
+    }
   }
 
   typeOfCall(expr, scope) {
+    if (expr.args) {
+      for (const arg of expr.args) this.typeOfExpr(arg, scope);
+    }
     if (expr.callee.kind === "Identifier") {
       const name = expr.callee.name;
       const fn = this.functions.get(name);
@@ -1630,7 +1730,7 @@ class Analyzer {
       const variadic = fn.params.find((p) => p.variadic);
       if (!variadic) {
         if (expr.args.length !== fn.params.length) {
-          this.addDiag(expr, "E3001", "TYPE_MISMATCH_ASSIGNMENT", `arity mismatch for '${name}'`);
+          this.addDiag(expr, "E1003", "ARITY_MISMATCH", `arity mismatch for '${name}'`);
         }
       } else {
         const fixed = fn.params.filter((p) => !p.variadic).length;
@@ -1647,7 +1747,7 @@ class Analyzer {
         const protoName = member.target.name;
         if (member.name === "clone") {
           if (expr.args.length !== 0) {
-            this.addDiag(expr, "E3001", "TYPE_MISMATCH_ASSIGNMENT", "arity mismatch for 'clone'");
+            this.addDiag(expr, "E1003", "ARITY_MISMATCH", "arity mismatch for 'clone'");
           }
           expr._protoClone = protoName;
           return { kind: "NamedType", name: protoName };
@@ -1659,7 +1759,7 @@ class Analyzer {
         }
         const expected = pm.params.length + 1;
         if (expr.args.length !== expected) {
-          this.addDiag(expr, "E3001", "TYPE_MISMATCH_ASSIGNMENT", `arity mismatch for '${member.name}'`);
+          this.addDiag(expr, "E1003", "ARITY_MISMATCH", `arity mismatch for '${member.name}'`);
         }
         expr._protoStatic = protoName;
         return pm.retType;
@@ -1667,12 +1767,6 @@ class Analyzer {
       if (member.target && member.target.kind === "Identifier") {
         const ns = this.namespaces.get(member.target.name);
         if (ns) {
-          if (ns === "Io" && member.name === "open") {
-            const fm = this.inferFileModeFromIoOpen(expr);
-            if (fm === "binary") return { kind: "NamedType", name: "FileBinary" };
-            if (fm === "text") return { kind: "NamedType", name: "FileText" };
-            return { kind: "NamedType", name: "File" };
-          }
           const registry = loadModuleRegistry();
           const modEntry = registry ? registry.modules.get(ns) : null;
           const fn = modEntry ? modEntry.functions.get(member.name) : null;
@@ -1681,7 +1775,7 @@ class Analyzer {
             return null;
           }
           if (expr.args.length !== fn.params.length) {
-            this.addDiag(expr, "E3001", "TYPE_MISMATCH_ASSIGNMENT", `arity mismatch for '${member.name}'`);
+            this.addDiag(expr, "E1003", "ARITY_MISMATCH", `arity mismatch for '${member.name}'`);
           }
           return fn.retType;
         }
@@ -1695,7 +1789,7 @@ class Analyzer {
           return null;
         }
         if (expr.args.length !== pm.params.length) {
-          this.addDiag(expr, "E3001", "TYPE_MISMATCH_ASSIGNMENT", `arity mismatch for '${member.name}'`);
+          this.addDiag(expr, "E1003", "ARITY_MISMATCH", `arity mismatch for '${member.name}'`);
         }
         expr._protoInstance = targetType.name;
         return pm.retType;
@@ -1703,6 +1797,7 @@ class Analyzer {
       const t = typeToString(targetType);
       const name = member.name;
       const prim = (n) => ({ kind: "PrimitiveType", name: n });
+      this.checkMethodArity(expr, t, name);
 
       if (t === "int") {
         if (name === "toByte") return prim("byte");
@@ -1747,7 +1842,7 @@ class Analyzer {
         if (name === "toUtf8Bytes") return { kind: "GenericType", name: "list", args: [prim("byte")] };
         if (name === "view") {
           if (!(expr.args.length === 0 || expr.args.length === 2)) {
-            this.addDiag(expr, "E3001", "TYPE_MISMATCH_ASSIGNMENT", "arity mismatch for 'view'");
+            this.addDiag(expr, "E1003", "ARITY_MISMATCH", "arity mismatch for 'view'");
           }
           return { kind: "GenericType", name: "view", args: [prim("glyph")] };
         }
@@ -1755,7 +1850,7 @@ class Analyzer {
       if (t.startsWith("list<")) {
         if (name === "view" || name === "slice") {
           if (expr.args.length !== 2) {
-            this.addDiag(expr, "E3001", "TYPE_MISMATCH_ASSIGNMENT", `arity mismatch for '${name}'`);
+            this.addDiag(expr, "E1003", "ARITY_MISMATCH", `arity mismatch for '${name}'`);
           }
           const elem = targetType.args[0];
           return { kind: "GenericType", name, args: [elem] };
@@ -1764,7 +1859,7 @@ class Analyzer {
       if (t.startsWith("slice<")) {
         if (name === "slice") {
           if (expr.args.length !== 2) {
-            this.addDiag(expr, "E3001", "TYPE_MISMATCH_ASSIGNMENT", "arity mismatch for 'slice'");
+            this.addDiag(expr, "E1003", "ARITY_MISMATCH", "arity mismatch for 'slice'");
           }
           const elem = targetType.args[0];
           return { kind: "GenericType", name: "slice", args: [elem] };
@@ -1773,24 +1868,26 @@ class Analyzer {
       if (t.startsWith("view<")) {
         if (name === "view") {
           if (expr.args.length !== 2) {
-            this.addDiag(expr, "E3001", "TYPE_MISMATCH_ASSIGNMENT", "arity mismatch for 'view'");
+            this.addDiag(expr, "E1003", "ARITY_MISMATCH", "arity mismatch for 'view'");
           }
           const elem = targetType.args[0];
           return { kind: "GenericType", name: "view", args: [elem] };
         }
       }
-      if (t === "File" || t === "FileBinary" || t === "FileText") {
-        if (name === "read") {
-          if (t === "FileBinary") return { kind: "GenericType", name: "list", args: [prim("byte")] };
-          if (t === "File") {
-            if (member.target.kind === "Identifier") {
-              const s = scope.lookup(member.target.name);
-              if (s && s.fileMode === "binary") return { kind: "GenericType", name: "list", args: [prim("byte")] };
-            }
-          }
-          return prim("string");
-        }
+      if (t === "TextFile") {
+        if (name === "read") return prim("string");
         if (name === "write") return prim("void");
+        if (name === "tell" || name === "size") return prim("int");
+        if (name === "seek") return prim("void");
+        if (name === "name") return prim("string");
+        if (name === "close") return prim("void");
+      }
+      if (t === "BinaryFile") {
+        if (name === "read") return { kind: "GenericType", name: "list", args: [prim("byte")] };
+        if (name === "write") return prim("void");
+        if (name === "tell" || name === "size") return prim("int");
+        if (name === "seek") return prim("void");
+        if (name === "name") return prim("string");
         if (name === "close") return prim("void");
       }
       if (t.startsWith("list<") && t === "list<string>") {
@@ -1867,17 +1964,8 @@ class Scope {
     this.parent = parent;
     this.syms = new Map();
   }
-  define(name, type, initialized, knownListLen = null, fileMode = null) {
-    this.syms.set(name, { type, initialized, knownListLen, fileMode });
-  }
-  setFileMode(name, fileMode) {
-    if (this.syms.has(name)) {
-      const s = this.syms.get(name);
-      s.fileMode = fileMode;
-      return true;
-    }
-    if (this.parent) return this.parent.setFileMode(name, fileMode);
-    return false;
+  define(name, type, initialized, knownListLen = null) {
+    this.syms.set(name, { type, initialized, knownListLen });
   }
   lookup(name) {
     if (this.syms.has(name)) return this.syms.get(name);

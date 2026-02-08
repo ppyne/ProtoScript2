@@ -76,6 +76,83 @@ static int parse_float_strict(PS_Context *ctx, const char *s, size_t len, double
   return 1;
 }
 
+static void format_float_shortest(double v, char *out, size_t out_len) {
+  char tmp[64];
+  if (!out || out_len == 0) return;
+  snprintf(tmp, sizeof(tmp), "%.17g", v);
+  if (!isfinite(v)) {
+    strncpy(out, tmp, out_len);
+    out[out_len - 1] = '\0';
+    return;
+  }
+
+  char *exp = strchr(tmp, 'e');
+  if (!exp) exp = strchr(tmp, 'E');
+
+  if (!exp) {
+    if (!strchr(tmp, '.')) {
+      strncpy(out, tmp, out_len);
+      out[out_len - 1] = '\0';
+      return;
+    }
+    size_t len = strlen(tmp);
+    size_t best_len = len;
+    for (size_t cut = len; cut > 0; cut--) {
+      if (tmp[cut - 1] == '.') continue;
+      char cand[64];
+      memcpy(cand, tmp, cut);
+      cand[cut] = '\0';
+      char *end = NULL;
+      double parsed = strtod(cand, &end);
+      if (end && *end == '\0' && parsed == v) {
+        best_len = cut;
+        continue;
+      }
+      break;
+    }
+    size_t copy_len = best_len < out_len - 1 ? best_len : out_len - 1;
+    memcpy(out, tmp, copy_len);
+    out[copy_len] = '\0';
+    return;
+  }
+
+  char mant[64];
+  size_t mant_len = (size_t)(exp - tmp);
+  if (mant_len >= sizeof(mant)) mant_len = sizeof(mant) - 1;
+  memcpy(mant, tmp, mant_len);
+  mant[mant_len] = '\0';
+
+  size_t best_len = mant_len;
+  for (size_t cut = mant_len; cut > 0; cut--) {
+    if (mant[cut - 1] == '.') continue;
+    char cand[64];
+    size_t exp_len = strlen(exp);
+    if (cut + exp_len >= sizeof(cand)) continue;
+    memcpy(cand, mant, cut);
+    memcpy(cand + cut, exp, exp_len + 1);
+    char *end = NULL;
+    double parsed = strtod(cand, &end);
+    if (end && *end == '\0' && parsed == v) {
+      best_len = cut;
+      continue;
+    }
+    break;
+  }
+  size_t exp_len = strlen(exp);
+  size_t total_len = best_len + exp_len;
+  if (total_len >= out_len) total_len = out_len - 1;
+  if (best_len >= out_len) best_len = out_len - 1;
+  memcpy(out, mant, best_len);
+  if (best_len < out_len - 1) {
+    size_t remain = out_len - 1 - best_len;
+    size_t copy_exp = exp_len < remain ? exp_len : remain;
+    memcpy(out + best_len, exp, copy_exp);
+    out[best_len + copy_exp] = '\0';
+  } else {
+    out[best_len] = '\0';
+  }
+}
+
 static int glyph_is_letter(uint32_t g) { return (g >= 'A' && g <= 'Z') || (g >= 'a' && g <= 'z'); }
 static int glyph_is_digit(uint32_t g) { return (g >= '0' && g <= '9'); }
 static int glyph_is_whitespace(uint32_t g) { return g == ' ' || g == '\t' || g == '\n' || g == '\r'; }
@@ -187,6 +264,169 @@ static int view_is_valid(PS_Value *v) {
   return 1;
 }
 
+static int expect_arity(PS_Context *ctx, IRInstr *ins, size_t min, size_t max) {
+  if (ins->arg_count < min || ins->arg_count > max) {
+    ps_throw(ctx, PS_ERR_TYPE, "arity mismatch");
+    return 0;
+  }
+  return 1;
+}
+
+static int read_utf8_glyph_stream(PS_Context *ctx, FILE *fp, uint8_t out[4], size_t *out_len) {
+  int c0 = fgetc(fp);
+  if (c0 == EOF) return 0;
+  uint8_t b0 = (uint8_t)c0;
+  if (b0 == 0) {
+    ps_throw(ctx, PS_ERR_UTF8, "NUL byte not allowed");
+    return -1;
+  }
+  size_t len = 0;
+  uint32_t cp = 0;
+  if (b0 < 0x80) {
+    len = 1;
+    cp = b0;
+  } else if ((b0 & 0xE0) == 0xC0) {
+    len = 2;
+    cp = (uint32_t)(b0 & 0x1F);
+  } else if ((b0 & 0xF0) == 0xE0) {
+    len = 3;
+    cp = (uint32_t)(b0 & 0x0F);
+  } else if ((b0 & 0xF8) == 0xF0) {
+    len = 4;
+    cp = (uint32_t)(b0 & 0x07);
+  } else {
+    ps_throw(ctx, PS_ERR_UTF8, "invalid UTF-8");
+    return -1;
+  }
+  out[0] = b0;
+  for (size_t i = 1; i < len; i++) {
+    int ci = fgetc(fp);
+    if (ci == EOF) {
+      ps_throw(ctx, PS_ERR_UTF8, "invalid UTF-8");
+      return -1;
+    }
+    uint8_t bi = (uint8_t)ci;
+    if ((bi & 0xC0) != 0x80) {
+      ps_throw(ctx, PS_ERR_UTF8, "invalid UTF-8");
+      return -1;
+    }
+    if (bi == 0) {
+      ps_throw(ctx, PS_ERR_UTF8, "NUL byte not allowed");
+      return -1;
+    }
+    out[i] = bi;
+    cp = (cp << 6) | (uint32_t)(bi & 0x3F);
+  }
+  if (len == 2 && cp < 0x80) {
+    ps_throw(ctx, PS_ERR_UTF8, "invalid UTF-8");
+    return -1;
+  }
+  if (len == 3 && cp < 0x800) {
+    ps_throw(ctx, PS_ERR_UTF8, "invalid UTF-8");
+    return -1;
+  }
+  if (len == 4 && (cp < 0x10000 || cp > 0x10FFFF)) {
+    ps_throw(ctx, PS_ERR_UTF8, "invalid UTF-8");
+    return -1;
+  }
+  *out_len = len;
+  return 1;
+}
+
+static int64_t file_size_bytes(PS_Context *ctx, PS_File *f) {
+  (void)ctx;
+  long cur = ftell(f->fp);
+  fseek(f->fp, 0, SEEK_END);
+  long sz = ftell(f->fp);
+  if (cur >= 0) fseek(f->fp, cur, SEEK_SET);
+  if (sz < 0) sz = 0;
+  return (int64_t)sz;
+}
+
+static int64_t file_tell_bytes(PS_Context *ctx, PS_File *f) {
+  (void)ctx;
+  long cur = ftell(f->fp);
+  if (cur < 0) return -1;
+  return (int64_t)cur;
+}
+
+static int64_t file_size_glyphs(PS_Context *ctx, PS_File *f) {
+  long cur = ftell(f->fp);
+  fseek(f->fp, 0, SEEK_SET);
+  int64_t count = 0;
+  while (1) {
+    uint8_t g[4];
+    size_t glen = 0;
+    int r = read_utf8_glyph_stream(ctx, f->fp, g, &glen);
+    if (r == 0) break;
+    if (r < 0) {
+      if (cur >= 0) fseek(f->fp, cur, SEEK_SET);
+      return -1;
+    }
+    count += 1;
+  }
+  if (cur >= 0) fseek(f->fp, cur, SEEK_SET);
+  return count;
+}
+
+static int64_t file_tell_glyphs(PS_Context *ctx, PS_File *f) {
+  long cur = ftell(f->fp);
+  if (cur < 0) return -1;
+  fseek(f->fp, 0, SEEK_SET);
+  int64_t count = 0;
+  long pos = 0;
+  if (cur == 0) {
+    fseek(f->fp, cur, SEEK_SET);
+    return 0;
+  }
+  while (1) {
+    uint8_t g[4];
+    size_t glen = 0;
+    int r = read_utf8_glyph_stream(ctx, f->fp, g, &glen);
+    if (r == 0) break;
+    if (r < 0) {
+      fseek(f->fp, cur, SEEK_SET);
+      return -1;
+    }
+    pos += (long)glen;
+    count += 1;
+    if (pos == cur) {
+      fseek(f->fp, cur, SEEK_SET);
+      return count;
+    }
+    if (pos > cur) break;
+  }
+  fseek(f->fp, cur, SEEK_SET);
+  ps_throw(ctx, PS_ERR_RANGE, "tell position not at glyph boundary");
+  return -1;
+}
+
+static int file_seek_glyphs(PS_Context *ctx, PS_File *f, int64_t pos) {
+  if (pos < 0) {
+    ps_throw(ctx, PS_ERR_RANGE, "seek expects pos >= 0");
+    return 0;
+  }
+  fseek(f->fp, 0, SEEK_SET);
+  if (pos == 0) return 1;
+  int64_t count = 0;
+  long byte_pos = 0;
+  while (1) {
+    uint8_t g[4];
+    size_t glen = 0;
+    int r = read_utf8_glyph_stream(ctx, f->fp, g, &glen);
+    if (r == 0) break;
+    if (r < 0) return 0;
+    count += 1;
+    byte_pos += (long)glen;
+    if (count == pos) {
+      fseek(f->fp, byte_pos, SEEK_SET);
+      return 1;
+    }
+  }
+  ps_throw(ctx, PS_ERR_RANGE, "seek out of range");
+  return 0;
+}
+
 static void bindings_free(PS_Bindings *b) {
   if (!b) return;
   for (size_t i = 0; i < b->len; i++) {
@@ -238,7 +478,11 @@ static IRInstr parse_instr(PS_JsonValue *obj) {
   ins.dst = dup_json_string(ps_json_obj_get(obj, "dst"));
   ins.name = dup_json_string(ps_json_obj_get(obj, "name"));
   ins.type = dup_json_string(ps_json_obj_get(obj, "type"));
-  ins.value = dup_json_string(ps_json_obj_get(obj, "value"));
+  PS_JsonValue *val = ps_json_obj_get(obj, "value");
+  ins.value = dup_json_string(val);
+  if (!ins.value && val && val->type == PS_JSON_BOOL) {
+    ins.value = strdup(val->as.bool_v ? "true" : "false");
+  }
   ins.literalType = dup_json_string(ps_json_obj_get(obj, "literalType"));
   ins.left = dup_json_string(ps_json_obj_get(obj, "left"));
   ins.right = dup_json_string(ps_json_obj_get(obj, "right"));
@@ -274,6 +518,13 @@ static IRInstr parse_instr(PS_JsonValue *obj) {
     ins.arg_count = args->as.array_v.len;
     ins.args = (char **)calloc(ins.arg_count, sizeof(char *));
     for (size_t i = 0; i < ins.arg_count; i++) ins.args[i] = dup_json_string(args->as.array_v.items[i]);
+  } else {
+    PS_JsonValue *items = ps_json_obj_get(obj, "items");
+    if (items && items->type == PS_JSON_ARRAY) {
+      ins.arg_count = items->as.array_v.len;
+      ins.args = (char **)calloc(ins.arg_count, sizeof(char *));
+      for (size_t i = 0; i < ins.arg_count; i++) ins.args[i] = dup_json_string(items->as.array_v.items[i]);
+    }
   }
   PS_JsonValue *pairs = ps_json_obj_get(obj, "pairs");
   if (pairs && pairs->type == PS_JSON_ARRAY) {
@@ -437,16 +688,30 @@ static size_t find_block(IRFunction *f, const char *label) {
   return 0;
 }
 
+static int64_t parse_int_literal(const char *raw) {
+  if (!raw) return 0;
+  if (raw[0] == '0' && (raw[1] == 'b' || raw[1] == 'B')) {
+    int64_t v = 0;
+    for (const char *p = raw + 2; *p; p++) {
+      if (*p != '0' && *p != '1') break;
+      v = (v << 1) | (*p == '1' ? 1 : 0);
+    }
+    return v;
+  }
+  return strtoll(raw, NULL, 0);
+}
+
 static PS_Value *value_from_literal(PS_Context *ctx, const char *literalType, PS_JsonValue *json_value, const char *raw) {
   if (!literalType) return NULL;
   if (strcmp(literalType, "bool") == 0) {
     int v = 0;
     if (json_value && json_value->type == PS_JSON_BOOL) v = json_value->as.bool_v;
+    else if (raw && (strcmp(raw, "true") == 0 || strcmp(raw, "1") == 0)) v = 1;
     return ps_make_bool(ctx, v);
   }
   if (strcmp(literalType, "int") == 0 || strcmp(literalType, "byte") == 0) {
     int64_t v = 0;
-    if (raw) v = strtoll(raw, NULL, 0);
+    if (raw) v = parse_int_literal(raw);
     if (strcmp(literalType, "byte") == 0) return ps_make_byte(ctx, (uint8_t)v);
     return ps_make_int(ctx, v);
   }
@@ -472,15 +737,15 @@ static PS_Value *value_from_literal(PS_Context *ctx, const char *literalType, PS
   if (strcmp(literalType, "file") == 0) {
     const char *name = raw ? raw : "";
     if (strcmp(name, "stdin") == 0) {
-      if (!ctx->stdin_value) ctx->stdin_value = ps_make_file(ctx, stdin, PS_FILE_READ | PS_FILE_STD);
+      if (!ctx->stdin_value) ctx->stdin_value = ps_make_file(ctx, stdin, PS_FILE_READ | PS_FILE_STD, "stdin");
       return ctx->stdin_value ? ps_value_retain(ctx->stdin_value) : NULL;
     }
     if (strcmp(name, "stdout") == 0) {
-      if (!ctx->stdout_value) ctx->stdout_value = ps_make_file(ctx, stdout, PS_FILE_WRITE | PS_FILE_STD);
+      if (!ctx->stdout_value) ctx->stdout_value = ps_make_file(ctx, stdout, PS_FILE_WRITE | PS_FILE_STD, "stdout");
       return ctx->stdout_value ? ps_value_retain(ctx->stdout_value) : NULL;
     }
     if (strcmp(name, "stderr") == 0) {
-      if (!ctx->stderr_value) ctx->stderr_value = ps_make_file(ctx, stderr, PS_FILE_WRITE | PS_FILE_STD);
+      if (!ctx->stderr_value) ctx->stderr_value = ps_make_file(ctx, stderr, PS_FILE_WRITE | PS_FILE_STD, "stderr");
       return ctx->stderr_value ? ps_value_retain(ctx->stderr_value) : NULL;
     }
     ps_throw(ctx, PS_ERR_RANGE, "invalid file constant");
@@ -623,6 +888,17 @@ static PS_Value *map_first_key(PS_Value *map) {
 }
 
 static int exec_function(PS_Context *ctx, PS_IR_Module *m, IRFunction *f, PS_Value **args, size_t argc, PS_Value **out);
+
+static int json_value_kind_runtime(PS_Context *ctx, PS_Value *v, const char **kind, PS_Value **out_val) {
+  if (!v || v->tag != PS_V_OBJECT) return 0;
+  const char *kkey = "__json_kind";
+  const char *vkey = "__json_value";
+  PS_Value *k = ps_object_get_str_internal(ctx, v, kkey, strlen(kkey));
+  if (!k || k->tag != PS_V_STRING) return 0;
+  if (kind) *kind = k->as.string_v.ptr;
+  if (out_val) *out_val = ps_object_get_str_internal(ctx, v, vkey, strlen(vkey));
+  return 1;
+}
 
 static int exec_call_static(PS_Context *ctx, PS_IR_Module *m, const char *callee, PS_Value **args, size_t argc, PS_Value **out) {
   if (strcmp(callee, "Exception") == 0) {
@@ -1150,12 +1426,110 @@ static int exec_function(PS_Context *ctx, PS_IR_Module *m, IRFunction *f, PS_Val
       if (strcmp(ins->op, "call_method_static") == 0) {
         PS_Value *recv = get_value(&temps, &vars, ins->receiver);
         if (!recv) goto raise;
+        const char *json_kind = NULL;
+        PS_Value *json_val = NULL;
+        if (json_value_kind_runtime(ctx, recv, &json_kind, &json_val)) {
+          if (strcmp(ins->method, "isNull") == 0) {
+            if (!expect_arity(ctx, ins, 0, 0)) goto raise;
+            PS_Value *b = ps_make_bool(ctx, json_kind && strcmp(json_kind, "null") == 0);
+            if (!b) goto raise;
+            bindings_set(&temps, ins->dst, b);
+            ps_value_release(b);
+            continue;
+          }
+          if (strcmp(ins->method, "isBool") == 0) {
+            if (!expect_arity(ctx, ins, 0, 0)) goto raise;
+            PS_Value *b = ps_make_bool(ctx, json_kind && strcmp(json_kind, "bool") == 0);
+            if (!b) goto raise;
+            bindings_set(&temps, ins->dst, b);
+            ps_value_release(b);
+            continue;
+          }
+          if (strcmp(ins->method, "isNumber") == 0) {
+            if (!expect_arity(ctx, ins, 0, 0)) goto raise;
+            PS_Value *b = ps_make_bool(ctx, json_kind && strcmp(json_kind, "number") == 0);
+            if (!b) goto raise;
+            bindings_set(&temps, ins->dst, b);
+            ps_value_release(b);
+            continue;
+          }
+          if (strcmp(ins->method, "isString") == 0) {
+            if (!expect_arity(ctx, ins, 0, 0)) goto raise;
+            PS_Value *b = ps_make_bool(ctx, json_kind && strcmp(json_kind, "string") == 0);
+            if (!b) goto raise;
+            bindings_set(&temps, ins->dst, b);
+            ps_value_release(b);
+            continue;
+          }
+          if (strcmp(ins->method, "isArray") == 0) {
+            if (!expect_arity(ctx, ins, 0, 0)) goto raise;
+            PS_Value *b = ps_make_bool(ctx, json_kind && strcmp(json_kind, "array") == 0);
+            if (!b) goto raise;
+            bindings_set(&temps, ins->dst, b);
+            ps_value_release(b);
+            continue;
+          }
+          if (strcmp(ins->method, "isObject") == 0) {
+            if (!expect_arity(ctx, ins, 0, 0)) goto raise;
+            PS_Value *b = ps_make_bool(ctx, json_kind && strcmp(json_kind, "object") == 0);
+            if (!b) goto raise;
+            bindings_set(&temps, ins->dst, b);
+            ps_value_release(b);
+            continue;
+          }
+          if (strcmp(ins->method, "asBool") == 0) {
+            if (!expect_arity(ctx, ins, 0, 0)) goto raise;
+            if (!json_kind || strcmp(json_kind, "bool") != 0 || !json_val || json_val->tag != PS_V_BOOL) {
+              ps_throw(ctx, PS_ERR_TYPE, "expected JsonBool");
+              goto raise;
+            }
+            bindings_set(&temps, ins->dst, json_val);
+            continue;
+          }
+          if (strcmp(ins->method, "asNumber") == 0) {
+            if (!expect_arity(ctx, ins, 0, 0)) goto raise;
+            if (!json_kind || strcmp(json_kind, "number") != 0 || !json_val || json_val->tag != PS_V_FLOAT) {
+              ps_throw(ctx, PS_ERR_TYPE, "expected JsonNumber");
+              goto raise;
+            }
+            bindings_set(&temps, ins->dst, json_val);
+            continue;
+          }
+          if (strcmp(ins->method, "asString") == 0) {
+            if (!expect_arity(ctx, ins, 0, 0)) goto raise;
+            if (!json_kind || strcmp(json_kind, "string") != 0 || !json_val || json_val->tag != PS_V_STRING) {
+              ps_throw(ctx, PS_ERR_TYPE, "expected JsonString");
+              goto raise;
+            }
+            bindings_set(&temps, ins->dst, json_val);
+            continue;
+          }
+          if (strcmp(ins->method, "asArray") == 0) {
+            if (!expect_arity(ctx, ins, 0, 0)) goto raise;
+            if (!json_kind || strcmp(json_kind, "array") != 0 || !json_val || json_val->tag != PS_V_LIST) {
+              ps_throw(ctx, PS_ERR_TYPE, "expected JsonArray");
+              goto raise;
+            }
+            bindings_set(&temps, ins->dst, json_val);
+            continue;
+          }
+          if (strcmp(ins->method, "asObject") == 0) {
+            if (!expect_arity(ctx, ins, 0, 0)) goto raise;
+            if (!json_kind || strcmp(json_kind, "object") != 0 || !json_val || json_val->tag != PS_V_MAP) {
+              ps_throw(ctx, PS_ERR_TYPE, "expected JsonObject");
+              goto raise;
+            }
+            bindings_set(&temps, ins->dst, json_val);
+            continue;
+          }
+        }
         if (recv->tag == PS_V_FILE) {
           PS_File *f = &recv->as.file_v;
           const int can_read = (f->flags & PS_FILE_READ) != 0;
           const int can_write = (f->flags & (PS_FILE_WRITE | PS_FILE_APPEND)) != 0;
           const int is_binary = (f->flags & PS_FILE_BINARY) != 0;
           if (strcmp(ins->method, "close") == 0) {
+            if (!expect_arity(ctx, ins, 0, 0)) goto raise;
             if (f->flags & PS_FILE_STD) {
               ps_throw(ctx, PS_ERR_RANGE, "cannot close standard stream");
               goto raise;
@@ -1163,6 +1537,10 @@ static int exec_function(PS_Context *ctx, PS_IR_Module *m, IRFunction *f, PS_Val
             if (!f->closed && f->fp) {
               fclose(f->fp);
               f->closed = 1;
+              if (!(f->flags & PS_FILE_STD) && f->path) {
+                free(f->path);
+                f->path = NULL;
+              }
             }
             continue;
           }
@@ -1170,26 +1548,87 @@ static int exec_function(PS_Context *ctx, PS_IR_Module *m, IRFunction *f, PS_Val
             ps_throw(ctx, PS_ERR_RANGE, "file is closed");
             goto raise;
           }
+          if (strcmp(ins->method, "name") == 0) {
+            if (!expect_arity(ctx, ins, 0, 0)) goto raise;
+            const char *p = f->path ? f->path : "";
+            PS_Value *s = ps_make_string_utf8(ctx, p, strlen(p));
+            if (!s) goto raise;
+            bindings_set(&temps, ins->dst, s);
+            ps_value_release(s);
+            continue;
+          }
+          if (strcmp(ins->method, "tell") == 0) {
+            if (!expect_arity(ctx, ins, 0, 0)) goto raise;
+            if (is_binary) {
+              int64_t pos = file_tell_bytes(ctx, f);
+              if (pos < 0) {
+                ps_throw(ctx, PS_ERR_INTERNAL, "tell failed");
+                goto raise;
+              }
+              PS_Value *iv = ps_make_int(ctx, pos);
+              bindings_set(&temps, ins->dst, iv);
+              ps_value_release(iv);
+            } else {
+              int64_t pos = file_tell_glyphs(ctx, f);
+              if (pos < 0) goto raise;
+              PS_Value *iv = ps_make_int(ctx, pos);
+              bindings_set(&temps, ins->dst, iv);
+              ps_value_release(iv);
+            }
+            continue;
+          }
+          if (strcmp(ins->method, "size") == 0) {
+            if (!expect_arity(ctx, ins, 0, 0)) goto raise;
+            if (is_binary) {
+              int64_t sz = file_size_bytes(ctx, f);
+              PS_Value *iv = ps_make_int(ctx, sz);
+              bindings_set(&temps, ins->dst, iv);
+              ps_value_release(iv);
+            } else {
+              int64_t sz = file_size_glyphs(ctx, f);
+              if (sz < 0) goto raise;
+              PS_Value *iv = ps_make_int(ctx, sz);
+              bindings_set(&temps, ins->dst, iv);
+              ps_value_release(iv);
+            }
+            continue;
+          }
+          if (strcmp(ins->method, "seek") == 0) {
+            if (!expect_arity(ctx, ins, 1, 1)) goto raise;
+            PS_Value *sv = get_value(&temps, &vars, ins->args[0]);
+            if (!sv || sv->tag != PS_V_INT) {
+              ps_throw(ctx, PS_ERR_RANGE, "invalid seek position");
+              goto raise;
+            }
+            if (is_binary) {
+              int64_t pos = sv->as.int_v;
+              if (pos < 0 || pos > file_size_bytes(ctx, f)) {
+                ps_throw(ctx, PS_ERR_RANGE, "seek out of range");
+                goto raise;
+              }
+              fseek(f->fp, (long)pos, SEEK_SET);
+            } else {
+              if (!file_seek_glyphs(ctx, f, sv->as.int_v)) goto raise;
+            }
+            continue;
+          }
           if (strcmp(ins->method, "read") == 0) {
+            if (!expect_arity(ctx, ins, 1, 1)) goto raise;
             if (!can_read) {
               ps_throw(ctx, PS_ERR_RANGE, "file not readable");
               goto raise;
             }
-            size_t want = 0;
-            int has_size = ins->arg_count > 0;
-            if (has_size) {
-              PS_Value *sv = get_value(&temps, &vars, ins->args[0]);
-              if (!sv || sv->tag != PS_V_INT) {
-                ps_throw(ctx, PS_ERR_RANGE, "invalid read size");
-                goto raise;
-              }
-              if (sv->as.int_v <= 0) {
-                ps_throw(ctx, PS_ERR_RANGE, "read size must be >= 1");
-                goto raise;
-              }
-              want = (size_t)sv->as.int_v;
+            PS_Value *sv = get_value(&temps, &vars, ins->args[0]);
+            if (!sv || sv->tag != PS_V_INT) {
+              ps_throw(ctx, PS_ERR_RANGE, "invalid read size");
+              goto raise;
             }
-            if (has_size) {
+            if (sv->as.int_v <= 0) {
+              ps_throw(ctx, PS_ERR_RANGE, "read size must be >= 1");
+              goto raise;
+            }
+            size_t want = (size_t)sv->as.int_v;
+            if (is_binary) {
               uint8_t *buf = (uint8_t *)malloc(want);
               if (!buf) {
                 ps_throw(ctx, PS_ERR_OOM, "out of memory");
@@ -1203,115 +1642,13 @@ static int exec_function(PS_Context *ctx, PS_IR_Module *m, IRFunction *f, PS_Val
               }
               if (n == 0) {
                 free(buf);
-                PS_Value *eofv = value_from_literal(ctx, "eof", NULL, NULL);
-                if (!eofv) goto raise;
-                bindings_set(&temps, ins->dst, eofv);
-                ps_value_release(eofv);
-                continue;
-              }
-              if (!is_binary) {
-                size_t start = 0;
-                for (size_t i = 0; i < n; i++) {
-                  if (buf[i] == 0x00) {
-                    free(buf);
-                    ps_throw(ctx, PS_ERR_UTF8, "NUL byte not allowed");
-                    goto raise;
-                  }
-                }
-                if (f->at_start && n >= 3 && buf[0] == 0xEF && buf[1] == 0xBB && buf[2] == 0xBF) {
-                  start = 3;
-                }
-                for (size_t i = start; i + 2 < n; i++) {
-                  if (buf[i] == 0xEF && buf[i + 1] == 0xBB && buf[i + 2] == 0xBF) {
-                    free(buf);
-                    ps_throw(ctx, PS_ERR_UTF8, "BOM not allowed here");
-                    goto raise;
-                  }
-                }
-                if (!ps_utf8_validate(buf + start, n - start)) {
-                  free(buf);
-                  ps_throw(ctx, PS_ERR_UTF8, "invalid UTF-8");
-                  goto raise;
-                }
-                PS_Value *s = ps_make_string_utf8(ctx, (const char *)buf + start, n - start);
-                free(buf);
-                if (!s) goto raise;
-                bindings_set(&temps, ins->dst, s);
-                ps_value_release(s);
-              } else {
                 PS_Value *list = ps_list_new(ctx);
-                for (size_t i = 0; i < n; i++) {
-                  PS_Value *bv = ps_make_byte(ctx, buf[i]);
-                  ps_list_push_internal(ctx, list, bv);
-                  ps_value_release(bv);
-                }
-                free(buf);
                 bindings_set(&temps, ins->dst, list);
                 ps_value_release(list);
+                continue;
               }
-              f->at_start = 0;
-              continue;
-            }
-            size_t cap = 4096;
-            size_t len = 0;
-            uint8_t *buf = (uint8_t *)malloc(cap);
-            if (!buf) {
-              ps_throw(ctx, PS_ERR_OOM, "out of memory");
-              goto raise;
-            }
-            while (1) {
-              size_t n = fread(buf + len, 1, cap - len, f->fp);
-              len += n;
-              if (n == 0) break;
-              if (len == cap) {
-                size_t ncap = cap * 2;
-                uint8_t *nbuf = (uint8_t *)realloc(buf, ncap);
-                if (!nbuf) {
-                  free(buf);
-                  ps_throw(ctx, PS_ERR_OOM, "out of memory");
-                  goto raise;
-                }
-                buf = nbuf;
-                cap = ncap;
-              }
-            }
-            if (ferror(f->fp)) {
-              free(buf);
-              ps_throw(ctx, PS_ERR_INTERNAL, "read failed");
-              goto raise;
-            }
-            if (!is_binary) {
-              size_t start = 0;
-              for (size_t i = 0; i < len; i++) {
-                if (buf[i] == 0x00) {
-                  free(buf);
-                  ps_throw(ctx, PS_ERR_UTF8, "NUL byte not allowed");
-                  goto raise;
-                }
-              }
-              if (f->at_start && len >= 3 && buf[0] == 0xEF && buf[1] == 0xBB && buf[2] == 0xBF) {
-                start = 3;
-              }
-              for (size_t i = start; i + 2 < len; i++) {
-                if (buf[i] == 0xEF && buf[i + 1] == 0xBB && buf[i + 2] == 0xBF) {
-                  free(buf);
-                  ps_throw(ctx, PS_ERR_UTF8, "BOM not allowed here");
-                  goto raise;
-                }
-              }
-              if (!ps_utf8_validate(buf + start, len - start)) {
-                free(buf);
-                ps_throw(ctx, PS_ERR_UTF8, "invalid UTF-8");
-                goto raise;
-              }
-              PS_Value *s = ps_make_string_utf8(ctx, (const char *)buf + start, len - start);
-              free(buf);
-              if (!s) goto raise;
-              bindings_set(&temps, ins->dst, s);
-              ps_value_release(s);
-            } else {
               PS_Value *list = ps_list_new(ctx);
-              for (size_t i = 0; i < len; i++) {
+              for (size_t i = 0; i < n; i++) {
                 PS_Value *bv = ps_make_byte(ctx, buf[i]);
                 ps_list_push_internal(ctx, list, bv);
                 ps_value_release(bv);
@@ -1319,11 +1656,55 @@ static int exec_function(PS_Context *ctx, PS_IR_Module *m, IRFunction *f, PS_Val
               free(buf);
               bindings_set(&temps, ins->dst, list);
               ps_value_release(list);
+            } else {
+              size_t cap = want * 4;
+              if (cap < 16) cap = 16;
+              uint8_t *buf = (uint8_t *)malloc(cap);
+              if (!buf) {
+                ps_throw(ctx, PS_ERR_OOM, "out of memory");
+                goto raise;
+              }
+              size_t len = 0;
+              for (size_t i = 0; i < want; i++) {
+                uint8_t g[4];
+                size_t glen = 0;
+                int r = read_utf8_glyph_stream(ctx, f->fp, g, &glen);
+                if (r == 0) break;
+                if (r < 0) {
+                  free(buf);
+                  goto raise;
+                }
+                if (len + glen > cap) {
+                  cap *= 2;
+                  uint8_t *nbuf = (uint8_t *)realloc(buf, cap);
+                  if (!nbuf) {
+                    free(buf);
+                    ps_throw(ctx, PS_ERR_OOM, "out of memory");
+                    goto raise;
+                  }
+                  buf = nbuf;
+                }
+                memcpy(buf + len, g, glen);
+                len += glen;
+              }
+              if (len == 0) {
+                free(buf);
+                PS_Value *s = ps_make_string_utf8(ctx, "", 0);
+                if (!s) goto raise;
+                bindings_set(&temps, ins->dst, s);
+                ps_value_release(s);
+                continue;
+              }
+              PS_Value *s = ps_make_string_utf8(ctx, (const char *)buf, len);
+              free(buf);
+              if (!s) goto raise;
+              bindings_set(&temps, ins->dst, s);
+              ps_value_release(s);
             }
-            f->at_start = 0;
             continue;
           }
           if (strcmp(ins->method, "write") == 0) {
+            if (!expect_arity(ctx, ins, 1, 1)) goto raise;
             if (!can_write) {
               ps_throw(ctx, PS_ERR_RANGE, "file not writable");
               goto raise;
@@ -1378,9 +1759,12 @@ static int exec_function(PS_Context *ctx, PS_IR_Module *m, IRFunction *f, PS_Val
             }
             continue;
           }
+          ps_throw(ctx, PS_ERR_TYPE, "unknown method");
+          goto raise;
         }
         if (recv->tag == PS_V_INT) {
           if (strcmp(ins->method, "toByte") == 0) {
+            if (!expect_arity(ctx, ins, 0, 0)) goto raise;
             int64_t v = recv->as.int_v;
             if (v < 0 || v > 255) {
               ps_throw(ctx, PS_ERR_RANGE, "byte out of range");
@@ -1390,10 +1774,12 @@ static int exec_function(PS_Context *ctx, PS_IR_Module *m, IRFunction *f, PS_Val
             bindings_set(&temps, ins->dst, b);
             ps_value_release(b);
           } else if (strcmp(ins->method, "toFloat") == 0) {
+            if (!expect_arity(ctx, ins, 0, 0)) goto raise;
             PS_Value *f = ps_make_float(ctx, (double)recv->as.int_v);
             bindings_set(&temps, ins->dst, f);
             ps_value_release(f);
           } else if (strcmp(ins->method, "toBytes") == 0) {
+            if (!expect_arity(ctx, ins, 0, 0)) goto raise;
             uint8_t buf[8];
             memcpy(buf, &recv->as.int_v, 8);
             PS_Value *b = ps_make_bytes(ctx, buf, 8);
@@ -1401,6 +1787,7 @@ static int exec_function(PS_Context *ctx, PS_IR_Module *m, IRFunction *f, PS_Val
             bindings_set(&temps, ins->dst, b);
             ps_value_release(b);
           } else if (strcmp(ins->method, "abs") == 0) {
+            if (!expect_arity(ctx, ins, 0, 0)) goto raise;
             if (recv->as.int_v == INT64_MIN) {
               ps_throw(ctx, PS_ERR_RANGE, "int overflow");
               goto raise;
@@ -1410,23 +1797,33 @@ static int exec_function(PS_Context *ctx, PS_IR_Module *m, IRFunction *f, PS_Val
             bindings_set(&temps, ins->dst, i);
             ps_value_release(i);
           } else if (strcmp(ins->method, "sign") == 0) {
+            if (!expect_arity(ctx, ins, 0, 0)) goto raise;
             int64_t v = recv->as.int_v == 0 ? 0 : (recv->as.int_v > 0 ? 1 : -1);
             PS_Value *i = ps_make_int(ctx, v);
             bindings_set(&temps, ins->dst, i);
             ps_value_release(i);
+          } else {
+            ps_throw(ctx, PS_ERR_TYPE, "unknown method");
+            goto raise;
           }
         } else if (recv->tag == PS_V_BYTE) {
           if (strcmp(ins->method, "toInt") == 0) {
+            if (!expect_arity(ctx, ins, 0, 0)) goto raise;
             PS_Value *i = ps_make_int(ctx, (int64_t)recv->as.byte_v);
             bindings_set(&temps, ins->dst, i);
             ps_value_release(i);
           } else if (strcmp(ins->method, "toFloat") == 0) {
+            if (!expect_arity(ctx, ins, 0, 0)) goto raise;
             PS_Value *f = ps_make_float(ctx, (double)recv->as.byte_v);
             bindings_set(&temps, ins->dst, f);
             ps_value_release(f);
+          } else {
+            ps_throw(ctx, PS_ERR_TYPE, "unknown method");
+            goto raise;
           }
         } else if (recv->tag == PS_V_FLOAT) {
           if (strcmp(ins->method, "toInt") == 0) {
+            if (!expect_arity(ctx, ins, 0, 0)) goto raise;
             double v = recv->as.float_v;
             if (!isfinite(v)) {
               ps_throw(ctx, PS_ERR_TYPE, "invalid float to int");
@@ -1441,6 +1838,7 @@ static int exec_function(PS_Context *ctx, PS_IR_Module *m, IRFunction *f, PS_Val
             bindings_set(&temps, ins->dst, i);
             ps_value_release(i);
           } else if (strcmp(ins->method, "toBytes") == 0) {
+            if (!expect_arity(ctx, ins, 0, 0)) goto raise;
             uint8_t buf[8];
             memcpy(buf, &recv->as.float_v, 8);
             PS_Value *b = ps_make_bytes(ctx, buf, 8);
@@ -1448,56 +1846,72 @@ static int exec_function(PS_Context *ctx, PS_IR_Module *m, IRFunction *f, PS_Val
             bindings_set(&temps, ins->dst, b);
             ps_value_release(b);
           } else if (strcmp(ins->method, "abs") == 0) {
+            if (!expect_arity(ctx, ins, 0, 0)) goto raise;
             PS_Value *f = ps_make_float(ctx, fabs(recv->as.float_v));
             bindings_set(&temps, ins->dst, f);
             ps_value_release(f);
           } else if (strcmp(ins->method, "isNaN") == 0) {
+            if (!expect_arity(ctx, ins, 0, 0)) goto raise;
             PS_Value *b = ps_make_bool(ctx, isnan(recv->as.float_v) ? 1 : 0);
             bindings_set(&temps, ins->dst, b);
             ps_value_release(b);
           } else if (strcmp(ins->method, "isInfinite") == 0) {
+            if (!expect_arity(ctx, ins, 0, 0)) goto raise;
             PS_Value *b = ps_make_bool(ctx, isinf(recv->as.float_v) ? 1 : 0);
             bindings_set(&temps, ins->dst, b);
             ps_value_release(b);
           } else if (strcmp(ins->method, "isFinite") == 0) {
+            if (!expect_arity(ctx, ins, 0, 0)) goto raise;
             PS_Value *b = ps_make_bool(ctx, isfinite(recv->as.float_v) ? 1 : 0);
             bindings_set(&temps, ins->dst, b);
             ps_value_release(b);
+          } else {
+            ps_throw(ctx, PS_ERR_TYPE, "unknown method");
+            goto raise;
           }
         } else if (recv->tag == PS_V_GLYPH) {
           if (strcmp(ins->method, "isLetter") == 0) {
+            if (!expect_arity(ctx, ins, 0, 0)) goto raise;
             PS_Value *b = ps_make_bool(ctx, glyph_is_letter(recv->as.glyph_v));
             bindings_set(&temps, ins->dst, b);
             ps_value_release(b);
           } else if (strcmp(ins->method, "isDigit") == 0) {
+            if (!expect_arity(ctx, ins, 0, 0)) goto raise;
             PS_Value *b = ps_make_bool(ctx, glyph_is_digit(recv->as.glyph_v));
             bindings_set(&temps, ins->dst, b);
             ps_value_release(b);
           } else if (strcmp(ins->method, "isWhitespace") == 0) {
+            if (!expect_arity(ctx, ins, 0, 0)) goto raise;
             PS_Value *b = ps_make_bool(ctx, glyph_is_whitespace(recv->as.glyph_v));
             bindings_set(&temps, ins->dst, b);
             ps_value_release(b);
           } else if (strcmp(ins->method, "isUpper") == 0) {
+            if (!expect_arity(ctx, ins, 0, 0)) goto raise;
             PS_Value *b = ps_make_bool(ctx, glyph_is_upper(recv->as.glyph_v));
             bindings_set(&temps, ins->dst, b);
             ps_value_release(b);
           } else if (strcmp(ins->method, "isLower") == 0) {
+            if (!expect_arity(ctx, ins, 0, 0)) goto raise;
             PS_Value *b = ps_make_bool(ctx, glyph_is_lower(recv->as.glyph_v));
             bindings_set(&temps, ins->dst, b);
             ps_value_release(b);
           } else if (strcmp(ins->method, "toUpper") == 0) {
+            if (!expect_arity(ctx, ins, 0, 0)) goto raise;
             PS_Value *g = ps_make_glyph(ctx, glyph_to_upper(recv->as.glyph_v));
             bindings_set(&temps, ins->dst, g);
             ps_value_release(g);
           } else if (strcmp(ins->method, "toLower") == 0) {
+            if (!expect_arity(ctx, ins, 0, 0)) goto raise;
             PS_Value *g = ps_make_glyph(ctx, glyph_to_lower(recv->as.glyph_v));
             bindings_set(&temps, ins->dst, g);
             ps_value_release(g);
           } else if (strcmp(ins->method, "toInt") == 0) {
+            if (!expect_arity(ctx, ins, 0, 0)) goto raise;
             PS_Value *i = ps_make_int(ctx, (int64_t)recv->as.glyph_v);
             bindings_set(&temps, ins->dst, i);
             ps_value_release(i);
           } else if (strcmp(ins->method, "toUtf8Bytes") == 0) {
+            if (!expect_arity(ctx, ins, 0, 0)) goto raise;
             uint8_t buf[4];
             size_t n = 0;
             if (!glyph_to_utf8(recv->as.glyph_v, buf, &n)) {
@@ -1508,31 +1922,39 @@ static int exec_function(PS_Context *ctx, PS_IR_Module *m, IRFunction *f, PS_Val
             if (!b) goto raise;
             bindings_set(&temps, ins->dst, b);
             ps_value_release(b);
+          } else {
+            ps_throw(ctx, PS_ERR_TYPE, "unknown method");
+            goto raise;
           }
         } else if (recv->tag == PS_V_STRING) {
           if (strcmp(ins->method, "length") == 0) {
+            if (!expect_arity(ctx, ins, 0, 0)) goto raise;
             size_t gl = ps_utf8_glyph_len((const uint8_t *)recv->as.string_v.ptr, recv->as.string_v.len);
             PS_Value *v = ps_make_int(ctx, (int64_t)gl);
             bindings_set(&temps, ins->dst, v);
             ps_value_release(v);
           } else if (strcmp(ins->method, "isEmpty") == 0) {
+            if (!expect_arity(ctx, ins, 0, 0)) goto raise;
             size_t gl = ps_utf8_glyph_len((const uint8_t *)recv->as.string_v.ptr, recv->as.string_v.len);
             PS_Value *v = ps_make_bool(ctx, gl == 0);
             bindings_set(&temps, ins->dst, v);
             ps_value_release(v);
           } else if (strcmp(ins->method, "toInt") == 0) {
+            if (!expect_arity(ctx, ins, 0, 0)) goto raise;
             int64_t iv = 0;
             if (!parse_int_strict(ctx, recv->as.string_v.ptr, recv->as.string_v.len, &iv)) goto raise;
             PS_Value *v = ps_make_int(ctx, iv);
             bindings_set(&temps, ins->dst, v);
             ps_value_release(v);
           } else if (strcmp(ins->method, "toFloat") == 0) {
+            if (!expect_arity(ctx, ins, 0, 0)) goto raise;
             double fv = 0.0;
             if (!parse_float_strict(ctx, recv->as.string_v.ptr, recv->as.string_v.len, &fv)) goto raise;
             PS_Value *v = ps_make_float(ctx, fv);
             bindings_set(&temps, ins->dst, v);
             ps_value_release(v);
           } else if (strcmp(ins->method, "substring") == 0) {
+            if (!expect_arity(ctx, ins, 2, 2)) goto raise;
             PS_Value *a = get_value(&temps, &vars, ins->args[0]);
             PS_Value *b = get_value(&temps, &vars, ins->args[1]);
             PS_Value *v = ps_string_substring(ctx, recv, (size_t)a->as.int_v, (size_t)b->as.int_v);
@@ -1540,43 +1962,51 @@ static int exec_function(PS_Context *ctx, PS_IR_Module *m, IRFunction *f, PS_Val
             bindings_set(&temps, ins->dst, v);
             ps_value_release(v);
           } else if (strcmp(ins->method, "indexOf") == 0) {
+            if (!expect_arity(ctx, ins, 1, 1)) goto raise;
             PS_Value *needle = get_value(&temps, &vars, ins->args[0]);
             int64_t idx = ps_string_index_of(recv, needle);
             PS_Value *v = ps_make_int(ctx, idx);
             bindings_set(&temps, ins->dst, v);
             ps_value_release(v);
           } else if (strcmp(ins->method, "startsWith") == 0) {
+            if (!expect_arity(ctx, ins, 1, 1)) goto raise;
             PS_Value *p = get_value(&temps, &vars, ins->args[0]);
             PS_Value *v = ps_make_bool(ctx, ps_string_starts_with(recv, p));
             bindings_set(&temps, ins->dst, v);
             ps_value_release(v);
           } else if (strcmp(ins->method, "endsWith") == 0) {
+            if (!expect_arity(ctx, ins, 1, 1)) goto raise;
             PS_Value *p = get_value(&temps, &vars, ins->args[0]);
             PS_Value *v = ps_make_bool(ctx, ps_string_ends_with(recv, p));
             bindings_set(&temps, ins->dst, v);
             ps_value_release(v);
           } else if (strcmp(ins->method, "split") == 0) {
+            if (!expect_arity(ctx, ins, 1, 1)) goto raise;
             PS_Value *sep = get_value(&temps, &vars, ins->args[0]);
             PS_Value *v = ps_string_split(ctx, recv, sep);
             if (!v) goto raise;
             bindings_set(&temps, ins->dst, v);
             ps_value_release(v);
           } else if (strcmp(ins->method, "trim") == 0) {
+            if (!expect_arity(ctx, ins, 0, 0)) goto raise;
             PS_Value *v = ps_string_trim(ctx, recv, 0);
             if (!v) goto raise;
             bindings_set(&temps, ins->dst, v);
             ps_value_release(v);
           } else if (strcmp(ins->method, "trimStart") == 0) {
+            if (!expect_arity(ctx, ins, 0, 0)) goto raise;
             PS_Value *v = ps_string_trim(ctx, recv, 1);
             if (!v) goto raise;
             bindings_set(&temps, ins->dst, v);
             ps_value_release(v);
           } else if (strcmp(ins->method, "trimEnd") == 0) {
+            if (!expect_arity(ctx, ins, 0, 0)) goto raise;
             PS_Value *v = ps_string_trim(ctx, recv, 2);
             if (!v) goto raise;
             bindings_set(&temps, ins->dst, v);
             ps_value_release(v);
           } else if (strcmp(ins->method, "replace") == 0) {
+            if (!expect_arity(ctx, ins, 2, 2)) goto raise;
             PS_Value *a = get_value(&temps, &vars, ins->args[0]);
             PS_Value *b = get_value(&temps, &vars, ins->args[1]);
             PS_Value *v = ps_string_replace(ctx, recv, a, b);
@@ -1584,28 +2014,66 @@ static int exec_function(PS_Context *ctx, PS_IR_Module *m, IRFunction *f, PS_Val
             bindings_set(&temps, ins->dst, v);
             ps_value_release(v);
           } else if (strcmp(ins->method, "toUpper") == 0) {
+            if (!expect_arity(ctx, ins, 0, 0)) goto raise;
             PS_Value *v = ps_string_to_upper(ctx, recv);
             bindings_set(&temps, ins->dst, v);
             ps_value_release(v);
           } else if (strcmp(ins->method, "toLower") == 0) {
+            if (!expect_arity(ctx, ins, 0, 0)) goto raise;
             PS_Value *v = ps_string_to_lower(ctx, recv);
             bindings_set(&temps, ins->dst, v);
             ps_value_release(v);
           } else if (strcmp(ins->method, "toUtf8Bytes") == 0) {
+            if (!expect_arity(ctx, ins, 0, 0)) goto raise;
             PS_Value *v = ps_string_to_utf8_bytes(ctx, recv);
             bindings_set(&temps, ins->dst, v);
             ps_value_release(v);
+          } else if (strcmp(ins->method, "concat") == 0) {
+            if (!expect_arity(ctx, ins, 1, 1)) goto raise;
+            PS_Value *b = NULL;
+            if (ins->arg_count > 0) b = get_value(&temps, &vars, ins->args[0]);
+            if (!b || b->tag != PS_V_STRING) {
+              ps_throw(ctx, PS_ERR_TYPE, "concat expects string");
+              goto raise;
+            }
+            PS_Value *v = ps_string_concat(ctx, recv, b);
+            if (!v) goto raise;
+            bindings_set(&temps, ins->dst, v);
+            ps_value_release(v);
+          } else {
+            ps_throw(ctx, PS_ERR_TYPE, "unknown method");
+            goto raise;
           }
         } else if (recv->tag == PS_V_LIST) {
           if (strcmp(ins->method, "length") == 0) {
+            if (!expect_arity(ctx, ins, 0, 0)) goto raise;
             PS_Value *v = ps_make_int(ctx, (int64_t)recv->as.list_v.len);
             bindings_set(&temps, ins->dst, v);
             ps_value_release(v);
           } else if (strcmp(ins->method, "isEmpty") == 0) {
+            if (!expect_arity(ctx, ins, 0, 0)) goto raise;
             PS_Value *v = ps_make_bool(ctx, recv->as.list_v.len == 0);
             bindings_set(&temps, ins->dst, v);
             ps_value_release(v);
+          } else if (strcmp(ins->method, "pop") == 0) {
+            if (!expect_arity(ctx, ins, 0, 0)) goto raise;
+            if (recv->as.list_v.len == 0) {
+              ps_throw(ctx, PS_ERR_RANGE, "pop on empty list");
+              goto raise;
+            }
+            PS_Value *v = recv->as.list_v.items[recv->as.list_v.len - 1];
+            recv->as.list_v.len -= 1;
+            recv->as.list_v.version += 1;
+            bindings_set(&temps, ins->dst, v);
+          } else if (strcmp(ins->method, "push") == 0) {
+            if (!expect_arity(ctx, ins, 1, 1)) goto raise;
+            PS_Value *v = get_value(&temps, &vars, ins->args[0]);
+            if (!ps_list_push_internal(ctx, recv, v)) goto raise;
+            PS_Value *rv = ps_make_int(ctx, (int64_t)recv->as.list_v.len);
+            bindings_set(&temps, ins->dst, rv);
+            ps_value_release(rv);
           } else if (strcmp(ins->method, "contains") == 0) {
+            if (!expect_arity(ctx, ins, 1, 1)) goto raise;
             PS_Value *needle = get_value(&temps, &vars, ins->args[0]);
             int found = 0;
             for (size_t i = 0; i < recv->as.list_v.len; i++) {
@@ -1618,6 +2086,7 @@ static int exec_function(PS_Context *ctx, PS_IR_Module *m, IRFunction *f, PS_Val
             bindings_set(&temps, ins->dst, v);
             ps_value_release(v);
           } else if (strcmp(ins->method, "sort") == 0) {
+            if (!expect_arity(ctx, ins, 0, 0)) goto raise;
             size_t n = recv->as.list_v.len;
             PS_ValueTag tag = PS_V_VOID;
             if (n > 0) {
@@ -1654,15 +2123,13 @@ static int exec_function(PS_Context *ctx, PS_IR_Module *m, IRFunction *f, PS_Val
             PS_Value *v = ps_make_int(ctx, (int64_t)recv->as.list_v.len);
             bindings_set(&temps, ins->dst, v);
             ps_value_release(v);
-          } else if (strcmp(ins->method, "join") == 0 || strcmp(ins->method, "concat") == 0) {
+          } else if (strcmp(ins->method, "join") == 0) {
+            if (!expect_arity(ctx, ins, 1, 1)) goto raise;
             size_t n = recv->as.list_v.len;
-            PS_Value *sepv = NULL;
-            if (strcmp(ins->method, "join") == 0) {
-              if (ins->arg_count > 0) sepv = get_value(&temps, &vars, ins->args[0]);
-              if (sepv && sepv->tag != PS_V_STRING) {
-                ps_throw(ctx, PS_ERR_TYPE, "join expects string separator");
-                goto raise;
-              }
+            PS_Value *sepv = get_value(&temps, &vars, ins->args[0]);
+            if (sepv && sepv->tag != PS_V_STRING) {
+              ps_throw(ctx, PS_ERR_TYPE, "join expects string separator");
+              goto raise;
             }
             size_t sep_len = sepv ? sepv->as.string_v.len : 0;
             size_t total = 0;
@@ -1697,17 +2164,81 @@ static int exec_function(PS_Context *ctx, PS_IR_Module *m, IRFunction *f, PS_Val
             if (!out) goto raise;
             bindings_set(&temps, ins->dst, out);
             ps_value_release(out);
+          } else if (strcmp(ins->method, "concat") == 0) {
+            if (!expect_arity(ctx, ins, 0, 0)) goto raise;
+            size_t n = recv->as.list_v.len;
+            size_t total = 0;
+            for (size_t i = 0; i < n; i++) {
+              PS_Value *it = recv->as.list_v.items[i];
+              if (!it || it->tag != PS_V_STRING) {
+                ps_throw(ctx, PS_ERR_TYPE, "concat expects list<string>");
+                goto raise;
+              }
+              total += it->as.string_v.len;
+            }
+            char *buf = (char *)malloc(total + 1);
+            if (!buf && total > 0) {
+              ps_throw(ctx, PS_ERR_OOM, "out of memory");
+              goto raise;
+            }
+            size_t off = 0;
+            for (size_t i = 0; i < n; i++) {
+              if (recv->as.list_v.items[i]->as.string_v.len > 0) {
+                memcpy(buf + off, recv->as.list_v.items[i]->as.string_v.ptr, recv->as.list_v.items[i]->as.string_v.len);
+                off += recv->as.list_v.items[i]->as.string_v.len;
+              }
+            }
+            if (buf) buf[off] = '\0';
+            PS_Value *out = ps_make_string_utf8(ctx, buf ? buf : "", off);
+            if (buf) free(buf);
+            if (!out) goto raise;
+            bindings_set(&temps, ins->dst, out);
+            ps_value_release(out);
+          } else if (strcmp(ins->method, "toUtf8String") == 0) {
+            if (!expect_arity(ctx, ins, 0, 0)) goto raise;
+            size_t n = recv->as.list_v.len;
+            uint8_t *buf = (uint8_t *)malloc(n);
+            if (!buf && n > 0) {
+              ps_throw(ctx, PS_ERR_OOM, "out of memory");
+              goto raise;
+            }
+            for (size_t i = 0; i < n; i++) {
+              PS_Value *it = recv->as.list_v.items[i];
+              if (!it || (it->tag != PS_V_BYTE && it->tag != PS_V_INT)) {
+                free(buf);
+                ps_throw(ctx, PS_ERR_TYPE, "list<byte> expected");
+                goto raise;
+              }
+              int64_t v = (it->tag == PS_V_BYTE) ? it->as.byte_v : it->as.int_v;
+              if (v < 0 || v > 255) {
+                free(buf);
+                ps_throw(ctx, PS_ERR_RANGE, "byte out of range");
+                goto raise;
+              }
+              buf[i] = (uint8_t)v;
+            }
+            PS_Value *s = ps_make_string_utf8(ctx, (const char *)buf, n);
+            free(buf);
+            if (!s) goto raise;
+            bindings_set(&temps, ins->dst, s);
+            ps_value_release(s);
+          } else {
+            ps_throw(ctx, PS_ERR_TYPE, "unknown method");
+            goto raise;
           }
         } else if (recv->tag == PS_V_MAP) {
           if (strcmp(ins->method, "length") == 0) {
+            if (!expect_arity(ctx, ins, 0, 0)) goto raise;
             PS_Value *v = ps_make_int(ctx, (int64_t)recv->as.map_v.len);
             bindings_set(&temps, ins->dst, v);
             ps_value_release(v);
           } else if (strcmp(ins->method, "isEmpty") == 0) {
+            if (!expect_arity(ctx, ins, 0, 0)) goto raise;
             PS_Value *v = ps_make_bool(ctx, recv->as.map_v.len == 0);
             bindings_set(&temps, ins->dst, v);
             ps_value_release(v);
           } else if (strcmp(ins->method, "containsKey") == 0) {
+            if (!expect_arity(ctx, ins, 1, 1)) goto raise;
             PS_Value *key = get_value(&temps, &vars, ins->args[0]);
             if (recv->as.map_v.len > 0) {
               PS_Value *first = map_first_key(recv);
@@ -1722,6 +2253,7 @@ static int exec_function(PS_Context *ctx, PS_IR_Module *m, IRFunction *f, PS_Val
             bindings_set(&temps, ins->dst, v);
             ps_value_release(v);
           } else if (strcmp(ins->method, "keys") == 0) {
+            if (!expect_arity(ctx, ins, 0, 0)) goto raise;
             PS_Value *out = ps_list_new(ctx);
             if (!out) goto raise;
             PS_Map *m = &recv->as.map_v;
@@ -1735,6 +2267,7 @@ static int exec_function(PS_Context *ctx, PS_IR_Module *m, IRFunction *f, PS_Val
             bindings_set(&temps, ins->dst, out);
             ps_value_release(out);
           } else if (strcmp(ins->method, "values") == 0) {
+            if (!expect_arity(ctx, ins, 0, 0)) goto raise;
             PS_Value *out = ps_list_new(ctx);
             if (!out) goto raise;
             PS_Map *m = &recv->as.map_v;
@@ -1747,9 +2280,13 @@ static int exec_function(PS_Context *ctx, PS_IR_Module *m, IRFunction *f, PS_Val
             }
             bindings_set(&temps, ins->dst, out);
             ps_value_release(out);
+          } else {
+            ps_throw(ctx, PS_ERR_TYPE, "unknown method");
+            goto raise;
           }
         } else if (recv->tag == PS_V_VIEW) {
           if (strcmp(ins->method, "length") == 0) {
+            if (!expect_arity(ctx, ins, 0, 0)) goto raise;
             if (!view_is_valid(recv)) {
               ps_throw(ctx, PS_ERR_RANGE, "view invalidated");
               goto raise;
@@ -1758,6 +2295,7 @@ static int exec_function(PS_Context *ctx, PS_IR_Module *m, IRFunction *f, PS_Val
             bindings_set(&temps, ins->dst, v);
             ps_value_release(v);
           } else if (strcmp(ins->method, "isEmpty") == 0) {
+            if (!expect_arity(ctx, ins, 0, 0)) goto raise;
             if (!view_is_valid(recv)) {
               ps_throw(ctx, PS_ERR_RANGE, "view invalidated");
               goto raise;
@@ -1765,27 +2303,21 @@ static int exec_function(PS_Context *ctx, PS_IR_Module *m, IRFunction *f, PS_Val
             PS_Value *v = ps_make_bool(ctx, recv->as.view_v.len == 0);
             bindings_set(&temps, ins->dst, v);
             ps_value_release(v);
-          }
-        } else if (recv->tag == PS_V_LIST && strcmp(ins->method, "pop") == 0) {
-          if (recv->as.list_v.len == 0) {
-            ps_throw(ctx, PS_ERR_RANGE, "pop on empty list");
+          } else {
+            ps_throw(ctx, PS_ERR_TYPE, "unknown method");
             goto raise;
           }
-          PS_Value *v = recv->as.list_v.items[recv->as.list_v.len - 1];
-          recv->as.list_v.len -= 1;
-          recv->as.list_v.version += 1;
-          bindings_set(&temps, ins->dst, v);
-        } else if (recv->tag == PS_V_LIST && strcmp(ins->method, "push") == 0) {
-          PS_Value *v = get_value(&temps, &vars, ins->args[0]);
-          if (!ps_list_push_internal(ctx, recv, v)) goto raise;
-          PS_Value *rv = ps_make_int(ctx, (int64_t)recv->as.list_v.len);
-          bindings_set(&temps, ins->dst, rv);
-          ps_value_release(rv);
-        } else if (recv->tag == PS_V_BYTES && strcmp(ins->method, "toUtf8String") == 0) {
-          PS_Value *v = ps_bytes_to_utf8_string(ctx, recv);
-          if (!v) goto raise;
-          bindings_set(&temps, ins->dst, v);
-          ps_value_release(v);
+        } else if (recv->tag == PS_V_BYTES) {
+          if (strcmp(ins->method, "toUtf8String") == 0) {
+            if (!expect_arity(ctx, ins, 0, 0)) goto raise;
+            PS_Value *v = ps_bytes_to_utf8_string(ctx, recv);
+            if (!v) goto raise;
+            bindings_set(&temps, ins->dst, v);
+            ps_value_release(v);
+          } else {
+            ps_throw(ctx, PS_ERR_TYPE, "unknown method");
+            goto raise;
+          }
         }
         continue;
       }
@@ -1823,7 +2355,7 @@ static int exec_function(PS_Context *ctx, PS_IR_Module *m, IRFunction *f, PS_Val
           s = ps_make_string_utf8(ctx, (const char *)buf, n);
         } else if (v->tag == PS_V_FLOAT) {
           char buf[64];
-          snprintf(buf, sizeof(buf), "%.17g", v->as.float_v);
+          format_float_shortest(v->as.float_v, buf, sizeof(buf));
           s = ps_make_string_utf8(ctx, buf, strlen(buf));
         } else if (v->tag == PS_V_BOOL) {
           const char *t = v->as.bool_v ? "true" : "false";

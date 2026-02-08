@@ -1,0 +1,10 @@
+import Io;
+
+function main() : void {
+    int x = 1;
+    {
+        int x = 2; // shadowing local
+        Io.printLine(x.toString()); // 2
+    }
+    Io.printLine(x.toString()); // 1
+}

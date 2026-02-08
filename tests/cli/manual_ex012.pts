@@ -1,0 +1,8 @@
+import Io;
+
+function main() : void {
+    float f1 = 1.5;
+    float f2 = 1e-3;
+    Io.printLine(f1.toString());
+    Io.printLine(f2.toString());
+}

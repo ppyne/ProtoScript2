@@ -1,0 +1,7 @@
+import Io;
+
+function main() : void {
+    string s = "Abc!";
+    string t = s.toUpper();
+    Io.printLine((t == "ABC!").toString());
+}

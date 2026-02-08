@@ -49,10 +49,16 @@ function isIntLike(t) {
 
 function loadModuleRegistry() {
   const env = process.env.PS_MODULE_REGISTRY;
+  const cliDir = process.argv[1] ? path.dirname(process.argv[1]) : null;
   const candidates = [];
   if (env) candidates.push(env);
+  if (cliDir) candidates.push(path.join(cliDir, "registry.json"));
+  candidates.push(path.join(__dirname, "registry.json"));
+  candidates.push(path.join(process.cwd(), "registry.json"));
+  candidates.push("/etc/ps/registry.json");
+  candidates.push("/usr/local/etc/ps/registry.json");
+  candidates.push("/opt/local/etc/ps/registry.json");
   candidates.push(path.join(process.cwd(), "modules", "registry.json"));
-  candidates.push(path.join(__dirname, "..", "modules", "registry.json"));
   for (const c of candidates) {
     if (c && fs.existsSync(c)) {
       try {
@@ -90,9 +96,9 @@ function buildImportMap(ast) {
       } else if (c.type === "string") {
         if (typeof c.value !== "string") continue;
         consts.set(c.name, { type: "string", value: c.value });
-      } else if (c.type === "file") {
+      } else if (c.type === "TextFile" || c.type === "BinaryFile") {
         if (typeof c.value !== "string") continue;
-        consts.set(c.name, { type: "file", value: c.value });
+        consts.set(c.name, { type: c.type, value: c.value });
       } else if (c.type === "eof") {
         consts.set(c.name, { type: "eof", value: "" });
       }
@@ -122,8 +128,8 @@ class Scope {
     this.parent = parent;
     this.vars = new Map();
   }
-  define(name, t) {
-    this.vars.set(name, t);
+  define(name, t, irName) {
+    this.vars.set(name, { type: t, irName });
   }
   get(name) {
     if (this.vars.has(name)) return this.vars.get(name);
@@ -137,6 +143,7 @@ class IRBuilder {
     this.ast = ast;
     this.tempId = 0;
     this.blockId = 0;
+    this.varId = 0;
     this.functions = new Map();
     this.prototypes = new Map();
     const imports = buildImportMap(ast);
@@ -145,9 +152,25 @@ class IRBuilder {
     this.moduleConsts = imports.moduleConsts;
   }
 
+  inferFileTypeFromIoOpen(expr) {
+    if (!expr || expr.kind !== "CallExpr") return null;
+    if (!expr.callee || expr.callee.kind !== "MemberExpr") return null;
+    const callee = expr.callee;
+    if (!callee.target || callee.target.kind !== "Identifier") return null;
+    if (callee.target.name !== "Io") return null;
+    if (callee.name === "openText") return "TextFile";
+    if (callee.name === "openBinary") return "BinaryFile";
+    return null;
+  }
+
   nextTemp() {
     this.tempId += 1;
     return `%t${this.tempId}`;
+  }
+
+  nextVar(name) {
+    this.varId += 1;
+    return `${name}$${this.varId}`;
   }
 
   nextBlock(prefix = "b") {
@@ -189,8 +212,7 @@ class IRBuilder {
 
   lowerMethod(protoName, method) {
     const entry = { kind: "Block", label: "entry", instrs: [] };
-    const params = [{ name: "self", type: lowerType({ kind: "NamedType", name: protoName }), variadic: false }];
-    for (const p of method.params) params.push({ name: p.name, type: lowerType(p.type), variadic: !!p.variadic });
+    const params = [];
     const irFn = {
       kind: "Function",
       name: `${protoName}.${method.name}`,
@@ -199,8 +221,14 @@ class IRBuilder {
       blocks: [entry],
     };
     const scope = new Scope(null);
-    scope.define("self", { kind: "NamedType", name: protoName });
-    for (const p of method.params) scope.define(p.name, p.type);
+    const selfName = this.nextVar("self");
+    scope.define("self", { kind: "NamedType", name: protoName }, selfName);
+    params.push({ name: selfName, type: lowerType({ kind: "NamedType", name: protoName }), variadic: false });
+    for (const p of method.params) {
+      const irName = this.nextVar(p.name);
+      scope.define(p.name, p.type, irName);
+      params.push({ name: irName, type: lowerType(p.type), variadic: !!p.variadic });
+    }
     this.lowerBlock(method.body, entry, irFn, scope);
     return irFn;
   }
@@ -298,73 +326,85 @@ class IRBuilder {
     const irFn = {
       kind: "Function",
       name: fn.name,
-      params: fn.params.map((p) => ({ name: p.name, type: lowerType(p.type), variadic: !!p.variadic })),
+      params: [],
       returnType: lowerType(fn.retType),
       blocks: [entry],
     };
     const scope = new Scope(null);
-    for (const p of fn.params) scope.define(p.name, p.type);
+    for (const p of fn.params) {
+      const irName = this.nextVar(p.name);
+      scope.define(p.name, p.type, irName);
+      irFn.params.push({ name: irName, type: lowerType(p.type), variadic: !!p.variadic });
+    }
     this.lowerBlock(fn.body, entry, irFn, scope);
     return irFn;
   }
 
   lowerBlock(blockAst, block, irFn, scope) {
     const local = new Scope(scope);
-    for (const s of blockAst.stmts) this.lowerStmt(s, block, irFn, local);
+    let cur = block;
+    for (const s of blockAst.stmts) cur = this.lowerStmt(s, cur, irFn, local);
+    return cur;
   }
 
   lowerStmt(stmt, block, irFn, scope) {
     switch (stmt.kind) {
       case "VarDecl": {
         const declared = stmt.declaredType || (stmt.init ? this.inferExprType(stmt.init, scope) : { kind: "PrimitiveType", name: "void" });
-        scope.define(stmt.name, declared);
-        this.emit(block, { op: "var_decl", name: stmt.name, type: lowerType(declared) });
+        const irName = this.nextVar(stmt.name);
+        scope.define(stmt.name, declared, irName);
+        this.emit(block, { op: "var_decl", name: irName, type: lowerType(declared) });
         if (stmt.init) {
           const rhs = this.lowerExpr(stmt.init, block, irFn, scope);
-          this.emit(block, { op: "store_var", name: stmt.name, src: rhs.value, type: lowerType(rhs.type) });
+          this.emit(rhs.block, { op: "store_var", name: irName, src: rhs.value, type: lowerType(rhs.type) });
+          return rhs.block;
         }
-        break;
+        return block;
       }
       case "AssignStmt": {
         const rhs = this.lowerExpr(stmt.expr, block, irFn, scope);
+        let cur = rhs.block;
         if (stmt.target.kind === "Identifier") {
-          this.emit(block, { op: "store_var", name: stmt.target.name, src: rhs.value, type: lowerType(rhs.type) });
+          const entry = scope.get(stmt.target.name);
+          const irName = entry ? entry.irName : stmt.target.name;
+          this.emit(cur, { op: "store_var", name: irName, src: rhs.value, type: lowerType(rhs.type) });
         } else if (stmt.target.kind === "IndexExpr") {
-          const t = this.lowerExpr(stmt.target.target, block, irFn, scope);
-          const i = this.lowerExpr(stmt.target.index, block, irFn, scope);
-          this.emitIndexChecks(block, t, i, { forWrite: true });
-          this.emit(block, { op: "index_set", target: t.value, index: i.value, src: rhs.value });
+          const t = this.lowerExpr(stmt.target.target, cur, irFn, scope);
+          const i = this.lowerExpr(stmt.target.index, t.block, irFn, scope);
+          this.emitIndexChecks(i.block, t, i, { forWrite: true });
+          this.emit(i.block, { op: "index_set", target: t.value, index: i.value, src: rhs.value });
+          cur = i.block;
         } else if (stmt.target.kind === "MemberExpr") {
-          const t = this.lowerExpr(stmt.target.target, block, irFn, scope);
-          this.emit(block, { op: "member_set", target: t.value, name: stmt.target.name, src: rhs.value });
+          const t = this.lowerExpr(stmt.target.target, cur, irFn, scope);
+          this.emit(t.block, { op: "member_set", target: t.value, name: stmt.target.name, src: rhs.value });
+          cur = t.block;
         }
-        break;
+        return cur;
       }
       case "ExprStmt":
-        this.lowerExpr(stmt.expr, block, irFn, scope);
-        break;
+        return this.lowerExpr(stmt.expr, block, irFn, scope).block;
       case "ReturnStmt":
         if (stmt.expr) {
           const v = this.lowerExpr(stmt.expr, block, irFn, scope);
-          this.emit(block, { op: "ret", value: v.value, type: lowerType(v.type) });
+          this.emit(v.block, { op: "ret", value: v.value, type: lowerType(v.type) });
+          return v.block;
         } else {
           this.emit(block, { op: "ret_void" });
+          return block;
         }
-        break;
       case "ThrowStmt": {
         const v = this.lowerExpr(stmt.expr, block, irFn, scope);
-        this.emit(block, { op: "throw", value: v.value });
-        break;
+        this.emit(v.block, { op: "throw", value: v.value });
+        return v.block;
       }
       case "ForStmt":
-        this.lowerFor(stmt, block, irFn, scope);
-        break;
+        return this.lowerFor(stmt, block, irFn, scope);
+      case "IfStmt":
+        return this.lowerIf(stmt, block, irFn, scope);
       case "SwitchStmt":
-        this.lowerSwitch(stmt, block, irFn, scope);
-        break;
+        return this.lowerSwitch(stmt, block, irFn, scope);
       case "Block":
-        this.lowerBlock(stmt, block, irFn, scope);
-        break;
+        return this.lowerBlock(stmt, block, irFn, scope);
       case "TryStmt": {
         const catches = stmt.catches || [];
         const hasCatch = catches.length > 0;
@@ -386,9 +426,9 @@ class IRBuilder {
         this.emit(block, { op: "push_handler", target: handlerTarget });
         this.emit(block, { op: "jump", target: tryLabel });
         irFn.blocks.push(bTry);
-        this.lowerBlock(stmt.tryBlock, bTry, irFn, new Scope(scope));
-        this.emit(bTry, { op: "pop_handler" });
-        this.emit(bTry, { op: "jump", target: finallyLabel || doneLabel });
+        const tryEnd = this.lowerBlock(stmt.tryBlock, bTry, irFn, new Scope(scope));
+        this.emit(tryEnd, { op: "pop_handler" });
+        this.emit(tryEnd, { op: "jump", target: finallyLabel || doneLabel });
 
         let exTemp = null;
         if (hasCatch) {
@@ -424,8 +464,8 @@ class IRBuilder {
             cs.define(c.name, c.type);
             this.emit(bCatch, { op: "var_decl", name: c.name, type: lowerType(c.type) });
             this.emit(bCatch, { op: "store_var", name: c.name, src: exTemp, type: lowerType(c.type) });
-            this.lowerBlock(c.block, bCatch, irFn, cs);
-            this.emit(bCatch, { op: "jump", target: finallyLabel || doneLabel });
+            const catchEnd = this.lowerBlock(c.block, bCatch, irFn, cs);
+            this.emit(catchEnd, { op: "jump", target: finallyLabel || doneLabel });
           }
         } else {
           if (bFinally) irFn.blocks.push(bFinally);
@@ -434,25 +474,25 @@ class IRBuilder {
         }
 
         if (bFinally) {
-          this.lowerBlock(stmt.finallyBlock, bFinally, irFn, new Scope(scope));
-          this.emit(bFinally, { op: "jump", target: doneLabel });
+          const finallyEnd = this.lowerBlock(stmt.finallyBlock, bFinally, irFn, new Scope(scope));
+          this.emit(finallyEnd, { op: "jump", target: doneLabel });
         }
         if (bFinallyRethrow) {
-          this.lowerBlock(stmt.finallyBlock, bFinallyRethrow, irFn, new Scope(scope));
-          this.emit(bFinallyRethrow, { op: "rethrow" });
+          const finallyEnd = this.lowerBlock(stmt.finallyBlock, bFinallyRethrow, irFn, new Scope(scope));
+          this.emit(finallyEnd, { op: "rethrow" });
         }
         this.emit(bDone, { op: "nop" });
-        break;
+        return bDone;
       }
       case "BreakStmt":
         this.emit(block, { op: "break" });
-        break;
+        return block;
       case "ContinueStmt":
         this.emit(block, { op: "continue" });
-        break;
+        return block;
       default:
         this.emit(block, { op: "unhandled_stmt", kind: stmt.kind });
-        break;
+        return block;
     }
   }
 
@@ -470,20 +510,20 @@ class IRBuilder {
       const bDone = { kind: "Block", label: done, instrs: [] };
       irFn.blocks.push(bInit, bCond, bBody, bStep, bDone);
       this.emit(block, { op: "jump", target: init });
-      if (stmt.init) this.lowerStmtLikeForPart(stmt.init, bInit, irFn, new Scope(scope));
-      this.emit(bInit, { op: "jump", target: cond });
+      const bInitEnd = stmt.init ? this.lowerStmtLikeForPart(stmt.init, bInit, irFn, new Scope(scope)) : bInit;
+      this.emit(bInitEnd, { op: "jump", target: cond });
       if (stmt.cond) {
         const c = this.lowerExpr(stmt.cond, bCond, irFn, scope);
-        this.emit(bCond, { op: "branch_if", cond: c.value, then: body, else: done });
+        this.emit(c.block, { op: "branch_if", cond: c.value, then: body, else: done });
       } else {
         this.emit(bCond, { op: "jump", target: body });
       }
-      this.lowerStmt(stmt.body, bBody, irFn, new Scope(scope));
-      this.emit(bBody, { op: "jump", target: step });
-      if (stmt.step) this.lowerStmtLikeForPart(stmt.step, bStep, irFn, new Scope(scope));
-      this.emit(bStep, { op: "jump", target: cond });
+      const bodyEnd = this.lowerStmt(stmt.body, bBody, irFn, new Scope(scope));
+      this.emit(bodyEnd, { op: "jump", target: step });
+      const bStepEnd = stmt.step ? this.lowerStmtLikeForPart(stmt.step, bStep, irFn, new Scope(scope)) : bStep;
+      this.emit(bStepEnd, { op: "jump", target: cond });
       this.emit(bDone, { op: "nop" });
-      return;
+      return bDone;
     }
 
     const init = this.nextBlock(`for_${stmt.forKind}_init_`);
@@ -499,8 +539,8 @@ class IRBuilder {
     const seq = this.lowerExpr(stmt.iterExpr, bInit, irFn, scope);
     const cursor = this.nextTemp();
     this.emit(block, { op: "jump", target: init });
-    this.emit(bInit, { op: "iter_begin", dst: cursor, source: seq.value, mode: stmt.forKind });
-    this.emit(bInit, { op: "jump", target: cond });
+    this.emit(seq.block, { op: "iter_begin", dst: cursor, source: seq.value, mode: stmt.forKind });
+    this.emit(seq.block, { op: "jump", target: cond });
     this.emit(bCond, { op: "branch_iter_has_next", iter: cursor, then: body, else: done });
 
     const sBody = new Scope(scope);
@@ -508,18 +548,43 @@ class IRBuilder {
     this.emit(bBody, { op: "iter_next", dst: elem, iter: cursor, source: seq.value, mode: stmt.forKind });
     if (stmt.iterVar) {
       const vt = stmt.iterVar.declaredType || this.elementTypeForIter(seq.type, stmt.forKind);
-      sBody.define(stmt.iterVar.name, vt);
-      this.emit(bBody, { op: "var_decl", name: stmt.iterVar.name, type: lowerType(vt) });
-      this.emit(bBody, { op: "store_var", name: stmt.iterVar.name, src: elem, type: lowerType(vt) });
+      const irName = this.nextVar(stmt.iterVar.name);
+      sBody.define(stmt.iterVar.name, vt, irName);
+      this.emit(bBody, { op: "var_decl", name: irName, type: lowerType(vt) });
+      this.emit(bBody, { op: "store_var", name: irName, src: elem, type: lowerType(vt) });
     }
-    this.lowerStmt(stmt.body, bBody, irFn, sBody);
-    this.emit(bBody, { op: "jump", target: cond });
+    const bodyEnd = this.lowerStmt(stmt.body, bBody, irFn, sBody);
+    this.emit(bodyEnd, { op: "jump", target: cond });
     this.emit(bDone, { op: "nop" });
+    return bDone;
+  }
+
+  lowerIf(stmt, block, irFn, scope) {
+    const cond = this.lowerExpr(stmt.cond, block, irFn, scope);
+    const thenLabel = this.nextBlock("if_then_");
+    const doneLabel = this.nextBlock("if_done_");
+    const elseLabel = stmt.elseBranch ? this.nextBlock("if_else_") : doneLabel;
+    const bThen = { kind: "Block", label: thenLabel, instrs: [] };
+    const bElse = stmt.elseBranch ? { kind: "Block", label: elseLabel, instrs: [] } : null;
+    const bDone = { kind: "Block", label: doneLabel, instrs: [] };
+    irFn.blocks.push(bThen);
+    if (bElse) irFn.blocks.push(bElse);
+    irFn.blocks.push(bDone);
+
+    this.emit(cond.block, { op: "branch_if", cond: cond.value, then: thenLabel, else: elseLabel });
+    const thenEnd = this.lowerStmt(stmt.thenBranch, bThen, irFn, new Scope(scope));
+    this.emit(thenEnd, { op: "jump", target: doneLabel });
+    if (bElse) {
+      const elseEnd = this.lowerStmt(stmt.elseBranch, bElse, irFn, new Scope(scope));
+      this.emit(elseEnd, { op: "jump", target: doneLabel });
+    }
+    this.emit(bDone, { op: "nop" });
+    return bDone;
   }
 
   lowerStmtLikeForPart(node, block, irFn, scope) {
-    if (node.kind === "VarDecl" || node.kind === "AssignStmt") this.lowerStmt(node, block, irFn, scope);
-    else this.lowerExpr(node, block, irFn, scope);
+    if (node.kind === "VarDecl" || node.kind === "AssignStmt") return this.lowerStmt(node, block, irFn, scope);
+    return this.lowerExpr(node, block, irFn, scope).block;
   }
 
   lowerSwitch(stmt, block, irFn, scope) {
@@ -536,14 +601,15 @@ class IRBuilder {
       const bCmp = { kind: "Block", label: cmpLabel, instrs: [] };
       const bBody = { kind: "Block", label: bodyLabel, instrs: [] };
       irFn.blocks.push(bCmp, bBody);
-      if (idx === 0) this.emit(block, { op: "jump", target: cmpLabel });
+      if (idx === 0) this.emit(value.block, { op: "jump", target: cmpLabel });
       const cv = this.lowerExpr(c.value, bCmp, irFn, scope);
       const eq = this.nextTemp();
-      this.emit(bCmp, { op: "bin_op", dst: eq, operator: "==", left: value.value, right: cv.value });
-      this.emit(bCmp, { op: "branch_if", cond: eq, then: bodyLabel, else: nextLabel });
+      this.emit(cv.block, { op: "bin_op", dst: eq, operator: "==", left: value.value, right: cv.value });
+      this.emit(cv.block, { op: "branch_if", cond: eq, then: bodyLabel, else: nextLabel });
       const sBody = new Scope(scope);
-      for (const st of c.stmts) this.lowerStmt(st, bBody, irFn, sBody);
-      this.emit(bBody, { op: "jump", target: done });
+      let cur = bBody;
+      for (const st of c.stmts) cur = this.lowerStmt(st, cur, irFn, sBody);
+      this.emit(cur, { op: "jump", target: done });
     }
 
     const defaultLabel = stmt.defaultCase ? this.nextBlock("switch_default_") : done;
@@ -555,11 +621,13 @@ class IRBuilder {
     if (stmt.defaultCase) {
       const bDefault = { kind: "Block", label: defaultLabel, instrs: [] };
       irFn.blocks.push(bDefault);
-      for (const st of stmt.defaultCase.stmts) this.lowerStmt(st, bDefault, irFn, new Scope(scope));
-      this.emit(bDefault, { op: "jump", target: done });
+      let cur = bDefault;
+      for (const st of stmt.defaultCase.stmts) cur = this.lowerStmt(st, cur, irFn, new Scope(scope));
+      this.emit(cur, { op: "jump", target: done });
     }
     irFn.blocks.push(doneBlock);
     this.emit(doneBlock, { op: "nop" });
+    return doneBlock;
   }
 
   lowerExpr(expr, block, irFn, scope) {
@@ -568,65 +636,103 @@ class IRBuilder {
         const dst = this.nextTemp();
         const t = { kind: "PrimitiveType", name: expr.literalType };
         this.emit(block, { op: "const", dst, literalType: expr.literalType, value: expr.value });
-        return { value: dst, type: t };
+        return { value: dst, type: t, block };
       }
       case "Identifier": {
         const dst = this.nextTemp();
-        const t = scope.get(expr.name) || { kind: "PrimitiveType", name: "unknown" };
-        this.emit(block, { op: "load_var", dst, name: expr.name, type: lowerType(t) });
-        return { value: dst, type: t };
+        const entry = scope.get(expr.name);
+        const t = entry ? entry.type : { kind: "PrimitiveType", name: "unknown" };
+        const irName = entry ? entry.irName : expr.name;
+        this.emit(block, { op: "load_var", dst, name: irName, type: lowerType(t) });
+        return { value: dst, type: t, block };
       }
       case "UnaryExpr": {
         const v = this.lowerExpr(expr.expr, block, irFn, scope);
         const dst = this.nextTemp();
         if (expr.op === "-" && isIntLike(v.type)) {
-          this.emit(block, { op: "check_int_overflow_unary_minus", value: v.value });
+          this.emit(v.block, { op: "check_int_overflow_unary_minus", value: v.value });
         }
-        this.emit(block, { op: "unary_op", dst, operator: expr.op, src: v.value });
-        return { value: dst, type: v.type };
+        this.emit(v.block, { op: "unary_op", dst, operator: expr.op, src: v.value });
+        return { value: dst, type: v.type, block: v.block };
       }
       case "BinaryExpr": {
         const l = this.lowerExpr(expr.left, block, irFn, scope);
-        const r = this.lowerExpr(expr.right, block, irFn, scope);
+        if (expr.op === "&&" || expr.op === "||") {
+          const rightLabel = this.nextBlock("logic_right_");
+          const shortLabel = this.nextBlock("logic_short_");
+          const doneLabel = this.nextBlock("logic_done_");
+          const bRight = { kind: "Block", label: rightLabel, instrs: [] };
+          const bShort = { kind: "Block", label: shortLabel, instrs: [] };
+          const bDone = { kind: "Block", label: doneLabel, instrs: [] };
+          irFn.blocks.push(bRight, bShort, bDone);
+
+          this.emit(l.block, {
+            op: "branch_if",
+            cond: l.value,
+            then: expr.op === "&&" ? rightLabel : shortLabel,
+            else: expr.op === "&&" ? shortLabel : rightLabel,
+          });
+
+          const dst = this.nextTemp();
+          this.emit(bShort, {
+            op: "const",
+            dst,
+            literalType: "bool",
+            value: expr.op === "&&" ? "false" : "true",
+          });
+          this.emit(bShort, { op: "jump", target: doneLabel });
+
+          const r = this.lowerExpr(expr.right, bRight, irFn, scope);
+          this.emit(r.block, { op: "copy", dst, src: r.value });
+          this.emit(r.block, { op: "jump", target: doneLabel });
+
+          const contLabel = this.nextBlock("logic_cont_");
+          const bCont = { kind: "Block", label: contLabel, instrs: [] };
+          irFn.blocks.push(bCont);
+          this.emit(bDone, { op: "nop" });
+          this.emit(bDone, { op: "jump", target: contLabel });
+          return { value: dst, type: { kind: "PrimitiveType", name: "bool" }, block: bCont };
+        }
+        const r = this.lowerExpr(expr.right, l.block, irFn, scope);
         if (["+", "-", "*"].includes(expr.op) && isIntLike(l.type) && isIntLike(r.type)) {
-          this.emit(block, { op: "check_int_overflow", operator: expr.op, left: l.value, right: r.value });
+          this.emit(r.block, { op: "check_int_overflow", operator: expr.op, left: l.value, right: r.value });
         }
         if (["/", "%"].includes(expr.op) && isIntLike(l.type) && isIntLike(r.type)) {
-          this.emit(block, { op: "check_div_zero", divisor: r.value });
+          this.emit(r.block, { op: "check_div_zero", divisor: r.value });
         }
         if (["<<", ">>"].includes(expr.op) && isIntLike(l.type) && isIntLike(r.type)) {
-          this.emit(block, { op: "check_shift_range", shift: r.value, width: typeToString(l.type) === "byte" ? 8 : 64 });
+          this.emit(r.block, { op: "check_shift_range", shift: r.value, width: typeToString(l.type) === "byte" ? 8 : 64 });
         }
         const dst = this.nextTemp();
-        this.emit(block, { op: "bin_op", dst, operator: expr.op, left: l.value, right: r.value });
-        const outType = ["==", "!=", "<", "<=", ">", ">=", "&&", "||"].includes(expr.op)
+        this.emit(r.block, { op: "bin_op", dst, operator: expr.op, left: l.value, right: r.value });
+        const outType = ["==", "!=", "<", "<=", ">", ">="].includes(expr.op)
           ? { kind: "PrimitiveType", name: "bool" }
           : l.type;
-        return { value: dst, type: outType };
+        return { value: dst, type: outType, block: r.block };
       }
       case "ConditionalExpr": {
         const c = this.lowerExpr(expr.cond, block, irFn, scope);
-        const thenV = this.lowerExpr(expr.thenExpr, block, irFn, scope);
-        const elseV = this.lowerExpr(expr.elseExpr, block, irFn, scope);
+        const thenV = this.lowerExpr(expr.thenExpr, c.block, irFn, scope);
+        const elseV = this.lowerExpr(expr.elseExpr, thenV.block, irFn, scope);
         const dst = this.nextTemp();
-        this.emit(block, {
+        this.emit(elseV.block, {
           op: "select",
           dst,
           cond: c.value,
           thenValue: thenV.value,
           elseValue: elseV.value,
         });
-        return { value: dst, type: thenV.type };
+        return { value: dst, type: thenV.type, block: elseV.block };
       }
       case "CallExpr":
         return this.lowerCallExpr(expr, block, irFn, scope);
       case "IndexExpr": {
         const t = this.lowerExpr(expr.target, block, irFn, scope);
-        const i = this.lowerExpr(expr.index, block, irFn, scope);
-        this.emitIndexChecks(block, t, i, { forWrite: false });
+        const i = this.lowerExpr(expr.index, t.block, irFn, scope);
+        this.emitIndexChecks(i.block, t, i, { forWrite: false });
         const dst = this.nextTemp();
-        this.emit(block, { op: "index_get", dst, target: t.value, index: i.value });
-        return { value: dst, type: this.elementTypeForIndex(t.type) };
+        this.emit(i.block, { op: "index_get", dst, target: t.value, index: i.value });
+        return { value: dst, type: this.elementTypeForIndex(t.type), block: i.block };
       }
       case "MemberExpr": {
         if (expr.target.kind === "Identifier" && this.importNamespaces.has(expr.target.name)) {
@@ -636,69 +742,91 @@ class IRBuilder {
             const c = consts.get(expr.name);
             const dst = this.nextTemp();
             this.emit(block, { op: "const", dst, literalType: c.type, value: c.value });
-            if (c.type === "float") return { value: dst, type: { kind: "PrimitiveType", name: "float" } };
-            if (c.type === "string") return { value: dst, type: { kind: "PrimitiveType", name: "string" } };
-            if (c.type === "file") return { value: dst, type: { kind: "NamedType", name: "File" } };
-            return { value: dst, type: { kind: "PrimitiveType", name: "unknown" } };
+            if (c.type === "float") return { value: dst, type: { kind: "PrimitiveType", name: "float" }, block };
+            if (c.type === "string") return { value: dst, type: { kind: "PrimitiveType", name: "string" }, block };
+            if (c.type === "TextFile" || c.type === "BinaryFile") return { value: dst, type: { kind: "NamedType", name: c.type }, block };
+            return { value: dst, type: { kind: "PrimitiveType", name: "unknown" }, block };
           }
         }
         const base = this.lowerExpr(expr.target, block, irFn, scope);
         const dst = this.nextTemp();
-        this.emit(block, { op: "member_get", dst, target: base.value, name: expr.name });
+        this.emit(base.block, { op: "member_get", dst, target: base.value, name: expr.name });
         if (base.type && base.type.kind === "NamedType" && this.prototypes.has(base.type.name)) {
           const ft = this.resolvePrototypeField(base.type.name, expr.name);
-          if (ft) return { value: dst, type: ft };
+          if (ft) return { value: dst, type: ft, block: base.block };
         }
-        return { value: dst, type: { kind: "PrimitiveType", name: "unknown" } };
+        return { value: dst, type: { kind: "PrimitiveType", name: "unknown" }, block: base.block };
       }
       case "PostfixExpr": {
         const v = this.lowerExpr(expr.expr, block, irFn, scope);
         const dst = this.nextTemp();
-        this.emit(block, { op: "postfix_op", dst, operator: expr.op, src: v.value });
-        return { value: dst, type: v.type };
+        this.emit(v.block, { op: "postfix_op", dst, operator: expr.op, src: v.value });
+        return { value: dst, type: v.type, block: v.block };
       }
       case "ListLiteral": {
         const dst = this.nextTemp();
-        const vals = expr.items.map((it) => this.lowerExpr(it, block, irFn, scope));
-        this.emit(block, { op: "make_list", dst, items: vals.map((v) => v.value) });
+        let cur = block;
+        const vals = [];
+        for (const it of expr.items) {
+          const v = this.lowerExpr(it, cur, irFn, scope);
+          vals.push(v);
+          cur = v.block;
+        }
+        this.emit(cur, { op: "make_list", dst, items: vals.map((v) => v.value) });
         const elemType = vals.length > 0 ? vals[0].type : { kind: "PrimitiveType", name: "void" };
-        return { value: dst, type: { kind: "GenericType", name: "list", args: [elemType] } };
+        return { value: dst, type: { kind: "GenericType", name: "list", args: [elemType] }, block: cur };
       }
       case "MapLiteral": {
         const dst = this.nextTemp();
-        const pairs = expr.pairs.map((p) => ({
-          key: this.lowerExpr(p.key, block, irFn, scope),
-          value: this.lowerExpr(p.value, block, irFn, scope),
-        }));
-        this.emit(block, { op: "make_map", dst, pairs: pairs.map((p) => ({ key: p.key.value, value: p.value.value })) });
+        let cur = block;
+        const pairs = [];
+        for (const p of expr.pairs) {
+          const key = this.lowerExpr(p.key, cur, irFn, scope);
+          const value = this.lowerExpr(p.value, key.block, irFn, scope);
+          pairs.push({ key, value });
+          cur = value.block;
+        }
+        this.emit(cur, { op: "make_map", dst, pairs: pairs.map((p) => ({ key: p.key.value, value: p.value.value })) });
         const keyType = pairs.length > 0 ? pairs[0].key.type : { kind: "PrimitiveType", name: "void" };
         const valType = pairs.length > 0 ? pairs[0].value.type : { kind: "PrimitiveType", name: "void" };
-        return { value: dst, type: { kind: "GenericType", name: "map", args: [keyType, valType] } };
+        return { value: dst, type: { kind: "GenericType", name: "map", args: [keyType, valType] }, block: cur };
       }
       default: {
         const dst = this.nextTemp();
         this.emit(block, { op: "unknown_expr", dst, kind: expr.kind });
-        return { value: dst, type: { kind: "PrimitiveType", name: "unknown" } };
+        return { value: dst, type: { kind: "PrimitiveType", name: "unknown" }, block };
       }
     }
   }
 
   lowerCallExpr(expr, block, irFn, scope) {
+    const lowerArgs = (args, startBlock) => {
+      let cur = startBlock;
+      const out = [];
+      for (const a of args) {
+        const v = this.lowerExpr(a, cur, irFn, scope);
+        out.push(v);
+        cur = v.block;
+      }
+      return { args: out, block: cur };
+    };
+
     if (expr.callee.kind === "Identifier") {
       const local = expr.callee.name;
       const callee = this.importedSymbols.get(local) || local;
-      const args = expr.args.map((a) => this.lowerExpr(a, block, irFn, scope));
+      const lowered = lowerArgs(expr.args, block);
+      const args = lowered.args;
       const sig = this.functions.get(local);
       const isVariadic = sig ? sig.params.some((p) => p.variadic) : false;
       const dst = this.nextTemp();
-      this.emit(block, {
+      this.emit(lowered.block, {
         op: "call_static",
         dst,
         callee,
         args: args.map((a) => a.value),
         variadic: isVariadic,
       });
-      return { value: dst, type: sig ? sig.retType : { kind: "PrimitiveType", name: "unknown" } };
+      return { value: dst, type: sig ? sig.retType : { kind: "PrimitiveType", name: "unknown" }, block: lowered.block };
     }
 
     if (expr.callee.kind === "MemberExpr") {
@@ -708,11 +836,12 @@ class IRBuilder {
         if (method === "clone") {
           const dst = this.nextTemp();
           this.emit(block, { op: "call_static", dst, callee: `${protoName}.clone`, args: [], variadic: false });
-          return { value: dst, type: { kind: "NamedType", name: protoName } };
+          return { value: dst, type: { kind: "NamedType", name: protoName }, block };
         }
-        const args = expr.args.map((a) => this.lowerExpr(a, block, irFn, scope));
+        const lowered = lowerArgs(expr.args, block);
+        const args = lowered.args;
         const dst = this.nextTemp();
-        this.emit(block, {
+        this.emit(lowered.block, {
           op: "call_static",
           dst,
           callee: `${protoName}.${method}`,
@@ -720,33 +849,36 @@ class IRBuilder {
           variadic: false,
         });
         const m = this.resolvePrototypeMethod(protoName, method);
-        return { value: dst, type: m ? m.retType : { kind: "PrimitiveType", name: "unknown" } };
+        return { value: dst, type: m ? m.retType : { kind: "PrimitiveType", name: "unknown" }, block: lowered.block };
       }
       if (expr.callee.target.kind === "Identifier") {
         const ns = this.importNamespaces.get(expr.callee.target.name);
         if (ns) {
-          const args = expr.args.map((a) => this.lowerExpr(a, block, irFn, scope));
+          const lowered = lowerArgs(expr.args, block);
+          const args = lowered.args;
           const dst = this.nextTemp();
-          this.emit(block, {
+          this.emit(lowered.block, {
             op: "call_static",
             dst,
             callee: `${ns}.${method}`,
             args: args.map((a) => a.value),
             variadic: false,
           });
-          return { value: dst, type: { kind: "PrimitiveType", name: "unknown" } };
+          return { value: dst, type: { kind: "PrimitiveType", name: "unknown" }, block: lowered.block };
         }
       }
       if (expr.callee.target.kind === "Identifier" && expr.callee.target.name === "Sys" && method === "print") {
-        const args = expr.args.map((a) => this.lowerExpr(a, block, irFn, scope));
-        this.emit(block, { op: "call_builtin_print", args: args.map((a) => a.value) });
-        return { value: this.nextTemp(), type: { kind: "PrimitiveType", name: "void" } };
+        const lowered = lowerArgs(expr.args, block);
+        const args = lowered.args;
+        this.emit(lowered.block, { op: "call_builtin_print", args: args.map((a) => a.value) });
+        return { value: this.nextTemp(), type: { kind: "PrimitiveType", name: "void" }, block: lowered.block };
       }
       const recv = this.lowerExpr(expr.callee.target, block, irFn, scope);
-      const args = expr.args.map((a) => this.lowerExpr(a, block, irFn, scope));
+      const lowered = lowerArgs(expr.args, recv.block);
+      const args = lowered.args;
       if (recv.type && recv.type.kind === "NamedType" && this.prototypes.has(recv.type.name)) {
         const dst = this.nextTemp();
-        this.emit(block, {
+        this.emit(lowered.block, {
           op: "call_static",
           dst,
           callee: `${recv.type.name}.${method}`,
@@ -754,21 +886,21 @@ class IRBuilder {
           variadic: false,
         });
         const m = this.resolvePrototypeMethod(recv.type.name, method);
-        return { value: dst, type: m ? m.retType : { kind: "PrimitiveType", name: "unknown" } };
+        return { value: dst, type: m ? m.retType : { kind: "PrimitiveType", name: "unknown" }, block: lowered.block };
       }
       if (method === "toString") {
         const dst = this.nextTemp();
-        this.emit(block, { op: "call_builtin_tostring", dst, value: recv.value });
-        return { value: dst, type: { kind: "PrimitiveType", name: "string" } };
+        this.emit(recv.block, { op: "call_builtin_tostring", dst, value: recv.value });
+        return { value: dst, type: { kind: "PrimitiveType", name: "string" }, block: recv.block };
       }
       if (method === "view" || method === "slice") {
         let offsetValue = null;
         let lenValue = null;
         if (args.length === 0) {
           const offset = this.nextTemp();
-          this.emit(block, { op: "const", dst: offset, literalType: "int", value: "0" });
+          this.emit(recv.block, { op: "const", dst: offset, literalType: "int", value: "0" });
           const lenTmp = this.nextTemp();
-          this.emit(block, { op: "call_method_static", dst: lenTmp, receiver: recv.value, method: "length", args: [] });
+          this.emit(recv.block, { op: "call_method_static", dst: lenTmp, receiver: recv.value, method: "length", args: [] });
           offsetValue = offset;
           lenValue = lenTmp;
         } else {
@@ -776,8 +908,8 @@ class IRBuilder {
           lenValue = args[1] ? args[1].value : null;
         }
         const dst = this.nextTemp();
-        this.emit(block, { op: "check_view_bounds", target: recv.value, offset: offsetValue, len: lenValue });
-        this.emit(block, {
+        this.emit(lowered.block, { op: "check_view_bounds", target: recv.value, offset: offsetValue, len: lenValue });
+        this.emit(lowered.block, {
           op: "make_view",
           dst,
           kind: method,
@@ -787,22 +919,22 @@ class IRBuilder {
           readonly: method === "view",
         });
         const elemType = this.elementTypeForIndex(recv.type);
-        return { value: dst, type: { kind: "GenericType", name: method, args: [elemType] } };
+        return { value: dst, type: { kind: "GenericType", name: method, args: [elemType] }, block: lowered.block };
       }
       const dst = this.nextTemp();
-      this.emit(block, {
+      this.emit(lowered.block, {
         op: "call_method_static",
         dst,
         receiver: recv.value,
         method,
         args: args.map((a) => a.value),
       });
-      return { value: dst, type: { kind: "PrimitiveType", name: "unknown" } };
+      return { value: dst, type: { kind: "PrimitiveType", name: "unknown" }, block: lowered.block };
     }
 
     const dst = this.nextTemp();
     this.emit(block, { op: "call_unknown", dst });
-    return { value: dst, type: { kind: "PrimitiveType", name: "unknown" } };
+    return { value: dst, type: { kind: "PrimitiveType", name: "unknown" }, block };
   }
 
   emitIndexChecks(block, target, index, opts = {}) {
@@ -837,7 +969,10 @@ class IRBuilder {
   inferExprType(expr, scope) {
     if (!expr) return { kind: "PrimitiveType", name: "void" };
     if (expr.kind === "Literal") return { kind: "PrimitiveType", name: expr.literalType };
-    if (expr.kind === "Identifier") return scope.get(expr.name) || { kind: "PrimitiveType", name: "unknown" };
+    if (expr.kind === "Identifier") {
+      const entry = scope.get(expr.name);
+      return entry ? entry.type : { kind: "PrimitiveType", name: "unknown" };
+    }
     if (expr.kind === "ListLiteral") {
       const e = expr.items.length > 0 ? this.inferExprType(expr.items[0], scope) : { kind: "PrimitiveType", name: "void" };
       return { kind: "GenericType", name: "list", args: [e] };
@@ -853,6 +988,13 @@ class IRBuilder {
     }
     if (expr.kind === "CallExpr" && expr.callee.kind === "MemberExpr") {
       const m = expr.callee;
+      if (m.target.kind === "Identifier") {
+        const ns = this.importNamespaces.get(m.target.name);
+        if (ns) {
+          const ft = this.inferFileTypeFromIoOpen(expr);
+          if (ft) return { kind: "NamedType", name: ft };
+        }
+      }
       if (m.target.kind === "Identifier" && this.prototypes.has(m.target.name)) {
         if (m.name === "clone") return { kind: "NamedType", name: m.target.name };
         const mm = this.resolvePrototypeMethod(m.target.name, m.name);
@@ -862,6 +1004,17 @@ class IRBuilder {
       if (t && t.kind === "NamedType" && this.prototypes.has(t.name)) {
         const mm = this.resolvePrototypeMethod(t.name, m.name);
         return mm ? mm.retType : { kind: "PrimitiveType", name: "unknown" };
+      }
+      if (t && t.kind === "NamedType" && (t.name === "TextFile" || t.name === "BinaryFile")) {
+        if (m.name === "read") {
+          if (t.name === "BinaryFile") {
+            return { kind: "GenericType", name: "list", args: [{ kind: "PrimitiveType", name: "byte" }] };
+          }
+          return { kind: "PrimitiveType", name: "string" };
+        }
+        if (m.name === "write" || m.name === "close" || m.name === "seek") return { kind: "PrimitiveType", name: "void" };
+        if (m.name === "tell" || m.name === "size") return { kind: "PrimitiveType", name: "int" };
+        if (m.name === "name") return { kind: "PrimitiveType", name: "string" };
       }
     }
     if (expr.kind === "MemberExpr") {
