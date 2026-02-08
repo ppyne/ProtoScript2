@@ -43,6 +43,12 @@ Ce dépôt fournit :
 Node.js sert de **spec exécutable**.
 Le C sert de **preuve d’implémentabilité bas niveau**.
 
+## Demo
+
+You can test ProtoScript2 immediately thanks to a demo running on the web via WebAssembly (compiled with emscripten):
+
+Try it now: [ppyne.github.io/ProtoScript2/](https://ppyne.github.io/ProtoScript2/)
+
 ## Commandes essentielles
 
 ### Prérequis
