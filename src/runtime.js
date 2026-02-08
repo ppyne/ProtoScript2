@@ -615,6 +615,13 @@ function buildModuleEnv(ast, file) {
   mathMod.constants.set("LOG10E", Math.LOG10E);
   mathMod.constants.set("SQRT1_2", Math.SQRT1_2);
   mathMod.constants.set("SQRT2", Math.SQRT2);
+  mathMod.constants.set("INT_MAX", 9223372036854775807n);
+  mathMod.constants.set("INT_MIN", -9223372036854775808n);
+  mathMod.constants.set("INT_SIZE", 8n);
+  mathMod.constants.set("FLOAT_DIG", 15n);
+  mathMod.constants.set("FLOAT_EPSILON", 2.2204460492503131e-16);
+  mathMod.constants.set("FLOAT_MIN", 2.2250738585072014e-308);
+  mathMod.constants.set("FLOAT_MAX", 1.7976931348623157e+308);
   mathMod.functions.set("abs", (x, node) => Math.abs(toNumberArg(node, x)));
   mathMod.functions.set("min", (a, b, node) => Math.min(toNumberArg(node, a), toNumberArg(node, b)));
   mathMod.functions.set("max", (a, b, node) => Math.max(toNumberArg(node, a), toNumberArg(node, b)));

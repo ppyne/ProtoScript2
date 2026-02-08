@@ -1268,8 +1268,20 @@ static int exec_function(PS_Context *ctx, PS_IR_Module *m, IRFunction *f, PS_Val
       if (strcmp(ins->op, "unary_op") == 0) {
         PS_Value *v = get_value(&temps, &vars, ins->src);
         PS_Value *res = NULL;
-        if (strcmp(ins->operator, "!") == 0) res = ps_make_bool(ctx, !is_truthy(v));
-        else if (strcmp(ins->operator, "-") == 0) res = ps_make_int(ctx, -v->as.int_v);
+        if (strcmp(ins->operator, "!") == 0) {
+          res = ps_make_bool(ctx, !is_truthy(v));
+        } else if (strcmp(ins->operator, "-") == 0) {
+          if (v->tag == PS_V_INT) res = ps_make_int(ctx, -v->as.int_v);
+          else if (v->tag == PS_V_BYTE) res = ps_make_int(ctx, -(int64_t)v->as.byte_v);
+          else if (v->tag == PS_V_FLOAT) res = ps_make_float(ctx, -v->as.float_v);
+        } else if (strcmp(ins->operator, "~") == 0) {
+          if (v->tag == PS_V_INT) res = ps_make_int(ctx, ~v->as.int_v);
+          else if (v->tag == PS_V_BYTE) res = ps_make_int(ctx, ~(int64_t)v->as.byte_v);
+          else if (v->tag == PS_V_GLYPH) {
+            ps_throw(ctx, PS_ERR_TYPE, "invalid glyph operation");
+            goto raise;
+          }
+        }
         if (!res) goto raise;
         bindings_set(&temps, ins->dst, res);
         ps_value_release(res);

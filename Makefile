@@ -31,7 +31,7 @@ WEB_FLAGS := -O2 -s WASM=1 -s MODULARIZE=1 -s EXPORT_NAME=ProtoScript -s EXIT_RU
   --preload-file $(ROOT)/modules/registry.json@/modules/registry.json \
   -DPS_WASM=1 -I$(ROOT)/include -I$(C_DIR) -I$(C_DIR)/runtime
 
-.PHONY: all c clean web web-clean
+.PHONY: all c clean web web-clean test
 
 all: c
 
@@ -49,3 +49,6 @@ $(WEB_OUT): $(WEB_SRCS)
 
 web-clean:
 	rm -f $(WEB_DIR)/protoscript.js $(WEB_DIR)/protoscript.wasm $(WEB_DIR)/protoscript.data
+
+test:
+	tests/run_all.sh

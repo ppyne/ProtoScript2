@@ -35,7 +35,12 @@ Le module expose :
 
 ## 3. Constantes (normatives)
 
-Toutes les constantes sont de type `float`.
+Les constantes se répartissent en :
+
+- constantes mathématiques (`float`),
+- limites numériques (`int` et `float`).
+
+### 3.1 Constantes mathématiques (`float`)
 
 | Nom | Valeur |
 | --- | --- |
@@ -49,6 +54,18 @@ Toutes les constantes sont de type `float`.
 | `Math.SQRT2` | √2 |
 
 La précision est celle du runtime, conforme à `double` IEEE‑754.
+
+### 3.2 Limites numériques
+
+| Nom | Type | Description |
+| --- | --- | --- |
+| `Math.INT_MAX` | `int` | Plus grand entier supporté par le binaire ProtoScript V2. Habituellement `9223372036854775807` sur les systèmes 64‑bit. |
+| `Math.INT_MIN` | `int` | Plus petit entier supporté. Habituellement `-9223372036854775808` sur les systèmes 64‑bit. Habituellement `INT_MIN == ~INT_MAX`. |
+| `Math.INT_SIZE` | `int` | Taille d’un entier, en octets, supporté par le binaire ProtoScript V2. Habituellement `8`. |
+| `Math.FLOAT_DIG` | `int` | Nombre de décimales pouvant être arrondies dans un `float` et retournées sans perte de précision. Habituellement `15`. |
+| `Math.FLOAT_EPSILON` | `float` | Plus petit `float` positif tel que `x + 1.0 != 1.0`. Habituellement `2.2204460492503131e-16`. |
+| `Math.FLOAT_MIN` | `float` | Plus petit `float` positif supporté. Habituellement `2.2250738585072014e-308`. |
+| `Math.FLOAT_MAX` | `float` | Plus grand `float` supporté. Habituellement `1.7976931348623157e+308`. |
 
 ---
 

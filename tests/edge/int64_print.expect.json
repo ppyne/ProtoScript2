@@ -1,0 +1,7 @@
+{
+  "status": "accept-runtime",
+  "expected_stdout": "2147483648\n-2147483649\n9223372036854775807\n",
+  "requires": [
+    "modules"
+  ]
+}

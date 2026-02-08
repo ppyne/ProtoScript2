@@ -1,0 +1,8 @@
+import Io;
+
+function main() : void {
+    int min = -9223372036854775808;
+    int max = 9223372036854775807;
+    if (min == ~max) Io.printLine("yes");
+    else Io.printLine("no");
+}

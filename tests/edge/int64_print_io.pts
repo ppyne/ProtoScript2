@@ -1,0 +1,8 @@
+import Io;
+
+function main() : void {
+    int v = 9223372036854775807;
+    Io.print(v.toString());
+    Io.print(Io.EOL);
+    Io.printLine(v.toString());
+}

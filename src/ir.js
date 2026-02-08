@@ -47,6 +47,15 @@ function isIntLike(t) {
   return n === "int" || n === "byte";
 }
 
+function intLiteralToBigInt(raw) {
+  if (raw === null || raw === undefined) return null;
+  const s = String(raw);
+  if (/^0[xX]/.test(s)) return BigInt(s);
+  if (/^0[bB]/.test(s)) return BigInt(s);
+  if (/^0[0-7]+$/.test(s)) return BigInt(`0o${s.slice(1)}`);
+  return BigInt(s);
+}
+
 function loadModuleRegistry() {
   const env = process.env.PS_MODULE_REGISTRY;
   const cliDir = process.argv[1] ? path.dirname(process.argv[1]) : null;
@@ -93,6 +102,9 @@ function buildImportMap(ast) {
       if (c.type === "float") {
         if (typeof c.value !== "string" && typeof c.value !== "number") continue;
         consts.set(c.name, { type: "float", value: String(c.value) });
+      } else if (c.type === "int") {
+        if (typeof c.value !== "string" && typeof c.value !== "number") continue;
+        consts.set(c.name, { type: "int", value: String(c.value) });
       } else if (c.type === "string") {
         if (typeof c.value !== "string") continue;
         consts.set(c.name, { type: "string", value: c.value });
@@ -740,6 +752,14 @@ class IRBuilder {
         return { value: dst, type: t, block };
       }
       case "UnaryExpr": {
+        if (expr.op === "-" && expr.expr && expr.expr.kind === "Literal" && expr.expr.literalType === "int") {
+          const v = intLiteralToBigInt(expr.expr.value);
+          if (v === 9223372036854775808n) {
+            const dst = this.nextTemp();
+            this.emit(block, { op: "const", dst, literalType: "int", value: "-9223372036854775808" });
+            return { value: dst, type: { kind: "PrimitiveType", name: "int" }, block };
+          }
+        }
         if (expr.op === "++" || expr.op === "--") {
           return this.lowerIncDec(expr.expr, block, irFn, scope, true, expr.op);
         }
@@ -839,6 +859,7 @@ class IRBuilder {
             const dst = this.nextTemp();
             this.emit(block, { op: "const", dst, literalType: c.type, value: c.value });
             if (c.type === "float") return { value: dst, type: { kind: "PrimitiveType", name: "float" }, block };
+            if (c.type === "int") return { value: dst, type: { kind: "PrimitiveType", name: "int" }, block };
             if (c.type === "string") return { value: dst, type: { kind: "PrimitiveType", name: "string" }, block };
             if (c.type === "TextFile" || c.type === "BinaryFile") return { value: dst, type: { kind: "NamedType", name: c.type }, block };
             return { value: dst, type: { kind: "PrimitiveType", name: "unknown" }, block };

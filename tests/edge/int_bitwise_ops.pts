@@ -1,0 +1,12 @@
+import Io;
+
+function main() : void {
+    int a = 0x0F0F;
+    int b = 0x00FF;
+    Io.printLine((a & b).toString());
+    Io.printLine((a | b).toString());
+    Io.printLine((a ^ b).toString());
+    Io.printLine((~b).toString());
+    Io.printLine((b << 4).toString());
+    Io.printLine((b >> 4).toString());
+}

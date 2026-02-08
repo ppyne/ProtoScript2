@@ -167,6 +167,9 @@ function loadModuleRegistry() {
       if (c.type === "float") {
         if (typeof c.value !== "string" && typeof c.value !== "number") continue;
         consts.set(c.name, { type: "float", value: String(c.value) });
+      } else if (c.type === "int") {
+        if (typeof c.value !== "string" && typeof c.value !== "number") continue;
+        consts.set(c.name, { type: "int", value: String(c.value) });
       } else if (c.type === "string") {
         if (typeof c.value !== "string") continue;
         consts.set(c.name, { type: "string", value: c.value });
@@ -1682,6 +1685,7 @@ class Analyzer {
           if (consts && consts.has(expr.name)) {
             const c = consts.get(expr.name);
             if (c.type === "float") return { kind: "PrimitiveType", name: "float" };
+            if (c.type === "int") return { kind: "PrimitiveType", name: "int" };
             if (c.type === "string") return { kind: "PrimitiveType", name: "string" };
             if (c.type === "TextFile" || c.type === "BinaryFile") return { kind: "NamedType", name: c.type };
           }

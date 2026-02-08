@@ -6,6 +6,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <unistd.h>
 
 #include "runtime/ps_json.h"
 
@@ -2184,65 +2185,6 @@ static int registry_type_valid(const char *s, int allow_void) {
   return *p == '\0';
 }
 
-static const char *ps_registry_json =
-    "{\n"
-    "  \"modules\": [\n"
-    "    {\n"
-    "      \"name\": \"Io\",\n"
-    "      \"functions\": [\n"
-    "        { \"name\": \"openText\", \"ret\": \"TextFile\", \"params\": [\"string\", \"string\"] },\n"
-    "        { \"name\": \"openBinary\", \"ret\": \"BinaryFile\", \"params\": [\"string\", \"string\"] },\n"
-    "        { \"name\": \"print\", \"ret\": \"void\", \"params\": [\"string\"] },\n"
-    "        { \"name\": \"printLine\", \"ret\": \"void\", \"params\": [\"string\"] }\n"
-    "      ],\n"
-    "      \"constants\": [\n"
-    "        { \"name\": \"EOL\", \"type\": \"string\", \"value\": \"\\n\" },\n"
-    "        { \"name\": \"stdin\", \"type\": \"TextFile\", \"value\": \"stdin\" },\n"
-    "        { \"name\": \"stdout\", \"type\": \"TextFile\", \"value\": \"stdout\" },\n"
-    "        { \"name\": \"stderr\", \"type\": \"TextFile\", \"value\": \"stderr\" }\n"
-    "      ]\n"
-    "    },\n"
-    "    {\n"
-    "      \"name\": \"Math\",\n"
-    "      \"functions\": [\n"
-    "        { \"name\": \"abs\", \"ret\": \"float\", \"params\": [\"float\"] },\n"
-    "        { \"name\": \"min\", \"ret\": \"float\", \"params\": [\"float\", \"float\"] },\n"
-    "        { \"name\": \"max\", \"ret\": \"float\", \"params\": [\"float\", \"float\"] },\n"
-    "        { \"name\": \"floor\", \"ret\": \"float\", \"params\": [\"float\"] },\n"
-    "        { \"name\": \"ceil\", \"ret\": \"float\", \"params\": [\"float\"] },\n"
-    "        { \"name\": \"round\", \"ret\": \"float\", \"params\": [\"float\"] },\n"
-    "        { \"name\": \"sqrt\", \"ret\": \"float\", \"params\": [\"float\"] },\n"
-    "        { \"name\": \"pow\", \"ret\": \"float\", \"params\": [\"float\", \"float\"] },\n"
-    "        { \"name\": \"sin\", \"ret\": \"float\", \"params\": [\"float\"] },\n"
-    "        { \"name\": \"cos\", \"ret\": \"float\", \"params\": [\"float\"] },\n"
-    "        { \"name\": \"tan\", \"ret\": \"float\", \"params\": [\"float\"] },\n"
-    "        { \"name\": \"asin\", \"ret\": \"float\", \"params\": [\"float\"] },\n"
-    "        { \"name\": \"acos\", \"ret\": \"float\", \"params\": [\"float\"] },\n"
-    "        { \"name\": \"atan\", \"ret\": \"float\", \"params\": [\"float\"] },\n"
-    "        { \"name\": \"atan2\", \"ret\": \"float\", \"params\": [\"float\", \"float\"] }\n"
-    "      ],\n"
-    "      \"constants\": [\n"
-    "        { \"name\": \"PI\", \"type\": \"float\", \"value\": \"3.141592653589793\" },\n"
-    "        { \"name\": \"E\", \"type\": \"float\", \"value\": \"2.718281828459045\" }\n"
-    "      ]\n"
-    "    },\n"
-    "    {\n"
-    "      \"name\": \"JSON\",\n"
-    "      \"functions\": [\n"
-    "        { \"name\": \"encode\", \"ret\": \"string\", \"params\": [\"JSONValue\"] },\n"
-    "        { \"name\": \"decode\", \"ret\": \"JSONValue\", \"params\": [\"string\"] },\n"
-    "        { \"name\": \"isValid\", \"ret\": \"bool\", \"params\": [\"string\"] },\n"
-    "        { \"name\": \"null\", \"ret\": \"JSONValue\", \"params\": [] },\n"
-    "        { \"name\": \"bool\", \"ret\": \"JSONValue\", \"params\": [\"bool\"] },\n"
-    "        { \"name\": \"number\", \"ret\": \"JSONValue\", \"params\": [\"float\"] },\n"
-    "        { \"name\": \"string\", \"ret\": \"JSONValue\", \"params\": [\"string\"] },\n"
-    "        { \"name\": \"array\", \"ret\": \"JSONValue\", \"params\": [\"list<JSONValue>\"] },\n"
-    "        { \"name\": \"object\", \"ret\": \"JSONValue\", \"params\": [\"map<string,JSONValue>\"] }\n"
-    "      ]\n"
-    "    }\n"
-    "  ]\n"
-    "}\n";
-
 static ModuleRegistry *registry_load(void) {
   const char *env = getenv("PS_MODULE_REGISTRY");
   char exe_path[PATH_MAX];
@@ -2258,7 +2200,7 @@ static ModuleRegistry *registry_load(void) {
     "/etc/ps/registry.json",
     "/usr/local/etc/ps/registry.json",
     "/opt/local/etc/ps/registry.json",
-    "modules/registry.json",
+    "./modules/registry.json",
     NULL
   };
   char *data = NULL;
@@ -2269,11 +2211,18 @@ static ModuleRegistry *registry_load(void) {
     if (data) break;
   }
   if (!data) {
-    n = strlen(ps_registry_json);
-    data = (char *)malloc(n + 1);
-    if (!data) return NULL;
-    memcpy(data, ps_registry_json, n + 1);
+    char cwd[PATH_MAX];
+    if (getcwd(cwd, sizeof(cwd))) {
+      char path[PATH_MAX];
+      snprintf(path, sizeof(path), "%s/registry.json", cwd);
+      data = read_file(path, &n);
+      if (!data) {
+        snprintf(path, sizeof(path), "%s/modules/registry.json", cwd);
+        data = read_file(path, &n);
+      }
+    }
   }
+  if (!data) return NULL;
   const char *err = NULL;
   PS_JsonValue *root = ps_json_parse(data, n, &err);
   free(data);
@@ -2349,6 +2298,19 @@ static ModuleRegistry *registry_load(void) {
           else {
             char buf[64];
             snprintf(buf, sizeof(buf), "%.17g", cval->as.num_v);
+            rc->value = strdup(buf);
+          }
+        } else if (strcmp(ctype->as.str_v, "int") == 0) {
+          if (!cval || (cval->type != PS_JSON_STRING && cval->type != PS_JSON_NUMBER)) {
+            free(rc->name);
+            free(rc->type);
+            free(rc);
+            continue;
+          }
+          if (cval->type == PS_JSON_STRING) rc->value = strdup(cval->as.str_v);
+          else {
+            char buf[64];
+            snprintf(buf, sizeof(buf), "%.0f", cval->as.num_v);
             rc->value = strdup(buf);
           }
         } else if (strcmp(ctype->as.str_v, "string") == 0 || strcmp(ctype->as.str_v, "file") == 0 ||
@@ -2820,6 +2782,29 @@ static int int_literal_to_ll(const char *s, long long *out) {
   return 0;
 }
 
+static int int_literal_to_u64(const char *s, unsigned long long *out) {
+  if (!s || !*s) return 0;
+  if (is_hex_token(s)) {
+    *out = strtoull(s, NULL, 16);
+    return 1;
+  }
+  if (is_bin_token(s)) {
+    unsigned long long v = 0;
+    for (const char *p = s + 2; *p; p++) v = (v << 1) + (*p == '1' ? 1ULL : 0ULL);
+    *out = v;
+    return 1;
+  }
+  if (s[0] == '0' && s[1] && is_all_digits(s)) {
+    *out = strtoull(s + 1, NULL, 8);
+    return 1;
+  }
+  if (is_all_digits(s)) {
+    *out = strtoull(s, NULL, 10);
+    return 1;
+  }
+  return 0;
+}
+
 static int is_byte_literal_expr(AstNode *e) {
   if (!e || strcmp(e->kind, "Literal") != 0 || !e->text) return 0;
   if (is_float_token(e->text)) return 0;
@@ -3223,6 +3208,7 @@ static char *infer_expr_type(Analyzer *a, AstNode *e, Scope *scope, int *ok) {
           RegConst *rc = registry_find_const(a->registry, ns->module, e->text ? e->text : "");
           if (rc && rc->type) {
             if (strcmp(rc->type, "float") == 0) return strdup("float");
+            if (strcmp(rc->type, "int") == 0) return strdup("int");
             if (strcmp(rc->type, "string") == 0) return strdup("string");
             if (strcmp(rc->type, "TextFile") == 0 || strcmp(rc->type, "BinaryFile") == 0) return strdup(rc->type);
           }
@@ -4363,6 +4349,7 @@ static char *ir_guess_expr_type(AstNode *e, IrFnCtx *ctx) {
             RegConst *rc = registry_find_const(ctx->registry, ns->module, e->text ? e->text : "");
             if (rc && rc->type) {
               if (strcmp(rc->type, "float") == 0) return strdup("float");
+              if (strcmp(rc->type, "int") == 0) return strdup("int");
               if (strcmp(rc->type, "string") == 0) return strdup("string");
               if (strcmp(rc->type, "TextFile") == 0 || strcmp(rc->type, "BinaryFile") == 0) return strdup(rc->type);
             }
@@ -5360,6 +5347,26 @@ static char *ir_lower_expr(AstNode *e, IrFnCtx *ctx) {
         return is_prefix ? next : cur;
       }
       free(tt);
+    }
+
+    if (strcmp(op, "-") == 0 && e->child_len >= 1) {
+      AstNode *child = e->children[0];
+      if (child && strcmp(child->kind, "Literal") == 0 && child->text && !is_float_token(child->text)) {
+        unsigned long long v = 0;
+        if (int_literal_to_u64(child->text, &v) && v == 9223372036854775808ULL) {
+          char *dst = ir_next_tmp(ctx);
+          if (!dst) return NULL;
+          char *d_esc = json_escape(dst);
+          char *ins = str_printf("{\"op\":\"const\",\"dst\":\"%s\",\"literalType\":\"int\",\"value\":\"-9223372036854775808\"}",
+                                 d_esc ? d_esc : "");
+          free(d_esc);
+          if (!ir_emit(ctx, ins)) {
+            free(dst);
+            return NULL;
+          }
+          return dst;
+        }
+      }
     }
 
     char *s = ir_lower_expr(e->children[0], ctx);

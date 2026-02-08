@@ -1,11 +1,12 @@
 #include <stdlib.h>
 #include <string.h>
+#include <stdint.h>
 
 #include "ps_object.h"
 #include "ps_string.h"
 
-static size_t hash_bytes(const char *s, size_t len) {
-  size_t h = 1469598103934665603ULL;
+static uint64_t hash_bytes(const char *s, size_t len) {
+  uint64_t h = 1469598103934665603ULL;
   for (size_t i = 0; i < len; i++) {
     h ^= (uint8_t)s[i];
     h *= 1099511628211ULL;
@@ -29,8 +30,8 @@ static int ensure_cap(PS_Object *o, size_t need) {
   for (size_t i = 0; i < o->cap; i++) {
     if (!o->used[i]) continue;
     PS_String k = o->keys[i];
-    size_t h = hash_bytes(k.ptr, k.len);
-    size_t idx = h & (new_cap - 1);
+    uint64_t h = hash_bytes(k.ptr, k.len);
+    size_t idx = (size_t)h & (new_cap - 1);
     while (nused[idx]) idx = (idx + 1) & (new_cap - 1);
     nused[idx] = 1;
     nkeys[idx] = k;
@@ -65,8 +66,8 @@ PS_Value *ps_object_get_str_internal(PS_Context *ctx, PS_Value *obj, const char 
   }
   PS_Object *o = &obj->as.object_v;
   if (o->cap == 0) return NULL;
-  size_t h = hash_bytes(key, key_len);
-  size_t idx = h & (o->cap - 1);
+  uint64_t h = hash_bytes(key, key_len);
+  size_t idx = (size_t)h & (o->cap - 1);
   for (size_t probes = 0; probes < o->cap; probes++) {
     if (!o->used[idx]) return NULL;
     PS_String k = o->keys[idx];
@@ -86,8 +87,8 @@ int ps_object_set_str_internal(PS_Context *ctx, PS_Value *obj, const char *key, 
     ps_throw(ctx, PS_ERR_OOM, "out of memory");
     return 0;
   }
-  size_t h = hash_bytes(key, key_len);
-  size_t idx = h & (o->cap - 1);
+  uint64_t h = hash_bytes(key, key_len);
+  size_t idx = (size_t)h & (o->cap - 1);
   while (o->used[idx]) {
     PS_String k = o->keys[idx];
     if (k.len == key_len && memcmp(k.ptr, key, key_len) == 0) {

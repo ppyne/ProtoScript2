@@ -95,7 +95,14 @@
         { "name": "LOG2E", "type": "float", "value": "1.4426950408889634" },
         { "name": "LOG10E", "type": "float", "value": "0.4342944819032518" },
         { "name": "SQRT1_2", "type": "float", "value": "0.7071067811865476" },
-        { "name": "SQRT2", "type": "float", "value": "1.4142135623730951" }
+        { "name": "SQRT2", "type": "float", "value": "1.4142135623730951" },
+        { "name": "INT_MAX", "type": "int", "value": "9223372036854775807" },
+        { "name": "INT_MIN", "type": "int", "value": "-9223372036854775808" },
+        { "name": "INT_SIZE", "type": "int", "value": "8" },
+        { "name": "FLOAT_DIG", "type": "int", "value": "15" },
+        { "name": "FLOAT_EPSILON", "type": "float", "value": "2.2204460492503131e-16" },
+        { "name": "FLOAT_MIN", "type": "float", "value": "2.2250738585072014e-308" },
+        { "name": "FLOAT_MAX", "type": "float", "value": "1.7976931348623157e+308" }
       ]
     },
     {

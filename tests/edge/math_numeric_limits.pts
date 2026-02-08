@@ -1,0 +1,17 @@
+import Io;
+import Math;
+
+function main() : void {
+    bool ok = true;
+    ok = ok && (Math.INT_MAX > 0);
+    ok = ok && (Math.INT_MIN < 0);
+    ok = ok && (Math.INT_MIN == ~Math.INT_MAX);
+    ok = ok && (Math.INT_MAX == ~Math.INT_MIN);
+    ok = ok && (Math.INT_SIZE == 8);
+    ok = ok && (Math.FLOAT_DIG == 15);
+    ok = ok && (Math.FLOAT_MAX > 1e308);
+    ok = ok && (Math.FLOAT_MIN > 0.0);
+    ok = ok && (Math.FLOAT_EPSILON > 0.0);
+    if (ok) Io.printLine("ok");
+    else Io.printLine("bad");
+}

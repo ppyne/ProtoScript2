@@ -1,0 +1,10 @@
+import Io;
+
+function main() : void {
+    int a = 2147483648;
+    int b = -2147483649;
+    int c = 9223372036854775807;
+    Io.printLine(a);
+    Io.printLine(b);
+    Io.printLine(c);
+}
