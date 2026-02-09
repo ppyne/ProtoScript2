@@ -102,6 +102,7 @@
       "edge/map_alias_set_updates_original",
       "edge/map_alias_chain_set_updates_root",
       "edge/map_methods_basic",
+      "edge/map_remove_order",
       "edge/call_static_basic",
       "edge/call_static_nested",
       "edge/index_get_list",

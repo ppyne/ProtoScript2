@@ -1331,6 +1331,7 @@ Ref: EX-063
 | `length()` | `() -> int` | nombre d’entrées | — |
 | `isEmpty()` | `() -> bool` | vrai si vide | — |
 | `containsKey(k)` | `(K) -> bool` | présence clé | type si clé incompatible |
+| `remove(k)` | `(K) -> bool` | supprime la clé si présente | ne lève jamais pour clé absente |
 | `keys()` | `() -> list<K>` | liste des clés | — |
 | `values()` | `() -> list<V>` | liste des valeurs | — |
 
@@ -1350,6 +1351,11 @@ for (string k in m) { ... } // clés
 for (int v of m) { ... }    // valeurs
 ```
 Ref: EX-064
+
+Notes :
+
+- L’ordre d’itération des maps est l’ordre d’insertion courant.
+- Si une clé est supprimée puis ré‑insérée, elle apparaît **en fin** d’ordre.
 
 ### 11.6 Erreur fréquente
 

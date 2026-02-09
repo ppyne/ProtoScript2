@@ -2120,7 +2120,7 @@ class Analyzer {
         fail(0, 0);
         return;
       }
-      if (name === "containsKey") {
+      if (name === "containsKey" || name === "remove") {
         fail(1, 1);
       }
     }
@@ -2344,6 +2344,7 @@ class Analyzer {
         if (name === "length") return prim("int");
         if (name === "isEmpty") return prim("bool");
         if (name === "containsKey") return prim("bool");
+        if (name === "remove") return prim("bool");
         if (name === "keys") return { kind: "GenericType", name: "list", args: [kt] };
         if (name === "values") return { kind: "GenericType", name: "list", args: [vt] };
       }

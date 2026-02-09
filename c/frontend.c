@@ -3397,7 +3397,7 @@ static int check_method_arity(Analyzer *a, AstNode *e, const char *recv_t, const
     if (strcmp(method, "length") == 0 || strcmp(method, "isEmpty") == 0 || strcmp(method, "keys") == 0 ||
         strcmp(method, "values") == 0) {
       min = max = 0;
-    } else if (strcmp(method, "containsKey") == 0) {
+    } else if (strcmp(method, "containsKey") == 0 || strcmp(method, "remove") == 0) {
       min = max = 1;
     }
   }
@@ -3514,6 +3514,7 @@ static char *method_ret_type(const char *recv_t, const char *m) {
     if (strcmp(m, "length") == 0) return strdup("int");
     if (strcmp(m, "isEmpty") == 0) return strdup("bool");
     if (strcmp(m, "containsKey") == 0) return strdup("bool");
+    if (strcmp(m, "remove") == 0) return strdup("bool");
     if (strcmp(m, "keys") == 0) {
       char *kt = ir_type_map_key(recv_t);
       char *out = str_printf("list<%s>", kt ? kt : "unknown");

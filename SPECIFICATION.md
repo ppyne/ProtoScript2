@@ -568,6 +568,9 @@ int v = values["a"];
 - en lecture, `map[k]` doit lever une exception runtime si `k` est absente
 - en écriture, `map[k] = v` doit insérer une nouvelle entrée si `k` est absente
 - en écriture, `map[k] = v` doit mettre à jour la valeur associée si `k` est présente
+- `map.remove(k)` doit supprimer la clé si elle existe et retourner `true`, sinon `false`
+- `map.remove(k)` ne doit jamais lever pour clé absente
+- supprimer puis ré‑insérer une clé doit la placer **en fin** de l’ordre d’itération
 
 ### Principe normatif : lecture stricte / écriture constructive
 
@@ -589,6 +592,7 @@ Les garanties suivantes sont normatives et indépendantes de l’implémentation
 | accès `map[k]`               | **O(1)** amorti | table de hachage         |
 | affectation `map[k] = v`     | **O(1)** amorti | insertion ou mise à jour |
 | `map.containsKey(k)`         | **O(1)** amorti | lookup                   |
+| `map.remove(k)`              | **O(1)** amorti | suppression              |
 | itération `for (V v of map)` | **O(n)**        | ordre d’insertion        |
 | itération `for (K k in map)` | **O(n)**        | ordre d’insertion        |
 | `map.keys()`                 | **O(n)**        | création d’une liste     |

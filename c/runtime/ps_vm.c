@@ -888,11 +888,8 @@ static int is_truthy(PS_Value *v) {
 static PS_Value *map_first_key(PS_Value *map) {
   if (!map || map->tag != PS_V_MAP) return NULL;
   PS_Map *m = &map->as.map_v;
-  if (m->len == 0 || m->cap == 0) return NULL;
-  for (size_t i = 0; i < m->cap; i++) {
-    if (m->used[i]) return m->keys[i];
-  }
-  return NULL;
+  if (m->order_len == 0) return NULL;
+  return m->order[0];
 }
 
 static int exec_function(PS_Context *ctx, PS_IR_Module *m, IRFunction *f, PS_Value **args, size_t argc, PS_Value **out);
@@ -1444,16 +1441,11 @@ static int exec_function(PS_Context *ctx, PS_IR_Module *m, IRFunction *f, PS_Val
             uint32_t g = ps_utf8_glyph_at((const uint8_t *)src->as.string_v.ptr, src->as.string_v.len, idx);
             res = ps_make_glyph(ctx, g);
           } else if (src->tag == PS_V_MAP) {
-            if (idx < src->as.map_v.cap) {
-              size_t count = 0;
-              for (size_t i = 0; i < src->as.map_v.cap; i++) {
-                if (!src->as.map_v.used[i]) continue;
-                if (count == idx) {
-                  res = it->as.iter_v.mode ? src->as.map_v.keys[i] : src->as.map_v.values[i];
-                  break;
-                }
-                count++;
-              }
+            PS_Map *m = &src->as.map_v;
+            if (idx < m->order_len) {
+              PS_Value *k = m->order[idx];
+              if (it->as.iter_v.mode) res = k;
+              else res = ps_map_get(ctx, src, k);
             }
           } else if (src->tag == PS_V_VIEW) {
             if (!view_is_valid(src)) {
@@ -2320,14 +2312,28 @@ static int exec_function(PS_Context *ctx, PS_IR_Module *m, IRFunction *f, PS_Val
             PS_Value *v = ps_make_bool(ctx, ok);
             bindings_set(&temps, ins->dst, v);
             ps_value_release(v);
+          } else if (strcmp(ins->method, "remove") == 0) {
+            if (!expect_arity(ctx, ins, 1, 1)) goto raise;
+            PS_Value *key = get_value(&temps, &vars, ins->args[0]);
+            if (recv->as.map_v.len > 0) {
+              PS_Value *first = map_first_key(recv);
+              if (first && key && first->tag != key->tag) {
+                ps_throw(ctx, PS_ERR_TYPE, "map key type mismatch");
+                goto raise;
+              }
+            }
+            int ok = ps_map_remove(ctx, recv, key);
+            if (ps_last_error_code(ctx) != PS_ERR_NONE) goto raise;
+            PS_Value *v = ps_make_bool(ctx, ok);
+            bindings_set(&temps, ins->dst, v);
+            ps_value_release(v);
           } else if (strcmp(ins->method, "keys") == 0) {
             if (!expect_arity(ctx, ins, 0, 0)) goto raise;
             PS_Value *out = ps_list_new(ctx);
             if (!out) goto raise;
             PS_Map *m = &recv->as.map_v;
-            for (size_t i = 0; i < m->cap; i++) {
-              if (!m->used[i]) continue;
-              if (!ps_list_push_internal(ctx, out, m->keys[i])) {
+            for (size_t i = 0; i < m->order_len; i++) {
+              if (!ps_list_push_internal(ctx, out, m->order[i])) {
                 ps_value_release(out);
                 goto raise;
               }
@@ -2339,9 +2345,13 @@ static int exec_function(PS_Context *ctx, PS_IR_Module *m, IRFunction *f, PS_Val
             PS_Value *out = ps_list_new(ctx);
             if (!out) goto raise;
             PS_Map *m = &recv->as.map_v;
-            for (size_t i = 0; i < m->cap; i++) {
-              if (!m->used[i]) continue;
-              if (!ps_list_push_internal(ctx, out, m->values[i])) {
+            for (size_t i = 0; i < m->order_len; i++) {
+              PS_Value *v = ps_map_get(ctx, recv, m->order[i]);
+              if (ps_last_error_code(ctx) != PS_ERR_NONE) {
+                ps_value_release(out);
+                goto raise;
+              }
+              if (!ps_list_push_internal(ctx, out, v)) {
                 ps_value_release(out);
                 goto raise;
               }

@@ -1836,6 +1836,18 @@ function evalCall(expr, scope, functions, moduleEnv, protoEnv, file, callFunctio
         }
         return target.has(mapKey(args[0]));
       }
+      if (m.name === "remove") {
+        expectArity(1, 1);
+        if (target.size > 0) {
+          const firstKey = target.keys().next().value;
+          const expected = String(firstKey).split(":", 1)[0];
+          const actual = mapKey(args[0]).split(":", 1)[0];
+          if (expected !== actual) {
+            throw new RuntimeError(rdiag(file, m, "R1010", "RUNTIME_TYPE_ERROR", "map key type mismatch"));
+          }
+        }
+        return target.delete(mapKey(args[0]));
+      }
       if (m.name === "keys") {
         expectArity(0, 0);
         return makeList(Array.from(target.keys()).map(unmapKey));

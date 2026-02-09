@@ -106,7 +106,7 @@ static void ps_map_free(PS_Map *m) {
   if (!m) return;
   if (m->keys) {
     for (size_t i = 0; i < m->cap; i++) {
-      if (m->used && m->used[i]) {
+      if (m->used && m->used[i] == 1) {
         if (m->keys[i]) ps_value_release(m->keys[i]);
         if (m->values && m->values[i]) ps_value_release(m->values[i]);
       }
@@ -115,9 +115,13 @@ static void ps_map_free(PS_Map *m) {
   free(m->keys);
   free(m->values);
   free(m->used);
+  free(m->order);
   m->keys = NULL;
   m->values = NULL;
   m->used = NULL;
+  m->order = NULL;
   m->cap = 0;
   m->len = 0;
+  m->order_len = 0;
+  m->order_cap = 0;
 }

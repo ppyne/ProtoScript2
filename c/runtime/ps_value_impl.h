@@ -57,6 +57,9 @@ typedef struct {
   uint8_t *used;
   size_t cap;
   size_t len;
+  PS_Value **order;
+  size_t order_len;
+  size_t order_cap;
 } PS_Map;
 
 typedef struct {

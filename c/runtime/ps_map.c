@@ -56,7 +56,7 @@ static int ensure_cap(PS_Map *m, size_t need) {
     return 0;
   }
   for (size_t i = 0; i < m->cap; i++) {
-    if (!m->used[i]) continue;
+    if (!m->used[i] || m->used[i] == 2) continue;
     PS_Value *k = m->keys[i];
     size_t h = hash_value(k);
     size_t idx = h & (new_cap - 1);
@@ -75,6 +75,17 @@ static int ensure_cap(PS_Map *m, size_t need) {
   return 1;
 }
 
+static int ensure_order_cap(PS_Map *m, size_t need) {
+  if (m->order_cap >= need) return 1;
+  size_t new_cap = m->order_cap == 0 ? 8 : m->order_cap * 2;
+  while (new_cap < need) new_cap *= 2;
+  PS_Value **norder = (PS_Value **)realloc(m->order, sizeof(PS_Value *) * new_cap);
+  if (!norder) return 0;
+  m->order = norder;
+  m->order_cap = new_cap;
+  return 1;
+}
+
 PS_Value *ps_map_new(PS_Context *ctx) {
   (void)ctx;
   PS_Value *v = ps_value_alloc(PS_V_MAP);
@@ -84,6 +95,9 @@ PS_Value *ps_map_new(PS_Context *ctx) {
   v->as.map_v.used = NULL;
   v->as.map_v.cap = 0;
   v->as.map_v.len = 0;
+  v->as.map_v.order = NULL;
+  v->as.map_v.order_len = 0;
+  v->as.map_v.order_cap = 0;
   return v;
 }
 
@@ -98,7 +112,7 @@ int ps_map_has_key(PS_Context *ctx, PS_Value *map, PS_Value *key) {
   size_t idx = h & (m->cap - 1);
   for (size_t probes = 0; probes < m->cap; probes++) {
     if (!m->used[idx]) return 0;
-    if (value_equals(m->keys[idx], key)) return 1;
+    if (m->used[idx] == 1 && value_equals(m->keys[idx], key)) return 1;
     idx = (idx + 1) & (m->cap - 1);
   }
   return 0;
@@ -118,7 +132,7 @@ PS_Value *ps_map_get(PS_Context *ctx, PS_Value *map, PS_Value *key) {
   size_t idx = h & (m->cap - 1);
   for (size_t probes = 0; probes < m->cap; probes++) {
     if (!m->used[idx]) break;
-    if (value_equals(m->keys[idx], key)) return m->values[idx];
+    if (m->used[idx] == 1 && value_equals(m->keys[idx], key)) return m->values[idx];
     idx = (idx + 1) & (m->cap - 1);
   }
   ps_throw(ctx, PS_ERR_RANGE, "missing key");
@@ -137,19 +151,62 @@ int ps_map_set(PS_Context *ctx, PS_Value *map, PS_Value *key, PS_Value *value) {
   }
   size_t h = hash_value(key);
   size_t idx = h & (m->cap - 1);
+  size_t tomb = (size_t)-1;
   while (m->used[idx]) {
-    if (value_equals(m->keys[idx], key)) {
+    if (m->used[idx] == 1 && value_equals(m->keys[idx], key)) {
       if (m->values[idx]) ps_value_release(m->values[idx]);
       m->values[idx] = ps_value_retain(value);
       return 1;
     }
+    if (m->used[idx] == 2 && tomb == (size_t)-1) tomb = idx;
     idx = (idx + 1) & (m->cap - 1);
   }
+  if (tomb != (size_t)-1) idx = tomb;
   m->used[idx] = 1;
   m->keys[idx] = ps_value_retain(key);
   m->values[idx] = ps_value_retain(value);
+  if (!ensure_order_cap(m, m->order_len + 1)) {
+    ps_throw(ctx, PS_ERR_OOM, "out of memory");
+    return 0;
+  }
+  m->order[m->order_len++] = m->keys[idx];
   m->len += 1;
   return 1;
+}
+
+int ps_map_remove(PS_Context *ctx, PS_Value *map, PS_Value *key) {
+  if (!map || map->tag != PS_V_MAP) {
+    ps_throw(ctx, PS_ERR_TYPE, "not a map");
+    return 0;
+  }
+  PS_Map *m = &map->as.map_v;
+  if (m->cap == 0 || m->len == 0) return 0;
+  size_t h = hash_value(key);
+  size_t idx = h & (m->cap - 1);
+  for (size_t probes = 0; probes < m->cap; probes++) {
+    if (!m->used[idx]) return 0;
+    if (m->used[idx] == 1 && value_equals(m->keys[idx], key)) {
+      PS_Value *stored_key = m->keys[idx];
+      for (size_t i = 0; i < m->order_len; i++) {
+        if (m->order[i] == stored_key || value_equals(m->order[i], stored_key)) {
+          for (size_t j = i + 1; j < m->order_len; j++) {
+            m->order[j - 1] = m->order[j];
+          }
+          m->order_len -= 1;
+          break;
+        }
+      }
+      if (m->keys[idx]) ps_value_release(m->keys[idx]);
+      if (m->values[idx]) ps_value_release(m->values[idx]);
+      m->keys[idx] = NULL;
+      m->values[idx] = NULL;
+      m->used[idx] = 2;
+      if (m->len > 0) m->len -= 1;
+      return 1;
+    }
+    idx = (idx + 1) & (m->cap - 1);
+  }
+  return 0;
 }
 
 size_t ps_map_len(PS_Value *map) {
@@ -163,20 +220,13 @@ PS_Status ps_map_entry(PS_Context *ctx, PS_Value *map, size_t index, PS_Value **
     return PS_ERR;
   }
   PS_Map *m = &map->as.map_v;
-  if (index >= m->len) {
+  if (index >= m->order_len) {
     ps_throw(ctx, PS_ERR_RANGE, "index out of bounds");
     return PS_ERR;
   }
-  size_t seen = 0;
-  for (size_t i = 0; i < m->cap; i++) {
-    if (!m->used[i]) continue;
-    if (seen == index) {
-      if (out_key) *out_key = m->keys[i];
-      if (out_value) *out_value = m->values[i];
-      return PS_OK;
-    }
-    seen += 1;
-  }
-  ps_throw(ctx, PS_ERR_RANGE, "index out of bounds");
-  return PS_ERR;
+  PS_Value *k = m->order[index];
+  if (out_key) *out_key = k;
+  if (out_value) *out_value = ps_map_get(ctx, map, k);
+  if (ps_last_error_code(ctx) != PS_ERR_NONE) return PS_ERR;
+  return PS_OK;
 }

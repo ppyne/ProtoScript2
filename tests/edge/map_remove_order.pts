@@ -1,0 +1,22 @@
+import Io;
+
+function main() : void {
+    map<int, int> m = {};
+    m[1] = 10;
+    m[2] = 20;
+    m[3] = 30;
+
+    bool r1 = m.remove(2);
+    bool r2 = m.remove(2);
+
+    m[2] = 200;
+
+    list<int> ks = m.keys();
+    list<int> vs = m.values();
+
+    bool ok = r1 && !r2 && (m.length() == 3) &&
+        (ks.length() == 3) && (ks[0] == 1) && (ks[1] == 3) && (ks[2] == 2) &&
+        (vs.length() == 3) && (vs[0] == 10) && (vs[1] == 30) && (vs[2] == 200);
+
+    Io.printLine(ok.toString());
+}

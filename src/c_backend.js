@@ -586,6 +586,16 @@ function emitContainerHelpers(typeNames) {
     out.push("  m->values[m->len] = value;");
     out.push("  m->len += 1;");
     out.push("}");
+    out.push(`static bool ps_map_remove_${m.base}(${mapC}* m, ${keyC} key) {`);
+    out.push("  size_t idx = 0;");
+    out.push(`  if (!ps_map_find_${m.base}(m, key, &idx)) return false;`);
+    out.push("  for (size_t i = idx + 1; i < m->len; i += 1) {");
+    out.push("    m->keys[i - 1] = m->keys[i];");
+    out.push("    m->values[i - 1] = m->values[i];");
+    out.push("  }");
+    out.push("  m->len -= 1;");
+    out.push("  return true;");
+    out.push("}");
     const needKeyList = typeSet.has(`list<${m.keyType}>`);
     const needValList = typeSet.has(`list<${m.valueType}>`);
     if (needKeyList) {
@@ -2228,6 +2238,13 @@ function emitInstr(i, fnInf, state) {
         } else if (rc && rc.kind === "map" && i.method === "containsKey") {
           const m = parseMapType(rt);
           if (m) out.push(`${n(i.dst)} = ps_map_has_key_${m.base}(&${n(i.receiver)}, ${n(i.args[0])});`);
+          else out.push(`${n(i.dst)} = 0;`);
+        } else if (rc && rc.kind === "map" && i.method === "remove") {
+          const m = parseMapType(rt);
+          if (m) {
+            const recv = aliasOf(i.receiver) || i.receiver;
+            out.push(`${n(i.dst)} = ps_map_remove_${m.base}(&${n(recv)}, ${n(i.args[0])});`);
+          }
           else out.push(`${n(i.dst)} = 0;`);
         } else if (rc && rc.kind === "map" && i.method === "keys") {
           const m = parseMapType(rt);
