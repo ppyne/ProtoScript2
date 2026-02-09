@@ -4,6 +4,11 @@
     "./vendor",
     "/opt/ps-collections"
   ],
+  "preprocessor": {
+    "enabled": true,
+    "tool": "mcpp",
+    "options": []
+  },
   "modules": [
     {
       "name": "test.simple",
