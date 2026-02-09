@@ -1,5 +1,8 @@
 ![ProtoScript2](header.png)
 
+> If two data structures are different, they should be written as different.  
+> *– Niklaus Wirth, inventeur du langage Pascal*
+
 # Manuel de référence ProtoScript V2
 
 Ce document est le manuel utilisateur de ProtoScript V2.
