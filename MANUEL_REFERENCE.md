@@ -896,7 +896,7 @@ function sum(list<int> values...) : int {
 ```
 Ref: EX-051
 
-Appel valide :
+Appels valides :
 
 ```c
 int r = sum(1, 2, 3);
