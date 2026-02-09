@@ -906,14 +906,13 @@ Ref: EX-052
 Contre-exemple :
 
 ```c
-// invalide : variadique vide
-// int r = sum(); // Erreur : E1001 PARSE_UNEXPECTED_TOKEN
+int r = sum(); // variadique vide => liste vide
 ```
 Ref: EX-053
 
 Note :
 
-Il doit toujours y avoir au moins un paramètre quand on utilise une fonction variadique, sous peine de se voir retourner l'erreur statique `E3002` (`VARIADIC_EMPTY_CALL`).
+Un appel variadique peut être vide. Dans ce cas, la liste capturée est vide (`view<T>` de longueur 0).
 
 ### 9.4 Ce qui n'existe pas
 

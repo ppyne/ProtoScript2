@@ -15,13 +15,6 @@
       "ir_after_must_contain": ["const int \"20\""]
     },
     {
-      "id": "invalid_variadic_empty",
-      "kind": "reject-static",
-      "source": "invalid/type/variadic_empty_call.pts",
-      "expected_error_code": "E3002",
-      "expected_category": "VARIADIC_EMPTY_CALL"
-    },
-    {
       "id": "invalid_switch_no_termination",
       "kind": "reject-static",
       "source": "invalid/type/switch_no_termination.pts",

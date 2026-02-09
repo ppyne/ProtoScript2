@@ -2001,8 +2001,8 @@ class Analyzer {
         }
       } else {
         const fixed = fn.params.filter((p) => !p.variadic).length;
-        if (expr.args.length <= fixed) {
-          this.addDiag(expr, "E3002", "VARIADIC_EMPTY_CALL", "variadic argument list must be non-empty");
+        if (expr.args.length < fixed) {
+          this.addDiag(expr, "E1003", "ARITY_MISMATCH", `arity mismatch for '${name}'`);
         }
       }
       return fn.retType;

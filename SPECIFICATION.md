@@ -1571,7 +1571,7 @@ Exemples :
 ```c
 sum(1, 2, 3);          // valide
 sum(1);                // valide
-sum();                 // erreur (aucune valeur variadique fournie)
+sum();                 // valide (liste variadique vide)
 
 sum(1, "x");          // erreur de compilation
 ```
@@ -1608,8 +1608,9 @@ Le paramètre variadique est considéré comme **un paramètre unique** du point
 Ainsi :
 
 - l’arité minimale de la fonction reste fixe
-- aucun paramètre n’est optionnel ou omis
 - la règle de la section 5.7 reste pleinement valable
+
+Les paramètres non variadiques restent obligatoires ; la partie variadique peut être vide.
 
 ---
 
@@ -2824,7 +2825,7 @@ Les règles suivantes sont obligatoires :
 
 - le `else` est rattaché au `if` non fermé le plus proche
 - une déclaration variadique est reconnue uniquement sous la forme `list<T> ident...`
-- un paramètre variadique représente une séquence non vide d’arguments
+- un paramètre variadique représente une séquence d’arguments (possiblement vide)
 - `for (... of ...)` et `for (... in ...)` sont distincts de `for (init; cond; step)`
 - `:` dans une signature de fonction introduit exclusivement le type de retour
 - les littéraux `map` utilisent `{ key : value }` et ne sont jamais des blocs
@@ -2964,12 +2965,11 @@ Règles :
 Règles :
 
 - un `case` ou `default` sans terminaison explicite (`break`, `return`, `throw` ou instruction équivalente quittant le `switch`) est invalide
-- un paramètre variadique déclaré `list<T> ident...` doit être lié à au moins une valeur à l’appel
-- un appel fournissant zéro argument pour un paramètre variadique est invalide
+- un paramètre variadique déclaré `list<T> ident...` peut être lié à une séquence vide
 - une affectation ne peut pas être utilisée comme valeur d’expression
 - l’affectation chaînée est invalide
 
-Un paramètre variadique n’est pas une liste optionnelle : c’est une forme d’argumentation répétée obligatoire.
+Un paramètre variadique est une forme d’argumentation répétée, capturée en `view<T>` et pouvant être vide.
 
 ## 15.6 Erreurs statiques normatives
 
@@ -2989,7 +2989,6 @@ Codes canoniques minimaux :
 - `E2003` : `IMPORT_PATH_BAD_EXTENSION`
 - `E2004` : `IMPORT_PATH_NO_ROOT_PROTO`
 - `E3001` : `TYPE_MISMATCH_ASSIGNMENT`
-- `E3002` : `VARIADIC_EMPTY_CALL`
 - `E3003` : `SWITCH_CASE_NO_TERMINATION`
 - `E3004` : `IMMUTABLE_INDEX_WRITE`
 - `E3005` : `STATIC_EMPTY_POP`
@@ -3126,7 +3125,6 @@ La suite de conformité doit contenir au minimum :
 - `invalid/runtime` : programmes valides qui déclenchent une exception normative
 - `edge/` : cas limites obligatoires
 - `invalid/type/switch-no-termination` : `case`/`default` sans terminaison explicite
-- `invalid/type/variadic-empty-call` : appel variadique avec zéro argument
 
 ## 18.2 Format minimal d’un test
 

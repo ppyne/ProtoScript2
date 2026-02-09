@@ -13,7 +13,6 @@
     ],
     "invalid/type": [
       "invalid/type/type_mismatch_assignment",
-      "invalid/type/variadic_empty_call",
       "invalid/type/switch_no_termination",
       "invalid/type/string_index_write",
       "invalid/type/view_index_write",

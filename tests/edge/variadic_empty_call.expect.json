@@ -1,11 +1,4 @@
 {
-  "status": "reject-static",
-  "error_family": "E3xxx",
-  "error_code": "E3002",
-  "category": "VARIADIC_EMPTY_CALL",
-  "position": {
-    "file": "edge/variadic_empty_call.pts",
-    "line": 9,
-    "column": 11
-  }
+  "status": "accept-runtime",
+  "expected_stdout": ""
 }

@@ -3453,8 +3453,8 @@ static char *infer_call_type(Analyzer *a, AstNode *e, Scope *scope, int *ok) {
         return NULL;
       }
     } else {
-      if (argc <= f->fixed_count) {
-        set_diag(a->diag, a->file, e->line, e->col, "E3002", "VARIADIC_EMPTY_CALL", "variadic argument list must be non-empty");
+      if (argc < f->fixed_count) {
+        set_diag(a->diag, a->file, e->line, e->col, "E1003", "ARITY_MISMATCH", "arity mismatch");
         *ok = 0;
         return NULL;
       }
