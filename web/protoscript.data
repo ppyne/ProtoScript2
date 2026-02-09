@@ -1,4 +1,9 @@
 {
+  "search_paths": [
+    "./modules",
+    "./vendor",
+    "/opt/ps-collections"
+  ],
   "modules": [
     {
       "name": "test.simple",
