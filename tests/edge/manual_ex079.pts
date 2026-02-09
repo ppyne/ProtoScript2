@@ -1,7 +1,7 @@
 import Io;
 
 function main() : void {
-    TextFile f = Io.openText("out.txt", "w");
+    TextFile f = Io.openText("/tmp/protoscript2_manual_ex079.txt", "w");
     f.write("hello");
     f.close();
     Io.printLine("done");

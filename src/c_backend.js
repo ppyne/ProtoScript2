@@ -372,10 +372,16 @@ function inferTempTypes(ir, protoMap) {
               }
               break;
             case "make_list":
-              if (i.items.length > 0 && tempTypes.has(i.items[0])) set(i.dst, `list<${tempTypes.get(i.items[0])}>`);
+              if (i.type && i.type.name) {
+                set(i.dst, i.type.name);
+              } else if (i.items.length > 0 && tempTypes.has(i.items[0])) {
+                set(i.dst, `list<${tempTypes.get(i.items[0])}>`);
+              }
               break;
             case "make_map":
-              if (i.pairs.length > 0) {
+              if (i.type && i.type.name) {
+                set(i.dst, i.type.name);
+              } else if (i.pairs.length > 0) {
                 const first = i.pairs[0];
                 if (getType(first.key) && getType(first.value)) {
                   const keyType = getType(first.key);
@@ -488,19 +494,6 @@ function emitTypeDecls(typeNames, protoMap) {
     for (const name of protoMap.keys()) {
       out.push(`typedef struct ${name} ${name};`);
     }
-    for (const [name, p] of protoMap.entries()) {
-      const fields = collectProtoFields(protoMap, name);
-      out.push(`struct ${name} {`);
-      if (fields.length === 0) {
-        out.push("  uint8_t __empty;");
-      } else {
-        for (const f of fields) {
-          const t = typeof f.type === "string" ? f.type : f.type?.name;
-          out.push(`  ${cTypeFromName(t || "int")} ${f.name};`);
-        }
-      }
-      out.push("};");
-    }
   }
   for (const t of typeNames) {
     const p = parseContainer(t);
@@ -521,6 +514,21 @@ function emitTypeDecls(typeNames, protoMap) {
           `typedef struct { ${cTypeFromName(m.keyType)}* keys; ${cTypeFromName(m.valueType)}* values; size_t len; size_t cap; } ps_map_${bn};`
         );
       }
+    }
+  }
+  if (protoMap && protoMap.size > 0) {
+    for (const [name, p] of protoMap.entries()) {
+      const fields = collectProtoFields(protoMap, name);
+      out.push(`struct ${name} {`);
+      if (fields.length === 0) {
+        out.push("  uint8_t __empty;");
+      } else {
+        for (const f of fields) {
+          const t = typeof f.type === "string" ? f.type : f.type?.name;
+          out.push(`  ${cTypeFromName(t || "int")} ${f.name};`);
+        }
+      }
+      out.push("};");
     }
   }
   return out;

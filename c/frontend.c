@@ -3622,11 +3622,6 @@ static char *infer_expr_type(Analyzer *a, AstNode *e, Scope *scope, int *ok) {
   if (strcmp(e->kind, "Identifier") == 0) {
     Sym *sym = scope_lookup_sym(scope, e->text ? e->text : "");
     if (sym) {
-      if (!sym->initialized) {
-        set_diag(a->diag, a->file, e->line, e->col, "E4001", "UNINITIALIZED_READ", "variable not initialized");
-        *ok = 0;
-        return NULL;
-      }
       return strdup(sym->type ? sym->type : "unknown");
     }
     if (e->text && strcmp(e->text, "Sys") == 0) return strdup("Sys");
@@ -3902,7 +3897,7 @@ static int analyze_stmt(Analyzer *a, AstNode *st, Scope *scope) {
     }
     if (tn) {
       char *lhs = canon_type(tn->text);
-      if (!lhs || !scope_define(scope, st->text ? st->text : "", lhs, -1, 0)) {
+      if (!lhs || !scope_define(scope, st->text ? st->text : "", lhs, -1, 1)) {
         free(lhs);
         return 0;
       }
@@ -6080,13 +6075,11 @@ static int ir_lower_stmt(AstNode *st, IrFnCtx *ctx) {
                            type_esc ? type_esc : "");
     free(name_esc);
     free(type_esc);
-    free(type);
-    free(ir_name);
-    if (!ir_emit(ctx, ins)) return 0;
+    if (!ir_emit(ctx, ins)) { free(type); free(ir_name); return 0; }
     AstNode *last = ast_last_child(st);
     if (last && (!tn || last != tn)) {
       char *v = ir_lower_expr(last, ctx);
-      if (!v) return 0;
+      if (!v) { free(type); free(ir_name); return 0; }
       char *v_esc = json_escape(v);
       char *n_esc = json_escape(ir_scope_lookup(ctx->scope, st->text ? st->text : "") ? ir_scope_lookup(ctx->scope, st->text ? st->text : "") : (st->text ? st->text : ""));
       char *ins2 = str_printf("{\"op\":\"store_var\",\"name\":\"%s\",\"src\":\"%s\",\"type\":{\"kind\":\"IRType\",\"name\":\"unknown\"}}",
@@ -6094,8 +6087,21 @@ static int ir_lower_stmt(AstNode *st, IrFnCtx *ctx) {
       free(v_esc);
       free(n_esc);
       free(v);
-      if (!ir_emit(ctx, ins2)) return 0;
+      if (!ir_emit(ctx, ins2)) { free(type); free(ir_name); return 0; }
+    } else if (tn) {
+      char *dv = ir_emit_default_value(ctx, type);
+      if (!dv) { free(type); free(ir_name); return 0; }
+      char *dv_esc = json_escape(dv);
+      char *n_esc = json_escape(ir_scope_lookup(ctx->scope, st->text ? st->text : "") ? ir_scope_lookup(ctx->scope, st->text ? st->text : "") : (st->text ? st->text : ""));
+      char *ins2 = str_printf("{\"op\":\"store_var\",\"name\":\"%s\",\"src\":\"%s\",\"type\":{\"kind\":\"IRType\",\"name\":\"unknown\"}}",
+                              n_esc ? n_esc : "", dv_esc ? dv_esc : "");
+      free(dv_esc);
+      free(n_esc);
+      free(dv);
+      if (!ir_emit(ctx, ins2)) { free(type); free(ir_name); return 0; }
     }
+    free(type);
+    free(ir_name);
     return 1;
   }
   if (strcmp(st->kind, "AssignStmt") == 0 && st->child_len >= 2) {

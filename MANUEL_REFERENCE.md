@@ -210,27 +210,27 @@ Ref: EX-007
 
 ### 3.4 Valeurs par défaut
 
-Une variable locale doit être assignée avant lecture.
+Toute variable, champ ou valeur allouée est implicitement initialisée au moment de sa création.
+Il n’existe pas d’état non initialisé observable dans le langage.
+
+Valeurs par défaut :
+
+- bool → false
+- byte → 0
+- int → 0
+- float → 0.0
+- glyph → U+0000
+- string → ""
 
 Exemple :
 
 ```c
 function main() : void {
-    int x = 1;
-    Io.printLine(x.toString());
+    int x;
+    Io.printLine(x.toString()); // affiche "0"
 }
 ```
 Ref: EX-008
-
-Contre-exemple :
-
-```c
-function main() : void {
-    int x;
-    Io.printLine(x.toString()); // Erreur : E4001 UNINITIALIZED_READ
-} // Erreur : E4001 UNINITIALIZED_READ
-```
-Ref: EX-009
 
 ### 3.5 Conversions explicites
 
@@ -368,28 +368,30 @@ function main() : void {
 ```
 Ref: EX-021
 
-### 5.3 Initialisation obligatoire
+### 5.3 Initialisation implicite et valeurs par défaut
 
-Une variable non assignée ne peut pas être lue.
+Dans ProtoScript2, une variable est toujours initialisée à une valeur par défaut déterministe au moment de sa création.
+Il n’existe pas d’état non initialisé observable.
 
 Exemple :
 
 ```c
 function main() : void {
-    int x = 1;
-    int y = x + 1;
-    Io.printLine(y.toString());
+    int x;
+    Io.printLine(x.toString()); // affiche "0"
 }
 ```
 Ref: EX-022
 
-Contre-exemple :
+Exemple (champ de prototype) :
 
 ```c
+prototype P { int n; }
+
 function main() : void {
-    int x;
-    Io.printLine(x.toString()); // Erreur : E4001 (UNINITIALIZED_READ)
-} // Erreur : E4001 UNINITIALIZED_READ
+    P p = P.clone();
+    Io.printLine(p.n.toString()); // affiche "0"
+}
 ```
 Ref: EX-023
 

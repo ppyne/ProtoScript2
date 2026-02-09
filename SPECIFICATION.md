@@ -2916,14 +2916,36 @@ Règles :
 - deux déclarations homonymes dans le même bloc sont interdites
 - un champ de prototype peut être masqué localement, mais l’accès au champ doit alors être explicite via `self.<field>`
 
-## 15.3 Initialisation obligatoire (definite assignment)
+## 15.3 Initialisation implicite et valeurs par défaut
 
-Règles :
+Principe général :
 
-- toute variable locale doit être définitivement assignée avant toute lecture
-- une variable est considérée définitivement assignée uniquement si toutes les branches atteignables l’assignent
-- la vérification s’applique aux flux `if/else`, `switch`, boucles et `try/catch/finally`
-- l’utilisation d’une variable potentiellement non initialisée est une erreur statique
+Dans ProtoScript2, toute variable, champ ou valeur allouée est implicitement initialisée au moment de sa création.  
+Il n’existe pas d’état non initialisé observable dans le langage.
+
+Par conséquent :
+
+- toute lecture d’une variable est toujours définie ;
+- aucune vérification d’assignation préalable n’est requise ;
+- l’utilisation d’une variable avant affectation explicite n’est pas une erreur statique.
+
+Ce choix garantit une sémantique simple, déterministe et performante, et facilite l’implémentation des backends, notamment l’émission de code C.
+
+Valeurs par défaut par type :
+
+- `bool` → `false`
+- `byte` → `0`
+- `int` → `0`
+- `float` → `0.0`
+- `glyph` → `U+0000` (glyph nul)
+- `string` → `""` (chaîne vide)
+
+Ces valeurs s’appliquent uniformément :
+
+- aux variables locales,
+- aux champs de prototypes,
+- aux objets clonés,
+- aux valeurs retournées par allocation implicite.
 
 ## 15.4 Compatibilité des types
 
@@ -2971,7 +2993,6 @@ Codes canoniques minimaux :
 - `E3003` : `SWITCH_CASE_NO_TERMINATION`
 - `E3004` : `IMMUTABLE_INDEX_WRITE`
 - `E3005` : `STATIC_EMPTY_POP`
-- `E4001` : `UNINITIALIZED_READ`
 
 Exigences minimales de diagnostic :
 

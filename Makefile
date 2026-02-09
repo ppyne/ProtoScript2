@@ -40,7 +40,6 @@ c:
 
 clean:
 	$(MAKE) -C c clean
-	$(MAKE) web-clean
 
 web: $(WEB_OUT)
 

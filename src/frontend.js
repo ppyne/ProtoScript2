@@ -1603,7 +1603,8 @@ class Analyzer {
         if (stmt.init && !t && (stmt.init.kind === "ListLiteral" || stmt.init.kind === "MapLiteral")) {
           this.addDiag(stmt, "E3006", "MISSING_TYPE_CONTEXT", "empty literal requires explicit type context");
         }
-        scope.define(stmt.name, t || { kind: "PrimitiveType", name: "void" }, !!stmt.init, knownListLen);
+        // Variables are implicitly initialized; no uninitialized state is observable.
+        scope.define(stmt.name, t || { kind: "PrimitiveType", name: "void" }, true, knownListLen);
         break;
       }
       case "AssignStmt": {
@@ -1796,9 +1797,6 @@ class Analyzer {
           if (expr.name === "Sys") return { kind: "BuiltinType", name: "Sys" };
           this.addDiag(expr, "E2001", "UNRESOLVED_NAME", `unknown identifier '${expr.name}'`);
           return null;
-        }
-        if (!s.initialized) {
-          this.addDiag(expr, "E4001", "UNINITIALIZED_READ", `variable '${expr.name}' is not initialized`);
         }
         return s.type;
       }

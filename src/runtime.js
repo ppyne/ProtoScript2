@@ -983,7 +983,11 @@ function execStmt(stmt, scope, functions, moduleEnv, protoEnv, file, callFunctio
   switch (stmt.kind) {
     case "VarDecl": {
       let v = null;
-      if (stmt.init) v = evalExpr(stmt.init, scope, functions, moduleEnv, protoEnv, file, callFunction);
+      if (stmt.init) {
+        v = evalExpr(stmt.init, scope, functions, moduleEnv, protoEnv, file, callFunction);
+      } else if (stmt.declaredType) {
+        v = defaultValueForTypeNode(protoEnv, stmt.declaredType);
+      }
       scope.define(stmt.name, v);
       return;
     }

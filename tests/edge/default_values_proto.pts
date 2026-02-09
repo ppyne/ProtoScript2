@@ -1,0 +1,20 @@
+import Io;
+
+prototype P {
+    bool b;
+    byte by;
+    int i;
+    float f;
+    glyph g;
+    string s;
+}
+
+function main() : void {
+    P p = P.clone();
+    Io.printLine(p.b.toString());
+    Io.printLine(p.by.toString());
+    Io.printLine(p.i.toString());
+    Io.printLine(p.f.toString());
+    Io.printLine(p.g.toString());
+    Io.printLine("'".concat(p.s).concat("'"));
+}

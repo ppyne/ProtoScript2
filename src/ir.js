@@ -12,6 +12,37 @@ function typeToString(t) {
   return "unknown";
 }
 
+function splitTypeArgs(inner) {
+  const parts = [];
+  let depth = 0;
+  let start = 0;
+  for (let i = 0; i < inner.length; i += 1) {
+    const ch = inner[i];
+    if (ch === "<") depth += 1;
+    else if (ch === ">") depth -= 1;
+    else if (ch === "," && depth === 0) {
+      parts.push(inner.slice(start, i).trim());
+      start = i + 1;
+    }
+  }
+  parts.push(inner.slice(start).trim());
+  return parts.filter((p) => p.length > 0);
+}
+
+function parseTypeName(name) {
+  if (!name || typeof name !== "string") return { kind: "PrimitiveType", name: "unknown" };
+  if (["int", "float", "bool", "byte", "glyph", "string", "void"].includes(name)) {
+    return { kind: "PrimitiveType", name };
+  }
+  const m = /^([a-zA-Z_][a-zA-Z0-9_]*)<(.*)>$/.exec(name);
+  if (m) {
+    const base = m[1];
+    const args = splitTypeArgs(m[2]).map((p) => parseTypeName(p));
+    return { kind: "GenericType", name: base, args };
+  }
+  return { kind: "NamedType", name };
+}
+
 function lowerType(t) {
   if (!t) return { kind: "IRType", name: "void" };
   if (t.kind === "PrimitiveType" || t.kind === "NamedType") return { kind: "IRType", name: t.name };
@@ -84,18 +115,25 @@ function buildImportMap(ast) {
   const imported = new Map();
   const namespaces = new Map();
   const moduleConsts = new Map(); // module -> Map(name -> value)
+  const moduleReturns = new Map(); // module -> Map(name -> retType)
+  const importedReturns = new Map(); // local symbol -> retType
   const imports = ast.imports || [];
-  if (imports.length === 0) return { imported, namespaces, moduleConsts };
+  if (imports.length === 0) return { imported, namespaces, moduleConsts, moduleReturns, importedReturns };
   const reg = loadModuleRegistry();
-  if (!reg || !Array.isArray(reg.modules)) return { imported, namespaces, moduleConsts };
+  if (!reg || !Array.isArray(reg.modules)) return { imported, namespaces, moduleConsts, moduleReturns, importedReturns };
   const modules = new Map();
   for (const m of reg.modules) {
     if (!m || typeof m.name !== "string") continue;
     const fns = new Set();
+    const retMap = new Map();
     for (const f of m.functions || []) {
-      if (f && typeof f.name === "string") fns.add(f.name);
+      if (f && typeof f.name === "string") {
+        fns.add(f.name);
+        if (typeof f.ret === "string") retMap.set(f.name, f.ret);
+      }
     }
     modules.set(m.name, fns);
+    moduleReturns.set(m.name, retMap);
     const consts = new Map();
     for (const c of m.constants || []) {
       if (!c || typeof c.name !== "string" || typeof c.type !== "string") continue;
@@ -139,13 +177,15 @@ function buildImportMap(ast) {
         if (!mset.has(it.name)) continue;
         const local = it.alias || it.name;
         imported.set(local, `${mod}.${it.name}`);
+        const modRets = moduleReturns.get(mod);
+        if (modRets && modRets.has(it.name)) importedReturns.set(local, modRets.get(it.name));
       }
     } else {
       const alias = imp.alias || imp.modulePath[imp.modulePath.length - 1];
       namespaces.set(alias, mod);
     }
   }
-  return { imported, namespaces, moduleConsts };
+  return { imported, namespaces, moduleConsts, moduleReturns, importedReturns };
 }
 
 class Scope {
@@ -177,6 +217,8 @@ class IRBuilder {
     this.importedSymbols = imports.imported;
     this.importNamespaces = imports.namespaces;
     this.moduleConsts = imports.moduleConsts;
+    this.moduleReturns = imports.moduleReturns;
+    this.importedReturns = imports.importedReturns;
   }
 
   inferFileTypeFromIoOpen(expr) {
@@ -333,12 +375,12 @@ class IRBuilder {
     if (typeNode.kind === "GenericType") {
       if (typeNode.name === "list") {
         const dst = this.nextTemp();
-        this.emit(block, { op: "make_list", dst, items: [] });
+        this.emit(block, { op: "make_list", dst, items: [], type: lowerType(typeNode) });
         return { value: dst, type: typeNode };
       }
       if (typeNode.name === "map") {
         const dst = this.nextTemp();
-        this.emit(block, { op: "make_map", dst, pairs: [] });
+        this.emit(block, { op: "make_map", dst, pairs: [], type: lowerType(typeNode) });
         return { value: dst, type: typeNode };
       }
     }
@@ -404,11 +446,28 @@ class IRBuilder {
           this.emit(rhs.block, { op: "store_var", name: irName, src: rhs.value, type: lowerType(rhs.type) });
           return rhs.block;
         }
+        if (stmt.declaredType) {
+          const rhs = this.emitDefaultValue(block, stmt.declaredType);
+          this.emit(block, { op: "store_var", name: irName, src: rhs.value, type: lowerType(rhs.type) });
+        }
         return block;
       }
       case "AssignStmt": {
-        const rhs = this.lowerExpr(stmt.expr, block, irFn, scope);
-        let cur = rhs.block;
+        let rhs = null;
+        let cur = block;
+        if (
+          (stmt.expr.kind === "ListLiteral" && stmt.expr.items.length === 0) ||
+          (stmt.expr.kind === "MapLiteral" && stmt.expr.pairs.length === 0)
+        ) {
+          const lhsType = this.inferAssignableType(stmt.target, scope);
+          if (lhsType && lhsType.kind === "GenericType" && (lhsType.name === "list" || lhsType.name === "map")) {
+            rhs = this.emitDefaultValue(block, lhsType);
+          }
+        }
+        if (!rhs) {
+          rhs = this.lowerExpr(stmt.expr, block, irFn, scope);
+          cur = rhs.block;
+        }
         if (stmt.target.kind === "Identifier") {
           const entry = scope.get(stmt.target.name);
           const irName = entry ? entry.irName : stmt.target.name;
@@ -905,8 +964,8 @@ class IRBuilder {
           vals.push(v);
           cur = v.block;
         }
-        this.emit(cur, { op: "make_list", dst, items: vals.map((v) => v.value) });
         const elemType = vals.length > 0 ? vals[0].type : { kind: "PrimitiveType", name: "void" };
+        this.emit(cur, { op: "make_list", dst, items: vals.map((v) => v.value), type: lowerType({ kind: "GenericType", name: "list", args: [elemType] }) });
         return { value: dst, type: { kind: "GenericType", name: "list", args: [elemType] }, block: cur };
       }
       case "MapLiteral": {
@@ -919,9 +978,26 @@ class IRBuilder {
           pairs.push({ key, value });
           cur = value.block;
         }
-        this.emit(cur, { op: "make_map", dst, pairs: pairs.map((p) => ({ key: p.key.value, value: p.value.value })) });
-        const keyType = pairs.length > 0 ? pairs[0].key.type : { kind: "PrimitiveType", name: "void" };
-        const valType = pairs.length > 0 ? pairs[0].value.type : { kind: "PrimitiveType", name: "void" };
+        let keyType = pairs.length > 0 ? pairs[0].key.type : { kind: "PrimitiveType", name: "void" };
+        let valType = pairs.length > 0 ? pairs[0].value.type : { kind: "PrimitiveType", name: "void" };
+        if (pairs.length > 1) {
+          let mixedVal = false;
+          for (let i = 1; i < pairs.length; i += 1) {
+            if (typeToString(pairs[i].value.type) !== typeToString(valType)) {
+              mixedVal = true;
+              break;
+            }
+          }
+          if (mixedVal && typeToString(keyType) === "string") {
+            valType = { kind: "NamedType", name: "JSONValue" };
+          }
+        }
+        this.emit(cur, {
+          op: "make_map",
+          dst,
+          pairs: pairs.map((p) => ({ key: p.key.value, value: p.value.value })),
+          type: lowerType({ kind: "GenericType", name: "map", args: [keyType, valType] }),
+        });
         return { value: dst, type: { kind: "GenericType", name: "map", args: [keyType, valType] }, block: cur };
       }
       default: {
@@ -959,7 +1035,11 @@ class IRBuilder {
         args: args.map((a) => a.value),
         variadic: isVariadic,
       });
-      return { value: dst, type: sig ? sig.retType : { kind: "PrimitiveType", name: "unknown" }, block: lowered.block };
+      if (sig) return { value: dst, type: sig.retType, block: lowered.block };
+      if (this.importedReturns && this.importedReturns.has(local)) {
+        return { value: dst, type: parseTypeName(this.importedReturns.get(local)), block: lowered.block };
+      }
+      return { value: dst, type: { kind: "PrimitiveType", name: "unknown" }, block: lowered.block };
     }
 
     if (expr.callee.kind === "MemberExpr") {
@@ -997,6 +1077,10 @@ class IRBuilder {
             args: args.map((a) => a.value),
             variadic: false,
           });
+          if (this.moduleReturns && this.moduleReturns.has(ns)) {
+            const ret = this.moduleReturns.get(ns).get(method);
+            if (ret) return { value: dst, type: parseTypeName(ret), block: lowered.block };
+          }
           return { value: dst, type: { kind: "PrimitiveType", name: "unknown" }, block: lowered.block };
         }
       }
@@ -1006,7 +1090,26 @@ class IRBuilder {
         this.emit(lowered.block, { op: "call_builtin_print", args: args.map((a) => a.value) });
         return { value: this.nextTemp(), type: { kind: "PrimitiveType", name: "void" }, block: lowered.block };
       }
-      const recv = this.lowerExpr(expr.callee.target, block, irFn, scope);
+      let recv = null;
+      let base = null;
+      let memberName = null;
+      if (expr.callee.target.kind === "MemberExpr") {
+        const mem = expr.callee.target;
+        if (mem.target.kind === "Identifier" && this.importNamespaces.has(mem.target.name)) {
+          recv = this.lowerExpr(mem, block, irFn, scope);
+        } else {
+          base = this.lowerExpr(mem.target, block, irFn, scope);
+          const dst = this.nextTemp();
+          this.emit(base.block, { op: "member_get", dst, target: base.value, name: mem.name });
+          recv = { value: dst, type: this.inferExprType(mem, scope), block: base.block };
+          const baseType = this.inferExprType(mem.target, scope);
+          if (baseType && baseType.kind === "NamedType" && this.prototypes.has(baseType.name)) {
+            memberName = mem.name;
+          }
+        }
+      } else {
+        recv = this.lowerExpr(expr.callee.target, block, irFn, scope);
+      }
       const lowered = lowerArgs(expr.args, recv.block);
       const args = lowered.args;
       if (recv.type && recv.type.kind === "NamedType" && this.prototypes.has(recv.type.name)) {
@@ -1062,6 +1165,9 @@ class IRBuilder {
         method,
         args: args.map((a) => a.value),
       });
+      if (memberName && base && recv.type && recv.type.kind === "GenericType" && recv.type.name === "list") {
+        this.emit(lowered.block, { op: "member_set", target: base.value, name: memberName, src: recv.value });
+      }
       return { value: dst, type: { kind: "PrimitiveType", name: "unknown" }, block: lowered.block };
     }
 
@@ -1207,6 +1313,26 @@ class IRBuilder {
       if (t && t.kind === "NamedType" && this.prototypes.has(t.name)) {
         return this.resolvePrototypeField(t.name, expr.name) || { kind: "PrimitiveType", name: "unknown" };
       }
+    }
+    return { kind: "PrimitiveType", name: "unknown" };
+  }
+
+  inferAssignableType(target, scope) {
+    if (!target) return { kind: "PrimitiveType", name: "unknown" };
+    if (target.kind === "Identifier") {
+      const entry = scope.get(target.name);
+      return entry ? entry.type : { kind: "PrimitiveType", name: "unknown" };
+    }
+    if (target.kind === "MemberExpr") {
+      const t = this.inferExprType(target.target, scope);
+      if (t && t.kind === "NamedType" && this.prototypes.has(t.name)) {
+        return this.resolvePrototypeField(t.name, target.name) || { kind: "PrimitiveType", name: "unknown" };
+      }
+      return { kind: "PrimitiveType", name: "unknown" };
+    }
+    if (target.kind === "IndexExpr") {
+      const t = this.inferExprType(target.target, scope);
+      return this.elementTypeForIndex(t);
     }
     return { kind: "PrimitiveType", name: "unknown" };
   }

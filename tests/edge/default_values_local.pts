@@ -1,0 +1,17 @@
+import Io;
+
+function main() : void {
+    bool b;
+    byte by;
+    int i;
+    float f;
+    glyph g;
+    string s;
+
+    Io.printLine(b.toString());
+    Io.printLine(by.toString());
+    Io.printLine(i.toString());
+    Io.printLine(f.toString());
+    Io.printLine(g.toString());
+    Io.printLine("'".concat(s).concat("'"));
+}

@@ -1,0 +1,4 @@
+{
+  "status": "accept-runtime",
+  "expected_stdout": "false\n0\n0\n0\n\u0000\n''\n"
+}
