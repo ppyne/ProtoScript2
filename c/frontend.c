@@ -2,6 +2,7 @@
 
 #include <ctype.h>
 #include <limits.h>
+#include <math.h>
 #include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -1490,6 +1491,25 @@ static int parse_postfix_expr(Parser *p, AstNode **out) {
 }
 
 static int parse_unary_expr(Parser *p, AstNode **out) {
+  if (p_at(p, TK_SYM, "(") && p_t(p, 1)->kind == TK_KW &&
+      (strcmp(p_t(p, 1)->text, "int") == 0 || strcmp(p_t(p, 1)->text, "float") == 0 || strcmp(p_t(p, 1)->text, "byte") == 0)) {
+    Token *lp = p_t(p, 0);
+    Token *tt = p_t(p, 1);
+    if (!p_eat(p, TK_SYM, "(")) return 0;
+    if (!p_eat(p, TK_KW, tt->text)) return 0;
+    if (!p_eat(p, TK_SYM, ")")) return 0;
+    AstNode *inner = NULL;
+    if (!parse_unary_expr(p, &inner)) return 0;
+    AstNode *c = ast_new("CastExpr", tt->text, lp->line, lp->col);
+    if (!c || !ast_add_child(c, inner)) {
+      ast_free(c);
+      ast_free(inner);
+      return 0;
+    }
+    if (out) *out = c;
+    else ast_free(c);
+    return 1;
+  }
   if (p_at(p, TK_SYM, "!") || p_at(p, TK_SYM, "~") || p_at(p, TK_SYM, "-") || p_at(p, TK_SYM, "++") || p_at(p, TK_SYM, "--")) {
     Token *op = p_t(p, 0);
     p->i++;
@@ -3225,6 +3245,101 @@ static int is_byte_list_literal(AstNode *e) {
   return 1;
 }
 
+static int is_numeric_type(const char *t) {
+  return t && (strcmp(t, "byte") == 0 || strcmp(t, "int") == 0 || strcmp(t, "float") == 0);
+}
+
+static int const_numeric_value(AstNode *e, const char **type_out, long long *iv, double *fv);
+
+static int const_numeric_value(AstNode *e, const char **type_out, long long *iv, double *fv) {
+  if (!e || !type_out) return 0;
+  if (strcmp(e->kind, "Literal") == 0 && e->text) {
+    if (strcmp(e->text, "true") == 0 || strcmp(e->text, "false") == 0) return 0;
+    long long v = 0;
+    if (int_literal_to_ll(e->text, &v) && !is_float_token(e->text)) {
+      *type_out = "int";
+      *iv = v;
+      return 1;
+    }
+    double f = 0.0;
+    if (is_float_token(e->text)) {
+      char *end = NULL;
+      f = strtod(e->text, &end);
+      if (end && *end == '\0' && isfinite(f)) {
+        *type_out = "float";
+        *fv = f;
+        return 1;
+      }
+    }
+  }
+  if (strcmp(e->kind, "UnaryExpr") == 0 && e->text && strcmp(e->text, "-") == 0 && e->child_len > 0) {
+    const char *t = NULL;
+    long long iv2 = 0;
+    double fv2 = 0.0;
+    if (!const_numeric_value(e->children[0], &t, &iv2, &fv2)) return 0;
+    if (strcmp(t, "float") == 0) {
+      *type_out = "float";
+      *fv = -fv2;
+      return 1;
+    }
+    *type_out = t;
+    *iv = -iv2;
+    return 1;
+  }
+  if (strcmp(e->kind, "CastExpr") == 0 && e->child_len > 0 && e->text) {
+    const char *t = NULL;
+    long long iv2 = 0;
+    double fv2 = 0.0;
+    if (!const_numeric_value(e->children[0], &t, &iv2, &fv2)) return 0;
+    const char *dst = e->text;
+    if (strcmp(dst, "byte") == 0) {
+      if (strcmp(t, "int") == 0) {
+        if (iv2 < 0 || iv2 > 255) return 0;
+        *type_out = "byte";
+        *iv = iv2;
+        return 1;
+      }
+      if (strcmp(t, "float") == 0) {
+        long long iv3 = 0;
+        if (!isfinite(fv2) || floor(fv2) != fv2) return 0;
+        if (fv2 < 0 || fv2 > 255) return 0;
+        iv3 = (long long)fv2;
+        if ((double)iv3 != fv2) return 0;
+        *type_out = "byte";
+        *iv = iv3;
+        return 1;
+      }
+    } else if (strcmp(dst, "int") == 0) {
+      if (strcmp(t, "int") == 0) {
+        *type_out = "int";
+        *iv = iv2;
+        return 1;
+      }
+      if (strcmp(t, "float") == 0) {
+        if (!isfinite(fv2) || floor(fv2) != fv2) return 0;
+        if (fv2 < (double)LLONG_MIN || fv2 > (double)LLONG_MAX) return 0;
+        long long iv3 = (long long)fv2;
+        if ((double)iv3 != fv2) return 0;
+        *type_out = "int";
+        *iv = iv3;
+        return 1;
+      }
+    } else if (strcmp(dst, "float") == 0) {
+      if (strcmp(t, "int") == 0 || strcmp(t, "byte") == 0) {
+        *type_out = "float";
+        *fv = (double)iv2;
+        return 1;
+      }
+      if (strcmp(t, "float") == 0) {
+        *type_out = "float";
+        *fv = fv2;
+        return 1;
+      }
+    }
+  }
+  return 0;
+}
+
 static char *infer_expr_type(Analyzer *a, AstNode *e, Scope *scope, int *ok);
 
 static int check_method_arity(Analyzer *a, AstNode *e, const char *recv_t, const char *method, int argc) {
@@ -3618,6 +3733,65 @@ static char *infer_expr_type(Analyzer *a, AstNode *e, Scope *scope, int *ok) {
     if (e->text && (is_all_digits(e->text) || is_hex_token(e->text) || is_bin_token(e->text) || is_float_token(e->text)))
       return strdup(is_float_token(e->text) ? "float" : "int");
     return strdup("string");
+  }
+  if (strcmp(e->kind, "CastExpr") == 0) {
+    const char *dst = e->text ? e->text : "";
+    if (!is_numeric_type(dst)) {
+      set_diag(a->diag, a->file, e->line, e->col, "E3001", "TYPE_MISMATCH_ASSIGNMENT", "cast target must be numeric type");
+      *ok = 0;
+      return NULL;
+    }
+    if (e->child_len == 0) return strdup(dst);
+    int ok1 = 1;
+    char *src = infer_expr_type(a, e->children[0], scope, &ok1);
+    if (!ok1 || !src) {
+      free(src);
+      *ok = 0;
+      return NULL;
+    }
+    if (!is_numeric_type(src)) {
+      set_diag(a->diag, a->file, e->line, e->col, "E3001", "TYPE_MISMATCH_ASSIGNMENT", "numeric cast requires numeric source");
+      free(src);
+      *ok = 0;
+      return NULL;
+    }
+    int representable = 0;
+    if (strcmp(src, dst) == 0) {
+      representable = 1;
+    } else if (strcmp(src, "byte") == 0 && (strcmp(dst, "int") == 0 || strcmp(dst, "float") == 0 || strcmp(dst, "byte") == 0)) {
+      representable = 1;
+    } else if (strcmp(src, "int") == 0 && strcmp(dst, "float") == 0) {
+      representable = 1;
+    } else {
+      const char *ct = NULL;
+      long long iv = 0;
+      double fv = 0.0;
+      if (const_numeric_value(e->children[0], &ct, &iv, &fv)) {
+        if (strcmp(dst, "byte") == 0) {
+          if ((strcmp(ct, "int") == 0 || strcmp(ct, "byte") == 0) && iv >= 0 && iv <= 255) representable = 1;
+          if (strcmp(ct, "float") == 0) {
+            if (isfinite(fv) && floor(fv) == fv && fv >= 0 && fv <= 255 && (double)((long long)fv) == fv) representable = 1;
+          }
+        } else if (strcmp(dst, "int") == 0) {
+          if ((strcmp(ct, "int") == 0 || strcmp(ct, "byte") == 0)) representable = 1;
+          if (strcmp(ct, "float") == 0) {
+            if (isfinite(fv) && floor(fv) == fv && fv >= (double)LLONG_MIN && fv <= (double)LLONG_MAX &&
+                (double)((long long)fv) == fv)
+              representable = 1;
+          }
+        } else if (strcmp(dst, "float") == 0) {
+          representable = 1;
+        }
+      }
+    }
+    if (!representable) {
+      set_diag(a->diag, a->file, e->line, e->col, "E3001", "TYPE_MISMATCH_ASSIGNMENT", "numeric cast not representable");
+      free(src);
+      *ok = 0;
+      return NULL;
+    }
+    free(src);
+    return strdup(dst);
   }
   if (strcmp(e->kind, "Identifier") == 0) {
     Sym *sym = scope_lookup_sym(scope, e->text ? e->text : "");
@@ -4764,6 +4938,10 @@ static char *ir_guess_expr_type(AstNode *e, IrFnCtx *ctx) {
       return strdup(is_float_token(e->text) ? "float" : "int");
     return strdup("string");
   }
+  if (strcmp(e->kind, "CastExpr") == 0) {
+    if (e->text) return strdup(e->text);
+    return strdup("unknown");
+  }
   if (strcmp(e->kind, "Identifier") == 0) {
     const char *mapped = ir_scope_lookup(ctx ? ctx->scope : NULL, e->text ? e->text : "");
     const char *t = ir_get_var_type(ctx, mapped ? mapped : (e->text ? e->text : ""));
@@ -5343,6 +5521,83 @@ static char *ir_lower_expr(AstNode *e, IrFnCtx *ctx) {
       free(dst);
       return NULL;
     }
+    return dst;
+  }
+  if (strcmp(e->kind, "CastExpr") == 0) {
+    if (e->child_len == 0) return NULL;
+    char *recv = ir_lower_expr(e->children[0], ctx);
+    if (!recv) return NULL;
+    const char *dst_type = e->text ? e->text : "";
+    char *src_type = ir_guess_expr_type(e->children[0], ctx);
+    if (src_type && dst_type && strcmp(src_type, dst_type) == 0) {
+      free(src_type);
+      return recv;
+    }
+    char *dst = ir_next_tmp(ctx);
+    if (!dst) {
+      free(src_type);
+      free(recv);
+      return NULL;
+    }
+    char *recv_esc = json_escape(recv);
+    char *dst_esc = json_escape(dst);
+    if (strcmp(dst_type, "byte") == 0) {
+      if (src_type && strcmp(src_type, "float") == 0) {
+        char *tmp = ir_next_tmp(ctx);
+        if (tmp) {
+          char *tmp_esc = json_escape(tmp);
+          char *ins1 = str_printf("{\"op\":\"call_method_static\",\"dst\":\"%s\",\"receiver\":\"%s\",\"method\":\"toInt\",\"args\":[]}", tmp_esc ? tmp_esc : "",
+                                  recv_esc ? recv_esc : "");
+          free(tmp_esc);
+          if (!ir_emit(ctx, ins1)) {
+            free(tmp);
+            tmp = NULL;
+          }
+        }
+        if (tmp) {
+          char *tmp_esc = json_escape(tmp);
+          char *ins2 = str_printf("{\"op\":\"call_method_static\",\"dst\":\"%s\",\"receiver\":\"%s\",\"method\":\"toByte\",\"args\":[]}", dst_esc ? dst_esc : "",
+                                  tmp_esc ? tmp_esc : "");
+          free(tmp_esc);
+          if (!ir_emit(ctx, ins2)) {
+            free(dst);
+            dst = NULL;
+          }
+          free(tmp);
+        }
+      } else {
+        char *ins = str_printf("{\"op\":\"call_method_static\",\"dst\":\"%s\",\"receiver\":\"%s\",\"method\":\"toByte\",\"args\":[]}", dst_esc ? dst_esc : "",
+                               recv_esc ? recv_esc : "");
+        if (!ir_emit(ctx, ins)) {
+          free(dst);
+          dst = NULL;
+        }
+      }
+    } else if (strcmp(dst_type, "int") == 0) {
+      char *ins = str_printf("{\"op\":\"call_method_static\",\"dst\":\"%s\",\"receiver\":\"%s\",\"method\":\"toInt\",\"args\":[]}", dst_esc ? dst_esc : "",
+                             recv_esc ? recv_esc : "");
+      if (!ir_emit(ctx, ins)) {
+        free(dst);
+        dst = NULL;
+      }
+    } else if (strcmp(dst_type, "float") == 0) {
+      char *ins = str_printf("{\"op\":\"call_method_static\",\"dst\":\"%s\",\"receiver\":\"%s\",\"method\":\"toFloat\",\"args\":[]}", dst_esc ? dst_esc : "",
+                             recv_esc ? recv_esc : "");
+      if (!ir_emit(ctx, ins)) {
+        free(dst);
+        dst = NULL;
+      }
+    } else {
+      char *ins = str_printf("{\"op\":\"copy\",\"dst\":\"%s\",\"src\":\"%s\"}", dst_esc ? dst_esc : "", recv_esc ? recv_esc : "");
+      if (!ir_emit(ctx, ins)) {
+        free(dst);
+        dst = NULL;
+      }
+    }
+    free(recv_esc);
+    free(dst_esc);
+    free(src_type);
+    free(recv);
     return dst;
   }
   if (strcmp(e->kind, "Identifier") == 0) {

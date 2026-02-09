@@ -1,0 +1,12 @@
+import Io;
+
+function main() : void {
+    byte b = (byte)255;
+    int i = (int)(byte)255;
+    float f = (float)(byte)42;
+    int i2 = (int)3.0;
+    float f2 = (float)3;
+
+    bool ok = (b.toInt() == 255) && (i == 255) && (f.toInt() == 42) && (i2 == 3) && (f2.toInt() == 3);
+    Io.printLine(ok.toString());
+}

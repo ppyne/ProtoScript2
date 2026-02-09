@@ -129,6 +129,43 @@ string s = "abc";
 ```
 Ref: EX-004
 
+### 3.2.1 Conversions numériques explicites
+
+ProtoScript2 distingue `byte`, `int`, `float`.  
+Les littéraux numériques sont non typés et **leur type est déterminé par le contexte**.  
+En l’absence de contexte, le type par défaut est `int`.
+
+La conversion explicite se fait avec la forme :
+
+```c
+(T)expr
+```
+
+où `T` est un type numérique (`byte`, `int`, `float`).
+
+Règles :
+
+- aucune conversion implicite n’est autorisée entre types numériques ;
+- une conversion explicite est **autorisée uniquement si** la valeur est **exactement représentable** dans `T` ;
+- toute conversion entraînant dépassement, troncature, wrap ou saturation est une **erreur statique**.
+
+Exemples valides :
+
+```c
+byte a = 255;
+byte b = (byte)255;
+int  c = (int)3.0;
+float d = (float)42;
+```
+
+Exemples invalides :
+
+```c
+byte a = 256;
+byte b = (byte)256;
+int  c = (int)3.14;
+```
+
 ### 3.3 Absence de null
 
 Il n'y a pas de nullité universelle.

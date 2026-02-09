@@ -815,6 +815,29 @@ class IRBuilder {
         this.emit(block, { op: "const", dst, literalType: expr.literalType, value: expr.value });
         return { value: dst, type: t, block };
       }
+      case "CastExpr": {
+        const inner = this.lowerExpr(expr.expr, block, irFn, scope);
+        const targetType = expr.targetType;
+        const targetName = typeToString(targetType);
+        if (targetName === typeToString(inner.type)) return { value: inner.value, type: targetType, block: inner.block };
+        const dst = this.nextTemp();
+        if (targetName === "byte") {
+          if (typeToString(inner.type) === "float") {
+            const tmp = this.nextTemp();
+            this.emit(inner.block, { op: "call_method_static", dst: tmp, receiver: inner.value, method: "toInt", args: [] });
+            this.emit(inner.block, { op: "call_method_static", dst, receiver: tmp, method: "toByte", args: [] });
+          } else {
+            this.emit(inner.block, { op: "call_method_static", dst, receiver: inner.value, method: "toByte", args: [] });
+          }
+        } else if (targetName === "int") {
+          this.emit(inner.block, { op: "call_method_static", dst, receiver: inner.value, method: "toInt", args: [] });
+        } else if (targetName === "float") {
+          this.emit(inner.block, { op: "call_method_static", dst, receiver: inner.value, method: "toFloat", args: [] });
+        } else {
+          this.emit(inner.block, { op: "copy", dst, src: inner.value });
+        }
+        return { value: dst, type: targetType, block: inner.block };
+      }
       case "Identifier": {
         const dst = this.nextTemp();
         const entry = scope.get(expr.name);
@@ -1260,6 +1283,7 @@ class IRBuilder {
   inferExprType(expr, scope) {
     if (!expr) return { kind: "PrimitiveType", name: "void" };
     if (expr.kind === "Literal") return { kind: "PrimitiveType", name: expr.literalType };
+    if (expr.kind === "CastExpr") return expr.targetType || { kind: "PrimitiveType", name: "unknown" };
     if (expr.kind === "Identifier") {
       const entry = scope.get(expr.name);
       return entry ? entry.type : { kind: "PrimitiveType", name: "unknown" };

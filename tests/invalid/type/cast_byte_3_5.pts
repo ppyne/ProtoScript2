@@ -1,0 +1,3 @@
+function main() : void {
+    byte b = (byte)3.5;
+}

@@ -1004,6 +1004,13 @@ class Parser {
   }
 
   parseUnaryExpr() {
+    if (this.at("sym", "(") && this.t(1).type === "kw" && ["int", "float", "byte"].includes(this.t(1).value)) {
+      const lp = this.eat("sym", "(");
+      const targetType = this.parseType();
+      this.eat("sym", ")");
+      const expr = this.parseUnaryExpr();
+      return { kind: "CastExpr", targetType, expr, line: lp.line, col: lp.col };
+    }
     if (["!", "~", "-", "++", "--"].includes(this.t().value)) {
       const op = this.eat("sym");
       return { kind: "UnaryExpr", op: op.value, expr: this.parsePostfixExpr(), line: op.line, col: op.col };
@@ -1177,13 +1184,36 @@ function typeToString(t) {
   return "unknown";
 }
 
+const INT64_MIN = -9223372036854775808n;
+const INT64_MAX = 9223372036854775807n;
+
 function intLiteralToBigInt(expr) {
-  if (!expr || expr.kind !== "Literal" || expr.literalType !== "int") return null;
+  if (!expr || expr.kind !== "Literal") return null;
+  if (expr.literalType !== "int" && expr.literalType !== "number") return null;
   const raw = String(expr.value);
+  if (expr.literalType === "number" && (raw.includes(".") || /[eE]/.test(raw))) return null;
   if (/^0[xX]/.test(raw)) return BigInt(raw);
   if (/^0[bB]/.test(raw)) return BigInt(raw);
   if (/^0[0-7]+$/.test(raw)) return BigInt(`0o${raw.slice(1)}`);
   return BigInt(raw);
+}
+
+function floatLiteralToNumber(expr) {
+  if (!expr || expr.kind !== "Literal") return null;
+  if (expr.literalType !== "float" && expr.literalType !== "number") return null;
+  const raw = String(expr.value);
+  if (expr.literalType === "number" && !(raw.includes(".") || /[eE]/.test(raw))) return null;
+  const v = Number(raw);
+  if (!Number.isFinite(v)) return null;
+  return v;
+}
+
+function isNumericTypeName(name) {
+  return name === "byte" || name === "int" || name === "float";
+}
+
+function isExactIntegerNumber(value) {
+  return Number.isFinite(value) && Number.isInteger(value) && Number.isSafeInteger(value);
 }
 
 function isByteLiteralExpr(expr) {
@@ -1194,6 +1224,69 @@ function isByteLiteralExpr(expr) {
 function isByteListLiteral(expr) {
   if (!expr || expr.kind !== "ListLiteral") return false;
   return expr.items.every((it) => isByteLiteralExpr(it));
+}
+
+function constNumericValue(expr) {
+  if (!expr) return null;
+  if (expr.kind === "Literal") {
+    if (expr.literalType === "int" || expr.literalType === "number") {
+      const v = intLiteralToBigInt(expr);
+      if (v !== null) return { type: "int", value: v };
+    }
+    if (expr.literalType === "float" || expr.literalType === "number") {
+      const v = floatLiteralToNumber(expr);
+      if (v !== null) return { type: "float", value: v };
+    }
+  }
+  if (expr.kind === "UnaryExpr" && expr.op === "-" && expr.expr) {
+    const inner = constNumericValue(expr.expr);
+    if (!inner) return null;
+    if (inner.type === "int") return { type: "int", value: -inner.value };
+    if (inner.type === "float") return { type: "float", value: -inner.value };
+  }
+  if (expr.kind === "CastExpr") {
+    const inner = constNumericValue(expr.expr);
+    if (!inner) return null;
+    const target = typeToString(expr.targetType);
+    if (!isNumericTypeName(target)) return null;
+    if (target === "byte") {
+      if (inner.type === "int") {
+        if (inner.value >= 0n && inner.value <= 255n) return { type: "byte", value: inner.value };
+        return null;
+      }
+      if (inner.type === "float") {
+        if (!isExactIntegerNumber(inner.value)) return null;
+        const bi = BigInt(inner.value);
+        if (bi >= 0n && bi <= 255n) return { type: "byte", value: bi };
+        return null;
+      }
+    } else if (target === "int") {
+      if (inner.type === "int") {
+        if (inner.value >= INT64_MIN && inner.value <= INT64_MAX) return { type: "int", value: inner.value };
+        return null;
+      }
+      if (inner.type === "byte") {
+        return { type: "int", value: inner.value };
+      }
+      if (inner.type === "float") {
+        if (!isExactIntegerNumber(inner.value)) return null;
+        const bi = BigInt(inner.value);
+        if (bi >= INT64_MIN && bi <= INT64_MAX) return { type: "int", value: bi };
+        return null;
+      }
+    } else if (target === "float") {
+      if (inner.type === "int" || inner.type === "byte") {
+        const num = Number(inner.value);
+        if (!Number.isFinite(num)) return null;
+        return { type: "float", value: num };
+      }
+      if (inner.type === "float") {
+        if (!Number.isFinite(inner.value)) return null;
+        return { type: "float", value: inner.value };
+      }
+    }
+  }
+  return null;
 }
 
 function sameType(a, b) {
@@ -1320,6 +1413,43 @@ class Analyzer {
     while (p) {
       if (p.parent === pn) return true;
       p = p.parent ? this.prototypes.get(p.parent) : null;
+    }
+    return false;
+  }
+
+  isCastRepresentable(expr, srcType, targetType) {
+    const src = typeToString(srcType);
+    const dst = typeToString(targetType);
+    if (!isNumericTypeName(src) || !isNumericTypeName(dst)) return false;
+    if (src === dst) return true;
+    if (src === "byte") return dst === "int" || dst === "float" || dst === "byte";
+    if (src === "int") {
+      if (dst === "float") return true;
+      if (dst === "byte") {
+        const c = constNumericValue(expr.expr);
+        if (c && (c.type === "int" || c.type === "byte")) {
+          return c.value >= 0n && c.value <= 255n;
+        }
+        if (expr.expr && expr.expr.kind === "CastExpr" && expr.expr._castSourceType) {
+          return typeToString(expr.expr._castSourceType) === "byte";
+        }
+        return false;
+      }
+    }
+    if (src === "float") {
+      if (dst === "float") return true;
+      const c = constNumericValue(expr.expr);
+      if (c && c.type === "float") {
+        if (!isExactIntegerNumber(c.value)) return false;
+        const bi = BigInt(c.value);
+        if (dst === "int") return bi >= INT64_MIN && bi <= INT64_MAX;
+        if (dst === "byte") return bi >= 0n && bi <= 255n;
+      }
+      if (expr.expr && expr.expr.kind === "CastExpr" && expr.expr._castSourceType) {
+        const origin = typeToString(expr.expr._castSourceType);
+        if (origin === "byte") return dst === "int" || dst === "byte";
+      }
+      return false;
     }
     return false;
   }
@@ -1791,6 +1921,25 @@ class Analyzer {
     switch (expr.kind) {
       case "Literal":
         return { kind: "PrimitiveType", name: expr.literalType };
+      case "CastExpr": {
+        const targetType = expr.targetType;
+        const targetName = typeToString(targetType);
+        const srcType = this.typeOfExpr(expr.expr, scope);
+        expr._castSourceType = srcType;
+        expr._castTargetType = targetType;
+        if (!isNumericTypeName(targetName)) {
+          this.addDiag(expr, "E3001", "TYPE_MISMATCH_ASSIGNMENT", "cast target must be numeric type");
+          return targetType;
+        }
+        if (!srcType || !isNumericTypeName(typeToString(srcType))) {
+          this.addDiag(expr, "E3001", "TYPE_MISMATCH_ASSIGNMENT", "numeric cast requires numeric source");
+          return targetType;
+        }
+        if (!this.isCastRepresentable(expr, srcType, targetType)) {
+          this.addDiag(expr, "E3001", "TYPE_MISMATCH_ASSIGNMENT", "numeric cast not representable");
+        }
+        return targetType;
+      }
       case "Identifier": {
         const s = scope.lookup(expr.name);
         if (!s) {

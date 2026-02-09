@@ -1,0 +1,3 @@
+function main() : void {
+    int c = (int)3.14;
+}

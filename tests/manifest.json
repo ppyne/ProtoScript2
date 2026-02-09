@@ -41,7 +41,13 @@
       "invalid/type/manual_ex043",
       "invalid/type/manual_ex047",
       "invalid/type/manual_ex048",
-      "invalid/type/manual_ex058"
+      "invalid/type/manual_ex058",
+      "invalid/type/cast_byte_256",
+      "invalid/type/cast_byte_minus1",
+      "invalid/type/cast_int_3_14",
+      "invalid/type/cast_byte_3_5",
+      "invalid/type/cast_byte_int_256",
+      "invalid/type/literal_byte_256"
     ],
     "invalid/runtime": [
       "invalid/runtime/int_overflow_add",
@@ -127,6 +133,8 @@
       "edge/slice_view_list_basic",
       "edge/view_string_basic",
       "edge/int_methods",
+      "edge/numeric_cast_valid",
+      "edge/numeric_literal_context",
       "edge/int_bitwise_ops",
       "edge/int64_print",
       "edge/int64_print_io",

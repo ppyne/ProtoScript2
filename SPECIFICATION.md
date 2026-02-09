@@ -217,6 +217,10 @@ b.toFloat();
 b.toString();
 ```
 
+Règle normative :
+
+- `byte.toInt()` retourne un `int` de même valeur numérique (0..255), sans conversion implicite.
+
 **int**
 
 ```c
@@ -260,6 +264,55 @@ Règles normatives :
 - l’ordre des octets est **celui de la mémoire** sur la machine exécutant le runtime ;
 - aucune normalisation d’endianness n’est effectuée ;
 - le contenu de la liste est une **copie** (pas de vue).
+
+### 3.0.2 Littéraux numériques
+
+Un littéral numérique est **non typé**.
+
+- Son type est déterminé par le **contexte d’utilisation**.
+- En l’absence de contexte, le type par défaut est `int`.
+
+### 3.0.3 Conversions numériques explicites
+
+La forme `(T)expr` est une conversion explicite vers le type numérique `T`.
+
+Une conversion explicite est autorisée **uniquement** si la valeur de `expr` est **exactement représentable** dans `T`.
+
+Toute conversion entraînant :
+
+- un dépassement de plage,
+- une perte d’information,
+- une troncature,
+- un enroulement (wrap),
+- une saturation implicite
+
+est une **erreur statique**.
+
+### 3.0.4 Règles de représentabilité
+
+- `byte` : entier ∈ `[0, 255]`
+- `int` : entier signé de l’implémentation cible
+- `float` : nombre réel IEEE‑754
+
+### 3.0.5 Table normative des conversions
+
+| Source → Cible | byte | int | float |
+|---|---|---|---|
+| **byte** | OK | OK | OK |
+| **int** | OK si ∈ `[0,255]` | OK | OK |
+| **float** | OK si entier exact ∈ `[0,255]` | OK si entier exact | OK |
+
+### 3.0.6 Interdictions explicites
+
+```c
+(byte)256;   // erreur statique
+(byte)-1;    // erreur statique
+(int)3.14;   // erreur statique
+(byte)3.0;   // OK
+(byte)3.5;   // erreur statique
+```
+
+Aucune conversion implicite n’est autorisée entre types numériques.
 
 **string**
 

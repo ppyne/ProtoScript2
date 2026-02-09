@@ -1296,6 +1296,10 @@ function evalExpr(expr, scope, functions, moduleEnv, protoEnv, file, callFunctio
     }
     case "CallExpr":
       return evalCall(expr, scope, functions, moduleEnv, protoEnv, file, callFunction);
+    case "CastExpr": {
+      const v = evalExpr(expr.expr, scope, functions, moduleEnv, protoEnv, file, callFunction);
+      return castNumeric(file, expr, expr.targetType, v);
+    }
     case "IndexExpr": {
       const target = evalExpr(expr.target, scope, functions, moduleEnv, protoEnv, file, callFunction);
       const idx = evalExpr(expr.index, scope, functions, moduleEnv, protoEnv, file, callFunction);
@@ -1539,6 +1543,48 @@ function assignIndex(file, targetNode, indexNode, target, idx, rhs) {
   if (target instanceof Map) {
     target.set(mapKey(idx), rhs);
   }
+}
+
+function typeName(t) {
+  if (!t) return "";
+  if (typeof t === "string") return t;
+  if (t.kind === "PrimitiveType" || t.kind === "NamedType") return t.name;
+  return t.name || "";
+}
+
+function castNumeric(file, node, targetType, value) {
+  const dst = typeName(targetType);
+  if (dst === "byte") {
+    if (typeof value === "bigint") return checkByteRange(file, node, value);
+    if (typeof value === "number") {
+      if (!Number.isFinite(value) || !Number.isInteger(value) || !Number.isSafeInteger(value)) {
+        throw new RuntimeError(rdiag(file, node, "R1010", "RUNTIME_TYPE_ERROR", "invalid float to byte"));
+      }
+      return checkByteRange(file, node, BigInt(value));
+    }
+    throw new RuntimeError(rdiag(file, node, "R1010", "RUNTIME_TYPE_ERROR", "invalid cast to byte"));
+  }
+  if (dst === "int") {
+    if (typeof value === "bigint") return value;
+    if (typeof value === "number") {
+      if (!Number.isFinite(value) || !Number.isInteger(value) || !Number.isSafeInteger(value)) {
+        throw new RuntimeError(rdiag(file, node, "R1010", "RUNTIME_TYPE_ERROR", "invalid float to int"));
+      }
+      return checkIntRange(file, node, BigInt(value));
+    }
+    throw new RuntimeError(rdiag(file, node, "R1010", "RUNTIME_TYPE_ERROR", "invalid cast to int"));
+  }
+  if (dst === "float") {
+    if (typeof value === "bigint") return Number(value);
+    if (typeof value === "number") {
+      if (!Number.isFinite(value)) {
+        throw new RuntimeError(rdiag(file, node, "R1010", "RUNTIME_TYPE_ERROR", "invalid float"));
+      }
+      return value;
+    }
+    throw new RuntimeError(rdiag(file, node, "R1010", "RUNTIME_TYPE_ERROR", "invalid cast to float"));
+  }
+  throw new RuntimeError(rdiag(file, node, "R1010", "RUNTIME_TYPE_ERROR", "invalid numeric cast"));
 }
 
 function evalCall(expr, scope, functions, moduleEnv, protoEnv, file, callFunction) {

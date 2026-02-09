@@ -1,0 +1,8 @@
+import Io;
+
+function main() : void {
+    byte a = 255;
+    int c = 256;
+    bool ok = (a.toInt() == 255) && (c == 256);
+    Io.printLine(ok.toString());
+}
