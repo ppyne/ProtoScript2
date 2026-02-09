@@ -896,11 +896,21 @@ function buildModuleEnv(ast, file) {
 
   const imports = ast.imports || [];
   for (const imp of imports) {
-    const modName = imp.modulePath.join(".");
+    const resolved = imp._resolved;
+    if (resolved && resolved.kind === "proto") {
+      if (imp.items && imp.items.length > 0) {
+        for (const it of imp.items) {
+          const local = it.alias || it.name;
+          importedFunctions.set(local, { kind: "proto", proto: resolved.proto, name: it.name, node: it });
+        }
+      }
+      continue;
+    }
+    const modName = imp.modulePath ? imp.modulePath.join(".") : "";
     if (!imp.items || imp.items.length === 0) {
-      const alias = imp.alias || imp.modulePath[imp.modulePath.length - 1];
-      namespaces.set(alias, modName);
-      makeModule(modName);
+      const alias = imp.alias || (imp.modulePath ? imp.modulePath[imp.modulePath.length - 1] : "");
+      if (alias) namespaces.set(alias, modName);
+      if (modName) makeModule(modName);
     } else {
       for (const it of imp.items) {
         const local = it.alias || it.name;
@@ -1556,6 +1566,20 @@ function evalCall(expr, scope, functions, moduleEnv, protoEnv, file, callFunctio
     }
     if (!fn && moduleEnv && moduleEnv.importedFunctions.has(expr.callee.name)) {
       const info = moduleEnv.importedFunctions.get(expr.callee.name);
+      if (info.kind === "proto") {
+        if (info.name === "clone") {
+          if (!protoEnv || !protoEnv.has(info.proto)) {
+            throw new RuntimeError(rdiag(file, info.node, "R1010", "RUNTIME_TYPE_ERROR", "unknown prototype"));
+          }
+          return clonePrototype(protoEnv, info.proto);
+        }
+        const fn = functions.get(`${info.proto}.${info.name}`);
+        if (!fn) {
+          throw new RuntimeError(rdiag(file, info.node, "R1010", "RUNTIME_TYPE_ERROR", "missing method"));
+        }
+        const args = expr.args.map((a) => evalExpr(a, scope, functions, moduleEnv, protoEnv, file, callFunction));
+        return callFunction(fn, args);
+      }
       const mod = moduleEnv.modules.get(info.module);
       if (!mod) {
         throw new RuntimeError(rdiag(file, info.node, "R1010", "RUNTIME_MODULE_ERROR", "module not found"));

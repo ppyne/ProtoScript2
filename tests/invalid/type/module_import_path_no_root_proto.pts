@@ -1,0 +1,4 @@
+import "./modules/NoProto.pts";
+
+function main() : void {
+}

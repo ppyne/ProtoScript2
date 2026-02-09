@@ -1,0 +1,23 @@
+prototype Stack {
+    list<int> items;
+
+    function create() : Stack {
+        Stack s = Stack.clone();
+        s.items = [];
+        return s;
+    }
+
+    function push(int value) : void {
+        self.items.push(value);
+    }
+
+    function pop() : int {
+        int v = self.items[self.items.length() - 1];
+        self.items.removeLast();
+        return v;
+    }
+
+    function size() : int {
+        return self.items.length();
+    }
+}

@@ -1,0 +1,5 @@
+prototype Queue {
+    function value() : int {
+        return 333;
+    }
+}

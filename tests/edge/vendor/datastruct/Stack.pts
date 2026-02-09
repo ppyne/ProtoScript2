@@ -1,0 +1,5 @@
+prototype Stack {
+    function value() : int {
+        return 222;
+    }
+}

@@ -118,6 +118,19 @@ function buildImportMap(ast) {
     moduleConsts.set(m.name, consts);
   }
   for (const imp of imports) {
+    if (imp._resolved && imp._resolved.kind === "proto") {
+      const proto = imp._resolved.proto;
+      if (imp.items && imp.items.length > 0) {
+        for (const it of imp.items) {
+          const local = it.alias || it.name;
+          imported.set(local, `${proto}.${it.name}`);
+        }
+      } else {
+        const alias = imp.alias || (imp.modulePath ? imp.modulePath[imp.modulePath.length - 1] : proto);
+        namespaces.set(alias, proto);
+      }
+      continue;
+    }
     const mod = imp.modulePath.join(".");
     const mset = modules.get(mod);
     if (!mset) continue;

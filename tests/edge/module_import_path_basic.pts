@@ -1,0 +1,11 @@
+import Io;
+import "./modules/Stack.pts";
+
+function main() : void {
+    Stack s = Stack.clone();
+    s.items = [];
+    Stack.push(s, 1);
+    Stack.push(s, 2);
+    int v = Stack.pop(s);
+    Io.printLine(v.toString());
+}

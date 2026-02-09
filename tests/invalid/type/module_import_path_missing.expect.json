@@ -1,0 +1,10 @@
+{
+  "status": "reject-static",
+  "error_code": "E2002",
+  "category": "IMPORT_PATH_NOT_FOUND",
+  "position": {
+    "file": "invalid/type/module_import_path_missing.pts",
+    "line": 1,
+    "column": 1
+  }
+}

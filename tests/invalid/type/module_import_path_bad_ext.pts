@@ -1,0 +1,4 @@
+import "./modules/Stack.txt";
+
+function main() : void {
+}

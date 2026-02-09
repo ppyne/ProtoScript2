@@ -127,9 +127,11 @@ function loadModuleRegistry() {
   candidates.push("/opt/local/etc/ps/registry.json");
   candidates.push(path.join(process.cwd(), "modules", "registry.json"));
   let data = null;
+  let registryPath = null;
   for (const c of candidates) {
     if (c && fs.existsSync(c)) {
       data = fs.readFileSync(c, "utf8");
+      registryPath = c;
       break;
     }
   }
@@ -141,6 +143,7 @@ function loadModuleRegistry() {
     return null;
   }
   const modules = new Map();
+  const searchPaths = Array.isArray(doc.search_paths) ? doc.search_paths.filter((p) => typeof p === "string") : [];
   const list = Array.isArray(doc.modules) ? doc.modules : [];
   for (const m of list) {
     if (!m || typeof m.name !== "string") continue;
@@ -180,7 +183,7 @@ function loadModuleRegistry() {
     }
     modules.set(m.name, { functions: fns, constants: consts });
   }
-  return { modules };
+  return { modules, searchPaths, registryPath };
 }
 
 class Lexer {
@@ -549,7 +552,15 @@ class Parser {
 
   parseImportDecl() {
     const start = this.eat("kw", "import");
-    const modulePath = this.parseModulePath();
+    let modulePath = null;
+    let pathLiteral = null;
+    let isPath = false;
+    if (this.at("str")) {
+      pathLiteral = this.eat("str").value;
+      isPath = true;
+    } else {
+      modulePath = this.parseModulePath();
+    }
     let alias = null;
     let items = null;
     if (this.at("kw", "as")) {
@@ -569,7 +580,7 @@ class Parser {
       this.eat("sym", "}");
     }
     this.eat("sym", ";");
-    return { kind: "ImportDecl", modulePath, alias, items, line: start.line, col: start.col };
+    return { kind: "ImportDecl", modulePath, path: pathLiteral, isPath, alias, items, line: start.line, col: start.col };
   }
 
   parseImportItem() {
@@ -1196,7 +1207,7 @@ class Analyzer {
     this.functions = new Map();
     this.prototypes = new Map();
     this.imported = new Map(); // local name -> { module, name, sig }
-    this.namespaces = new Map(); // alias -> module
+    this.namespaces = new Map(); // alias -> { kind: "native"|"proto", name }
     this.moduleConsts = new Map(); // alias -> Map(name -> { type, value })
     this.diags = [];
   }
@@ -1317,36 +1328,203 @@ class Analyzer {
     const imports = this.ast.imports || [];
     if (imports.length === 0) return;
     const registry = loadModuleRegistry();
-    for (const imp of imports) {
-      const mod = imp.modulePath.join(".");
-      const modEntry = registry ? registry.modules.get(mod) : null;
-      if (!modEntry) {
-        this.addDiag(imp, "E2001", "UNRESOLVED_NAME", `unknown module '${mod}'`);
-        continue;
+    const nativeModules = registry ? registry.modules : new Map();
+    const searchPaths = registry ? registry.searchPaths : [];
+    const rootDir = path.dirname(path.resolve(this.file));
+    const loadedByPath = new Map();
+    const loadedByName = new Map();
+    const resolving = new Set();
+
+    const resolvePathLiteral = (imp, baseFile) => {
+      if (!imp.path || typeof imp.path !== "string") return null;
+      if (!imp.path.endsWith(".pts")) {
+        this.addDiag(imp, "E2003", "IMPORT_PATH_BAD_EXTENSION", "import path must end with .pts");
+        return null;
       }
-      if (imp.items && imp.items.length > 0) {
-        for (const it of imp.items) {
-          const fn = modEntry.functions.get(it.name);
-          if (!fn) {
-            this.addDiag(it, "E2001", "UNRESOLVED_NAME", `unknown symbol '${it.name}' in module '${mod}'`);
-            continue;
-          }
-          if (!fn.valid) {
-            this.addDiag(it, "E2001", "UNRESOLVED_NAME", `invalid registry signature for '${mod}.${it.name}'`);
-            continue;
-          }
-          const local = it.alias || it.name;
-          this.imported.set(local, { module: mod, name: it.name, sig: fn });
-          this.functions.set(local, fn.ast);
+      const abs = path.isAbsolute(imp.path) ? imp.path : path.resolve(path.dirname(baseFile), imp.path);
+      if (!fs.existsSync(abs)) {
+        this.addDiag(imp, "E2002", "IMPORT_PATH_NOT_FOUND", "import path not found");
+        return null;
+      }
+      return abs;
+    };
+
+    const resolveByNamePath = (modName) => {
+      if (!searchPaths || searchPaths.length === 0) return null;
+      const parts = modName.split(".");
+      const rel = path.join(...parts) + ".pts";
+      const short = parts[parts.length - 1] + ".pts";
+      for (const sp of searchPaths) {
+        if (typeof sp !== "string" || sp.length === 0) continue;
+        const base = path.isAbsolute(sp) ? sp : path.resolve(rootDir, sp);
+        const cand1 = path.join(base, rel);
+        if (fs.existsSync(cand1)) return cand1;
+        const cand2 = path.join(base, short);
+        if (fs.existsSync(cand2)) return cand2;
+      }
+      return null;
+    };
+
+    const parseModuleAst = (filePath) => {
+      let src = "";
+      try {
+        src = fs.readFileSync(filePath, "utf8");
+      } catch {
+        return null;
+      }
+      const tokens = new Lexer(filePath, src).lex();
+      return new Parser(filePath, tokens).parseProgram();
+    };
+
+    const extractModulePrototype = (ast, impForDiag) => {
+      let proto = null;
+      let protoCount = 0;
+      for (const d of ast.decls || []) {
+        if (d.kind === "FunctionDecl") {
+          this.addDiag(impForDiag, "E2004", "IMPORT_PATH_NO_ROOT_PROTO", "module must define exactly one root prototype");
+          return null;
         }
+        if (d.kind === "PrototypeDecl") {
+          protoCount += 1;
+          proto = d;
+        }
+      }
+      if (protoCount !== 1 || !proto) {
+        this.addDiag(impForDiag, "E2004", "IMPORT_PATH_NO_ROOT_PROTO", "module must define exactly one root prototype");
+        return null;
+      }
+      return proto;
+    };
+
+    const loadUserModuleFromPath = (absPath, impForDiag) => {
+      if (loadedByPath.has(absPath)) return loadedByPath.get(absPath);
+      if (resolving.has(absPath)) {
+        this.addDiag(impForDiag, "E2001", "UNRESOLVED_NAME", "cyclic module import");
+        return null;
+      }
+      resolving.add(absPath);
+      const ast = parseModuleAst(absPath);
+      if (!ast) {
+        this.addDiag(impForDiag, "E2002", "IMPORT_PATH_NOT_FOUND", "import path not found");
+        resolving.delete(absPath);
+        return null;
+      }
+      const protoDecl = extractModulePrototype(ast, impForDiag);
+      if (!protoDecl) {
+        resolving.delete(absPath);
+        return null;
+      }
+      const methods = new Map();
+      for (const m of protoDecl.methods || []) methods.set(m.name, m);
+      const entry = { protoName: protoDecl.name, protoDecl, methods, ast, added: false };
+      loadedByPath.set(absPath, entry);
+      for (const subImp of ast.imports || []) resolveImport(subImp, absPath);
+      if (!entry.added) {
+        this.ast.decls.push(protoDecl);
+        entry.added = true;
+      }
+      resolving.delete(absPath);
+      return entry;
+    };
+
+    const addProtoImportItems = (entry, imp) => {
+      for (const it of imp.items || []) {
+        const local = it.alias || it.name;
+        if (it.name === "clone") {
+          const fn = {
+            kind: "FunctionDecl",
+            name: local,
+            params: [],
+            retType: { kind: "NamedType", name: entry.protoName },
+            body: { kind: "Block", stmts: [] },
+          };
+          this.imported.set(local, { module: entry.protoName, name: it.name, sig: fn, kind: "proto" });
+          this.functions.set(local, fn);
+          continue;
+        }
+        const m = entry.methods.get(it.name);
+        if (!m) {
+          this.addDiag(it, "E2001", "UNRESOLVED_NAME", `unknown symbol '${it.name}' in module '${entry.protoName}'`);
+          continue;
+        }
+        const selfParam = { kind: "Param", type: { kind: "NamedType", name: entry.protoName }, name: "self", variadic: false };
+        const params = [selfParam, ...m.params.map((p) => ({ ...p }))];
+        const fn = {
+          kind: "FunctionDecl",
+          name: local,
+          params,
+          retType: m.retType,
+          body: { kind: "Block", stmts: [] },
+        };
+        this.imported.set(local, { module: entry.protoName, name: it.name, sig: fn, kind: "proto" });
+        this.functions.set(local, fn);
+      }
+    };
+
+    const resolveImport = (imp, baseFile) => {
+      if (imp.isPath) {
+        const abs = resolvePathLiteral(imp, baseFile);
+        if (!abs) return;
+        const entry = loadUserModuleFromPath(abs, imp);
+        if (!entry) return;
+        imp._resolved = { kind: "proto", proto: entry.protoName, path: abs };
+        if (imp.items && imp.items.length > 0) {
+          addProtoImportItems(entry, imp);
+        } else {
+          const alias = imp.alias || entry.protoName;
+          this.namespaces.set(alias, { kind: "proto", name: entry.protoName });
+        }
+        return;
+      }
+
+      const mod = imp.modulePath.join(".");
+      const modEntry = nativeModules.get(mod);
+      if (modEntry) {
+        imp._resolved = { kind: "native", module: mod };
+        if (imp.items && imp.items.length > 0) {
+          for (const it of imp.items) {
+            const fn = modEntry.functions.get(it.name);
+            if (!fn) {
+              this.addDiag(it, "E2001", "UNRESOLVED_NAME", `unknown symbol '${it.name}' in module '${mod}'`);
+              continue;
+            }
+            if (!fn.valid) {
+              this.addDiag(it, "E2001", "UNRESOLVED_NAME", `invalid registry signature for '${mod}.${it.name}'`);
+              continue;
+            }
+            const local = it.alias || it.name;
+            this.imported.set(local, { module: mod, name: it.name, sig: fn, kind: "native" });
+            this.functions.set(local, fn.ast);
+          }
+        } else {
+          const alias = imp.alias || imp.modulePath[imp.modulePath.length - 1];
+          this.namespaces.set(alias, { kind: "native", name: mod });
+          if (modEntry.constants && modEntry.constants.size > 0) {
+            this.moduleConsts.set(alias, modEntry.constants);
+          }
+        }
+        return;
+      }
+
+      const existing = loadedByName.get(mod);
+      const modPath = existing ? existing.path : resolveByNamePath(mod);
+      if (!modPath) {
+        this.addDiag(imp, "E2001", "UNRESOLVED_NAME", `unknown module '${mod}'`);
+        return;
+      }
+      const entry = existing ? existing.entry : loadUserModuleFromPath(modPath, imp);
+      if (!entry) return;
+      loadedByName.set(mod, { path: modPath, entry });
+      imp._resolved = { kind: "proto", proto: entry.protoName, path: modPath };
+      if (imp.items && imp.items.length > 0) {
+        addProtoImportItems(entry, imp);
       } else {
         const alias = imp.alias || imp.modulePath[imp.modulePath.length - 1];
-        this.namespaces.set(alias, mod);
-        if (modEntry.constants && modEntry.constants.size > 0) {
-          this.moduleConsts.set(alias, modEntry.constants);
-        }
+        this.namespaces.set(alias, { kind: "proto", name: entry.protoName });
       }
-    }
+    };
+
+    for (const imp of imports) resolveImport(imp, this.file);
   }
 
   analyzeFunction(fn) {
@@ -1858,11 +2036,32 @@ class Analyzer {
       if (member.target && member.target.kind === "Identifier") {
         const ns = this.namespaces.get(member.target.name);
         if (ns) {
+          if (ns.kind === "proto") {
+            const protoName = ns.name;
+            if (member.name === "clone") {
+              if (expr.args.length !== 0) {
+                this.addDiag(expr, "E1003", "ARITY_MISMATCH", "arity mismatch for 'clone'");
+              }
+              expr._protoClone = protoName;
+              return { kind: "NamedType", name: protoName };
+            }
+            const pm = this.resolvePrototypeMethod(protoName, member.name);
+            if (!pm) {
+              this.addDiag(member, "E2001", "UNRESOLVED_NAME", `unknown method '${member.name}' in prototype '${protoName}'`);
+              return null;
+            }
+            const expected = pm.params.length + 1;
+            if (expr.args.length !== expected) {
+              this.addDiag(expr, "E1003", "ARITY_MISMATCH", `arity mismatch for '${member.name}'`);
+            }
+            expr._protoStatic = protoName;
+            return pm.retType;
+          }
           const registry = loadModuleRegistry();
-          const modEntry = registry ? registry.modules.get(ns) : null;
+          const modEntry = registry ? registry.modules.get(ns.name) : null;
           const fn = modEntry ? modEntry.functions.get(member.name) : null;
           if (!fn) {
-            this.addDiag(member, "E2001", "UNRESOLVED_NAME", `unknown symbol '${member.name}' in module '${ns}'`);
+            this.addDiag(member, "E2001", "UNRESOLVED_NAME", `unknown symbol '${member.name}' in module '${ns.name}'`);
             return null;
           }
           if (expr.args.length !== fn.params.length) {

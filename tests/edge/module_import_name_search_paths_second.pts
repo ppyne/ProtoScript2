@@ -1,0 +1,8 @@
+import Io;
+import datastruct.Queue;
+
+function main() : void {
+    Queue q = Queue.clone();
+    int v = q.value();
+    Io.printLine(v.toString());
+}

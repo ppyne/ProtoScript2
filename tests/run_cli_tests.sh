@@ -147,6 +147,21 @@ expect_exit "run exit code" 100 "$PS" run "$ROOT_DIR/tests/cli/exit_code.pts"
 expect_exit "run static error exit" 2 "$PS" run "$ROOT_DIR/tests/invalid/type/uninitialized_read_call_arg.pts"
 expect_exit "argv passthrough" 0 "$PS" run "$ROOT_DIR/tests/cli/args.pts"
 expect_exit "runtime error exit" 2 "$PS" run "$ROOT_DIR/tests/cli/runtime_error.pts"
+
+abs_module_path="$ROOT_DIR/tests/fixtures/datastruct/Stack.pts"
+tmp_abs_import="$(mktemp)"
+cat >"$tmp_abs_import" <<EOF
+import Io;
+import "$abs_module_path";
+
+function main() : void {
+    Stack s = Stack.clone();
+    int v = s.value();
+    Io.printLine(v.toString());
+}
+EOF
+expect_output_contains "run import abs path" "444" "$PS" run "$tmp_abs_import"
+rm -f "$tmp_abs_import"
 expect_exit "static check success" 0 "$PS" check "$ROOT_DIR/tests/cli/hello.pts"
 expect_exit "pscc check if basic" 0 "$ROOT_DIR/c/pscc" --check "$ROOT_DIR/tests/cli/if_basic.pts"
 expect_exit "pscc check list concat" 0 "$ROOT_DIR/c/pscc" --check "$ROOT_DIR/tests/cli/list_concat.pts"

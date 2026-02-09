@@ -88,6 +88,40 @@ echo "Run command:   $CONFORMANCE_RUN_CMD"
 echo "Frontend only: $FRONTEND_ONLY"
 echo
 
+if [[ "$CONFORMANCE_MODULES" == "1" ]]; then
+  abs_module_path="$TESTS_DIR/fixtures/datastruct/Stack.pts"
+  tmp_abs_import="$(mktemp)"
+  cat >"$tmp_abs_import" <<EOF
+import Io;
+import "$abs_module_path";
+
+function main() : void {
+    Stack s = Stack.clone();
+    int v = s.value();
+    Io.printLine(v.toString());
+}
+EOF
+  out_abs="$(mktemp)"
+  if run_with_prefix "$CONFORMANCE_RUN_CMD" "$tmp_abs_import" "$out_abs"; then
+    if check_output_contains "444" "$out_abs"; then
+      echo "PASS abs import path"
+      pass=$((pass + 1))
+    else
+      echo "FAIL abs import path"
+      echo "  missing output: 444"
+      fail=$((fail + 1))
+    fi
+  else
+    echo "FAIL abs import path"
+    echo "  non-zero exit"
+    fail=$((fail + 1))
+  fi
+  rm -f "$tmp_abs_import" "$out_abs"
+else
+  echo "SKIP abs import path (modules not enabled)"
+  skip=$((skip + 1))
+fi
+
 while IFS= read -r case_id; do
   [[ -z "$case_id" ]] && continue
   src="$TESTS_DIR/$case_id.pts"

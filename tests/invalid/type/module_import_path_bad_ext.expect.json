@@ -1,0 +1,10 @@
+{
+  "status": "reject-static",
+  "error_code": "E2003",
+  "category": "IMPORT_PATH_BAD_EXTENSION",
+  "position": {
+    "file": "invalid/type/module_import_path_bad_ext.pts",
+    "line": 1,
+    "column": 1
+  }
+}

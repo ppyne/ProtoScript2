@@ -2963,6 +2963,9 @@ Familles minimales :
 Codes canoniques minimaux :
 
 - `E1003` : `ARITY_MISMATCH`
+- `E2002` : `IMPORT_PATH_NOT_FOUND`
+- `E2003` : `IMPORT_PATH_BAD_EXTENSION`
+- `E2004` : `IMPORT_PATH_NO_ROOT_PROTO`
 - `E3001` : `TYPE_MISMATCH_ASSIGNMENT`
 - `E3002` : `VARIADIC_EMPTY_CALL`
 - `E3003` : `SWITCH_CASE_NO_TERMINATION`
@@ -3185,12 +3188,47 @@ Un module étend l’environnement de compilation (symboles disponibles) et ne m
 ## 20.2 Syntaxe `import` (normative)
 
 ```ebnf
-ImportDecl   = "import" ModulePath [ "as" Identifier ] ";"
-             | "import" ModulePath "." "{" ImportItem { "," ImportItem } "}" ";" ;
+ImportStmt   = "import" ImportTarget ";" ;
+
+ImportTarget =
+    ImportByName
+  | ImportByPath ;
+
+ImportByName =
+    ModulePath [ "as" Identifier ]
+  | ModulePath "." "{" ImportItem { "," ImportItem } "}" ;
+
+ImportByPath =
+    StringLiteral [ "as" Identifier ]
+  | StringLiteral "." "{" ImportItem { "," ImportItem } "}" ;
 
 ModulePath   = Identifier { "." Identifier } ;
 ImportItem   = Identifier [ "as" Identifier ] ;
 ```
+
+Règles de désambiguïsation :
+
+- si le token suivant `import` est un `StringLiteral`, alors c’est un `ImportByPath` ;
+- sinon, c’est un `ImportByName`.
+
+## 20.2.1 Import par chemin (normatif)
+
+Un `ImportByPath` référence un fichier `.pts` explicite.
+
+Exemples :
+
+```c
+import "./datastruct/Stack.pts";
+import "/abs/path/collections/Stack.pts".{push, pop};
+```
+
+Règles :
+
+- le chemin **doit** se terminer par `.pts`
+- chemin relatif : résolu par rapport au **fichier courant** (celui qui effectue l’import)
+- chemin absolu : utilisé tel quel
+- aucun parcours de `search_paths` n’est effectué pour un import par chemin
+- le fichier doit contenir **exactement un** prototype racine public
 
 Exemples :
 
@@ -3220,7 +3258,15 @@ import math.core.{abs, clamp as clip};
 - un import de module (`Io`, `Math`, `JSON`, ou tout module du registre) doit échouer à l’édition de liens ou au chargement si le module n’est pas fourni
 - aucun fallback implicite n’est autorisé : le build doit fournir explicitement le registre et les modules natifs
 
-## 20.6 Contrat backend minimal (API C normative)
+## 20.6 Diagnostics normatifs (imports par chemin)
+
+Les imports par chemin (`import "..."`) doivent produire des diagnostics statiques dédiés :
+
+- `E2002` : `IMPORT_PATH_NOT_FOUND`
+- `E2003` : `IMPORT_PATH_BAD_EXTENSION`
+- `E2004` : `IMPORT_PATH_NO_ROOT_PROTO`
+
+## 20.7 Contrat backend minimal (API C normative)
 
 ```c
 typedef enum {

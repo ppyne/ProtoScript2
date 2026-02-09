@@ -1,0 +1,8 @@
+import Io;
+import datastruct.Stack;
+
+function main() : void {
+    Stack s = Stack.clone();
+    int v = s.value();
+    Io.printLine(v.toString());
+}

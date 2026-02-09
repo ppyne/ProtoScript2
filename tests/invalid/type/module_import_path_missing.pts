@@ -1,0 +1,4 @@
+import "./modules/Missing.pts";
+
+function main() : void {
+}

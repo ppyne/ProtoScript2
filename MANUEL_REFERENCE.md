@@ -1537,14 +1537,34 @@ Deux formes existent :
 
 - import de module avec alias (espace de noms)
 - import explicite de symboles
+- import par chemin (string literal)
 
 ```c
 import Io;
 import Io as io;
 import Math.{abs, sqrt as racine};
 import JSON.{encode, decode};
+import "./datastruct/Stack.pts";
+import "/abs/path/collections/Stack.pts".{push, pop};
 ```
 Ref: EX-076
+
+Mini‑grammaire (EBNF) :
+
+```ebnf
+ImportStmt   = "import" ImportTarget ";" ;
+ImportTarget =
+    ImportByName
+  | ImportByPath ;
+ImportByName =
+    ModulePath [ "as" Identifier ]
+  | ModulePath "." "{" ImportItem { "," ImportItem } "}" ;
+ImportByPath =
+    StringLiteral [ "as" Identifier ]
+  | StringLiteral "." "{" ImportItem { "," ImportItem } "}" ;
+ModulePath   = Identifier { "." Identifier } ;
+ImportItem   = Identifier [ "as" Identifier ] ;
+```
 
 Exemples d'usage :
 
@@ -1554,6 +1574,19 @@ float y = racine(x);
 string s = encode(decode("{\"value\":1}"));
 ```
 Ref: EX-077
+
+Règles supplémentaires pour l’import par chemin :
+
+- le chemin doit référencer un fichier `.pts`
+- chemin relatif : résolu par rapport au fichier courant
+- chemin absolu : utilisé tel quel
+- aucune recherche via `search_paths` n’est effectuée
+
+Erreurs statiques dédiées :
+
+- `E2002` : `IMPORT_PATH_NOT_FOUND`
+- `E2003` : `IMPORT_PATH_BAD_EXTENSION`
+- `E2004` : `IMPORT_PATH_NO_ROOT_PROTO`
 
 ### 14.2 Visibilité et noms
 

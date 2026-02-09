@@ -6,11 +6,15 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/stat.h>
 #include <unistd.h>
 
 #include "runtime/ps_json.h"
 
+typedef struct AstNode AstNode;
+
 static char *str_printf(const char *fmt, ...);
+static int parse_file_internal(const char *file, PsDiag *out_diag, AstNode **out_root);
 
 static char g_registry_exe_dir[PATH_MAX];
 static int g_registry_exe_dir_set = 0;
@@ -1755,7 +1759,16 @@ static char *parse_module_path(Parser *p) {
 static int parse_import_decl(Parser *p) {
   Token *ikw = p_t(p, 0);
   if (!p_eat(p, TK_KW, "import")) return 0;
-  char *mod = parse_module_path(p);
+  char *mod = NULL;
+  int is_path = 0;
+  Token *t0 = p_t(p, 0);
+  if (t0 && t0->kind == TK_STR) {
+    if (!p_eat(p, TK_STR, NULL)) return 0;
+    mod = strdup(t0->text ? t0->text : "");
+    is_path = 1;
+  } else {
+    mod = parse_module_path(p);
+  }
   if (!mod) return 0;
   AstNode *imp = NULL;
   if (!p_ast_add(p, "ImportDecl", mod, ikw->line, ikw->col, &imp)) {
@@ -1764,6 +1777,10 @@ static int parse_import_decl(Parser *p) {
   }
   free(mod);
   if (!p_ast_push(p, imp)) return 0;
+  if (is_path) {
+    AstNode *ip = ast_new("ImportPath", NULL, ikw->line, ikw->col);
+    if (!ip || !ast_add_child(imp, ip)) return 0;
+  }
 
   if (p_at(p, TK_KW, "as")) {
     p_eat(p, TK_KW, "as");
@@ -1907,6 +1924,8 @@ typedef struct RegMod {
 
 typedef struct {
   RegMod *mods;
+  char **search_paths;
+  size_t search_len;
 } ModuleRegistry;
 
 typedef struct ImportSymbol {
@@ -1919,8 +1938,17 @@ typedef struct ImportSymbol {
 typedef struct ImportNamespace {
   char *alias;
   char *module;
+  int is_proto;
   struct ImportNamespace *next;
 } ImportNamespace;
+
+typedef struct UserModule {
+  char *module_name;
+  char *path;
+  char *proto;
+  AstNode *proto_node;
+  struct UserModule *next;
+} UserModule;
 
 typedef struct {
   const char *file;
@@ -1930,6 +1958,7 @@ typedef struct {
   ImportSymbol *imports;
   ImportNamespace *namespaces;
   struct ProtoInfo *protos;
+  UserModule *user_modules;
 } Analyzer;
 
 typedef struct ProtoField {
@@ -2002,6 +2031,10 @@ static void free_registry(ModuleRegistry *r) {
     free(m);
     m = mn;
   }
+  if (r->search_paths) {
+    for (size_t i = 0; i < r->search_len; i++) free(r->search_paths[i]);
+    free(r->search_paths);
+  }
   free(r);
 }
 
@@ -2023,6 +2056,17 @@ static void free_namespaces(ImportNamespace *n) {
     free(n->module);
     free(n);
     n = nx;
+  }
+}
+
+static void free_user_modules(UserModule *u) {
+  while (u) {
+    UserModule *nx = u->next;
+    free(u->module_name);
+    free(u->path);
+    free(u->proto);
+    free(u);
+    u = nx;
   }
 }
 
@@ -2236,6 +2280,21 @@ static ModuleRegistry *registry_load(void) {
   if (!reg) {
     ps_json_free(root);
     return NULL;
+  }
+  PS_JsonValue *paths = ps_json_obj_get(root, "search_paths");
+  if (paths && paths->type == PS_JSON_ARRAY) {
+    reg->search_len = paths->as.array_v.len;
+    reg->search_paths = (char **)calloc(reg->search_len ? reg->search_len : 1, sizeof(char *));
+    if (!reg->search_paths) {
+      ps_json_free(root);
+      free(reg);
+      return NULL;
+    }
+    for (size_t i = 0; i < reg->search_len; i++) {
+      PS_JsonValue *pv = paths->as.array_v.items[i];
+      if (!pv || pv->type != PS_JSON_STRING) continue;
+      reg->search_paths[i] = strdup(pv->as.str_v);
+    }
   }
   for (size_t i = 0; i < mods->as.array_v.len; i++) {
     PS_JsonValue *m = mods->as.array_v.items[i];
@@ -2473,34 +2532,307 @@ static const char *last_segment(const char *mod) {
   return dot ? dot + 1 : mod;
 }
 
+static int import_is_path(AstNode *imp) {
+  return ast_child_kind(imp, "ImportPath") != NULL;
+}
+
+static int has_pts_ext(const char *s) {
+  if (!s) return 0;
+  size_t n = strlen(s);
+  return n >= 4 && strcmp(s + n - 4, ".pts") == 0;
+}
+
+static int is_abs_path(const char *s) { return s && s[0] == '/'; }
+
+static int file_exists(const char *path) {
+  struct stat st;
+  return path && stat(path, &st) == 0;
+}
+
+static char *path_dirname_dup(const char *path) {
+  if (!path) return strdup(".");
+  const char *slash = strrchr(path, '/');
+  if (!slash) return strdup(".");
+  size_t len = (size_t)(slash - path);
+  return dup_range(path, 0, len);
+}
+
+static char *path_join(const char *a, const char *b) {
+  if (!a || !*a) return strdup(b ? b : "");
+  if (!b || !*b) return strdup(a);
+  if (a[strlen(a) - 1] == '/') return str_printf("%s%s", a, b);
+  return str_printf("%s/%s", a, b);
+}
+
+static char *module_name_to_relpath(const char *mod) {
+  if (!mod) return NULL;
+  size_t n = strlen(mod);
+  char *tmp = (char *)malloc(n + 5);
+  if (!tmp) return NULL;
+  for (size_t i = 0; i < n; i++) tmp[i] = (mod[i] == '.') ? '/' : mod[i];
+  tmp[n] = '\0';
+  char *out = str_printf("%s.pts", tmp);
+  free(tmp);
+  return out;
+}
+
+static UserModule *find_user_module_by_path(UserModule *list, const char *path) {
+  for (UserModule *u = list; u; u = u->next) {
+    if (u->path && path && strcmp(u->path, path) == 0) return u;
+  }
+  return NULL;
+}
+
+static UserModule *find_user_module_by_name(UserModule *list, const char *name) {
+  for (UserModule *u = list; u; u = u->next) {
+    if (u->module_name && name && strcmp(u->module_name, name) == 0) return u;
+  }
+  return NULL;
+}
+
+static AstNode *find_root_prototype(AstNode *root, AstNode *imp, PsDiag *diag, const char *file) {
+  AstNode *proto = NULL;
+  int proto_count = 0;
+  for (size_t i = 0; i < root->child_len; i++) {
+    AstNode *c = root->children[i];
+    if (strcmp(c->kind, "FunctionDecl") == 0) {
+      set_diag(diag, file, imp->line, imp->col, "E2004", "IMPORT_PATH_NO_ROOT_PROTO", "module must define exactly one root prototype");
+      return NULL;
+    }
+    if (strcmp(c->kind, "PrototypeDecl") == 0) {
+      proto_count += 1;
+      proto = c;
+    }
+  }
+  if (proto_count != 1 || !proto) {
+    set_diag(diag, file, imp->line, imp->col, "E2004", "IMPORT_PATH_NO_ROOT_PROTO", "module must define exactly one root prototype");
+    return NULL;
+  }
+  return proto;
+}
+
+static void detach_child(AstNode *root, AstNode *child) {
+  if (!root || !child) return;
+  for (size_t i = 0; i < root->child_len; i++) {
+    if (root->children[i] == child) {
+      for (size_t j = i + 1; j < root->child_len; j++) root->children[j - 1] = root->children[j];
+      root->child_len -= 1;
+      return;
+    }
+  }
+}
+
+static AstNode *proto_find_method_node(AstNode *proto, const char *name) {
+  if (!proto || !name) return NULL;
+  for (size_t i = 0; i < proto->child_len; i++) {
+    AstNode *c = proto->children[i];
+    if (strcmp(c->kind, "FunctionDecl") == 0 && c->text && strcmp(c->text, name) == 0) return c;
+  }
+  return NULL;
+}
+
+static int proto_method_param_count(AstNode *fn) {
+  int count = 0;
+  if (!fn) return 0;
+  for (size_t i = 0; i < fn->child_len; i++) {
+    if (strcmp(fn->children[i]->kind, "Param") == 0) count += 1;
+  }
+  return count;
+}
+
+static char *proto_method_ret_type(AstNode *fn) {
+  AstNode *rt = ast_child_kind(fn, "ReturnType");
+  return canon_type(rt && rt->text ? rt->text : "void");
+}
+
+static char *resolve_import_path_literal(const char *importer_file, const char *literal) {
+  if (!literal) return NULL;
+  if (is_abs_path(literal)) return strdup(literal);
+  char *dir = path_dirname_dup(importer_file);
+  char *out = path_join(dir, literal);
+  free(dir);
+  return out;
+}
+
+static char *resolve_module_by_name(ModuleRegistry *reg, const char *root_dir, const char *mod) {
+  if (!reg || !reg->search_paths || reg->search_len == 0) return NULL;
+  char *rel = module_name_to_relpath(mod);
+  char *short_name = str_printf("%s.pts", last_segment(mod));
+  for (size_t i = 0; i < reg->search_len; i++) {
+    const char *sp = reg->search_paths[i];
+    if (!sp || !*sp) continue;
+    char *base = is_abs_path(sp) ? strdup(sp) : path_join(root_dir, sp);
+    char *cand1 = path_join(base, rel);
+    if (file_exists(cand1)) {
+      free(base); free(short_name);
+      char *out = cand1;
+      free(rel);
+      return out;
+    }
+    free(cand1);
+    char *cand2 = path_join(base, short_name);
+    if (file_exists(cand2)) {
+      free(base); free(rel);
+      char *out = cand2;
+      free(short_name);
+      return out;
+    }
+    free(cand2);
+    free(base);
+  }
+  free(rel);
+  free(short_name);
+  return NULL;
+}
+
 static int collect_imports(Analyzer *a, AstNode *root) {
   size_t import_count = 0;
   for (size_t i = 0; i < root->child_len; i++) {
     if (strcmp(root->children[i]->kind, "ImportDecl") == 0) import_count += 1;
   }
   if (import_count == 0) return 1;
-  a->registry = registry_load();
-  if (!a->registry) {
-    AstNode *imp = NULL;
-    for (size_t i = 0; i < root->child_len; i++) {
-      if (strcmp(root->children[i]->kind, "ImportDecl") == 0) {
-        imp = root->children[i];
-        break;
-      }
+  int has_by_name = 0;
+  for (size_t i = 0; i < root->child_len; i++) {
+    AstNode *imp = root->children[i];
+    if (strcmp(imp->kind, "ImportDecl") != 0) continue;
+    if (!import_is_path(imp)) {
+      has_by_name = 1;
+      break;
     }
-    if (!imp) return 0;
-    set_diag(a->diag, a->file, imp->line, imp->col, "E2001", "UNRESOLVED_NAME", "module registry not found");
-    return 0;
   }
+  if (has_by_name) {
+    a->registry = registry_load();
+    if (!a->registry) {
+      AstNode *imp = NULL;
+      for (size_t i = 0; i < root->child_len; i++) {
+        if (strcmp(root->children[i]->kind, "ImportDecl") == 0) {
+          imp = root->children[i];
+          break;
+        }
+      }
+      if (!imp) return 0;
+      set_diag(a->diag, a->file, imp->line, imp->col, "E2001", "UNRESOLVED_NAME", "module registry not found");
+      return 0;
+    }
+  } else {
+    a->registry = registry_load();
+  }
+
+  char *root_dir = path_dirname_dup(a->file);
   for (size_t i = 0; i < root->child_len; i++) {
     AstNode *imp = root->children[i];
     if (strcmp(imp->kind, "ImportDecl") != 0) continue;
     const char *mod = imp->text ? imp->text : "";
-    RegMod *m = registry_find_mod(a->registry, mod);
-    if (!m) {
-      set_diag(a->diag, a->file, imp->line, imp->col, "E2001", "UNRESOLVED_NAME", "unknown module");
-      return 0;
+    int is_path = import_is_path(imp);
+    UserModule *um = NULL;
+    RegMod *m = (!is_path && a->registry) ? registry_find_mod(a->registry, mod) : NULL;
+    if (is_path) {
+      if (!has_pts_ext(mod)) {
+        set_diag(a->diag, a->file, imp->line, imp->col, "E2003", "IMPORT_PATH_BAD_EXTENSION", "import path must end with .pts");
+        free(root_dir);
+        return 0;
+      }
+      char *abs = resolve_import_path_literal(a->file, mod);
+      if (!abs || !file_exists(abs)) {
+        free(abs);
+        set_diag(a->diag, a->file, imp->line, imp->col, "E2002", "IMPORT_PATH_NOT_FOUND", "import path not found");
+        free(root_dir);
+        return 0;
+      }
+      um = find_user_module_by_path(a->user_modules, abs);
+      if (!um) {
+        AstNode *mod_root = NULL;
+        PsDiag tmp;
+        int rc = parse_file_internal(abs, &tmp, &mod_root);
+        if (rc != 0) {
+          *a->diag = tmp;
+          ast_free(mod_root);
+          free(abs);
+          free(root_dir);
+          return 0;
+        }
+        AstNode *proto = find_root_prototype(mod_root, imp, a->diag, a->file);
+        if (!proto) {
+          ast_free(mod_root);
+          free(abs);
+          free(root_dir);
+          return 0;
+        }
+        detach_child(mod_root, proto);
+        if (!ast_add_child(root, proto)) {
+          ast_free(mod_root);
+          free(abs);
+          free(root_dir);
+          return 0;
+        }
+        um = (UserModule *)calloc(1, sizeof(UserModule));
+        if (!um) {
+          ast_free(mod_root);
+          free(abs);
+          free(root_dir);
+          return 0;
+        }
+        um->path = abs;
+        um->proto = strdup(proto->text ? proto->text : "");
+        um->proto_node = proto;
+        um->next = a->user_modules;
+        a->user_modules = um;
+        ast_free(mod_root);
+      } else {
+        free(abs);
+      }
+    } else if (!m) {
+      char *abs = resolve_module_by_name(a->registry, root_dir, mod);
+      if (!abs) {
+        set_diag(a->diag, a->file, imp->line, imp->col, "E2001", "UNRESOLVED_NAME", "unknown module");
+        free(root_dir);
+        return 0;
+      }
+      um = find_user_module_by_name(a->user_modules, mod);
+      if (!um) {
+        AstNode *mod_root = NULL;
+        PsDiag tmp;
+        int rc = parse_file_internal(abs, &tmp, &mod_root);
+        if (rc != 0) {
+          *a->diag = tmp;
+          ast_free(mod_root);
+          free(abs);
+          free(root_dir);
+          return 0;
+        }
+        AstNode *proto = find_root_prototype(mod_root, imp, a->diag, a->file);
+        if (!proto) {
+          ast_free(mod_root);
+          free(abs);
+          free(root_dir);
+          return 0;
+        }
+        detach_child(mod_root, proto);
+        if (!ast_add_child(root, proto)) {
+          ast_free(mod_root);
+          free(abs);
+          free(root_dir);
+          return 0;
+        }
+        um = (UserModule *)calloc(1, sizeof(UserModule));
+        if (!um) {
+          ast_free(mod_root);
+          free(abs);
+          free(root_dir);
+          return 0;
+        }
+        um->module_name = strdup(mod);
+        um->path = abs;
+        um->proto = strdup(proto->text ? proto->text : "");
+        um->proto_node = proto;
+        um->next = a->user_modules;
+        a->user_modules = um;
+        ast_free(mod_root);
+      } else {
+        free(abs);
+      }
     }
+
     int has_items = 0;
     for (size_t j = 0; j < imp->child_len; j++) {
       if (strcmp(imp->children[j]->kind, "ImportItem") == 0) has_items = 1;
@@ -2510,37 +2842,109 @@ static int collect_imports(Analyzer *a, AstNode *root) {
         AstNode *it = imp->children[j];
         if (strcmp(it->kind, "ImportItem") != 0) continue;
         const char *name = it->text ? it->text : "";
-        RegFn *rf = registry_find_fn(a->registry, mod, name);
-        if (!rf) {
-          set_diag(a->diag, a->file, it->line, it->col, "E2001", "UNRESOLVED_NAME", "unknown symbol in module");
-          return 0;
+        if (um) {
+          if (strcmp(name, "clone") == 0) {
+            const char *alias = import_item_alias(it);
+            const char *local = alias ? alias : name;
+            ImportSymbol *s = (ImportSymbol *)calloc(1, sizeof(ImportSymbol));
+            if (!s) return 0;
+            s->local = strdup(local);
+            s->module = strdup(um->proto ? um->proto : "");
+            s->name = strdup(name);
+            s->next = a->imports;
+            a->imports = s;
+            if (!add_imported_fn(a, local, um->proto ? um->proto : "unknown", 0)) return 0;
+            continue;
+          }
+          AstNode *method = proto_find_method_node(um->proto_node, name);
+          if (!method) {
+            set_diag(a->diag, a->file, it->line, it->col, "E2001", "UNRESOLVED_NAME", "unknown symbol in module");
+            free(root_dir);
+            return 0;
+          }
+          char *ret = proto_method_ret_type(method);
+          int pc = proto_method_param_count(method) + 1;
+          const char *alias = import_item_alias(it);
+          const char *local = alias ? alias : name;
+          ImportSymbol *s = (ImportSymbol *)calloc(1, sizeof(ImportSymbol));
+          if (!s) {
+            free(ret);
+            free(root_dir);
+            return 0;
+          }
+          s->local = strdup(local);
+          s->module = strdup(um->proto ? um->proto : "");
+          s->name = strdup(name);
+          s->next = a->imports;
+          a->imports = s;
+          if (!add_imported_fn(a, local, ret ? ret : "void", pc)) {
+            free(ret);
+            free(root_dir);
+            return 0;
+          }
+          free(ret);
+        } else {
+          RegFn *rf = registry_find_fn(a->registry, mod, name);
+          if (!rf) {
+            set_diag(a->diag, a->file, it->line, it->col, "E2001", "UNRESOLVED_NAME", "unknown symbol in module");
+            free(root_dir);
+            return 0;
+          }
+          if (!rf->valid) {
+            set_diag(a->diag, a->file, it->line, it->col, "E2001", "UNRESOLVED_NAME", "invalid registry signature");
+            free(root_dir);
+            return 0;
+          }
+          const char *alias = import_item_alias(it);
+          const char *local = alias ? alias : name;
+          ImportSymbol *s = (ImportSymbol *)calloc(1, sizeof(ImportSymbol));
+          if (!s) {
+            free(root_dir);
+            return 0;
+          }
+          s->local = strdup(local);
+          s->module = strdup(mod);
+          s->name = strdup(name);
+          s->next = a->imports;
+          a->imports = s;
+          if (!add_imported_fn(a, local, rf->ret_type, rf->param_count)) {
+            free(root_dir);
+            return 0;
+          }
         }
-        if (!rf->valid) {
-          set_diag(a->diag, a->file, it->line, it->col, "E2001", "UNRESOLVED_NAME", "invalid registry signature");
-          return 0;
-        }
-        const char *alias = import_item_alias(it);
-        const char *local = alias ? alias : name;
-        ImportSymbol *s = (ImportSymbol *)calloc(1, sizeof(ImportSymbol));
-        if (!s) return 0;
-        s->local = strdup(local);
-        s->module = strdup(mod);
-        s->name = strdup(name);
-        s->next = a->imports;
-        a->imports = s;
-        if (!add_imported_fn(a, local, rf->ret_type, rf->param_count)) return 0;
       }
     } else {
       const char *alias = import_decl_alias(imp);
-      const char *ns = alias ? alias : last_segment(mod);
-      ImportNamespace *n = (ImportNamespace *)calloc(1, sizeof(ImportNamespace));
-      if (!n) return 0;
-      n->alias = strdup(ns);
-      n->module = strdup(mod);
-      n->next = a->namespaces;
-      a->namespaces = n;
+      if (um) {
+        const char *ns = alias ? alias : (is_path ? (um->proto ? um->proto : "") : last_segment(mod));
+        if (ns && *ns) {
+          ImportNamespace *n = (ImportNamespace *)calloc(1, sizeof(ImportNamespace));
+          if (!n) {
+            free(root_dir);
+            return 0;
+          }
+          n->alias = strdup(ns);
+          n->module = strdup(um->proto ? um->proto : "");
+          n->is_proto = 1;
+          n->next = a->namespaces;
+          a->namespaces = n;
+        }
+      } else {
+        const char *ns = alias ? alias : last_segment(mod);
+        ImportNamespace *n = (ImportNamespace *)calloc(1, sizeof(ImportNamespace));
+        if (!n) {
+          free(root_dir);
+          return 0;
+        }
+        n->alias = strdup(ns);
+        n->module = strdup(mod);
+        n->is_proto = 0;
+        n->next = a->namespaces;
+        a->namespaces = n;
+      }
     }
   }
+  free(root_dir);
   return 1;
 }
 
@@ -3090,6 +3494,38 @@ static char *infer_call_type(Analyzer *a, AstNode *e, Scope *scope, int *ok) {
       }
       ImportNamespace *ns = find_namespace(a, target->text ? target->text : "");
       if (ns) {
+        if (ns->is_proto) {
+          ProtoInfo *proto = proto_find(a->protos, ns->module);
+          if (!proto) {
+            set_diag(a->diag, a->file, e->line, e->col, "E2001", "UNRESOLVED_NAME", "unknown prototype");
+            *ok = 0;
+            return NULL;
+          }
+          const char *mname = callee->text ? callee->text : "";
+          int argc = (int)e->child_len - 1;
+          if (strcmp(mname, "clone") == 0) {
+            if (argc != 0) {
+              set_diag(a->diag, a->file, e->line, e->col, "E1003", "ARITY_MISMATCH", "arity mismatch for 'clone'");
+              *ok = 0;
+              return NULL;
+            }
+            return strdup(proto->name ? proto->name : "unknown");
+          }
+          ProtoMethod *pm = proto_find_method(a->protos, proto->name, mname);
+          if (!pm) {
+            set_diag(a->diag, a->file, e->line, e->col, "E2001", "UNRESOLVED_NAME", "unknown prototype method");
+            *ok = 0;
+            return NULL;
+          }
+          int expected = pm->param_count + 1;
+          if (argc != expected) {
+            set_diag(a->diag, a->file, e->line, e->col, "E1003", "ARITY_MISMATCH", "arity mismatch");
+            *ok = 0;
+            return NULL;
+          }
+          if (!check_call_args(a, e, scope, ok)) return NULL;
+          return strdup(pm->ret_type ? pm->ret_type : "unknown");
+        }
         RegFn *rf = registry_find_fn(a->registry, ns->module, callee->text ? callee->text : "");
         if (!rf) {
           set_diag(a->diag, a->file, e->line, e->col, "E2001", "UNRESOLVED_NAME", "unknown module symbol");
@@ -3204,7 +3640,7 @@ static char *infer_expr_type(Analyzer *a, AstNode *e, Scope *scope, int *ok) {
       AstNode *target = e->children[0];
       if (strcmp(target->kind, "Identifier") == 0) {
         ImportNamespace *ns = find_namespace(a, target->text ? target->text : "");
-        if (ns) {
+        if (ns && !ns->is_proto) {
           RegConst *rc = registry_find_const(a->registry, ns->module, e->text ? e->text : "");
           if (rc && rc->type) {
             if (strcmp(rc->type, "float") == 0) return strdup("float");
@@ -4343,12 +4779,12 @@ static char *ir_guess_expr_type(AstNode *e, IrFnCtx *ctx) {
       if (e->text && strcmp(e->text, "toString") == 0) return strdup("string");
       if (e->child_len > 0) {
         AstNode *target = e->children[0];
-        if (strcmp(target->kind, "Identifier") == 0) {
-          ImportNamespace *ns = ir_find_namespace(ctx, target->text ? target->text : "");
-          if (ns) {
-            RegConst *rc = registry_find_const(ctx->registry, ns->module, e->text ? e->text : "");
-            if (rc && rc->type) {
-              if (strcmp(rc->type, "float") == 0) return strdup("float");
+      if (strcmp(target->kind, "Identifier") == 0) {
+        ImportNamespace *ns = ir_find_namespace(ctx, target->text ? target->text : "");
+        if (ns && !ns->is_proto) {
+          RegConst *rc = registry_find_const(ctx->registry, ns->module, e->text ? e->text : "");
+          if (rc && rc->type) {
+            if (strcmp(rc->type, "float") == 0) return strdup("float");
               if (strcmp(rc->type, "int") == 0) return strdup("int");
               if (strcmp(rc->type, "string") == 0) return strdup("string");
               if (strcmp(rc->type, "TextFile") == 0 || strcmp(rc->type, "BinaryFile") == 0) return strdup(rc->type);
@@ -4394,6 +4830,15 @@ static char *ir_guess_expr_type(AstNode *e, IrFnCtx *ctx) {
           if (strcmp(c->text, "clone") == 0) return strdup(proto->name ? proto->name : "unknown");
           ProtoMethod *pm = proto_find_method(ctx->protos, proto->name, c->text);
           return strdup(pm && pm->ret_type ? pm->ret_type : "unknown");
+        }
+        ImportNamespace *ns = ir_find_namespace(ctx, target);
+        if (ns && ns->is_proto) {
+          ProtoInfo *p2 = proto_find(ctx->protos, ns->module);
+          if (p2) {
+            if (strcmp(c->text, "clone") == 0) return strdup(p2->name ? p2->name : "unknown");
+            ProtoMethod *pm = proto_find_method(ctx->protos, p2->name, c->text);
+            return strdup(pm && pm->ret_type ? pm->ret_type : "unknown");
+          }
         }
       }
       char *recv_t = (c->child_len > 0) ? ir_guess_expr_type(c->children[0], ctx) : NULL;
@@ -6764,6 +7209,7 @@ int ps_emit_ir_json(const char *file, PsDiag *out_diag, FILE *out) {
     free_fns(a.fns);
     free_imports(a.imports);
     free_namespaces(a.namespaces);
+    free_user_modules(a.user_modules);
     free_registry(a.registry);
     return 1;
   }
@@ -6772,6 +7218,7 @@ int ps_emit_ir_json(const char *file, PsDiag *out_diag, FILE *out) {
     free_fns(a.fns);
     free_imports(a.imports);
     free_namespaces(a.namespaces);
+    free_user_modules(a.user_modules);
     free_registry(a.registry);
     free_protos(a.protos);
     return 1;
@@ -6792,6 +7239,7 @@ int ps_emit_ir_json(const char *file, PsDiag *out_diag, FILE *out) {
       free_fns(a.fns);
       free_imports(a.imports);
       free_namespaces(a.namespaces);
+      free_user_modules(a.user_modules);
       free_registry(a.registry);
       set_diag(out_diag, file, 1, 1, "E0002", "INTERNAL_ERROR", "IR signature allocation failure");
       return 2;
@@ -7214,6 +7662,7 @@ int ps_emit_ir_json(const char *file, PsDiag *out_diag, FILE *out) {
   free_fns(a.fns);
   free_imports(a.imports);
   free_namespaces(a.namespaces);
+  free_user_modules(a.user_modules);
   free_registry(a.registry);
   free_protos(a.protos);
   return 0;
@@ -7237,6 +7686,7 @@ int ps_check_file_static(const char *file, PsDiag *out_diag) {
     free_fns(a.fns);
     free_imports(a.imports);
     free_namespaces(a.namespaces);
+    free_user_modules(a.user_modules);
     free_registry(a.registry);
     return 1;
   }
@@ -7245,6 +7695,7 @@ int ps_check_file_static(const char *file, PsDiag *out_diag) {
     free_fns(a.fns);
     free_imports(a.imports);
     free_namespaces(a.namespaces);
+    free_user_modules(a.user_modules);
     free_registry(a.registry);
     free_protos(a.protos);
     return 1;
@@ -7285,6 +7736,7 @@ int ps_check_file_static(const char *file, PsDiag *out_diag) {
         ast_free(root);
         free_fns(a.fns);
         free_protos(a.protos);
+        free_user_modules(a.user_modules);
         return 1;
       }
     }
@@ -7294,6 +7746,7 @@ int ps_check_file_static(const char *file, PsDiag *out_diag) {
   free_fns(a.fns);
   free_imports(a.imports);
   free_namespaces(a.namespaces);
+  free_user_modules(a.user_modules);
   free_registry(a.registry);
   free_protos(a.protos);
   return 0;

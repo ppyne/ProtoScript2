@@ -1,0 +1,10 @@
+{
+  "status": "reject-static",
+  "error_code": "E2004",
+  "category": "IMPORT_PATH_NO_ROOT_PROTO",
+  "position": {
+    "file": "invalid/type/module_import_path_no_root_proto.pts",
+    "line": 1,
+    "column": 1
+  }
+}
