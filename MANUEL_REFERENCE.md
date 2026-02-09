@@ -900,15 +900,9 @@ Appel valide :
 
 ```c
 int r = sum(1, 2, 3);
-```
-Ref: EX-052
-
-Contre-exemple :
-
-```c
 int r = sum(); // variadique vide => liste vide
 ```
-Ref: EX-053
+Ref: EX-052, EX-053
 
 Note :
 
