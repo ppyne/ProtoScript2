@@ -57,6 +57,13 @@ Try it now: [ppyne.github.io/ProtoScript2/](https://ppyne.github.io/ProtoScript2
 - Compilateur C (clang ou gcc) + make
 - POSIX (macOS / Linux)
 - `jq` (pour la suite de tests)
+- mcpp (préprocesseur intégré) récupéré via submodule Git
+
+Récupérer les sources du préprocesseur mcpp (submodule) :
+
+```bash
+git submodule update --init --recursive
+```
 
 ### Compilation
 

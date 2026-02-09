@@ -11,6 +11,7 @@
 #include <unistd.h>
 
 #include "runtime/ps_json.h"
+#include "preprocess.h"
 
 typedef struct AstNode AstNode;
 
@@ -19,6 +20,8 @@ static int parse_file_internal(const char *file, PsDiag *out_diag, AstNode **out
 
 static char g_registry_exe_dir[PATH_MAX];
 static int g_registry_exe_dir_set = 0;
+static PreprocessConfig g_preprocess_config;
+static int g_preprocess_config_loaded = 0;
 
 void ps_set_registry_exe_dir(const char *dir) {
   if (!dir || !dir[0]) return;
@@ -1866,7 +1869,7 @@ static int parse_program(Parser *p) {
   return 1;
 }
 
-static char *read_file(const char *path, size_t *out_n) {
+static char *read_file_raw(const char *path, size_t *out_n) {
   FILE *f = fopen(path, "rb");
   if (!f) return NULL;
   if (fseek(f, 0, SEEK_END) != 0) {
@@ -1896,6 +1899,121 @@ static char *read_file(const char *path, size_t *out_n) {
   buf[n] = '\0';
   *out_n = n;
   return buf;
+}
+
+static char *read_registry_file(size_t *out_n) {
+  const char *env = getenv("PS_MODULE_REGISTRY");
+  char exe_path[PATH_MAX];
+  const char *exe_candidate = NULL;
+  if (g_registry_exe_dir_set) {
+    snprintf(exe_path, sizeof(exe_path), "%s/registry.json", g_registry_exe_dir);
+    exe_candidate = exe_path;
+  }
+  const char *candidates[] = {
+    env,
+    exe_candidate,
+    "registry.json",
+    "/etc/ps/registry.json",
+    "/usr/local/etc/ps/registry.json",
+    "/opt/local/etc/ps/registry.json",
+    "./modules/registry.json",
+    NULL
+  };
+  char *data = NULL;
+  size_t n = 0;
+  for (int i = 0; candidates[i]; i++) {
+    if (!candidates[i] || !*candidates[i]) continue;
+    data = read_file_raw(candidates[i], &n);
+    if (data) break;
+  }
+  if (!data) {
+    char cwd[PATH_MAX];
+    if (getcwd(cwd, sizeof(cwd))) {
+      char path[PATH_MAX];
+      snprintf(path, sizeof(path), "%s/registry.json", cwd);
+      data = read_file_raw(path, &n);
+      if (!data) {
+        snprintf(path, sizeof(path), "%s/modules/registry.json", cwd);
+        data = read_file_raw(path, &n);
+      }
+    }
+  }
+  if (data) *out_n = n;
+  return data;
+}
+
+static void preprocess_config_load_once(void) {
+  if (g_preprocess_config_loaded) return;
+  preprocess_config_init(&g_preprocess_config);
+  g_preprocess_config_loaded = 1;
+
+  size_t n = 0;
+  char *data = read_registry_file(&n);
+  if (!data) return;
+
+  const char *err = NULL;
+  PS_JsonValue *root = ps_json_parse(data, n, &err);
+  free(data);
+  if (!root) return;
+
+  PS_JsonValue *pp = ps_json_obj_get(root, "preprocessor");
+  if (pp && pp->type == PS_JSON_OBJECT) {
+    PS_JsonValue *enabled = ps_json_obj_get(pp, "enabled");
+    if (enabled && enabled->type == PS_JSON_BOOL) g_preprocess_config.enabled = enabled->as.bool_v ? 1 : 0;
+
+    PS_JsonValue *tool = ps_json_obj_get(pp, "tool");
+    if (tool && tool->type == PS_JSON_STRING) g_preprocess_config.tool = strdup(tool->as.str_v);
+
+    PS_JsonValue *opts = ps_json_obj_get(pp, "options");
+    if (opts && opts->type == PS_JSON_ARRAY) {
+      g_preprocess_config.option_len = opts->as.array_v.len;
+      g_preprocess_config.options = (char **)calloc(g_preprocess_config.option_len ? g_preprocess_config.option_len : 1, sizeof(char *));
+      if (g_preprocess_config.options) {
+        for (size_t i = 0; i < g_preprocess_config.option_len; i++) {
+          PS_JsonValue *ov = opts->as.array_v.items[i];
+          if (!ov || ov->type != PS_JSON_STRING) continue;
+          g_preprocess_config.options[i] = strdup(ov->as.str_v);
+        }
+      } else {
+        g_preprocess_config.option_len = 0;
+      }
+    }
+  }
+
+  if (g_preprocess_config.enabled && !g_preprocess_config.tool) {
+    g_preprocess_config.tool = strdup("mcpp");
+  }
+
+  ps_json_free(root);
+}
+
+static char *read_file(const char *path, size_t *out_n, PsDiag *out_diag) {
+  size_t n = 0;
+  char *raw = read_file_raw(path, &n);
+  if (!raw) {
+    set_diag(out_diag, path, 1, 1, "E0001", "IO_READ_ERROR", "cannot read source file");
+    return NULL;
+  }
+
+  preprocess_config_load_once();
+  if (!g_preprocess_config.enabled) {
+    *out_n = n;
+    return raw;
+  }
+
+  char *pre = NULL;
+  size_t pre_len = 0;
+  char *err = NULL;
+  if (!preprocess_source(raw, n, &pre, &pre_len, &g_preprocess_config, path, &err)) {
+    const char *msg = err ? err : "preprocessor failed";
+    set_diag(out_diag, path, 1, 1, "E0003", "PREPROCESS_ERROR", msg);
+    free(err);
+    free(raw);
+    return NULL;
+  }
+  free(raw);
+  *out_n = pre_len;
+  return pre;
 }
 
 typedef struct Sym {
@@ -2250,42 +2368,9 @@ static int registry_type_valid(const char *s, int allow_void) {
 }
 
 static ModuleRegistry *registry_load(void) {
-  const char *env = getenv("PS_MODULE_REGISTRY");
-  char exe_path[PATH_MAX];
-  const char *exe_candidate = NULL;
-  if (g_registry_exe_dir_set) {
-    snprintf(exe_path, sizeof(exe_path), "%s/registry.json", g_registry_exe_dir);
-    exe_candidate = exe_path;
-  }
-  const char *candidates[] = {
-    env,
-    exe_candidate,
-    "registry.json",
-    "/etc/ps/registry.json",
-    "/usr/local/etc/ps/registry.json",
-    "/opt/local/etc/ps/registry.json",
-    "./modules/registry.json",
-    NULL
-  };
   char *data = NULL;
   size_t n = 0;
-  for (int i = 0; candidates[i]; i++) {
-    if (!candidates[i] || !*candidates[i]) continue;
-    data = read_file(candidates[i], &n);
-    if (data) break;
-  }
-  if (!data) {
-    char cwd[PATH_MAX];
-    if (getcwd(cwd, sizeof(cwd))) {
-      char path[PATH_MAX];
-      snprintf(path, sizeof(path), "%s/registry.json", cwd);
-      data = read_file(path, &n);
-      if (!data) {
-        snprintf(path, sizeof(path), "%s/modules/registry.json", cwd);
-        data = read_file(path, &n);
-      }
-    }
-  }
+  data = read_registry_file(&n);
   if (!data) return NULL;
   const char *err = NULL;
   PS_JsonValue *root = ps_json_parse(data, n, &err);
@@ -4451,9 +4536,8 @@ static int analyze_method(Analyzer *a, AstNode *fn, const char *self_type) {
 static int parse_file_internal(const char *file, PsDiag *out_diag, AstNode **out_root) {
   memset(out_diag, 0, sizeof(*out_diag));
   size_t n = 0;
-  char *src = read_file(file, &n);
+  char *src = read_file(file, &n, out_diag);
   if (!src) {
-    set_diag(out_diag, file, 1, 1, "E0001", "IO_READ_ERROR", "cannot read source file");
     return 2;
   }
 

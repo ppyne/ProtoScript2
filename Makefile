@@ -1,14 +1,18 @@
 CC ?= cc
 EMCC ?= emcc
+EMAR ?= emar
 
 ROOT := $(shell pwd)
 WEB_DIR := $(ROOT)/web
 C_DIR := $(ROOT)/c
+MCPP_DIR := $(ROOT)/third_party/mcpp
+MCPP_WEB_LIB := $(MCPP_DIR)/lib-wasm/libmcpp.a
 
 WEB_OUT := $(WEB_DIR)/protoscript.js
 WEB_SRCS := \
   $(C_DIR)/cli/ps.c \
   $(C_DIR)/frontend.c \
+  $(C_DIR)/preprocess.c \
   $(C_DIR)/runtime/psmod_io_builtin.c \
   $(C_DIR)/runtime/psmod_json_builtin.c \
   $(C_DIR)/runtime/psmod_math_builtin.c \
@@ -29,9 +33,9 @@ WEB_FLAGS := -O2 -s WASM=1 -s MODULARIZE=1 -s EXPORT_NAME=ProtoScript -s EXIT_RU
   -s FORCE_FILESYSTEM=1 -s ALLOW_MEMORY_GROWTH=1 -s INVOKE_RUN=0 \
   -s EXPORTED_RUNTIME_METHODS="['FS','callMain']" \
   --preload-file $(ROOT)/modules/registry.json@/modules/registry.json \
-  -DPS_WASM=1 -I$(ROOT)/include -I$(C_DIR) -I$(C_DIR)/runtime
+  -DPS_WASM=1 -I$(ROOT)/include -I$(C_DIR) -I$(C_DIR)/runtime -I$(MCPP_DIR)
 
-.PHONY: all c clean web web-clean test
+.PHONY: all c clean web web-clean test mcpp-web
 
 all: c
 
@@ -43,8 +47,12 @@ clean:
 
 web: $(WEB_OUT)
 
-$(WEB_OUT): $(WEB_SRCS)
-	$(EMCC) $(WEB_FLAGS) -o $(WEB_OUT) $(WEB_SRCS) -lm
+$(WEB_OUT): $(WEB_SRCS) mcpp-web
+	$(EMCC) $(WEB_FLAGS) -o $(WEB_OUT) $(WEB_SRCS) $(MCPP_WEB_LIB) -lm
+
+mcpp-web:
+	$(MAKE) -C $(MCPP_DIR) clean
+	$(MAKE) -C $(MCPP_DIR) CC=$(EMCC) AR=$(EMAR) CFLAGS="-O2 -Wno-deprecated-declarations -Wno-unused-command-line-argument" LIBDIR=lib-wasm
 
 web-clean:
 	rm -f $(WEB_DIR)/protoscript.js $(WEB_DIR)/protoscript.wasm $(WEB_DIR)/protoscript.data

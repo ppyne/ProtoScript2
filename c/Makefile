@@ -1,9 +1,14 @@
 CC ?= cc
 CFLAGS ?= -std=c11 -Wall -Wextra -Werror -O2 -I../include -I.
 
+MCPP_DIR := ../third_party/mcpp
+MCPP_LIB := $(MCPP_DIR)/lib/libmcpp.a
+MCPP_INC := -I$(MCPP_DIR)
+MCPP_CFLAGS := -O2 -Wno-deprecated-declarations
+
 TARGET = pscc
 TARGET_PS = ps
-SRC = pscc.c frontend.c runtime/ps_json.c
+SRC = pscc.c frontend.c preprocess.c runtime/ps_json.c
 SRC_RUNTIME = \
   runtime/ps_api.c \
   runtime/ps_errors.c \
@@ -17,17 +22,23 @@ SRC_RUNTIME = \
   runtime/ps_json.c \
   runtime/ps_modules.c \
   runtime/ps_vm.c
-SRC_PS = cli/ps.c frontend.c $(SRC_RUNTIME)
+SRC_PS = cli/ps.c frontend.c preprocess.c $(SRC_RUNTIME)
 
-.PHONY: all clean
+.PHONY: all clean force-mcpp
 
 all: $(TARGET) $(TARGET_PS)
 
-$(TARGET): $(SRC)
-	$(CC) $(CFLAGS) $(SRC) -o $(TARGET)
+$(TARGET): $(SRC) $(MCPP_LIB)
+	$(CC) $(CFLAGS) $(MCPP_INC) $(SRC) $(MCPP_LIB) -o $(TARGET)
 
-$(TARGET_PS): $(SRC_PS)
-	$(CC) $(CFLAGS) $(SRC_PS) -o $(TARGET_PS) -ldl
+$(TARGET_PS): $(SRC_PS) $(MCPP_LIB)
+	$(CC) $(CFLAGS) $(MCPP_INC) $(SRC_PS) $(MCPP_LIB) -o $(TARGET_PS) -ldl
+
+$(MCPP_LIB): force-mcpp
+	$(MAKE) -C $(MCPP_DIR) clean
+	$(MAKE) -C $(MCPP_DIR) CFLAGS="$(MCPP_CFLAGS)"
+
+force-mcpp:
 
 clean:
 	rm -f $(TARGET) $(TARGET_PS)
