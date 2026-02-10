@@ -10,3 +10,6 @@ c/pscc
 io_*.txt
 io_*.bin
 memo.txt
+tools/vscode/protoscript2/dist
+tools/vscode/protoscript2/node_modules
+tools/vscode/protoscript2/protoscript2-0.1.0.vsix
