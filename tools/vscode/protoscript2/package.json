@@ -1,0 +1,55 @@
+{
+  "name": "protoscript2",
+  "displayName": "ProtoScript2",
+  "description": "Syntax highlighting, snippets, and simple completions for ProtoScript2 (.pts).",
+  "version": "0.1.0",
+  "publisher": "protoscript2",
+  "icon": "icon.png",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/avialle/ProtoScript2"
+  },
+  "engines": {
+    "vscode": "^1.80.0"
+  },
+  "categories": ["Programming Languages"],
+  "activationEvents": ["onLanguage:protoscript2"],
+  "main": "./dist/extension.js",
+  "contributes": {
+    "languages": [
+      {
+        "id": "protoscript2",
+        "aliases": ["ProtoScript2", "protoscript2"],
+        "extensions": [".pts"],
+        "configuration": "./language-configuration.json"
+      }
+    ],
+    "grammars": [
+      {
+        "language": "protoscript2",
+        "scopeName": "source.protoscript2",
+        "path": "./syntaxes/protoscript2.tmLanguage.json"
+      }
+    ],
+    "snippets": [
+      {
+        "language": "protoscript2",
+        "path": "./snippets/protoscript2.code-snippets.json"
+      }
+    ]
+  },
+  "scripts": {
+    "build": "tsc -p ./tsconfig.json",
+    "vscode:prepublish": "npm run build"
+  },
+  "dependencies": {
+    "vscode-languageclient": "^9.0.1",
+    "vscode-languageserver": "^9.0.1",
+    "vscode-languageserver-textdocument": "^1.0.11"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.0",
+    "@types/vscode": "^1.80.0",
+    "typescript": "^5.4.0"
+  }
+}

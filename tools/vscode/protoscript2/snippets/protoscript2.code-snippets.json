@@ -1,0 +1,68 @@
+{
+  "prototype": {
+    "prefix": "prototype",
+    "body": [
+      "prototype ${1:name}(${2:args}) {",
+      "  $0",
+      "}"
+    ],
+    "description": "Prototype block"
+  },
+  "function": {
+    "prefix": "function",
+    "body": [
+      "function ${1:name}(${2:args}) {",
+      "  $0",
+      "}"
+    ],
+    "description": "Function block"
+  },
+  "if/else": {
+    "prefix": "if",
+    "body": [
+      "if (${1:condition}) {",
+      "  $0",
+      "} else {",
+      "  ",
+      "}"
+    ],
+    "description": "If/else block"
+  },
+  "while": {
+    "prefix": "while",
+    "body": [
+      "while (${1:condition}) {",
+      "  $0",
+      "}"
+    ],
+    "description": "While loop"
+  },
+  "preprocessor include": {
+    "prefix": "#include",
+    "body": ["#include \"${1:header}\""],
+    "description": "Preprocessor include"
+  },
+  "preprocessor define": {
+    "prefix": "#define",
+    "body": ["#define ${1:NAME} ${2:value}"],
+    "description": "Preprocessor define"
+  },
+  "preprocessor ifdef": {
+    "prefix": "#ifdef",
+    "body": [
+      "#ifdef ${1:SYMBOL}",
+      "$0",
+      "#endif"
+    ],
+    "description": "Preprocessor ifdef block"
+  },
+  "preprocessor ifndef": {
+    "prefix": "#ifndef",
+    "body": [
+      "#ifndef ${1:SYMBOL}",
+      "$0",
+      "#endif"
+    ],
+    "description": "Preprocessor ifndef block"
+  }
+}

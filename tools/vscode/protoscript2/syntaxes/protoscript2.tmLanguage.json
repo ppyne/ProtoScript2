@@ -1,0 +1,68 @@
+{
+  "$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
+  "name": "ProtoScript2",
+  "scopeName": "source.protoscript2",
+  "patterns": [
+    { "include": "#comments" },
+    { "include": "#strings" },
+    { "include": "#preprocessor" },
+    { "include": "#keywords" },
+    { "include": "#types" }
+  ],
+  "repository": {
+    "comments": {
+      "patterns": [
+        { "name": "comment.line.double-slash.protoscript2", "match": "//.*$" },
+        {
+          "name": "comment.block.protoscript2",
+          "begin": "/\\*",
+          "end": "\\*/"
+        }
+      ]
+    },
+    "strings": {
+      "patterns": [
+        {
+          "name": "string.quoted.double.protoscript2",
+          "begin": "\"",
+          "end": "\"",
+          "patterns": [
+            { "name": "constant.character.escape.protoscript2", "match": "\\\\." }
+          ]
+        },
+        {
+          "name": "string.quoted.single.protoscript2",
+          "begin": "'",
+          "end": "'",
+          "patterns": [
+            { "name": "constant.character.escape.protoscript2", "match": "\\\\." }
+          ]
+        }
+      ]
+    },
+    "preprocessor": {
+      "patterns": [
+        {
+          "name": "keyword.control.preprocessor.protoscript2",
+          "match": "^\\s*#\\s*(include|define|ifdef|ifndef|endif)\\b"
+        }
+      ]
+    },
+    "keywords": {
+      "patterns": [
+        {
+          "name": "keyword.control.protoscript2",
+          "match": "\\b(prototype|function|return|if|else|while|import)\\b"
+        }
+      ]
+    },
+    "types": {
+      "patterns": [
+        {
+          "name": "storage.type.protoscript2",
+          "match": "\\b(int|float|bool|byte|string|glyph|list|map)\\b"
+        }
+      ]
+    }
+  }
+}

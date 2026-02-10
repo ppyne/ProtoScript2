@@ -170,3 +170,14 @@ Documentation officielle pour écrire un module natif :
 
 ProtoScript V2 est un langage spécifié au sens de sa spécification.
 La baseline v2.0 figée est taggée : `spec-v2.0-final`.
+
+## Outils éditeur
+
+Le dépôt inclut un support d’édition léger dans `tools/` :
+
+- Extension VS Code (coloration, snippets, complétions et signature help via LSP minimal)
+- Support Vim (détection de filetype + coloration)
+
+Voir `tools/vscode/protoscript2/README.md` et `tools/vim/README.md` pour l’installation.
+
+![Screenshot VS Code](vscode_screenshot.png)
