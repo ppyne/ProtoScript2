@@ -1,0 +1,4 @@
+{
+  "status": "accept-runtime",
+  "expected_stdout": "code:42\n"
+}

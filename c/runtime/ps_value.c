@@ -59,6 +59,9 @@ void ps_value_free(PS_Value *v) {
       if (v->as.file_v.path) free(v->as.file_v.path);
       break;
     case PS_V_EXCEPTION:
+      free(v->as.exc_v.type_name);
+      free(v->as.exc_v.parent_name);
+      if (v->as.exc_v.fields) ps_value_release(v->as.exc_v.fields);
       if (v->as.exc_v.file) ps_value_release(v->as.exc_v.file);
       if (v->as.exc_v.message) ps_value_release(v->as.exc_v.message);
       if (v->as.exc_v.cause) ps_value_release(v->as.exc_v.cause);

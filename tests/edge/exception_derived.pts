@@ -1,0 +1,31 @@
+import Io;
+
+prototype MyError : Exception {
+    string details;
+}
+
+function main() : void {
+    bool ok1 = false;
+    bool ok2 = false;
+
+    try {
+        MyError e = MyError.clone();
+        e.message = "fail";
+        e.details = "detail";
+        throw e;
+    } catch (MyError ex) {
+        ok1 = (ex.message == "fail") && (ex.details == "detail");
+    }
+
+    try {
+        MyError e2 = MyError.clone();
+        e2.message = "x";
+        throw e2;
+    } catch (RuntimeException ex) {
+        ok2 = false;
+    } catch (Exception ex) {
+        ok2 = (ex.message == "x");
+    }
+
+    Io.printLine((ok1 && ok2).toString());
+}

@@ -1,0 +1,8 @@
+prototype Box {
+    int v;
+
+    function set(int x) : void {
+        self.v = x;
+        return self;
+    }
+}

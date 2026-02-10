@@ -19,6 +19,27 @@ function isObjectInstance(v) {
 
 function buildPrototypeEnv(ast) {
   const protos = new Map();
+  protos.set("Exception", {
+    name: "Exception",
+    parent: null,
+    fields: [
+      { name: "file", type: { kind: "PrimitiveType", name: "string" } },
+      { name: "line", type: { kind: "PrimitiveType", name: "int" } },
+      { name: "column", type: { kind: "PrimitiveType", name: "int" } },
+      { name: "message", type: { kind: "PrimitiveType", name: "string" } },
+      { name: "cause", type: { kind: "NamedType", name: "Exception" } },
+    ],
+    methods: new Map(),
+  });
+  protos.set("RuntimeException", {
+    name: "RuntimeException",
+    parent: "Exception",
+    fields: [
+      { name: "code", type: { kind: "PrimitiveType", name: "string" } },
+      { name: "category", type: { kind: "PrimitiveType", name: "string" } },
+    ],
+    methods: new Map(),
+  });
   for (const d of ast.decls || []) {
     if (d.kind !== "PrototypeDecl") continue;
     const fields = [];
@@ -42,6 +63,25 @@ function collectPrototypeFields(protos, name) {
     for (const f of chain[i].fields) out.push(f);
   }
   return out;
+}
+
+function isProtoSubtype(protos, child, parent) {
+  if (!child || !parent) return false;
+  if (child === parent) return true;
+  let cur = protos.get(child);
+  while (cur && cur.parent) {
+    if (cur.parent === parent) return true;
+    cur = cur.parent ? protos.get(cur.parent) : null;
+  }
+  return false;
+}
+
+function isExceptionProto(protos, name) {
+  return isProtoSubtype(protos, name, "Exception");
+}
+
+function isRuntimeExceptionProto(protos, name) {
+  return isProtoSubtype(protos, name, "RuntimeException");
 }
 
 function defaultValueForTypeNode(protos, t) {
@@ -71,6 +111,18 @@ function defaultValueForTypeNode(protos, t) {
 
 function clonePrototype(protos, name) {
   const fields = collectPrototypeFields(protos, name);
+  const core = new Set(["file", "line", "column", "message", "cause", "code", "category"]);
+  if (isExceptionProto(protos, name)) {
+    const ex = makeExceptionValue({ type: name });
+    ex.__object = true;
+    ex.__proto = name;
+    ex.__fields = Object.create(null);
+    for (const f of fields) {
+      if (core.has(f.name)) continue;
+      ex.__fields[f.name] = defaultValueForTypeNode(protos, f.type);
+    }
+    return ex;
+  }
   const obj = { __object: true, __proto: name, __fields: Object.create(null) };
   for (const f of fields) {
     obj.__fields[f.name] = defaultValueForTypeNode(protos, f.type);
@@ -94,6 +146,9 @@ function isExceptionValue(v) {
 function makeExceptionValue(opts) {
   const ex = {
     __exception: true,
+    __object: true,
+    __proto: opts.type || "Exception",
+    __fields: Object.create(null),
     type: opts.type || "Exception",
     file: opts.file || "",
     line: Number.isInteger(opts.line) ? opts.line : 1,
@@ -128,13 +183,16 @@ function runtimeErrorToException(err) {
   });
 }
 
-function exceptionMatches(ex, typeNode) {
+function exceptionMatches(ex, typeNode, protoEnv) {
   if (!isExceptionValue(ex)) return false;
   if (!typeNode || typeNode.kind !== "NamedType") return false;
   const t = typeNode.name;
   if (t === "Exception") return true;
-  if (t === "RuntimeException") return ex.type === "RuntimeException";
-  return false;
+  if (!protoEnv) {
+    if (t === "RuntimeException") return ex.type === "RuntimeException";
+    return ex.type === t;
+  }
+  return isProtoSubtype(protoEnv, ex.type, t);
 }
 
 function valueToString(v) {
@@ -992,23 +1050,24 @@ function execStmt(stmt, scope, functions, moduleEnv, protoEnv, file, callFunctio
       return;
     }
     case "AssignStmt": {
-      const rhs = evalExpr(stmt.expr, scope, functions, moduleEnv, protoEnv, file, callFunction);
-      if (stmt.target.kind === "Identifier") {
-        scope.set(stmt.target.name, rhs);
-      } else if (stmt.target.kind === "MemberExpr") {
-        const target = evalExpr(stmt.target.target, scope, functions, moduleEnv, protoEnv, file, callFunction);
-        if (!isObjectInstance(target)) {
-          throw new RuntimeError(rdiag(file, stmt.target, "R1010", "RUNTIME_TYPE_ERROR", "member assignment on non-object"));
-        }
-        if (!(stmt.target.name in target.__fields)) {
-          throw new RuntimeError(rdiag(file, stmt.target, "R1010", "RUNTIME_TYPE_ERROR", "unknown field"));
-        }
-        target.__fields[stmt.target.name] = rhs;
-      } else if (stmt.target.kind === "IndexExpr") {
-        const target = evalExpr(stmt.target.target, scope, functions, moduleEnv, protoEnv, file, callFunction);
-        const idx = evalExpr(stmt.target.index, scope, functions, moduleEnv, protoEnv, file, callFunction);
-        assignIndex(file, stmt.target.target, stmt.target.index, target, idx, rhs);
+      const op = stmt.op || "=";
+      const ref = lvalueRef(stmt.target, scope, functions, moduleEnv, protoEnv, file, callFunction);
+      if (!ref) {
+        throw new RuntimeError(rdiag(file, stmt.target, "R1010", "RUNTIME_TYPE_ERROR", "invalid assignment target"));
       }
+      const rhs = evalExpr(stmt.expr, scope, functions, moduleEnv, protoEnv, file, callFunction);
+      if (op === "=") {
+        ref.set(rhs);
+        return;
+      }
+      const cur = ref.get();
+      const binOp = op === "+=" ? "+" : op === "-=" ? "-" : op === "*=" ? "*" : op === "/=" ? "/" : null;
+      if (!binOp) {
+        throw new RuntimeError(rdiag(file, stmt, "R1010", "RUNTIME_TYPE_ERROR", "invalid assignment operator"));
+      }
+      const fake = { op: binOp, left: stmt.target, right: stmt.expr };
+      const next = evalBinary(file, fake, cur, rhs);
+      ref.set(next);
       return;
     }
     case "ExprStmt":
@@ -1059,7 +1118,7 @@ function execStmt(stmt, scope, functions, moduleEnv, protoEnv, file, callFunctio
         } else {
           let handled = false;
           for (const c of stmt.catches) {
-            if (exceptionMatches(ex, c.type)) {
+            if (exceptionMatches(ex, c.type, protoEnv)) {
               const cs = new Scope(scope);
               cs.define(c.name, ex);
               execBlock(c.block, cs, functions, moduleEnv, protoEnv, file, callFunction);
@@ -1319,7 +1378,8 @@ function evalExpr(expr, scope, functions, moduleEnv, protoEnv, file, callFunctio
         if (expr.name === "cause") return target.cause || null;
         if (expr.name === "code") return target.code || "";
         if (expr.name === "category") return target.category || "";
-        return null;
+        if (target.__fields && expr.name in target.__fields) return target.__fields[expr.name];
+        throw new RuntimeError(rdiag(file, expr, "R1010", "RUNTIME_TYPE_ERROR", "unknown field"));
       }
       if (isObjectInstance(target)) {
         if (!(expr.name in target.__fields)) {
@@ -1395,6 +1455,24 @@ function lvalueRef(expr, scope, functions, moduleEnv, protoEnv, file, callFuncti
   }
   if (expr.kind === "MemberExpr") {
     const target = evalExpr(expr.target, scope, functions, moduleEnv, protoEnv, file, callFunction);
+    if (isExceptionValue(target)) {
+      if (expr.name === "file") return { get: () => target.file, set: (v) => { target.file = v; } };
+      if (expr.name === "line") return { get: () => target.line, set: (v) => { target.line = v; } };
+      if (expr.name === "column") return { get: () => target.column, set: (v) => { target.column = v; } };
+      if (expr.name === "message") return { get: () => target.message, set: (v) => { target.message = v; } };
+      if (expr.name === "cause") return { get: () => target.cause, set: (v) => { target.cause = v; } };
+      if (expr.name === "code") return { get: () => target.code || "", set: (v) => { target.code = v; } };
+      if (expr.name === "category") return { get: () => target.category || "", set: (v) => { target.category = v; } };
+      if (target.__fields && expr.name in target.__fields) {
+        return {
+          get: () => target.__fields[expr.name],
+          set: (v) => {
+            target.__fields[expr.name] = v;
+          },
+        };
+      }
+      throw new RuntimeError(rdiag(file, expr, "R1010", "RUNTIME_TYPE_ERROR", "unknown field"));
+    }
     if (!isObjectInstance(target)) {
       throw new RuntimeError(rdiag(file, expr, "R1010", "RUNTIME_TYPE_ERROR", "member assignment on non-object"));
     }
@@ -1591,29 +1669,6 @@ function evalCall(expr, scope, functions, moduleEnv, protoEnv, file, callFunctio
   // Function call by identifier.
   if (expr.callee.kind === "Identifier") {
     const fn = functions.get(expr.callee.name);
-    if (!fn && expr.callee.name === "Exception") {
-      const args = expr.args.map((a) => evalExpr(a, scope, functions, moduleEnv, protoEnv, file, callFunction));
-      if (args.length > 2) {
-        throw new RuntimeError(rdiag(file, expr, "R1010", "RUNTIME_TYPE_ERROR", "Exception expects (string message, Exception cause?)"));
-      }
-      if (args.length >= 1 && typeof args[0] !== "string") {
-        throw new RuntimeError(rdiag(file, expr, "R1010", "RUNTIME_TYPE_ERROR", "Exception message must be string"));
-      }
-      if (args.length === 2 && args[1] !== null && !isExceptionValue(args[1])) {
-        throw new RuntimeError(rdiag(file, expr, "R1010", "RUNTIME_TYPE_ERROR", "Exception cause must be Exception"));
-      }
-      return makeExceptionValue({
-        type: "Exception",
-        file: "",
-        line: 1,
-        column: 1,
-        message: args.length >= 1 ? args[0] : "",
-        cause: args.length === 2 ? args[1] : null,
-      });
-    }
-    if (!fn && expr.callee.name === "RuntimeException") {
-      throw new RuntimeError(rdiag(file, expr, "R1010", "RUNTIME_TYPE_ERROR", "RuntimeException is not constructible"));
-    }
     if (!fn && moduleEnv && moduleEnv.importedFunctions.has(expr.callee.name)) {
       const info = moduleEnv.importedFunctions.get(expr.callee.name);
       if (info.kind === "proto") {

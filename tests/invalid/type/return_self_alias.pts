@@ -1,0 +1,6 @@
+prototype Box {
+    function set(int x) : void {
+        Box me = self;
+        return me;
+    }
+}

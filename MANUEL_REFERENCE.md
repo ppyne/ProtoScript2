@@ -1037,6 +1037,12 @@ Le clonage produit une instance conforme à cette définition, sans mécanisme i
 Un prototype peut définir des champs et des méthodes.  
 À l’intérieur d’une méthode, le mot-clé `self` désigne l’objet courant.
 
+Règles :
+
+- `self` ne peut pas être retourné (`return self;` est invalide).
+- les méthodes mutantes doivent retourner `void`.
+- aucun style fluent/chaîné basé sur mutation n’est supporté.
+
 ```c
 prototype Point {
     int x;
@@ -1972,6 +1978,9 @@ Diagnostics avec code, catégorie, position `file:line:column`.
 Les violations runtime normatives lèvent des exceptions catégorisées.
 Toute exception dérive du prototype racine `Exception`.
 Aucune autre valeur ne peut être levée avec `throw`.
+Les exceptions runtime standard dérivent de `RuntimeException`.
+Vous pouvez définir des prototypes dérivés de `Exception`.
+Les exceptions s’instancient exclusivement via `clone()` ; `Exception(...)` et `RuntimeException(...)` sont interdits.
 
 ### 15.2.1 Codes runtime (résumé)
 
@@ -1986,6 +1995,45 @@ Aucune autre valeur ne peut être levée avec `throw`.
 | `R1007` | `RUNTIME_UTF8_INVALID` | UTF‑8 invalide |
 | `R1010` | `RUNTIME_TYPE_ERROR` | type runtime incompatible |
 
+### 15.2.2 Exemple de `throw`
+
+```c
+import Io;
+
+function main() : void {
+    try {
+        Exception e = Exception.clone();
+        e.message = "Quelque chose s'est mal passe";
+        throw e;
+    } catch (Exception e) {
+        Io.printLine(e.message);
+    }
+}
+```
+Ref: EX-087A
+
+### 15.2.3 Exemple d’exception dérivée
+
+```c
+import Io;
+
+prototype MyError : Exception {
+    string details;
+}
+
+function main() : void {
+    try {
+        MyError e = MyError.clone();
+        e.message = "Erreur metier";
+        e.details = "code:42";
+        throw e;
+    } catch (MyError ex) {
+        Io.printLine(ex.details);
+    }
+}
+```
+Ref: EX-087B
+
 ### 15.3 `try / catch / finally`
 
 ```c
@@ -1998,6 +2046,14 @@ try {
 }
 ```
 Ref: EX-087
+
+**Sémantique de filtrage `catch`**
+
+- les clauses `catch` sont évaluées dans l’ordre d’écriture.
+- une clause `catch (T e)` correspond si le type dynamique de l’exception est `T` ou dérive de `T`.
+- la première clause qui correspond est exécutée ; les suivantes sont ignorées.
+- si aucune clause ne correspond, l’exception est propagée après exécution du `finally` (s’il existe).
+- `catch (Exception e)` est un **catch‑all**.
 
 ### 15.4 Contre-exemple
 

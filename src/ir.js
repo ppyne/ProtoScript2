@@ -271,6 +271,36 @@ class IRBuilder {
 
   build() {
     const mod = { kind: "Module", functions: [], prototypes: [] };
+    const builtin = [
+      {
+        name: "Exception",
+        parent: null,
+        fields: [
+          { name: "file", type: { kind: "PrimitiveType", name: "string" } },
+          { name: "line", type: { kind: "PrimitiveType", name: "int" } },
+          { name: "column", type: { kind: "PrimitiveType", name: "int" } },
+          { name: "message", type: { kind: "PrimitiveType", name: "string" } },
+          { name: "cause", type: { kind: "NamedType", name: "Exception" } },
+        ],
+      },
+      {
+        name: "RuntimeException",
+        parent: "Exception",
+        fields: [
+          { name: "code", type: { kind: "PrimitiveType", name: "string" } },
+          { name: "category", type: { kind: "PrimitiveType", name: "string" } },
+        ],
+      },
+    ];
+    const builtinNames = [];
+    for (const b of builtin) {
+      if (this.prototypes.has(b.name)) continue;
+      const methods = new Map();
+      this.prototypes.set(b.name, { name: b.name, parent: b.parent, fields: b.fields, methods });
+      const fieldsIr = b.fields.map((f) => ({ name: f.name, type: lowerType(f.type) }));
+      mod.prototypes.push({ name: b.name, parent: b.parent, fields: fieldsIr });
+      builtinNames.push(b.name);
+    }
     for (const d of this.ast.decls) {
       if (d.kind === "PrototypeDecl") {
         const fields = (d.fields || []).map((f) => ({ name: f.name, type: f.type }));
@@ -293,6 +323,9 @@ class IRBuilder {
         mod.functions.push(this.lowerCloneFunction(d.name));
         for (const m of d.methods || []) mod.functions.push(this.lowerMethod(d.name, m));
       }
+    }
+    for (const name of builtinNames) {
+      mod.functions.push(this.lowerCloneFunction(name));
     }
     return mod;
   }
@@ -332,12 +365,24 @@ class IRBuilder {
     const dst = this.nextTemp();
     this.emit(entry, { op: "make_object", dst, proto: protoName });
     const fields = this.collectPrototypeFields(protoName);
+    const core = new Set(["file", "line", "column", "message", "cause", "code", "category"]);
+    const isException = this.isExceptionProto(protoName);
     for (const f of fields) {
+      if (isException && core.has(f.name)) continue;
       const v = this.emitDefaultValue(entry, f.type);
       this.emit(entry, { op: "member_set", target: dst, name: f.name, src: v.value });
     }
     this.emit(entry, { op: "ret", value: dst });
     return irFn;
+  }
+
+  isExceptionProto(protoName) {
+    let cur = this.prototypes.get(protoName);
+    while (cur) {
+      if (cur.name === "Exception") return true;
+      cur = cur.parent ? this.prototypes.get(cur.parent) : null;
+    }
+    return false;
   }
 
   collectPrototypeFields(protoName) {
@@ -453,6 +498,67 @@ class IRBuilder {
         return block;
       }
       case "AssignStmt": {
+        if (stmt.op && stmt.op !== "=") {
+          const binOp = stmt.op === "+=" ? "+" : stmt.op === "-=" ? "-" : stmt.op === "*=" ? "*" : stmt.op === "/=" ? "/" : null;
+          if (!binOp) return block;
+          const lhsType = this.inferExprType(stmt.target, scope);
+          const rhsType = this.inferExprType(stmt.expr, scope);
+          const rhs = this.lowerExpr(stmt.expr, block, irFn, scope);
+          const curBlock = rhs.block;
+
+          if (stmt.target.kind === "Identifier") {
+            const entry = scope.get(stmt.target.name);
+            const irName = entry ? entry.irName : stmt.target.name;
+            const cur = this.nextTemp();
+            this.emit(curBlock, { op: "load_var", dst: cur, name: irName, type: lowerType(lhsType) });
+            if (["+", "-", "*"].includes(binOp) && isIntLike(lhsType) && isIntLike(rhsType)) {
+              this.emit(curBlock, { op: "check_int_overflow", operator: binOp, left: cur, right: rhs.value });
+            }
+            if (binOp === "/" && isIntLike(lhsType) && isIntLike(rhsType)) {
+              this.emit(curBlock, { op: "check_div_zero", divisor: rhs.value });
+            }
+            const next = this.nextTemp();
+            this.emit(curBlock, { op: "bin_op", dst: next, operator: binOp, left: cur, right: rhs.value });
+            this.emit(curBlock, { op: "store_var", name: irName, src: next, type: lowerType(lhsType) });
+            return curBlock;
+          }
+
+          if (stmt.target.kind === "MemberExpr") {
+            const base = this.lowerExpr(stmt.target.target, curBlock, irFn, scope);
+            const cur = this.nextTemp();
+            this.emit(base.block, { op: "member_get", dst: cur, target: base.value, name: stmt.target.name });
+            if (["+", "-", "*"].includes(binOp) && isIntLike(lhsType) && isIntLike(rhsType)) {
+              this.emit(base.block, { op: "check_int_overflow", operator: binOp, left: cur, right: rhs.value });
+            }
+            if (binOp === "/" && isIntLike(lhsType) && isIntLike(rhsType)) {
+              this.emit(base.block, { op: "check_div_zero", divisor: rhs.value });
+            }
+            const next = this.nextTemp();
+            this.emit(base.block, { op: "bin_op", dst: next, operator: binOp, left: cur, right: rhs.value });
+            this.emit(base.block, { op: "member_set", target: base.value, name: stmt.target.name, src: next });
+            return base.block;
+          }
+
+          if (stmt.target.kind === "IndexExpr") {
+            const t = this.lowerExpr(stmt.target.target, curBlock, irFn, scope);
+            const i = this.lowerExpr(stmt.target.index, t.block, irFn, scope);
+            this.emitIndexChecks(i.block, t, i, { forWrite: false });
+            const cur = this.nextTemp();
+            this.emit(i.block, { op: "index_get", dst: cur, target: t.value, index: i.value });
+            if (["+", "-", "*"].includes(binOp) && isIntLike(lhsType) && isIntLike(rhsType)) {
+              this.emit(i.block, { op: "check_int_overflow", operator: binOp, left: cur, right: rhs.value });
+            }
+            if (binOp === "/" && isIntLike(lhsType) && isIntLike(rhsType)) {
+              this.emit(i.block, { op: "check_div_zero", divisor: rhs.value });
+            }
+            const next = this.nextTemp();
+            this.emit(i.block, { op: "bin_op", dst: next, operator: binOp, left: cur, right: rhs.value });
+            this.emit(i.block, { op: "index_set", target: t.value, index: i.value, src: next });
+            return i.block;
+          }
+
+          return curBlock;
+        }
         let rhs = null;
         let cur = block;
         if (
@@ -569,9 +675,10 @@ class IRBuilder {
             const c = catches[i];
             const bCatch = irFn.blocks.find((b) => b.label === catchLabels[i]);
             const cs = new Scope(scope);
-            cs.define(c.name, c.type);
-            this.emit(bCatch, { op: "var_decl", name: c.name, type: lowerType(c.type) });
-            this.emit(bCatch, { op: "store_var", name: c.name, src: exTemp, type: lowerType(c.type) });
+            const irName = this.nextVar(c.name);
+            cs.define(c.name, c.type, irName);
+            this.emit(bCatch, { op: "var_decl", name: irName, type: lowerType(c.type) });
+            this.emit(bCatch, { op: "store_var", name: irName, src: exTemp, type: lowerType(c.type) });
             const catchEnd = this.lowerBlock(c.block, bCatch, irFn, cs);
             this.emit(catchEnd, { op: "jump", target: finallyLabel || doneLabel });
           }

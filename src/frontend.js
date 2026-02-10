@@ -1328,8 +1328,29 @@ class Analyzer {
   }
 
   collectPrototypes() {
+    if (!this.prototypes.has("Exception")) {
+      const decl = { line: 1, col: 1 };
+      const fields = new Map();
+      fields.set("file", { kind: "PrimitiveType", name: "string" });
+      fields.set("line", { kind: "PrimitiveType", name: "int" });
+      fields.set("column", { kind: "PrimitiveType", name: "int" });
+      fields.set("message", { kind: "PrimitiveType", name: "string" });
+      fields.set("cause", { kind: "NamedType", name: "Exception" });
+      this.prototypes.set("Exception", { decl, parent: null, fields, methods: new Map() });
+    }
+    if (!this.prototypes.has("RuntimeException")) {
+      const decl = { line: 1, col: 1 };
+      const fields = new Map();
+      fields.set("code", { kind: "PrimitiveType", name: "string" });
+      fields.set("category", { kind: "PrimitiveType", name: "string" });
+      this.prototypes.set("RuntimeException", { decl, parent: "Exception", fields, methods: new Map() });
+    }
     for (const d of this.ast.decls) {
       if (d.kind !== "PrototypeDecl") continue;
+      if (d.name === "Exception" || d.name === "RuntimeException") {
+        this.addDiag(d, "E2001", "UNRESOLVED_NAME", "reserved prototype name");
+        continue;
+      }
       if (this.prototypes.has(d.name)) {
         this.addDiag(d, "E2001", "UNRESOLVED_NAME", `duplicate prototype '${d.name}'`);
         continue;
@@ -1671,7 +1692,7 @@ class Analyzer {
     if (!entry) return;
     for (const m of entry.methods.values()) {
       const scope = new Scope(null);
-      scope.define("self", { kind: "NamedType", name: protoName }, true);
+      scope.define("self", { kind: "NamedType", name: protoName }, true, null, true);
       for (const p of m.params) scope.define(p.name, p.type, true);
       this.analyzeBlock(m.body, scope, m);
     }
@@ -1734,7 +1755,8 @@ class Analyzer {
           this.addDiag(stmt, "E3006", "MISSING_TYPE_CONTEXT", "empty literal requires explicit type context");
         }
         // Variables are implicitly initialized; no uninitialized state is observable.
-        scope.define(stmt.name, t || { kind: "PrimitiveType", name: "void" }, true, knownListLen);
+        const aliasSelf = stmt.init ? this.isSelfAliasExpr(stmt.init, scope) : false;
+        scope.define(stmt.name, t || { kind: "PrimitiveType", name: "void" }, true, knownListLen, aliasSelf);
         break;
       }
       case "AssignStmt": {
@@ -1778,6 +1800,11 @@ class Analyzer {
             if (stmt.expr && stmt.expr.kind === "ListLiteral") s.knownListLen = stmt.expr.items.length;
             else s.knownListLen = null;
             s.initialized = true;
+            if (!stmt.op || stmt.op === "=") {
+              s.aliasSelf = this.isSelfAliasExpr(stmt.expr, scope);
+            } else {
+              s.aliasSelf = false;
+            }
           }
         }
         break;
@@ -1851,6 +1878,9 @@ class Analyzer {
       this.analyzeBlock(stmt.tryBlock, scope, fn);
       for (const c of stmt.catches || []) {
         const cs = new Scope(scope);
+        if (!this.isSubtype(c.type, { kind: "NamedType", name: "Exception" })) {
+          this.addDiag(c, "E3001", "TYPE_MISMATCH_ASSIGNMENT", "catch type must derive from Exception");
+        }
         cs.define(c.name, c.type, true);
         this.analyzeBlock(c.block, cs, fn);
       }
@@ -1858,10 +1888,17 @@ class Analyzer {
       break;
     }
       case "ReturnStmt":
+        if (stmt.expr && this.isSelfAliasExpr(stmt.expr, scope)) {
+          this.addDiag(stmt.expr, "E3007", "INVALID_RETURN", "cannot return self");
+          break;
+        }
         if (stmt.expr) this.typeOfExpr(stmt.expr, scope);
         break;
       case "ThrowStmt":
-        this.typeOfExpr(stmt.expr, scope);
+        const tt = this.typeOfExpr(stmt.expr, scope);
+        if (tt && !this.isSubtype(tt, { kind: "NamedType", name: "Exception" })) {
+          this.addDiag(stmt, "E3001", "TYPE_MISMATCH_ASSIGNMENT", "throw expects Exception");
+        }
         break;
       case "BreakStmt":
       case "ContinueStmt":
@@ -2132,11 +2169,9 @@ class Analyzer {
     }
     if (expr.callee.kind === "Identifier") {
       const name = expr.callee.name;
-      if (name === "Exception") {
-        if (expr.args.length === 0 || expr.args.length > 2) {
-          this.addDiag(expr, "E1003", "ARITY_MISMATCH", "arity mismatch for 'Exception'");
-        }
-        return { kind: "NamedType", name: "Exception" };
+      if (name === "Exception" || name === "RuntimeException") {
+        this.addDiag(expr, "E2001", "UNRESOLVED_NAME", `${name} is not callable; use ${name}.clone()`);
+        return null;
       }
       const fn = this.functions.get(name);
       if (!fn) {
@@ -2395,6 +2430,13 @@ class Analyzer {
       else s.knownListLen = null;
     }
   }
+
+  isSelfAliasExpr(expr, scope) {
+    if (!expr || expr.kind !== "Identifier") return false;
+    if (expr.name === "self") return true;
+    const s = scope.lookup(expr.name);
+    return !!(s && s.aliasSelf);
+  }
 }
 
 class Scope {
@@ -2402,8 +2444,8 @@ class Scope {
     this.parent = parent;
     this.syms = new Map();
   }
-  define(name, type, initialized, knownListLen = null) {
-    this.syms.set(name, { type, initialized, knownListLen });
+  define(name, type, initialized, knownListLen = null, aliasSelf = false) {
+    this.syms.set(name, { type, initialized, knownListLen, aliasSelf });
   }
   lookup(name) {
     if (this.syms.has(name)) return this.syms.get(name);

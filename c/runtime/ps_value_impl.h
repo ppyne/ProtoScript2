@@ -77,7 +77,10 @@ typedef struct {
 } PS_Iter;
 
 typedef struct {
-  int kind; // 0=Exception, 1=RuntimeException
+  int is_runtime;
+  char *type_name;
+  char *parent_name;
+  PS_Value *fields;
   PS_Value *file;
   int64_t line;
   int64_t column;

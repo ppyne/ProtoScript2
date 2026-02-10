@@ -1,0 +1,28 @@
+import Io;
+
+prototype Box {
+    int v;
+}
+
+function main() : void {
+    int x = 1;
+    x += 2;   // 3
+    x *= 4;   // 12
+    x -= 5;   // 7
+    x /= 7;   // 1
+
+    Box b = Box.clone();
+    b.v += 5; // 5
+    b.v -= 2; // 3
+
+    list<int> xs = [1, 2, 3];
+    xs[1] += 5; // 7
+    xs[0] -= 1; // 0
+    xs[2] *= 2; // 6
+
+    map<string,int> m = {"a": 1};
+    m["a"] += 2; // 3
+
+    bool ok = (x == 1) && (b.v == 3) && (xs[0] == 0) && (xs[1] == 7) && (xs[2] == 6) && (m["a"] == 3);
+    Io.printLine(ok.toString());
+}

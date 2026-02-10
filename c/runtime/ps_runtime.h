@@ -23,6 +23,7 @@ struct PS_Context {
   PS_Value *stdin_value;
   PS_Value *stdout_value;
   PS_Value *stderr_value;
+  PS_Value *last_exception;
 };
 
 PS_Value *ps_value_alloc(PS_ValueTag tag);

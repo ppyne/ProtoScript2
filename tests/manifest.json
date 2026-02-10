@@ -47,7 +47,10 @@
       "invalid/type/cast_int_3_14",
       "invalid/type/cast_byte_3_5",
       "invalid/type/cast_byte_int_256",
-      "invalid/type/literal_byte_256"
+      "invalid/type/literal_byte_256",
+      "invalid/type/throw_exception_call",
+      "invalid/type/return_self",
+      "invalid/type/return_self_alias"
     ],
     "invalid/runtime": [
       "invalid/runtime/int_overflow_add",
@@ -109,6 +112,8 @@
       "edge/index_get_map",
       "edge/index_set_list",
       "edge/index_set_map",
+  "edge/compound_assign",
+  "edge/exception_derived",
       "edge/iter_list_of",
       "edge/iter_list_in",
       "edge/switch_cfg_case",
@@ -252,8 +257,10 @@
       "edge/manual_ex083",
       "edge/manual_ex084",
       "edge/manual_ex085",
-      "edge/manual_ex086",
-      "edge/manual_ex087",
+  "edge/manual_ex086",
+  "edge/manual_ex087A",
+  "edge/manual_ex087B",
+  "edge/manual_ex087",
       "edge/manual_ex090",
       "edge/manual_ex093",
       "edge/manual_ex096"

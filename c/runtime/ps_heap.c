@@ -16,6 +16,7 @@ PS_Context *ps_ctx_create(void) {
   ctx->stdin_value = NULL;
   ctx->stdout_value = NULL;
   ctx->stderr_value = NULL;
+  ctx->last_exception = NULL;
   return ctx;
 }
 
@@ -28,6 +29,7 @@ void ps_ctx_destroy(PS_Context *ctx) {
   if (ctx->stdin_value) ps_value_release(ctx->stdin_value);
   if (ctx->stdout_value) ps_value_release(ctx->stdout_value);
   if (ctx->stderr_value) ps_value_release(ctx->stderr_value);
+  if (ctx->last_exception) ps_value_release(ctx->last_exception);
   free(ctx->handles.items);
   free(ctx);
 }

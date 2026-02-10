@@ -225,6 +225,9 @@ typedef struct {
   int width;
   char *method;
   char *proto;
+  char *file;
+  int line;
+  int col;
   int readonly;
   char **args;
   size_t arg_count;
@@ -252,9 +255,16 @@ typedef struct {
   size_t block_count;
 } IRFunction;
 
+typedef struct {
+  char *name;
+  char *parent;
+} IRProto;
+
 struct PS_IR_Module {
   IRFunction *fns;
   size_t fn_count;
+  IRProto *protos;
+  size_t proto_count;
 };
 
 static int view_is_valid(PS_Value *v) {
@@ -513,6 +523,11 @@ static IRInstr parse_instr(PS_JsonValue *obj) {
   if (w && w->type == PS_JSON_NUMBER) ins.width = (int)w->as.num_v;
   ins.method = dup_json_string(ps_json_obj_get(obj, "method"));
   ins.proto = dup_json_string(ps_json_obj_get(obj, "proto"));
+  ins.file = dup_json_string(ps_json_obj_get(obj, "file"));
+  PS_JsonValue *ln = ps_json_obj_get(obj, "line");
+  if (ln && ln->type == PS_JSON_NUMBER) ins.line = (int)ln->as.num_v;
+  PS_JsonValue *cl = ps_json_obj_get(obj, "col");
+  if (cl && cl->type == PS_JSON_NUMBER) ins.col = (int)cl->as.num_v;
   PS_JsonValue *ro = ps_json_obj_get(obj, "readonly");
   if (ro && ro->type == PS_JSON_BOOL) ins.readonly = ro->as.bool_v ? 1 : 0;
   PS_JsonValue *args = ps_json_obj_get(obj, "args");
@@ -573,6 +588,7 @@ static void free_instr(IRInstr *i) {
   free(i->shift);
   free(i->method);
   free(i->proto);
+  free(i->file);
   if (i->args) {
     for (size_t j = 0; j < i->arg_count; j++) free(i->args[j]);
   }
@@ -607,9 +623,32 @@ PS_IR_Module *ps_ir_load_json(PS_Context *ctx, const char *json, size_t len) {
     ps_throw(ctx, PS_ERR_OOM, "out of memory");
     return NULL;
   }
+  PS_JsonValue *protos = module ? ps_json_obj_get(module, "prototypes") : NULL;
+  if (protos && protos->type == PS_JSON_ARRAY) {
+    m->proto_count = protos->as.array_v.len;
+    m->protos = (IRProto *)calloc(m->proto_count, sizeof(IRProto));
+    if (!m->protos) {
+      free(m);
+      ps_json_free(root);
+      ps_throw(ctx, PS_ERR_OOM, "out of memory");
+      return NULL;
+    }
+    for (size_t pi = 0; pi < m->proto_count; pi++) {
+      PS_JsonValue *p = protos->as.array_v.items[pi];
+      m->protos[pi].name = dup_json_string(ps_json_obj_get(p, "name"));
+      m->protos[pi].parent = dup_json_string(ps_json_obj_get(p, "parent"));
+    }
+  }
   m->fn_count = functions->as.array_v.len;
   m->fns = (IRFunction *)calloc(m->fn_count, sizeof(IRFunction));
   if (!m->fns) {
+    if (m->protos) {
+      for (size_t pi = 0; pi < m->proto_count; pi++) {
+        free(m->protos[pi].name);
+        free(m->protos[pi].parent);
+      }
+      free(m->protos);
+    }
     free(m);
     ps_json_free(root);
     ps_throw(ctx, PS_ERR_OOM, "out of memory");
@@ -678,6 +717,13 @@ void ps_ir_free(PS_IR_Module *m) {
     }
   }
   free(m->fns);
+  if (m->protos) {
+    for (size_t pi = 0; pi < m->proto_count; pi++) {
+      free(m->protos[pi].name);
+      free(m->protos[pi].parent);
+    }
+    free(m->protos);
+  }
   free(m);
 }
 
@@ -828,14 +874,23 @@ static int compare_values(PS_Value *a, PS_Value *b, PS_ValueTag tag, int *out_cm
   return 1;
 }
 
-static PS_Value *make_exception(PS_Context *ctx, int kind, const char *file, int64_t line, int64_t column,
+static PS_Value *make_exception(PS_Context *ctx, const char *type_name, const char *parent_name, int is_runtime,
+                                const char *file, int64_t line, int64_t column,
                                 const char *message, PS_Value *cause, const char *code, const char *category) {
   PS_Value *ex = ps_value_alloc(PS_V_EXCEPTION);
   if (!ex) {
     ps_throw(ctx, PS_ERR_OOM, "out of memory");
     return NULL;
   }
-  ex->as.exc_v.kind = kind;
+  ex->as.exc_v.is_runtime = is_runtime ? 1 : 0;
+  ex->as.exc_v.type_name = type_name ? strdup(type_name) : NULL;
+  ex->as.exc_v.parent_name = parent_name ? strdup(parent_name) : NULL;
+  ex->as.exc_v.fields = ps_object_new(ctx);
+  if (!ex->as.exc_v.fields) {
+    ps_value_release(ex);
+    ps_throw(ctx, PS_ERR_OOM, "out of memory");
+    return NULL;
+  }
   ex->as.exc_v.file = ps_make_string_utf8(ctx, file ? file : "", file ? strlen(file) : 0);
   ex->as.exc_v.line = line;
   ex->as.exc_v.column = column;
@@ -853,13 +908,53 @@ static PS_Value *make_exception(PS_Context *ctx, int kind, const char *file, int
 static PS_Value *make_runtime_exception_from_error(PS_Context *ctx) {
   const char *code = NULL;
   const char *category = ps_runtime_category(ps_last_error_code(ctx), ps_last_error_message(ctx), &code);
-  return make_exception(ctx, 1, "", 1, 1, ps_last_error_message(ctx), NULL, code, category);
+  return make_exception(ctx, "RuntimeException", "Exception", 1, "", 1, 1, ps_last_error_message(ctx), NULL, code, category);
 }
 
-static int exception_matches(PS_Value *v, const char *type_name) {
+static void set_exception_location(PS_Context *ctx, PS_Value *v, const char *file, int line, int col) {
+  if (!v || v->tag != PS_V_EXCEPTION) return;
+  const char *fname = file ? file : "";
+  PS_Value *f = ps_make_string_utf8(ctx, fname, strlen(fname));
+  if (f) {
+    if (v->as.exc_v.file) ps_value_release(v->as.exc_v.file);
+    v->as.exc_v.file = f;
+  }
+  v->as.exc_v.line = line > 0 ? line : 1;
+  v->as.exc_v.column = col > 0 ? col : 1;
+}
+
+static IRProto *proto_find_meta(PS_IR_Module *m, const char *name) {
+  if (!m || !name) return NULL;
+  for (size_t i = 0; i < m->proto_count; i++) {
+    if (m->protos[i].name && strcmp(m->protos[i].name, name) == 0) return &m->protos[i];
+  }
+  return NULL;
+}
+
+static const char *proto_parent_name(PS_IR_Module *m, const char *name) {
+  IRProto *p = proto_find_meta(m, name);
+  return p ? p->parent : NULL;
+}
+
+static int proto_is_subtype_meta(PS_IR_Module *m, const char *child, const char *parent) {
+  if (!child || !parent) return 0;
+  if (strcmp(child, parent) == 0) return 1;
+  const char *cur = child;
+  for (size_t depth = 0; depth < 64; depth++) {
+    const char *par = proto_parent_name(m, cur);
+    if (!par) break;
+    if (strcmp(par, parent) == 0) return 1;
+    cur = par;
+  }
+  return 0;
+}
+
+static int exception_matches(PS_IR_Module *m, PS_Value *v, const char *type_name) {
   if (!v || v->tag != PS_V_EXCEPTION || !type_name) return 0;
   if (strcmp(type_name, "Exception") == 0) return 1;
-  if (strcmp(type_name, "RuntimeException") == 0) return v->as.exc_v.kind == 1;
+  if (strcmp(type_name, "RuntimeException") == 0) return v->as.exc_v.is_runtime != 0;
+  if (v->as.exc_v.type_name && strcmp(v->as.exc_v.type_name, type_name) == 0) return 1;
+  if (v->as.exc_v.type_name && proto_is_subtype_meta(m, v->as.exc_v.type_name, type_name)) return 1;
   return 0;
 }
 
@@ -875,6 +970,10 @@ static PS_Value *exception_get_field(PS_Context *ctx, PS_Value *v, const char *n
   if (strcmp(name, "cause") == 0) return v->as.exc_v.cause ? ps_value_retain(v->as.exc_v.cause) : NULL;
   if (strcmp(name, "code") == 0) return v->as.exc_v.code ? ps_value_retain(v->as.exc_v.code) : ps_make_string_utf8(ctx, "", 0);
   if (strcmp(name, "category") == 0) return v->as.exc_v.category ? ps_value_retain(v->as.exc_v.category) : ps_make_string_utf8(ctx, "", 0);
+  if (v->as.exc_v.fields) {
+    PS_Value *field = ps_object_get_str_internal(ctx, v->as.exc_v.fields, name, strlen(name));
+    return field ? ps_value_retain(field) : NULL;
+  }
   return NULL;
 }
 
@@ -906,36 +1005,6 @@ static int json_value_kind_runtime(PS_Context *ctx, PS_Value *v, const char **ki
 }
 
 static int exec_call_static(PS_Context *ctx, PS_IR_Module *m, const char *callee, PS_Value **args, size_t argc, PS_Value **out) {
-  if (strcmp(callee, "Exception") == 0) {
-    if (argc > 2) {
-      ps_throw(ctx, PS_ERR_TYPE, "Exception expects (string message, Exception cause?)");
-      return 1;
-    }
-    const char *msg = "";
-    PS_Value *cause = NULL;
-    if (argc >= 1) {
-      if (!args[0] || args[0]->tag != PS_V_STRING) {
-        ps_throw(ctx, PS_ERR_TYPE, "Exception message must be string");
-        return 1;
-      }
-      msg = args[0]->as.string_v.ptr ? args[0]->as.string_v.ptr : "";
-    }
-    if (argc == 2) {
-      if (args[1] && args[1]->tag != PS_V_EXCEPTION) {
-        ps_throw(ctx, PS_ERR_TYPE, "Exception cause must be Exception");
-        return 1;
-      }
-      cause = args[1];
-    }
-    PS_Value *ex = make_exception(ctx, 0, "", 1, 1, msg, cause, NULL, NULL);
-    if (!ex) return 1;
-    *out = ex;
-    return 0;
-  }
-  if (strcmp(callee, "RuntimeException") == 0) {
-    ps_throw(ctx, PS_ERR_TYPE, "RuntimeException is not constructible");
-    return 1;
-  }
   IRFunction *fn = find_fn(m, callee);
   if (fn) return exec_function(ctx, m, fn, args, argc, out);
   // Module call: "module.symbol"
@@ -1044,7 +1113,7 @@ static int exec_function(PS_Context *ctx, PS_IR_Module *m, IRFunction *f, PS_Val
       }
       if (strcmp(ins->op, "exception_is") == 0) {
         PS_Value *v = get_value(&temps, &vars, ins->value);
-        int ok = exception_matches(v, ins->type);
+        int ok = exception_matches(m, v, ins->type);
         PS_Value *b = ps_make_bool(ctx, ok);
         if (!b) goto raise;
         bindings_set(&temps, ins->dst, b);
@@ -1086,6 +1155,49 @@ static int exec_function(PS_Context *ctx, PS_IR_Module *m, IRFunction *f, PS_Val
       if (strcmp(ins->op, "member_set") == 0) {
         PS_Value *recv = get_value(&temps, &vars, ins->target);
         PS_Value *val = get_value(&temps, &vars, ins->src);
+        if (recv && recv->tag == PS_V_EXCEPTION) {
+          if (strcmp(ins->name, "file") == 0) {
+            if (recv->as.exc_v.file) ps_value_release(recv->as.exc_v.file);
+            recv->as.exc_v.file = val ? ps_value_retain(val) : ps_make_string_utf8(ctx, "", 0);
+            continue;
+          }
+          if (strcmp(ins->name, "line") == 0) {
+            recv->as.exc_v.line = val && val->tag == PS_V_INT ? val->as.int_v : recv->as.exc_v.line;
+            continue;
+          }
+          if (strcmp(ins->name, "column") == 0) {
+            recv->as.exc_v.column = val && val->tag == PS_V_INT ? val->as.int_v : recv->as.exc_v.column;
+            continue;
+          }
+          if (strcmp(ins->name, "message") == 0) {
+            if (recv->as.exc_v.message) ps_value_release(recv->as.exc_v.message);
+            recv->as.exc_v.message = val ? ps_value_retain(val) : ps_make_string_utf8(ctx, "", 0);
+            continue;
+          }
+          if (strcmp(ins->name, "cause") == 0) {
+            if (recv->as.exc_v.cause) ps_value_release(recv->as.exc_v.cause);
+            recv->as.exc_v.cause = val ? ps_value_retain(val) : NULL;
+            continue;
+          }
+          if (strcmp(ins->name, "code") == 0) {
+            if (recv->as.exc_v.code) ps_value_release(recv->as.exc_v.code);
+            recv->as.exc_v.code = val ? ps_value_retain(val) : ps_make_string_utf8(ctx, "", 0);
+            continue;
+          }
+          if (strcmp(ins->name, "category") == 0) {
+            if (recv->as.exc_v.category) ps_value_release(recv->as.exc_v.category);
+            recv->as.exc_v.category = val ? ps_value_retain(val) : ps_make_string_utf8(ctx, "", 0);
+            continue;
+          }
+          if (!recv->as.exc_v.fields) {
+            recv->as.exc_v.fields = ps_object_new(ctx);
+            if (!recv->as.exc_v.fields) goto raise;
+          }
+          if (!ps_object_set_str_internal(ctx, recv->as.exc_v.fields, ins->name ? ins->name : "", ins->name ? strlen(ins->name) : 0, val)) {
+            goto raise;
+          }
+          continue;
+        }
         if (recv && recv->tag == PS_V_OBJECT) {
           if (!ps_object_set_str_internal(ctx, recv, ins->name ? ins->name : "", ins->name ? strlen(ins->name) : 0, val)) {
             goto raise;
@@ -1096,10 +1208,20 @@ static int exec_function(PS_Context *ctx, PS_IR_Module *m, IRFunction *f, PS_Val
         goto raise;
       }
       if (strcmp(ins->op, "make_object") == 0) {
-        PS_Value *obj = ps_object_new(ctx);
-        if (!obj) goto raise;
-        bindings_set(&temps, ins->dst, obj);
-        ps_value_release(obj);
+        if (ins->proto && proto_is_subtype_meta(m, ins->proto, "Exception")) {
+          int is_rt = proto_is_subtype_meta(m, ins->proto, "RuntimeException");
+          const char *parent = proto_parent_name(m, ins->proto);
+          PS_Value *ex = make_exception(ctx, ins->proto, parent, is_rt, "", 1, 1, "", NULL,
+                                        is_rt ? "" : NULL, is_rt ? "" : NULL);
+          if (!ex) goto raise;
+          bindings_set(&temps, ins->dst, ex);
+          ps_value_release(ex);
+        } else {
+          PS_Value *obj = ps_object_new(ctx);
+          if (!obj) goto raise;
+          bindings_set(&temps, ins->dst, obj);
+          ps_value_release(obj);
+        }
         continue;
       }
       if (strcmp(ins->op, "check_div_zero") == 0) {
@@ -1473,6 +1595,12 @@ static int exec_function(PS_Context *ctx, PS_IR_Module *m, IRFunction *f, PS_Val
           for (size_t i = 0; i < ins->arg_count; i++) argv[i] = get_value(&temps, &vars, ins->args[i]);
         }
         if (exec_call_static(ctx, m, ins->callee, argv, ins->arg_count, &ret) != 0) {
+          if (ctx->last_exception) {
+            if (last_exception) ps_value_release(last_exception);
+            last_exception = ps_value_retain(ctx->last_exception);
+            ps_value_release(ctx->last_exception);
+            ctx->last_exception = NULL;
+          }
           free(argv);
           goto raise;
         }
@@ -2476,6 +2604,9 @@ static int exec_function(PS_Context *ctx, PS_IR_Module *m, IRFunction *f, PS_Val
           ps_throw(ctx, PS_ERR_TYPE, "throw expects Exception");
           goto raise;
         }
+        if (ins->file || ins->line || ins->col) {
+          set_exception_location(ctx, v, ins->file, ins->line, ins->col);
+        }
         if (last_exception) ps_value_release(last_exception);
         last_exception = ps_value_retain(v);
         goto raise;
@@ -2513,6 +2644,11 @@ raise:
   goto error;
 
 error:
+  if (last_exception) {
+    if (ctx->last_exception) ps_value_release(ctx->last_exception);
+    ctx->last_exception = ps_value_retain(last_exception);
+    ps_clear_error(ctx);
+  }
   bindings_free(&temps);
   bindings_free(&vars);
   if (last_exception) ps_value_release(last_exception);
@@ -2521,6 +2657,10 @@ error:
 }
 
 int ps_vm_run_main(PS_Context *ctx, PS_IR_Module *m, PS_Value **args, size_t argc, PS_Value **out) {
+  if (ctx->last_exception) {
+    ps_value_release(ctx->last_exception);
+    ctx->last_exception = NULL;
+  }
   IRFunction *main_fn = find_fn(m, "main");
   if (!main_fn) {
     ps_throw(ctx, PS_ERR_INTERNAL, "no main");

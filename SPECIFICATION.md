@@ -1415,6 +1415,8 @@ Règles :
 
 - l’appel de méthode est équivalent à un appel de fonction avec `self` explicite
 - aucun dispatch dynamique tardif
+- `self` ne peut pas être retourné ; les méthodes mutantes doivent retourner `void`
+- aucun style fluent/chaîné basé sur mutation n’est supporté
 
 ---
 
@@ -2587,6 +2589,7 @@ Caractéristiques :
 - elle peut contenir explicitement :
   - un message
   - une cause
+- `Exception` et `RuntimeException` sont des **prototypes non appelables** : l’instanciation se fait exclusivement via `clone()`
 
 Ces champs sont des **propriétés accessibles** de l’objet d’exception.
 
@@ -2607,12 +2610,15 @@ Aucune valeur autre qu’une instance dérivée du prototype `Exception` ne peut
 Une exception peut être levée explicitement :
 
 ```c
-throw Exception("invalid state");
+Exception e = Exception.clone();
+e.message = "invalid state";
+throw e;
 ```
 
 Règles :
 
 - seul un objet dérivant de `Exception` peut être levé
+- `throw` attend une **valeur d’exception** déjà construite, jamais un effet ni un constructeur implicite
 - les champs de localisation sont automatiquement renseignés par le runtime
 - le message et la cause sont à l’initiative du développeur
 
@@ -3049,6 +3055,7 @@ Codes canoniques minimaux :
 - `E3003` : `SWITCH_CASE_NO_TERMINATION`
 - `E3004` : `IMMUTABLE_INDEX_WRITE`
 - `E3005` : `STATIC_EMPTY_POP`
+- `E3007` : `INVALID_RETURN`
 
 Exigences minimales de diagnostic :
 

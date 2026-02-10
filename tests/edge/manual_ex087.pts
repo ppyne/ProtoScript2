@@ -1,6 +1,10 @@
 import Io;
 
-function risky() : void { throw Exception("boom"); }
+function risky() : void {
+    Exception e = Exception.clone();
+    e.message = "boom";
+    throw e;
+}
 
 function main() : void {
     try {

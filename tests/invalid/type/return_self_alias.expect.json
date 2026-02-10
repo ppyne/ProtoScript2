@@ -1,0 +1,11 @@
+{
+  "status": "reject-static",
+  "error_family": "E3xxx",
+  "error_code": "E3007",
+  "category": "INVALID_RETURN",
+  "position": {
+    "file": "invalid/type/return_self_alias.pts",
+    "line": 4,
+    "column": 16
+  }
+}

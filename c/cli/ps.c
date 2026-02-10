@@ -12,6 +12,8 @@
 #include "../runtime/ps_errors.h"
 #include "../runtime/ps_list.h"
 
+static const char *g_last_run_file = NULL;
+
 static void usage(void) {
   fprintf(stderr, "Usage:\n");
   fprintf(stderr, "  ps run <file> [args...]\n");
@@ -24,6 +26,40 @@ static void usage(void) {
   fprintf(stderr, "  ps test\n");
   fprintf(stderr, "Options:\n");
   fprintf(stderr, "  --help, --version, --trace, --trace-ir, --time\n");
+}
+
+static void print_diag(FILE *out, const char *fallback_file, const PsDiag *d) {
+  const char *file = (d && d->file) ? d->file : fallback_file;
+  int line = d ? d->line : 1;
+  int col = d ? d->col : 1;
+  const char *code = (d && d->code) ? d->code : NULL;
+  const char *category = (d && d->category) ? d->category : NULL;
+  const char *msg = (d && d->message[0]) ? d->message : "unknown error";
+  if (code && code[0] && category && category[0]) {
+    fprintf(out, "%s:%d:%d %s %s: %s\n", file ? file : "<unknown>", line, col, code, category, msg);
+  } else if (category && category[0]) {
+    fprintf(out, "%s:%d:%d %s: %s\n", file ? file : "<unknown>", line, col, category, msg);
+  } else if (code && code[0]) {
+    fprintf(out, "%s:%d:%d %s: %s\n", file ? file : "<unknown>", line, col, code, msg);
+  } else {
+    fprintf(out, "%s:%d:%d Error: %s\n", file ? file : "<unknown>", line, col, msg);
+  }
+}
+
+static const char *exc_string(PS_Value *v) {
+  if (!v || v->tag != PS_V_STRING) return "";
+  return v->as.string_v.ptr ? v->as.string_v.ptr : "";
+}
+
+static void print_exception(FILE *out, const char *fallback_file, PS_Value *ex) {
+  if (!ex || ex->tag != PS_V_EXCEPTION) return;
+  const char *file = exc_string(ex->as.exc_v.file);
+  if (!file || !*file) file = fallback_file ? fallback_file : "<unknown>";
+  long long line = ex->as.exc_v.line > 0 ? (long long)ex->as.exc_v.line : 1;
+  long long col = ex->as.exc_v.column > 0 ? (long long)ex->as.exc_v.column : 1;
+  const char *msg = exc_string(ex->as.exc_v.message);
+  const char *tn = ex->as.exc_v.type_name ? ex->as.exc_v.type_name : (ex->as.exc_v.is_runtime ? "RuntimeException" : "Exception");
+  fprintf(out, "%s:%lld:%lld Uncaught %s: %s\n", file, line, col, tn, msg ? msg : "");
 }
 
 static int write_temp_source(const char *code, char *out_path, size_t out_sz) {
@@ -47,8 +83,7 @@ static PS_IR_Module *load_ir_from_file(PS_Context *ctx, const char *file) {
   int rc = ps_emit_ir_json(file, &d, mem);
   fclose(mem);
   if (rc != 0) {
-    fprintf(stderr, "%s:%d:%d %s %s: %s\n", d.file ? d.file : file, d.line, d.col, d.code ? d.code : "E0001",
-            d.category ? d.category : "FRONTEND_ERROR", d.message);
+    print_diag(stderr, file, &d);
     free(buf);
     return NULL;
   }
@@ -111,8 +146,7 @@ static int run_file(PS_Context *ctx, const char *file, PS_Value *args_list, PS_V
   PsDiag d;
   int r = ps_check_file_static(file, &d);
   if (r != 0) {
-    fprintf(stderr, "%s:%d:%d %s %s: %s\n", d.file ? d.file : file, d.line, d.col, d.code ? d.code : "E0001",
-            d.category ? d.category : "FRONTEND_ERROR", d.message);
+    print_diag(stderr, file, &d);
     return (r == 2) ? 1 : 2;
   }
   PS_IR_Module *m = load_ir_from_file(ctx, file);
@@ -206,6 +240,7 @@ int main(int argc, char **argv) {
   int exit_code = 0;
   PS_Value *ret = NULL;
   if (strcmp(argv[cmd_index], "run") == 0 && (cmd_index + 1) < argc) {
+    g_last_run_file = argv[cmd_index + 1];
     PS_Value *args_list = build_args_list(ctx, argc, argv, 0);
     rc = run_file(ctx, argv[cmd_index + 1], args_list, &ret);
     if (args_list) ps_value_release(args_list);
@@ -215,6 +250,7 @@ int main(int argc, char **argv) {
       fprintf(stderr, "ps: failed to write temp source\n");
       rc = 2;
     } else {
+      g_last_run_file = path;
       PS_Value *args_list = build_args_list(ctx, argc, argv, 0);
       rc = run_file(ctx, path, args_list, &ret);
       if (args_list) ps_value_release(args_list);
@@ -282,13 +318,17 @@ int main(int argc, char **argv) {
     fprintf(stderr, "time: %.2f ms\n", ms);
   }
 
-  if (rc != 0 && ps_last_error_code(ctx) != PS_ERR_NONE) {
-    const char *code = NULL;
-    const char *cat = ps_runtime_category(ps_last_error_code(ctx), ps_last_error_message(ctx), &code);
-    if (cat && code) {
-      fprintf(stderr, "%s %s: %s\n", code, cat, ps_last_error_message(ctx));
-    } else {
-      fprintf(stderr, "error: %s\n", ps_last_error_message(ctx));
+  if (rc != 0) {
+    if (ctx->last_exception) {
+      print_exception(stderr, g_last_run_file, ctx->last_exception);
+    } else if (ps_last_error_code(ctx) != PS_ERR_NONE) {
+      const char *code = NULL;
+      const char *cat = ps_runtime_category(ps_last_error_code(ctx), ps_last_error_message(ctx), &code);
+      if (cat && code) {
+        fprintf(stderr, "%s %s: %s\n", code, cat, ps_last_error_message(ctx));
+      } else {
+        fprintf(stderr, "error: %s\n", ps_last_error_message(ctx));
+      }
     }
   }
 

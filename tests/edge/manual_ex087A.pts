@@ -3,11 +3,9 @@ import Io;
 function main() : void {
     try {
         Exception e = Exception.clone();
-        e.message = "user";
+        e.message = "Quelque chose s'est mal passe";
         throw e;
-    } catch (RuntimeException e) {
-        Io.printLine("runtime");
     } catch (Exception e) {
-        Io.printLine("user");
+        Io.printLine(e.message);
     }
 }

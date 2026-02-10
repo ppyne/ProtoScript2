@@ -1,0 +1,16 @@
+import Io;
+
+prototype MyError : Exception {
+    string details;
+}
+
+function main() : void {
+    try {
+        MyError e = MyError.clone();
+        e.message = "Erreur metier";
+        e.details = "code:42";
+        throw e;
+    } catch (MyError ex) {
+        Io.printLine(ex.details);
+    }
+}

@@ -466,6 +466,30 @@ function buildProtoMap(ir) {
   return map;
 }
 
+function protoParent(protoMap, name) {
+  const p = protoMap.get(name);
+  return p ? p.parent : null;
+}
+
+function protoIsSubtype(protoMap, child, parent) {
+  if (!child || !parent) return false;
+  if (child === parent) return true;
+  let cur = protoMap.get(child);
+  while (cur && cur.parent) {
+    if (cur.parent === parent) return true;
+    cur = cur.parent ? protoMap.get(cur.parent) : null;
+  }
+  return false;
+}
+
+function isExceptionProto(protoMap, name) {
+  return protoIsSubtype(protoMap, name, "Exception");
+}
+
+function isRuntimeExceptionProto(protoMap, name) {
+  return protoIsSubtype(protoMap, name, "RuntimeException");
+}
+
 function collectProtoFields(protoMap, name) {
   const out = [];
   const chain = [];
@@ -484,6 +508,19 @@ function emitTypeDecls(typeNames, protoMap) {
   const out = [];
   out.push("typedef struct { const char* ptr; size_t len; } ps_string;");
   out.push("typedef struct { size_t i; size_t n; } ps_iter_cursor;");
+  out.push("typedef struct ps_exception ps_exception;");
+  out.push("struct ps_exception {");
+  out.push("  const char* type;");
+  out.push("  const char* parent;");
+  out.push("  ps_string file;");
+  out.push("  int64_t line;");
+  out.push("  int64_t column;");
+  out.push("  ps_string message;");
+  out.push("  ps_exception* cause;");
+  out.push("  ps_string code;");
+  out.push("  ps_string category;");
+  out.push("  int is_runtime;");
+  out.push("};");
   out.push(
     "typedef struct { ps_string str; uint32_t* ptr; size_t len; size_t offset; int is_string; const uint64_t* version_ptr; uint64_t version; } ps_view_glyph;"
   );
@@ -518,17 +555,33 @@ function emitTypeDecls(typeNames, protoMap) {
   }
   if (protoMap && protoMap.size > 0) {
     for (const [name, p] of protoMap.entries()) {
-      const fields = collectProtoFields(protoMap, name);
-      out.push(`struct ${name} {`);
-      if (fields.length === 0) {
-        out.push("  uint8_t __empty;");
-      } else {
-        for (const f of fields) {
-          const t = typeof f.type === "string" ? f.type : f.type?.name;
-          out.push(`  ${cTypeFromName(t || "int")} ${f.name};`);
+      if (name === "Exception" || name === "RuntimeException") continue;
+      if (isExceptionProto(protoMap, name)) {
+        out.push(`struct ${name} {`);
+        out.push("  ps_exception base;");
+        const fields = p.fields || [];
+        if (fields.length === 0) {
+          out.push("  uint8_t __empty;");
+        } else {
+          for (const f of fields) {
+            const t = typeof f.type === "string" ? f.type : f.type?.name;
+            out.push(`  ${cTypeFromName(t || "int")} ${f.name};`);
+          }
         }
+        out.push("};");
+      } else {
+        const fields = collectProtoFields(protoMap, name);
+        out.push(`struct ${name} {`);
+        if (fields.length === 0) {
+          out.push("  uint8_t __empty;");
+        } else {
+          for (const f of fields) {
+            const t = typeof f.type === "string" ? f.type : f.type?.name;
+            out.push(`  ${cTypeFromName(t || "int")} ${f.name};`);
+          }
+        }
+        out.push("};");
       }
-      out.push("};");
     }
   }
   return out;
@@ -628,11 +681,21 @@ function emitContainerHelpers(typeNames) {
   return out;
 }
 
-function emitRuntimeHelpers() {
+function emitRuntimeHelpers(protoMap) {
+  const exceptionTypes = [];
+  if (protoMap && protoMap.size > 0) {
+    for (const name of protoMap.keys()) {
+      if (isExceptionProto(protoMap, name)) exceptionTypes.push(name);
+    }
+  }
+  const parentMap = new Map();
+  for (const name of exceptionTypes) {
+    const p = protoParent(protoMap, name);
+    parentMap.set(name, p || null);
+  }
   return [
-    "typedef struct { ps_string file; int64_t line; int64_t column; ps_string message; ps_string code; ps_string category; int is_runtime; } ps_exception;",
-    "static ps_exception ps_last_exception;",
-    "static int ps_has_exception = 0;",
+    "static ps_exception ps_runtime_exception;",
+    "static ps_exception* ps_last_exception = NULL;",
     "static jmp_buf ps_try_stack[64];",
     "static int ps_try_len = 0;",
     "static ps_string ps_cstr(const char* s) {",
@@ -641,22 +704,25 @@ function emitRuntimeHelpers() {
     "}",
     "static bool ps_utf8_validate(const uint8_t* s, size_t len);",
     "static void ps_set_exception(const char* code, const char* category, const char* msg, int is_runtime) {",
-    "  ps_last_exception.file = ps_cstr(\"<runtime>\");",
-    "  ps_last_exception.line = 1;",
-    "  ps_last_exception.column = 1;",
-    "  ps_last_exception.message = ps_cstr(msg);",
-    "  ps_last_exception.code = ps_cstr(code ? code : \"\");",
-    "  ps_last_exception.category = ps_cstr(category ? category : \"\");",
-    "  ps_last_exception.is_runtime = is_runtime;",
-    "  ps_has_exception = 1;",
+    "  ps_runtime_exception.type = \"RuntimeException\";",
+    "  ps_runtime_exception.parent = \"Exception\";",
+    "  ps_runtime_exception.file = ps_cstr(\"<runtime>\");",
+    "  ps_runtime_exception.line = 1;",
+    "  ps_runtime_exception.column = 1;",
+    "  ps_runtime_exception.message = ps_cstr(msg);",
+    "  ps_runtime_exception.cause = NULL;",
+    "  ps_runtime_exception.code = ps_cstr(code ? code : \"\");",
+    "  ps_runtime_exception.category = ps_cstr(category ? category : \"\");",
+    "  ps_runtime_exception.is_runtime = is_runtime;",
+    "  ps_last_exception = &ps_runtime_exception;",
     "}",
     "static void ps_raise_exception(void) {",
     "  if (ps_try_len > 0) {",
     "    ps_try_len -= 1;",
     "    longjmp(ps_try_stack[ps_try_len], 1);",
     "  }",
-    "  if (ps_has_exception) {",
-    "    fprintf(stderr, \"<runtime>:1:1 %s %s: %s\\n\", ps_last_exception.code.ptr, ps_last_exception.category.ptr, ps_last_exception.message.ptr);",
+    "  if (ps_last_exception) {",
+    "    fprintf(stderr, \"<runtime>:1:1 %s %s: %s\\n\", ps_last_exception->code.ptr, ps_last_exception->category.ptr, ps_last_exception->message.ptr);",
     "  }",
     "  exit(1);",
     "}",
@@ -665,21 +731,36 @@ function emitRuntimeHelpers() {
     "  ps_raise_exception();",
     "}",
     "static ps_exception* ps_get_exception(void) {",
-    "  if (!ps_has_exception) ps_set_exception(\"R1999\", \"RUNTIME_THROW\", \"exception\", 1);",
-    "  return &ps_last_exception;",
+    "  if (!ps_last_exception) ps_set_exception(\"R1999\", \"RUNTIME_THROW\", \"exception\", 1);",
+    "  return ps_last_exception;",
+    "}",
+    "static const char* ps_exception_parent(const char* type) {",
+    "  if (!type) return NULL;",
+    ...Array.from(parentMap.entries()).map(([name, parent]) =>
+      parent ? `  if (strcmp(type, \"${name}\") == 0) return \"${parent}\";` : `  if (strcmp(type, \"${name}\") == 0) return NULL;`
+    ),
+    "  return NULL;",
     "}",
     "static int ps_exception_is(ps_exception* ex, const char* type) {",
     "  if (!ex || !type) return 0;",
     "  if (strcmp(type, \"Exception\") == 0) return 1;",
-    "  if (strcmp(type, \"RuntimeException\") == 0) return ex->is_runtime;",
+    "  if (!ex->type) return 0;",
+    "  const char* cur = ex->type;",
+    "  while (cur) {",
+    "    if (strcmp(cur, type) == 0) return 1;",
+    "    cur = ps_exception_parent(cur);",
+    "  }",
     "  return 0;",
     "}",
     "static ps_exception ps_exception_make(ps_string message) {",
     "  ps_exception ex;",
+    "  ex.type = \"Exception\";",
+    "  ex.parent = NULL;",
     "  ex.file = ps_cstr(\"\");",
     "  ex.line = 1;",
     "  ex.column = 1;",
     "  ex.message = message;",
+    "  ex.cause = NULL;",
     "  ex.code = ps_cstr(\"\");",
     "  ex.category = ps_cstr(\"\");",
     "  ex.is_runtime = 0;",
@@ -692,7 +773,7 @@ function emitRuntimeHelpers() {
     "  return ex;",
     "}",
     "static void ps_raise_user_exception(ps_exception* ex) {",
-    "  if (ex) { ps_last_exception = *ex; ps_has_exception = 1; }",
+    "  if (ex) { ps_last_exception = ex; }",
     "  ps_raise_exception();",
     "}",
     "",
@@ -2014,7 +2095,15 @@ function emitInstr(i, fnInf, state) {
       break;
     case "store_var":
       if (isAliasTrackedType(i.type.name || t(i.name))) setVarAlias(i.name, aliasOf(i.src) || null);
-      out.push(`${n(i.name)} = ${n(i.src)};`);
+      {
+        const dt = t(i.name);
+        const st = t(i.src);
+        if (PROTO_MAP.has(dt) && isExceptionProto(PROTO_MAP, dt) && (st === "Exception" || st === "RuntimeException")) {
+          out.push(`${n(i.name)} = (${dt}*)${n(i.src)};`);
+        } else {
+          out.push(`${n(i.name)} = ${n(i.src)};`);
+        }
+      }
       break;
     case "check_int_overflow":
       if (i.operator === "+") out.push(`ps_check_int_overflow_add(${n(i.left)}, ${n(i.right)});`);
@@ -2584,13 +2673,28 @@ function emitInstr(i, fnInf, state) {
     case "make_object":
       {
         const rt = t(i.dst);
-        if (PROTO_MAP.has(rt)) out.push(`${n(i.dst)} = (${rt}*)calloc(1, sizeof(${rt}));`);
-        else out.push(`${n(i.dst)} = 0;`);
+        if (i.proto === "Exception" || i.proto === "RuntimeException") {
+          const parent = i.proto === "RuntimeException" ? "Exception" : null;
+          out.push(`${n(i.dst)} = (ps_exception*)calloc(1, sizeof(ps_exception));`);
+          out.push(`${n(i.dst)}->type = "${i.proto}";`);
+          out.push(`${n(i.dst)}->parent = ${parent ? `"${parent}"` : "NULL"};`);
+          out.push(`${n(i.dst)}->is_runtime = ${i.proto === "RuntimeException" ? "1" : "0"};`);
+        } else if (PROTO_MAP.has(rt)) {
+          out.push(`${n(i.dst)} = (${rt}*)calloc(1, sizeof(${rt}));`);
+          if (i.proto && isExceptionProto(PROTO_MAP, i.proto) && i.proto !== "Exception" && i.proto !== "RuntimeException") {
+            const parent = protoParent(PROTO_MAP, i.proto);
+            const isRt = isRuntimeExceptionProto(PROTO_MAP, i.proto);
+            out.push(`${n(i.dst)}->base.type = "${i.proto}";`);
+            out.push(`${n(i.dst)}->base.parent = ${parent ? `"${parent}"` : "NULL"};`);
+            out.push(`${n(i.dst)}->base.is_runtime = ${isRt ? "1" : "0"};`);
+          }
+        } else out.push(`${n(i.dst)} = 0;`);
       }
       break;
     case "member_get":
       {
         const rt = t(i.target);
+        const baseField = ["file", "line", "column", "message", "cause", "code", "category"].includes(i.name);
         if (rt === "Exception" || rt === "RuntimeException") {
           if (i.name === "code") out.push(`${n(i.dst)} = ${n(i.target)}->code;`);
           else if (i.name === "category") out.push(`${n(i.dst)} = ${n(i.target)}->category;`);
@@ -2598,7 +2702,10 @@ function emitInstr(i, fnInf, state) {
           else if (i.name === "file") out.push(`${n(i.dst)} = ${n(i.target)}->file;`);
           else if (i.name === "line") out.push(`${n(i.dst)} = ${n(i.target)}->line;`);
           else if (i.name === "column") out.push(`${n(i.dst)} = ${n(i.target)}->column;`);
+          else if (i.name === "cause") out.push(`${n(i.dst)} = ${n(i.target)}->cause;`);
           else out.push(`${n(i.dst)} = (ps_string){\"\",0};`);
+        } else if (PROTO_MAP.has(rt) && isExceptionProto(PROTO_MAP, rt) && baseField) {
+          out.push(`${n(i.dst)} = ${n(i.target)}->base.${i.name};`);
         } else if (PROTO_MAP.has(rt)) {
           out.push(`${n(i.dst)} = ${n(i.target)}->${i.name};`);
         } else {
@@ -2609,7 +2716,12 @@ function emitInstr(i, fnInf, state) {
     case "member_set":
       {
         const rt = t(i.target);
-        if (PROTO_MAP.has(rt)) {
+        const baseField = ["file", "line", "column", "message", "cause", "code", "category"].includes(i.name);
+        if ((rt === "Exception" || rt === "RuntimeException") && baseField) {
+          out.push(`${n(i.target)}->${i.name} = ${n(i.src)};`);
+        } else if (PROTO_MAP.has(rt) && isExceptionProto(PROTO_MAP, rt) && baseField) {
+          out.push(`${n(i.target)}->base.${i.name} = ${n(i.src)};`);
+        } else if (PROTO_MAP.has(rt)) {
           out.push(`${n(i.target)}->${i.name} = ${n(i.src)};`);
         } else {
           out.push(`/* member_set ${i.name} */`);
@@ -2623,7 +2735,14 @@ function emitInstr(i, fnInf, state) {
       out.push("return;");
       break;
     case "throw":
-      out.push(`ps_raise_user_exception(${n(i.value)});`);
+      {
+        const vt = t(i.value);
+        if (PROTO_MAP.has(vt) && isExceptionProto(PROTO_MAP, vt) && vt !== "Exception" && vt !== "RuntimeException") {
+          out.push(`ps_raise_user_exception((ps_exception*)${n(i.value)});`);
+        } else {
+          out.push(`ps_raise_user_exception(${n(i.value)});`);
+        }
+      }
       break;
     case "push_handler":
       out.push('if (ps_try_len >= 64) ps_panic("R1999", "RUNTIME_THROW", "try stack overflow");');
@@ -2790,7 +2909,7 @@ function generateC(ir) {
   out.push("");
   out.push(...emitTypeDecls(typeNames, PROTO_MAP));
   out.push("");
-  out.push(...emitRuntimeHelpers());
+  out.push(...emitRuntimeHelpers(PROTO_MAP));
   out.push("");
   out.push(...emitContainerHelpers(typeNames));
   out.push("");

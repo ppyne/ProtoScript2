@@ -1,0 +1,11 @@
+{
+  "status": "reject-static",
+  "error_family": "E2xxx",
+  "error_code": "E2001",
+  "category": "UNRESOLVED_NAME",
+  "position": {
+    "file": "invalid/type/throw_exception_call.pts",
+    "line": 2,
+    "column": 20
+  }
+}
