@@ -1,0 +1,9 @@
+import Io;
+
+function main() : void {
+    list<int> xs = [3, 1, 2];
+    xs.sort();
+    xs.reverse();
+    bool ok = xs[0] == 3 && xs[1] == 2 && xs[2] == 1;
+    Io.printLine(ok.toString());
+}

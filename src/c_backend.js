@@ -299,6 +299,8 @@ function inferTempTypes(ir, protoMap) {
                   set(i.dst, "int");
                 } else if (rc && rc.kind === "list" && i.method === "contains") {
                   set(i.dst, "bool");
+                } else if (rc && rc.kind === "list" && i.method === "reverse") {
+                  set(i.dst, "int");
                 } else if (rc && rc.kind === "list" && i.method === "sort") {
                   set(i.dst, "int");
                 } else if (rc && rc.kind === "map") {
@@ -2481,6 +2483,17 @@ function emitInstr(i, fnInf, state) {
           }
           out.push(`  }`);
           out.push(`  ${n(i.dst)} = found;`);
+          out.push(`}`);
+        } else if (rc && rc.kind === "list" && i.method === "reverse") {
+          const recv = aliasOf(i.receiver) || i.receiver;
+          out.push(`{`);
+          out.push(`  size_t n = ${n(recv)}.len;`);
+          out.push(`  for (size_t i = 0; i < n / 2; i += 1) {`);
+          out.push(`    ${cTypeFromName(rc.inner)} tmp = ${n(recv)}.ptr[i];`);
+          out.push(`    ${n(recv)}.ptr[i] = ${n(recv)}.ptr[n - 1 - i];`);
+          out.push(`    ${n(recv)}.ptr[n - 1 - i] = tmp;`);
+          out.push(`  }`);
+          out.push(`  ${n(i.dst)} = (int64_t)${n(recv)}.len;`);
           out.push(`}`);
         } else if (rc && rc.kind === "list" && i.method === "sort") {
           const recv = aliasOf(i.receiver) || i.receiver;

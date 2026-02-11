@@ -2143,7 +2143,7 @@ class Analyzer {
       }
     }
     if (t.startsWith("list<")) {
-      if (["length", "isEmpty", "pop", "sort", "concat", "toUtf8String"].includes(name)) {
+      if (["length", "isEmpty", "pop", "sort", "reverse", "concat", "toUtf8String"].includes(name)) {
         fail(0, 0);
         return;
       }
@@ -2371,6 +2371,7 @@ class Analyzer {
         if (name === "isEmpty") return prim("bool");
         if (name === "push") return prim("int");
         if (name === "contains") return prim("bool");
+        if (name === "reverse") return prim("int");
         if (name === "sort") {
           const elemType = targetType && targetType.kind === "GenericType" ? targetType.args[0] : null;
           const elemName = elemType ? typeToString(elemType) : "unknown";

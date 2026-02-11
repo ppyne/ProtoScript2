@@ -594,6 +594,22 @@ Clarification normative de résolution :
 
 ---
 
+### Inversement de liste : `list<T>.reverse()` (normatif)
+
+`list<T>.reverse()` **inverse** l’ordre des éléments de la liste **en place**.  
+La complexité **doit être** **O(n)**.  
+Cette opération **est autorisée** pour tout `list<T>`, sans contrainte sur `T`.
+
+Propriétés normatives :
+
+- L’opération **est déterministe**.
+- Aucun nouvel élément n’est créé : l’inversion est **en place**.
+- Aucune relation d’ordre nouvelle n’est introduite : il s’agit d’une inversion structurelle.
+- Aucun comportement ne doit dépendre de la locale.
+- Aucun dispatch dynamique ni comparateur n’est impliqué.
+
+---
+
 ## 3.2 map<K,V>
 
 ```c

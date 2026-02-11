@@ -1,0 +1,19 @@
+import Io;
+
+prototype Item {
+    int id;
+}
+
+function main() : void {
+    Item a = Item.clone();
+    a.id = 1;
+    Item b = Item.clone();
+    b.id = 2;
+    Item c = Item.clone();
+    c.id = 3;
+
+    list<Item> xs = [a, b, c];
+    xs.reverse();
+    bool ok = xs[0].id == 3 && xs[1].id == 2 && xs[2].id == 1;
+    Io.printLine(ok.toString());
+}

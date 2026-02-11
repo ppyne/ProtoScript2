@@ -1303,6 +1303,7 @@ Méthodes disponibles :
 | `pop()` | `() -> T` | dernier élément | erreur statique si liste prouvée vide, sinon runtime si vide |
 | `contains(x)` | `(T) -> bool` | présence | type si `T` incompatible |
 | `sort()` | `() -> int` | longueur | erreur statique si `T` non comparable ou si `compareTo` absent/invalide |
+| `reverse()` | `() -> int` | longueur | — |
 | `join(sep)` | `(string) -> string` | concat avec séparateur | runtime si liste non `list<string>` |
 | `concat()` | `() -> string` | concat sans séparateur | runtime si liste non `list<string>` |
 
@@ -1347,6 +1348,35 @@ function main() : void {
 }
 ```
 Ref: EX-065
+
+`reverse()` inverse l’ordre des éléments en place, sans créer de nouveaux éléments.
+
+Exemple (liste d’entiers) :
+
+```c
+list<int> xs = [1, 2, 3];
+xs.reverse();
+```
+Ref: EX-066
+
+Exemple (prototype utilisateur) :
+
+```c
+prototype Item {
+    int id;
+}
+
+function main() : void {
+    Item a = Item.clone();
+    a.id = 1;
+    Item b = Item.clone();
+    b.id = 2;
+
+    list<Item> xs = [a, b];
+    xs.reverse();
+}
+```
+Ref: EX-067
 
 ### 11.2 `map<K,V>` : lecture stricte, écriture constructive
 

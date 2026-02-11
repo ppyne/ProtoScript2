@@ -2604,6 +2604,18 @@ static int exec_function(PS_Context *ctx, PS_IR_Module *m, IRFunction *f, PS_Val
             PS_Value *v = ps_make_bool(ctx, found);
             bindings_set(&temps, ins->dst, v);
             ps_value_release(v);
+          } else if (strcmp(ins->method, "reverse") == 0) {
+            if (!expect_arity(ctx, ins, 0, 0)) goto raise;
+            size_t n = recv->as.list_v.len;
+            for (size_t i = 0; i < n / 2; i++) {
+              size_t j = n - 1 - i;
+              PS_Value *tmp = recv->as.list_v.items[i];
+              recv->as.list_v.items[i] = recv->as.list_v.items[j];
+              recv->as.list_v.items[j] = tmp;
+            }
+            PS_Value *v = ps_make_int(ctx, (int64_t)recv->as.list_v.len);
+            bindings_set(&temps, ins->dst, v);
+            ps_value_release(v);
           } else if (strcmp(ins->method, "sort") == 0) {
             if (!expect_arity(ctx, ins, 0, 0)) goto raise;
             size_t n = recv->as.list_v.len;

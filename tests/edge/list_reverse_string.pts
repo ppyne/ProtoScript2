@@ -1,0 +1,8 @@
+import Io;
+
+function main() : void {
+    list<string> xs = ["a", "b", "c"];
+    xs.reverse();
+    bool ok = xs[0] == "c" && xs[1] == "b" && xs[2] == "a";
+    Io.printLine(ok.toString());
+}

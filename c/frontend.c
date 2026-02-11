@@ -3692,7 +3692,7 @@ static int check_method_arity(Analyzer *a, AstNode *e, const char *recv_t, const
     }
   } else if (strncmp(recv_t, "list<", 5) == 0) {
     if (strcmp(method, "length") == 0 || strcmp(method, "isEmpty") == 0 || strcmp(method, "pop") == 0 ||
-        strcmp(method, "sort") == 0 || strcmp(method, "concat") == 0 || strcmp(method, "toUtf8String") == 0) {
+        strcmp(method, "sort") == 0 || strcmp(method, "reverse") == 0 || strcmp(method, "concat") == 0 || strcmp(method, "toUtf8String") == 0) {
       min = max = 0;
     } else if (strcmp(method, "push") == 0 || strcmp(method, "contains") == 0 || strcmp(method, "join") == 0) {
       min = max = 1;
@@ -3786,6 +3786,7 @@ static char *method_ret_type(const char *recv_t, const char *m) {
     if (strcmp(m, "isEmpty") == 0) return strdup("bool");
     if (strcmp(m, "push") == 0) return strdup("int");
     if (strcmp(m, "contains") == 0) return strdup("bool");
+    if (strcmp(m, "reverse") == 0) return strdup("int");
     if (strcmp(m, "sort") == 0) return strdup("int");
     if (strcmp(m, "view") == 0 || strcmp(m, "slice") == 0) {
       char *et2 = ir_type_elem_for_index(recv_t);

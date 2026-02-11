@@ -2235,6 +2235,15 @@ function evalCall(expr, scope, functions, moduleEnv, protoEnv, file, callFunctio
         }
         return false;
       }
+      if (m.name === "reverse") {
+        expectArity(0, 0);
+        for (let i = 0, j = target.length - 1; i < j; i += 1, j -= 1) {
+          const tmp = target[i];
+          target[i] = target[j];
+          target[j] = tmp;
+        }
+        return BigInt(target.length);
+      }
       if (m.name === "sort") {
         expectArity(0, 0);
         if (target.length === 0) return BigInt(0);
