@@ -158,6 +158,7 @@ expect_output_contains "repl prompt" "ps> " bash -c "printf 'exit\n' | \"$PS\" r
 expect_output_contains "run outputs" "hello" "$PS" run "$ROOT_DIR/tests/cli/hello.pts"
 expect_output_contains "run if basic" "yes" "$PS" run "$ROOT_DIR/tests/cli/if_basic.pts"
 expect_output_contains "run list concat" "hello world" "$PS" run "$ROOT_DIR/tests/cli/list_concat.pts"
+expect_output_contains "run io temp path" "ok" "$PS" run "$ROOT_DIR/tests/cli/io_temp_path.pts"
 expect_output_contains "run proto bool field" "true" "$PS" run "$ROOT_DIR/tests/cli/proto_bool_field.pts"
 expect_output_contains "run control flow continuation" "after_try" "$PS" run "$ROOT_DIR/tests/cli/control_flow_continuation.pts"
 expect_output_contains "run manual ex008" "1" "$PS" run "$ROOT_DIR/tests/cli/manual_ex008.pts"

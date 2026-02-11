@@ -67,7 +67,7 @@ Règles normatives :
 ### Sémantique texte
 
 - Lecture/écriture de `string`.
-- Décodage UTF-8 strict en lecture (cf. §11).
+- Décodage UTF-8 strict en lecture (cf. §24).
 - Aucune conversion implicite de fins de ligne.
 - Aucun traitement implicite de BOM (un BOM est lu/écrit comme un glyphe normal).
 
@@ -106,7 +106,28 @@ Identiques a `Io.openText`.
 
 ---
 
-## 5. Standard Streams (normatif)
+## 5. Io.tempPath() -> string
+
+Retourne un chemin temporaire **unique** et **inexistant**.
+
+### Comportement (normatif)
+
+- **DOIT** retourner une `string`.
+- Le chemin **DOIT** être valide pour le système courant.
+- Le chemin **DOIT** être inexistant au moment du retour.
+- La fonction **NE DOIT PAS** créer le fichier.
+- Deux appels successifs **DOIVENT** retourner deux chemins distincts.
+- **DOIT** utiliser le répertoire temporaire du système :
+  - POSIX : `$TMPDIR` sinon `/tmp`
+  - Windows : `%TEMP%`
+- En cas d’échec système, **DOIT** lever une erreur runtime.
+- **Aucune réservation durable** n’est effectuée.
+- **Aucune suppression implicite** n’est effectuée.
+- La fonction **NE protège PAS** contre une race condition externe.
+
+---
+
+## 6. Standard Streams (normatif)
 
 Les flux standards suivants sont fournis comme **TextFile deja ouverts** :
 
@@ -130,7 +151,7 @@ Io.stderr.write("Error: something went wrong\n");
 
 ---
 
-## 6. Constantes
+## 7. Constantes
 
 ### 6.1 Io.EOL
 
@@ -142,7 +163,7 @@ Constante universelle de fin de ligne.
 
 ---
 
-## 7. Io.print(value)
+## 8. Io.print(value)
 
 Ecrit `value` sur `Io.stdout` **sans ajouter de fin de ligne**.
 
@@ -160,7 +181,7 @@ Io.stdout.write(String(value))
 
 ---
 
-## 8. Io.printLine(value)
+## 9. Io.printLine(value)
 
 Ecrit `value` sur `Io.stdout` **et ajoute une fin de ligne**.
 
@@ -179,7 +200,7 @@ Io.stdout.write(Io.EOL)
 
 ---
 
-## 9. TextFile.read(size)
+## 10. TextFile.read(size)
 
 Lit `size` **glyphes** a partir de la position courante.
 
@@ -207,7 +228,7 @@ textFile.read(size)
 
 ---
 
-## 10. TextFile.write(text)
+## 11. TextFile.write(text)
 
 Ecrit `text` a la position courante.
 
@@ -230,7 +251,7 @@ Toute incoherence de type **DOIT** lever une erreur runtime.
 
 ---
 
-## 11. TextFile.tell()
+## 12. TextFile.tell()
 
 Retourne la position courante **en glyphes**.
 
@@ -240,7 +261,7 @@ textFile.tell() -> int
 
 ---
 
-## 12. TextFile.seek(pos)
+## 13. TextFile.seek(pos)
 
 Positionne le curseur a la position `pos` **en glyphes**.
 
@@ -255,7 +276,7 @@ Règles normatives :
 
 ---
 
-## 13. TextFile.size()
+## 14. TextFile.size()
 
 Retourne la taille du fichier en **glyphes**.
 
@@ -265,7 +286,7 @@ textFile.size() -> int
 
 ---
 
-## 14. TextFile.name()
+## 15. TextFile.name()
 
 Retourne le chemin/nom associe au handle.
 
@@ -275,7 +296,7 @@ textFile.name() -> string
 
 ---
 
-## 15. TextFile.close()
+## 16. TextFile.close()
 
 Ferme explicitement le fichier.
 
@@ -283,11 +304,11 @@ Règles normatives :
 
 - L’operation est **idempotente** pour un fichier normal : fermer un fichier deja ferme ne doit pas echouer.
 - Apres fermeture, toute operation (`read`, `write`, `tell`, `seek`, `size`, etc.) **DOIT** lever une erreur runtime.
-- Appeler `close()` sur `Io.stdin`, `Io.stdout` ou `Io.stderr` **DOIT** lever une erreur runtime (cf. §5).
+- Appeler `close()` sur `Io.stdin`, `Io.stdout` ou `Io.stderr` **DOIT** lever une erreur runtime (cf. §6).
 
 ---
 
-## 16. BinaryFile.read(size)
+## 17. BinaryFile.read(size)
 
 Lit `size` **octets** a partir de la position courante.
 
@@ -315,7 +336,7 @@ binaryFile.read(size)
 
 ---
 
-## 17. BinaryFile.write(bytes)
+## 18. BinaryFile.write(bytes)
 
 Ecrit `bytes` a la position courante.
 
@@ -339,7 +360,7 @@ Toute incoherence de type ou de contenu **DOIT** lever une erreur runtime.
 
 ---
 
-## 18. BinaryFile.tell()
+## 19. BinaryFile.tell()
 
 Retourne la position courante **en octets**.
 
@@ -349,7 +370,7 @@ binaryFile.tell() -> int
 
 ---
 
-## 19. BinaryFile.seek(pos)
+## 20. BinaryFile.seek(pos)
 
 Positionne le curseur a la position `pos` **en octets**.
 
@@ -364,7 +385,7 @@ Règles normatives :
 
 ---
 
-## 20. BinaryFile.size()
+## 21. BinaryFile.size()
 
 Retourne la taille du fichier en **octets**.
 
@@ -374,7 +395,7 @@ binaryFile.size() -> int
 
 ---
 
-## 21. BinaryFile.name()
+## 22. BinaryFile.name()
 
 Retourne le chemin/nom associe au handle.
 
@@ -384,13 +405,13 @@ binaryFile.name() -> string
 
 ---
 
-## 22. BinaryFile.close()
+## 23. BinaryFile.close()
 
 Identique a `TextFile.close()`.
 
 ---
 
-## 23. UTF-8 strict (mode texte)
+## 24. UTF-8 strict (mode texte)
 
 Regles normatives en lecture texte :
 
@@ -401,7 +422,7 @@ Regles normatives en lecture texte :
 
 ---
 
-## 24. Mode binaire
+## 25. Mode binaire
 
 - Aucun decodage.
 - Valeurs d’octet 0-255 autorisees.
@@ -409,7 +430,7 @@ Regles normatives en lecture texte :
 
 ---
 
-## 25. Index des glyphes (mode texte)
+## 26. Index des glyphes (mode texte)
 
 Les operations `read(size)`, `tell()`, `seek(pos)` et `size()` travaillent en **glyphes**.
 
@@ -422,7 +443,7 @@ Ce comportement est **autorise** tant que la semantique observable reste conform
 
 ---
 
-## 26. Exemples
+## 27. Exemples
 
 ### 26.1 Texte sequentiel
 
@@ -450,7 +471,7 @@ f.close();
 
 ---
 
-## 27. Non-objectifs
+## 28. Non-objectifs
 
 - I/O asynchrone
 - mmap
@@ -459,7 +480,7 @@ f.close();
 
 ---
 
-## 28. Exigences d’implementation
+## 29. Exigences d’implementation
 
 - Module natif C.
 - Respect strict des regles de type.

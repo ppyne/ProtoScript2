@@ -198,6 +198,7 @@
       "edge/time_iso_parse_format",
       "edge/time_dst_paris",
       "edge/io_text_roundtrip",
+      "edge/io_temp_path",
       "edge/io_text_seek_tell",
       "edge/io_print",
       "edge/io_stdout_stderr",

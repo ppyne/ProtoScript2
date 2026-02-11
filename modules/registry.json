@@ -120,6 +120,7 @@
       "functions": [
         { "name": "openText", "ret": "TextFile", "params": ["string", "string"] },
         { "name": "openBinary", "ret": "BinaryFile", "params": ["string", "string"] },
+        { "name": "tempPath", "ret": "string", "params": [] },
         { "name": "print", "ret": "void", "params": ["string"] },
         { "name": "printLine", "ret": "void", "params": ["string"] }
       ],

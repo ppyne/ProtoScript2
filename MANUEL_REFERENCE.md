@@ -1800,6 +1800,7 @@ Le chargeur utilise un registry JSON pour résoudre `import Io`, `import Math`, 
 |---|---|---|---|
 | `Io.openText` | `(string path, string mode) -> TextFile` | ouvre un fichier texte | runtime si mode invalide |
 | `Io.openBinary` | `(string path, string mode) -> BinaryFile` | ouvre un fichier binaire | runtime si mode invalide |
+| `Io.tempPath` | `() -> string` | chemin temporaire unique (non créé) | runtime si échec système |
 | `Io.print` | `(any value) -> void` | écrit sans fin de ligne | type si valeur incompatible |
 | `Io.printLine` | `(any value) -> void` | écrit + `Io.EOL` | type si valeur incompatible |
 
@@ -1807,6 +1808,7 @@ Notes :
 
 - `Io.openText(...)` / `Io.openBinary(...)` **lèvent une exception runtime** si l’ouverture échoue (fichier introuvable, permissions, mode invalide, etc.).
 - en cas d’échec, **aucun handle n’est retourné**.
+- `Io.tempPath()` retourne un chemin **inexistant** et **ne crée pas le fichier**.
 
 **Méthodes sur `TextFile`**
 
@@ -1872,6 +1874,16 @@ g.write(bytes);
 g.close();
 ```
 Ref: EX-081
+
+Chemin temporaire :
+
+```c
+string p = Io.tempPath();
+TextFile f = Io.openText(p, "w");
+f.write("temp");
+f.close();
+```
+Ref: EX-081A
 
 Écrire sur `Io.stderr` :
 

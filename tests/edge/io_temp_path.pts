@@ -1,0 +1,45 @@
+import Io;
+
+function main() : void {
+    bool ok = true;
+
+    string p1 = Io.tempPath();
+    string p2 = Io.tempPath();
+    if (p1 == p2) ok = false;
+
+    bool read_failed = false;
+    try {
+        Io.openText(p1, "r");
+    } catch (RuntimeException e) {
+        read_failed = true;
+    }
+    if (!read_failed) ok = false;
+
+    try {
+        TextFile f = Io.openText(p1, "w");
+        f.write("x");
+        f.close();
+    } catch (RuntimeException e) {
+        ok = false;
+    }
+
+    list<string> paths = [];
+    int i = 0;
+    while (i < 100) {
+        string p = Io.tempPath();
+        if (paths.contains(p)) ok = false;
+        paths.push(p);
+        i = i + 1;
+    }
+
+    bool read_failed_2 = false;
+    try {
+        Io.openText(p2, "r");
+    } catch (RuntimeException e) {
+        read_failed_2 = true;
+    }
+    if (!read_failed_2) ok = false;
+
+    if (ok) Io.printLine("ok");
+    else Io.printLine("fail");
+}

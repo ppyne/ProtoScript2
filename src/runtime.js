@@ -2,6 +2,7 @@
 
 const fs = require("fs");
 const path = require("path");
+const crypto = require("crypto");
 
 const INT64_MIN = -(2n ** 63n);
 const INT64_MAX = 2n ** 63n - 1n;
@@ -912,10 +913,29 @@ function buildModuleEnv(ast, file) {
   mathMod.functions.set("random", () => mathRngNext() / 4294967296);
 
   const ioMod = makeModule("Io");
+  let ioTempSeq = 0;
   ioMod.constants.set("EOL", "\n");
   ioMod.constants.set("stdin", new TextFile(0, PS_FILE_READ, true, "stdin"));
   ioMod.constants.set("stdout", new TextFile(1, PS_FILE_WRITE, true, "stdout"));
   ioMod.constants.set("stderr", new TextFile(2, PS_FILE_WRITE, true, "stderr"));
+  const ioTempDir = (node) => {
+    if (process.platform === "win32") {
+      const dir = process.env.TEMP || "";
+      if (!dir) {
+        throw new RuntimeError(
+          rdiag(file, node, "R1010", "RUNTIME_IO_ERROR", diagMsg("temp dir unavailable", "TEMP not set", "TEMP set"))
+        );
+      }
+      return dir;
+    }
+    const dir = process.env.TMPDIR && process.env.TMPDIR.length > 0 ? process.env.TMPDIR : "/tmp";
+    if (!dir) {
+      throw new RuntimeError(
+        rdiag(file, node, "R1010", "RUNTIME_IO_ERROR", diagMsg("temp dir unavailable", "TMPDIR empty", "TMPDIR or /tmp"))
+      );
+    }
+    return dir;
+  };
   ioMod.functions.set("openText", (pathStr, modeStr, node) => {
     if (typeof pathStr !== "string" || typeof modeStr !== "string") {
       throw new RuntimeError(
@@ -989,6 +1009,30 @@ function buildModuleEnv(ast, file) {
         )
       );
     }
+  });
+  ioMod.functions.set("tempPath", (node) => {
+    const dir = ioTempDir(node);
+    const maxAttempts = 128;
+    for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
+      const nonce = crypto.randomUUID();
+      const seq = ioTempSeq++;
+      const name = `ps_${nonce}_${seq.toString(16)}`;
+      const candidate = path.join(dir, name);
+      try {
+        if (!fs.existsSync(candidate)) return candidate;
+      } catch (e) {
+        throw new RuntimeError(
+          rdiag(
+            file,
+            node,
+            "R1010",
+            "RUNTIME_IO_ERROR",
+            diagMsg("tempPath failed", String(e.message || "tempPath failed"), "path available")
+          )
+        );
+      }
+    }
+    throw new RuntimeError(rdiag(file, node, "R1010", "RUNTIME_IO_ERROR", "tempPath failed"));
   });
   ioMod.functions.set("print", (val) => {
     const s = valueToString(val);
