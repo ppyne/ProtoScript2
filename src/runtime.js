@@ -65,6 +65,24 @@ function buildPrototypeEnv(ast) {
   for (const name of timeExceptionNames) {
     protos.set(name, { name, parent: "Exception", fields: [], methods: new Map() });
   }
+  const ioExceptionNames = [
+    "InvalidModeException",
+    "FileOpenException",
+    "FileNotFoundException",
+    "PermissionDeniedException",
+    "InvalidPathException",
+    "FileClosedException",
+    "InvalidArgumentException",
+    "InvalidGlyphPositionException",
+    "ReadFailureException",
+    "WriteFailureException",
+    "Utf8DecodeException",
+    "StandardStreamCloseException",
+    "IOException",
+  ];
+  for (const name of ioExceptionNames) {
+    protos.set(name, { name, parent: "RuntimeException", fields: [], methods: new Map() });
+  }
   for (const d of ast.decls || []) {
     if (d.kind !== "PrototypeDecl") continue;
     const fields = [];
@@ -192,6 +210,21 @@ function setExceptionLocation(ex, file, node) {
   ex.line = node && node.line ? node.line : 1;
   ex.column = node && node.col ? node.col : 1;
   return ex;
+}
+
+function makeIoException(type, file, node, message) {
+  return setExceptionLocation(
+    makeExceptionValue({
+      type,
+      message: typeof message === "string" ? message : "",
+    }),
+    file,
+    node
+  );
+}
+
+function throwIoException(type, file, node, message) {
+  throw makeIoException(type, file, node, message);
 }
 
 function runtimeErrorToException(err) {
@@ -661,28 +694,72 @@ const PS_FILE_BINARY = 0x08;
 
 function decodeUtf8Strict(file, node, bytes) {
   for (const b of bytes) {
-    if (b === 0) throw new RuntimeError(rdiag(file, node, "R1007", "RUNTIME_INVALID_UTF8", diagMsg("invalid UTF-8 sequence", "NUL byte", "non-NUL UTF-8 byte")));
+    if (b === 0) throwIoException("Utf8DecodeException", file, node, "invalid UTF-8 sequence");
   }
   try {
     const dec = new TextDecoder("utf-8", { fatal: true });
     return dec.decode(Uint8Array.from(bytes));
   } catch {
-    throw new RuntimeError(rdiag(file, node, "R1007", "RUNTIME_INVALID_UTF8", diagMsg("invalid UTF-8 sequence", "byte stream", "valid UTF-8")));
+    throwIoException("Utf8DecodeException", file, node, "invalid UTF-8 sequence");
   }
 }
 
-function readByteAt(fd, pos) {
-  const buf = Buffer.alloc(1);
-  const n = fs.readSync(fd, buf, 0, 1, pos);
-  if (n === 0) return null;
-  return buf[0];
+function readByteAt(fd, pos, file, node) {
+  try {
+    const buf = Buffer.alloc(1);
+    const n = fs.readSync(fd, buf, 0, 1, pos);
+    if (n === 0) return null;
+    return buf[0];
+  } catch {
+    throwIoException("ReadFailureException", file, node, "read failed");
+  }
+}
+
+function writeAllAtomic(fd, buffer, position, file, node) {
+  const isStd = position === null || position === undefined;
+  let origSize = null;
+  let backup = null;
+  if (!isStd) {
+    try {
+      origSize = fs.fstatSync(fd).size;
+      const maxBackup = Math.max(0, Math.min(buffer.length, origSize - position));
+      if (maxBackup > 0) {
+        backup = Buffer.alloc(maxBackup);
+        fs.readSync(fd, backup, 0, maxBackup, position);
+      }
+    } catch {
+      throwIoException("WriteFailureException", file, node, "write failed");
+    }
+  }
+  let off = 0;
+  try {
+    while (off < buffer.length) {
+      const n = fs.writeSync(fd, buffer, off, buffer.length - off, isStd ? null : position + off);
+      if (n <= 0) throw new Error("write failed");
+      off += n;
+    }
+  } catch {
+    if (!isStd) {
+      if (backup && backup.length > 0) {
+        try {
+          fs.writeSync(fd, backup, 0, backup.length, position);
+        } catch {}
+      }
+      if (origSize !== null && position + buffer.length > origSize) {
+        try {
+          fs.ftruncateSync(fd, origSize);
+        } catch {}
+      }
+    }
+    throwIoException("WriteFailureException", file, node, "write failed");
+  }
 }
 
 function readUtf8GlyphAt(fd, pos, file, node) {
-  const b0 = readByteAt(fd, pos);
+  const b0 = readByteAt(fd, pos, file, node);
   if (b0 === null) return null;
   if (b0 === 0) {
-    throw new RuntimeError(rdiag(file, node, "R1007", "RUNTIME_INVALID_UTF8", diagMsg("invalid UTF-8 sequence", "NUL byte", "non-NUL UTF-8 byte")));
+    throwIoException("Utf8DecodeException", file, node, "invalid UTF-8 sequence");
   }
   let len = 0;
   let cp = 0;
@@ -699,31 +776,31 @@ function readUtf8GlyphAt(fd, pos, file, node) {
     len = 4;
     cp = b0 & 0x07;
   } else {
-    throw new RuntimeError(rdiag(file, node, "R1007", "RUNTIME_INVALID_UTF8", diagMsg("invalid UTF-8 sequence", "byte stream", "valid UTF-8")));
+    throwIoException("Utf8DecodeException", file, node, "invalid UTF-8 sequence");
   }
   const bytes = [b0];
   for (let i = 1; i < len; i += 1) {
-    const bi = readByteAt(fd, pos + i);
+    const bi = readByteAt(fd, pos + i, file, node);
     if (bi === null) {
-      throw new RuntimeError(rdiag(file, node, "R1007", "RUNTIME_INVALID_UTF8", diagMsg("invalid UTF-8 sequence", "byte stream", "valid UTF-8")));
+      throwIoException("Utf8DecodeException", file, node, "invalid UTF-8 sequence");
     }
     if ((bi & 0xc0) !== 0x80) {
-      throw new RuntimeError(rdiag(file, node, "R1007", "RUNTIME_INVALID_UTF8", diagMsg("invalid UTF-8 sequence", "byte stream", "valid UTF-8")));
+      throwIoException("Utf8DecodeException", file, node, "invalid UTF-8 sequence");
     }
     if (bi === 0) {
-      throw new RuntimeError(rdiag(file, node, "R1007", "RUNTIME_INVALID_UTF8", diagMsg("invalid UTF-8 sequence", "NUL byte", "non-NUL UTF-8 byte")));
+      throwIoException("Utf8DecodeException", file, node, "invalid UTF-8 sequence");
     }
     bytes.push(bi);
     cp = (cp << 6) | (bi & 0x3f);
   }
   if (len === 2 && cp < 0x80) {
-    throw new RuntimeError(rdiag(file, node, "R1007", "RUNTIME_INVALID_UTF8", diagMsg("invalid UTF-8 sequence", "byte stream", "valid UTF-8")));
+    throwIoException("Utf8DecodeException", file, node, "invalid UTF-8 sequence");
   }
   if (len === 3 && cp < 0x800) {
-    throw new RuntimeError(rdiag(file, node, "R1007", "RUNTIME_INVALID_UTF8", diagMsg("invalid UTF-8 sequence", "byte stream", "valid UTF-8")));
+    throwIoException("Utf8DecodeException", file, node, "invalid UTF-8 sequence");
   }
   if (len === 4 && (cp < 0x10000 || cp > 0x10ffff)) {
-    throw new RuntimeError(rdiag(file, node, "R1007", "RUNTIME_INVALID_UTF8", diagMsg("invalid UTF-8 sequence", "byte stream", "valid UTF-8")));
+    throwIoException("Utf8DecodeException", file, node, "invalid UTF-8 sequence");
   }
   return { bytes, nextPos: pos + len };
 }
@@ -754,21 +831,11 @@ function glyphIndexAtBytePos(fileObj, node) {
     glyphs += 1;
     if (pos === targetPos) return glyphs;
     if (pos > targetPos) {
-      throw new RuntimeError(
-        rdiag(
-          fileObj.path || "<file>",
-          node,
-          "R1010",
-          "RUNTIME_IO_ERROR",
-          diagMsg("invalid tell position", "non-glyph boundary", "glyph boundary position")
-        )
-      );
+      throwIoException("InvalidGlyphPositionException", fileObj.path || "<file>", node, "invalid tell position");
     }
   }
   if (targetPos === pos) return glyphs;
-  throw new RuntimeError(
-    rdiag(fileObj.path || "<file>", node, "R1010", "RUNTIME_IO_ERROR", diagMsg("tell out of range", "position", "within file"))
-  );
+  throwIoException("InvalidGlyphPositionException", fileObj.path || "<file>", node, "tell out of range");
 }
 
 function glyphCountTotal(fileObj, node) {
@@ -794,12 +861,10 @@ function byteOffsetForGlyph(fileObj, node, glyphPos) {
     glyphs += 1;
     if (glyphs === glyphPos) return pos;
   }
-  throw new RuntimeError(
-    rdiag(fileObj.path || "<file>", node, "R1010", "RUNTIME_IO_ERROR", diagMsg("seek out of range", "position", "within file"))
-  );
+  throwIoException("InvalidGlyphPositionException", fileObj.path || "<file>", node, "seek out of range");
 }
 
-function buildModuleEnv(ast, file) {
+function buildModuleEnv(ast, file, hooks = null) {
   const importedFunctions = new Map();
   const namespaces = new Map();
   const modules = new Map();
@@ -918,36 +983,41 @@ function buildModuleEnv(ast, file) {
   ioMod.constants.set("stdin", new TextFile(0, PS_FILE_READ, true, "stdin"));
   ioMod.constants.set("stdout", new TextFile(1, PS_FILE_WRITE, true, "stdout"));
   ioMod.constants.set("stderr", new TextFile(2, PS_FILE_WRITE, true, "stderr"));
-  const ioTempDir = (node) => {
-    if (process.platform === "win32") {
-      const dir = process.env.TEMP || "";
-      if (!dir) {
-        throw new RuntimeError(
-          rdiag(file, node, "R1010", "RUNTIME_IO_ERROR", diagMsg("temp dir unavailable", "TEMP not set", "TEMP set"))
-        );
-      }
-      return dir;
+  const ioThrow = (type, node, message) => {
+    throwIoException(type, file, node, message);
+  };
+  const ioToString = (val, node) => {
+    if (typeof val === "string") return val;
+    if (typeof val === "bigint") return val.toString();
+    if (typeof val === "number") return String(val);
+    if (typeof val === "boolean") return val ? "true" : "false";
+    if (isGlyph(val)) return String.fromCodePoint(val.value);
+    if (isObjectInstance(val) && hooks && hooks.protoEnv && hooks.functions && hooks.callFunction) {
+      const info = resolveProtoMethodRuntime(hooks.protoEnv, val.__proto, "toString");
+      if (!info) ioThrow("InvalidArgumentException", node, "missing toString");
+      const fn = hooks.functions.get(`${info.proto}.toString`);
+      if (!fn) ioThrow("InvalidArgumentException", node, "missing toString");
+      const out = hooks.callFunction(fn, [val]);
+      if (typeof out !== "string") ioThrow("InvalidArgumentException", node, "toString must return string");
+      return out;
     }
+    ioThrow("InvalidArgumentException", node, "invalid argument");
+    return "";
+  };
+  const ioTempDir = (node) => {
     const dir = process.env.TMPDIR && process.env.TMPDIR.length > 0 ? process.env.TMPDIR : "/tmp";
     if (!dir) {
-      throw new RuntimeError(
-        rdiag(file, node, "R1010", "RUNTIME_IO_ERROR", diagMsg("temp dir unavailable", "TMPDIR empty", "TMPDIR or /tmp"))
-      );
+      ioThrow("IOException", node, "temp dir unavailable");
     }
     return dir;
   };
   ioMod.functions.set("openText", (pathStr, modeStr, node) => {
-    if (typeof pathStr !== "string" || typeof modeStr !== "string") {
-      throw new RuntimeError(
-        rdiag(file, node, "R1010", "RUNTIME_IO_ERROR", diagMsg("invalid Io.openText arguments", "args", "(string, string)"))
-      );
-    }
+    if (typeof pathStr !== "string") ioThrow("InvalidPathException", node, "invalid path");
+    if (typeof modeStr !== "string") ioThrow("InvalidModeException", node, "invalid mode");
     const m = modeStr;
     const valid = ["r", "w", "a"];
     if (!valid.includes(m)) {
-      throw new RuntimeError(
-        rdiag(file, node, "R1010", "RUNTIME_IO_ERROR", diagMsg("invalid mode", valueShort(m), "r|w|a"))
-      );
+      ioThrow("InvalidModeException", node, "invalid mode");
     }
     let flags = 0;
     if (m === "r") flags = PS_FILE_READ;
@@ -961,29 +1031,22 @@ function buildModuleEnv(ast, file) {
       }
       return f;
     } catch (e) {
-      throw new RuntimeError(
-        rdiag(
-          file,
-          node,
-          "R1010",
-          "RUNTIME_IO_ERROR",
-          diagMsg("open failed", String(e.message || "open failed"), "open successful")
-        )
-      );
+      const code = e && e.code ? String(e.code) : "";
+      if (code === "ENOENT") ioThrow("FileNotFoundException", node, "file not found");
+      if (code === "EACCES" || code === "EPERM") ioThrow("PermissionDeniedException", node, "permission denied");
+      if (code === "ENOTDIR" || code === "EINVAL" || code === "ENAMETOOLONG") {
+        ioThrow("InvalidPathException", node, "invalid path");
+      }
+      ioThrow("FileOpenException", node, "open failed");
     }
   });
   ioMod.functions.set("openBinary", (pathStr, modeStr, node) => {
-    if (typeof pathStr !== "string" || typeof modeStr !== "string") {
-      throw new RuntimeError(
-        rdiag(file, node, "R1010", "RUNTIME_IO_ERROR", diagMsg("invalid Io.openBinary arguments", "args", "(string, string)"))
-      );
-    }
+    if (typeof pathStr !== "string") ioThrow("InvalidPathException", node, "invalid path");
+    if (typeof modeStr !== "string") ioThrow("InvalidModeException", node, "invalid mode");
     const m = modeStr;
     const valid = ["r", "w", "a"];
     if (!valid.includes(m)) {
-      throw new RuntimeError(
-        rdiag(file, node, "R1010", "RUNTIME_IO_ERROR", diagMsg("invalid mode", valueShort(m), "r|w|a"))
-      );
+      ioThrow("InvalidModeException", node, "invalid mode");
     }
     let flags = 0;
     if (m === "r") flags = PS_FILE_READ;
@@ -999,15 +1062,13 @@ function buildModuleEnv(ast, file) {
       }
       return f;
     } catch (e) {
-      throw new RuntimeError(
-        rdiag(
-          file,
-          node,
-          "R1010",
-          "RUNTIME_IO_ERROR",
-          diagMsg("open failed", String(e.message || "open failed"), "open successful")
-        )
-      );
+      const code = e && e.code ? String(e.code) : "";
+      if (code === "ENOENT") ioThrow("FileNotFoundException", node, "file not found");
+      if (code === "EACCES" || code === "EPERM") ioThrow("PermissionDeniedException", node, "permission denied");
+      if (code === "ENOTDIR" || code === "EINVAL" || code === "ENAMETOOLONG") {
+        ioThrow("InvalidPathException", node, "invalid path");
+      }
+      ioThrow("FileOpenException", node, "open failed");
     }
   });
   ioMod.functions.set("tempPath", (node) => {
@@ -1021,27 +1082,39 @@ function buildModuleEnv(ast, file) {
       try {
         if (!fs.existsSync(candidate)) return candidate;
       } catch (e) {
-        throw new RuntimeError(
-          rdiag(
-            file,
-            node,
-            "R1010",
-            "RUNTIME_IO_ERROR",
-            diagMsg("tempPath failed", String(e.message || "tempPath failed"), "path available")
-          )
-        );
+        ioThrow("IOException", node, "tempPath failed");
       }
     }
-    throw new RuntimeError(rdiag(file, node, "R1010", "RUNTIME_IO_ERROR", "tempPath failed"));
+    ioThrow("IOException", node, "tempPath failed");
   });
-  ioMod.functions.set("print", (val) => {
-    const s = valueToString(val);
-    fs.writeSync(1, s);
+  ioMod.functions.set("print", (val, node) => {
+    const s = ioToString(val, node);
+    const buf = Buffer.from(s, "utf8");
+    let off = 0;
+    while (off < buf.length) {
+      try {
+        const n = fs.writeSync(1, buf, off, buf.length - off);
+        if (n <= 0) ioThrow("WriteFailureException", node, "write failed");
+        off += n;
+      } catch {
+        ioThrow("WriteFailureException", node, "write failed");
+      }
+    }
     return null;
   });
-  ioMod.functions.set("printLine", (val) => {
-    const s = valueToString(val);
-    fs.writeSync(1, s + "\n");
+  ioMod.functions.set("printLine", (val, node) => {
+    const s = ioToString(val, node);
+    const buf = Buffer.from(s + "\n", "utf8");
+    let off = 0;
+    while (off < buf.length) {
+      try {
+        const n = fs.writeSync(1, buf, off, buf.length - off);
+        if (n <= 0) ioThrow("WriteFailureException", node, "write failed");
+        off += n;
+      } catch {
+        ioThrow("WriteFailureException", node, "write failed");
+      }
+    }
     return null;
   });
 
@@ -1727,13 +1800,8 @@ function runProgram(ast, file, argv) {
   const main = functions.get("main");
   if (!main) return;
 
-  const moduleEnv = buildModuleEnv(ast, file);
+  let moduleEnv = null;
   const globalScope = new Scope(null);
-  for (const [alias, modName] of moduleEnv.namespaces.entries()) {
-    const mod = moduleEnv.modules.get(modName);
-    if (mod) globalScope.define(alias, mod.obj);
-  }
-
   const callFunction = (fn, args) => {
     const scope = new Scope(globalScope);
     let argIndex = 0;
@@ -1758,6 +1826,11 @@ function runProgram(ast, file, argv) {
       throw e;
     }
   };
+  moduleEnv = buildModuleEnv(ast, file, { protoEnv, functions, callFunction });
+  for (const [alias, modName] of moduleEnv.namespaces.entries()) {
+    const mod = moduleEnv.modules.get(modName);
+    if (mod) globalScope.define(alias, mod.obj);
+  }
 
   const argList = makeList(Array.isArray(argv) ? argv.slice() : []);
   const mainArgs = main.params && main.params.length === 1 ? [argList] : [];
@@ -2903,9 +2976,7 @@ function evalCall(expr, scope, functions, moduleEnv, protoEnv, file, callFunctio
       if (m.name === "close") {
         expectArity(0, 0, "RUNTIME_IO_ERROR");
         if (target.isStd) {
-          throw new RuntimeError(
-            rdiag(file, m, "R1010", "RUNTIME_IO_ERROR", diagMsg("cannot close standard stream", "standard stream", "non-standard stream"))
-          );
+          throwIoException("StandardStreamCloseException", file, m, "cannot close standard stream");
         }
         if (!target.closed) {
           fs.closeSync(target.fd);
@@ -2914,9 +2985,7 @@ function evalCall(expr, scope, functions, moduleEnv, protoEnv, file, callFunctio
         return null;
       }
       if (target.closed) {
-        throw new RuntimeError(
-          rdiag(file, m, "R1010", "RUNTIME_IO_ERROR", diagMsg("file is closed", "closed file", "open file"))
-        );
+        throwIoException("FileClosedException", file, m, "file is closed");
       }
       const isBinary = target instanceof BinaryFile;
       const canRead = (target.flags & PS_FILE_READ) !== 0;
@@ -2924,19 +2993,20 @@ function evalCall(expr, scope, functions, moduleEnv, protoEnv, file, callFunctio
       if (m.name === "read") {
         expectArity(1, 1, "RUNTIME_IO_ERROR");
         if (!canRead) {
-          throw new RuntimeError(
-            rdiag(file, m, "R1010", "RUNTIME_IO_ERROR", diagMsg("file not readable", "write-only file", "readable file"))
-          );
+          throwIoException("ReadFailureException", file, m, "file not readable");
         }
         const size = Number(args[0]);
         if (!Number.isInteger(size) || size <= 0) {
-          throw new RuntimeError(
-            rdiag(file, m, "R1010", "RUNTIME_IO_ERROR", diagMsg("invalid read size", valueShort(size), "int >= 1"))
-          );
+          throwIoException("InvalidArgumentException", file, m, "invalid read size");
         }
         if (isBinary) {
           const buf = Buffer.alloc(size);
-          const n = fs.readSync(target.fd, buf, 0, size, target.isStd ? null : target.posBytes);
+          let n = 0;
+          try {
+            n = fs.readSync(target.fd, buf, 0, size, target.isStd ? null : target.posBytes);
+          } catch {
+            throwIoException("ReadFailureException", file, m, "read failed");
+          }
           if (n === 0) return makeList([]);
           if (!target.isStd) target.posBytes += n;
           return makeList(Array.from(buf.slice(0, n)).map((b) => BigInt(b)));
@@ -2948,41 +3018,37 @@ function evalCall(expr, scope, functions, moduleEnv, protoEnv, file, callFunctio
       if (m.name === "write") {
         expectArity(1, 1, "RUNTIME_IO_ERROR");
         if (!canWrite) {
-          throw new RuntimeError(
-            rdiag(file, m, "R1010", "RUNTIME_IO_ERROR", diagMsg("file not writable", "read-only file", "writable file"))
-          );
+          throwIoException("WriteFailureException", file, m, "file not writable");
         }
         const v = args[0];
         if (!isBinary) {
           if (typeof v !== "string") {
-            throw new RuntimeError(
-              rdiag(file, m, "R1010", "RUNTIME_IO_ERROR", diagMsg("invalid write value", valueType(v), "string"))
-            );
+            throwIoException("InvalidArgumentException", file, m, "invalid write value");
           }
           if (v.length > 0) {
-            const n = fs.writeSync(target.fd, v, target.isStd ? null : target.posBytes);
-            if (!target.isStd) target.posBytes += n;
+            const buf = Buffer.from(v, "utf8");
+            const startPos = target.posBytes;
+            writeAllAtomic(target.fd, buf, target.isStd ? null : startPos, file, m);
+            if (!target.isStd) target.posBytes = startPos + buf.length;
           }
           return null;
         }
         if (!Array.isArray(v)) {
-          throw new RuntimeError(
-            rdiag(file, m, "R1010", "RUNTIME_IO_ERROR", diagMsg("invalid write value", valueType(v), "list<byte>"))
-          );
+          throwIoException("InvalidArgumentException", file, m, "invalid write value");
         }
         const bytes = [];
         for (const it of v) {
           const n = typeof it === "bigint" ? Number(it) : Number(it);
           if (!Number.isInteger(n) || n < 0 || n > 255) {
-            throw new RuntimeError(
-              rdiag(file, m, "R1010", "RUNTIME_IO_ERROR", diagMsg("byte out of range", valueShort(it), "0..255"))
-            );
+            throwIoException("InvalidArgumentException", file, m, "invalid byte value");
           }
           bytes.push(n);
         }
         if (bytes.length > 0) {
-          const n = fs.writeSync(target.fd, Buffer.from(bytes), 0, bytes.length, target.isStd ? null : target.posBytes);
-          if (!target.isStd) target.posBytes += n;
+          const buf = Buffer.from(bytes);
+          const startPos = target.posBytes;
+          writeAllAtomic(target.fd, buf, target.isStd ? null : startPos, file, m);
+          if (!target.isStd) target.posBytes = startPos + buf.length;
         }
         return null;
       }
@@ -2994,7 +3060,11 @@ function evalCall(expr, scope, functions, moduleEnv, protoEnv, file, callFunctio
       if (m.name === "size") {
         expectArity(0, 0, "RUNTIME_IO_ERROR");
         if (isBinary) {
-          return BigInt(fs.fstatSync(target.fd).size);
+          try {
+            return BigInt(fs.fstatSync(target.fd).size);
+          } catch {
+            throwIoException("ReadFailureException", file, m, "size failed");
+          }
         }
         return BigInt(glyphCountTotal(target, m));
       }
@@ -3002,16 +3072,17 @@ function evalCall(expr, scope, functions, moduleEnv, protoEnv, file, callFunctio
         expectArity(1, 1, "RUNTIME_IO_ERROR");
         const pos = Number(args[0]);
         if (!Number.isInteger(pos) || pos < 0) {
-          throw new RuntimeError(
-            rdiag(file, m, "R1010", "RUNTIME_IO_ERROR", diagMsg("invalid seek position", valueShort(pos), "pos >= 0"))
-          );
+          throwIoException("InvalidArgumentException", file, m, "invalid seek position");
         }
         if (isBinary) {
-          const size = fs.fstatSync(target.fd).size;
+          let size = 0;
+          try {
+            size = fs.fstatSync(target.fd).size;
+          } catch {
+            throwIoException("ReadFailureException", file, m, "seek failed");
+          }
           if (pos > size) {
-            throw new RuntimeError(
-              rdiag(file, m, "R1010", "RUNTIME_IO_ERROR", diagMsg("seek out of range", valueShort(pos), "within file"))
-            );
+            throwIoException("InvalidArgumentException", file, m, "seek out of range");
           }
           target.posBytes = pos;
           return null;

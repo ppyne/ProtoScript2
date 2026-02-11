@@ -201,6 +201,7 @@
       "edge/io_temp_path",
       "edge/io_text_seek_tell",
       "edge/io_print",
+      "edge/io_exceptions_basic",
       "edge/io_stdout_stderr",
       "edge/io_binary_read_write",
       "edge/io_eof_length_text",

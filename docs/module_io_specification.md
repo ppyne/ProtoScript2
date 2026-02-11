@@ -1,31 +1,90 @@
-![ProtoScript2](header.png)
+# ProtoScript2 — Module Io Specification
 
-# ProtoScript2 — Module Io (Specification v2)
-
-## Statut
-
-Cette spécification définit le module **Io** pour **ProtoScript2**.
-
-Elle décrit **uniquement** le comportement attendu dans ProtoScript2. Aucune version antérieure, aucun autre langage et aucune spécification externe ne font autorité.
-
-Cette spécification est **normative**.
+Status: Normative  
+Scope: POSIX systems only (Linux, BSD, macOS)
 
 ---
 
-## 1. Principes de conception
+# 1. Overview
 
-- I/O **synchrone** uniquement.
-- Sémantique **explicite et déterministe**.
-- Aucune conversion implicite texte/binaire.
-- Durée de vie des ressources **manuelle** (close explicite).
-- UTF-8 **strict** en lecture en mode texte.
-- Aucun buffering ou flushing implicite.
-- Les fichiers texte opèrent en **glyphes** (positions, tailles, read).
-- Les fichiers binaires opèrent en **octets**.
+Le module `Io` fournit les primitives d’entrées/sorties synchrones de ProtoScript2.
+
+Objectifs principaux :
+
+- I/O strictement synchrone
+- sémantique explicite et déterministe
+- séparation stricte texte / binaire
+- durée de vie des ressources manuelle (close explicite)
+- UTF-8 strict en mode texte
+- aucune conversion implicite texte ↔ binaire
+- aucun buffering implicite
+- aucun flush implicite
+
+Le module `Io` est un module natif chargé via le système de modules ProtoScript2.
+
+La disponibilité est déterminée par le registre des modules (résolution statique des imports) et par la présence du binaire natif correspondant au runtime.
 
 ---
 
-## 2. Interface du module
+# 2. Error Model and ABI Mapping
+
+## 2.1 Exceptions (sémantique langage)
+
+ProtoScript2 représente les erreurs runtime comme des objets d’exception.
+
+- Seules des instances de prototypes dérivant de `Exception` peuvent être levées.
+- Toute erreur issue du runtime ou d’un module natif doit lever une instance dérivant de `RuntimeException`.
+- `catch (T e)` matche par type de prototype (substitution parent/enfant).
+
+## 2.2 Prototypes d’exception Io (contrat module)
+
+`Io` définit les prototypes d’exception suivants (prototypes scellés, fournis par le module) :
+
+- `InvalidModeException : RuntimeException`
+- `FileOpenException : RuntimeException`
+- `FileNotFoundException : RuntimeException`
+- `PermissionDeniedException : RuntimeException`
+- `InvalidPathException : RuntimeException`
+- `FileClosedException : RuntimeException`
+- `InvalidArgumentException : RuntimeException`
+- `InvalidGlyphPositionException : RuntimeException`   
+- `ReadFailureException : RuntimeException`
+- `WriteFailureException : RuntimeException`
+- `Utf8DecodeException : RuntimeException`
+- `StandardStreamCloseException : RuntimeException`
+
+Règle normative : toute erreur mentionnée dans cette spécification DOIT lever une des exceptions ci-dessus.
+
+## 2.3 Exigences ABI natives
+
+Le code natif DOIT signaler une erreur via l’ABI publique :
+
+- appeler `ps_throw(ctx, <PS_ERR_*>, <message>)`
+- retourner `PS_ERR`
+
+Le runtime construit ensuite l’objet d’exception et sélectionne le prototype d’exception Io approprié.
+
+---
+
+# 3. Principes texte / binaire
+
+- Un fichier texte opère sur des `string`.
+- Un fichier binaire opère sur des `list<byte>`.
+- Aucune conversion implicite n’existe entre ces deux mondes.
+
+Mode texte :
+
+- lecture : décodage UTF-8 strict
+- positions/taille : exprimées en **glyphes**
+
+Mode binaire :
+
+- lecture : octets bruts
+- positions/taille : exprimées en **octets**
+
+---
+
+# 4. Interface du module
 
 ```ps
 import Io;
@@ -33,436 +92,409 @@ import Io;
 
 Le module expose :
 
-- des fonctions globales,
-- deux prototypes fermés **TextFile** et **BinaryFile**,
-- une constante (`Io.EOL`),
-- des flux standards.
+- des fonctions globales
+- deux prototypes fermés : `TextFile` et `BinaryFile`
+- une constante `Io.EOL`
+- trois flux standards : `Io.stdin`, `Io.stdout`, `Io.stderr`
 
-Les prototypes **TextFile** et **BinaryFile** sont **fermés** : aucun champ public, uniquement les méthodes spécifiées ici.
-
----
-
-## 3. Io.openText(path, mode) -> TextFile
-
-Ouvre un fichier texte et retourne un handle **TextFile**.
-
-### Paramètres
-
-- `path` : `string`
-- `mode` : `string`
-
-### Modes (normatif)
-
-| Mode | Signification |
-| ---- | ------------- |
-| `r`  | lecture |
-| `w`  | ecriture (truncate) |
-| `a`  | ecriture (append) |
-
-Règles normatives :
-
-- Le `mode` **DOIT** être exactement `r`, `w` ou `a`.
-- Toute autre valeur **DOIT** lever une erreur runtime (mode invalide).
-
-### Sémantique texte
-
-- Lecture/écriture de `string`.
-- Décodage UTF-8 strict en lecture (cf. §24).
-- Aucune conversion implicite de fins de ligne.
-- Aucun traitement implicite de BOM (un BOM est lu/écrit comme un glyphe normal).
-
-### Erreurs
-
-`Io.openText` **DOIT** lever une erreur runtime dans les cas suivants (liste non exhaustive) :
-
-- fichier introuvable (selon mode)
-- permissions insuffisantes
-- mode invalide
-- chemin invalide
+Les prototypes `TextFile` et `BinaryFile` sont fermés : aucun champ public, uniquement les méthodes spécifiées ici.
 
 ---
 
-## 4. Io.openBinary(path, mode) -> BinaryFile
+# 5. Modes d’ouverture
 
-Ouvre un fichier binaire et retourne un handle **BinaryFile**.
+Le paramètre `mode` est une `string`.
 
-### Paramètres
+Modes normatifs (exacts) :
 
-- `path` : `string`
-- `mode` : `string`
+- `"r"` lecture
+- `"w"` écriture (truncate)
+- `"a"` écriture (append)
 
-### Modes (normatif)
-
-Identiques a `Io.openText` : `r`, `w`, `a` uniquement.
-
-### Sémantique binaire
-
-- Lecture/écriture de `list<byte>`.
-- Aucun décodage.
-
-### Erreurs
-
-Identiques a `Io.openText`.
+Toute autre valeur DOIT lever `InvalidModeException`.
 
 ---
 
-## 5. Io.tempPath() -> string
+# 6. Io.openText
 
-Retourne un chemin temporaire **unique** et **inexistant**.
+## Io.openText(path: string, mode: string) : TextFile
 
-### Comportement (normatif)
+Ouvre un fichier texte et retourne un handle `TextFile`.
 
-- **DOIT** retourner une `string`.
-- Le chemin **DOIT** être valide pour le système courant.
-- Le chemin **DOIT** être inexistant au moment du retour.
-- La fonction **NE DOIT PAS** créer le fichier.
-- Deux appels successifs **DOIVENT** retourner deux chemins distincts.
-- **DOIT** utiliser le répertoire temporaire du système :
+Sémantique texte :
+
+- lecture/écriture de `string`
+- décodage UTF-8 strict en lecture
+- aucun traitement implicite de fin de ligne
+- aucun traitement implicite de BOM (un BOM est un glyphe)
+
+Throws :
+
+- `InvalidModeException`
+- `InvalidPathException`
+- `FileNotFoundException` (si requis par le mode)
+- `PermissionDeniedException`
+- `FileOpenException`
+
+---
+
+# 7. Io.openBinary
+
+## Io.openBinary(path: string, mode: string) : BinaryFile
+
+Ouvre un fichier binaire et retourne un handle `BinaryFile`.
+
+Sémantique binaire :
+
+- lecture/écriture de `list<byte>`
+- aucun décodage
+
+Throws :
+
+- `InvalidModeException`
+- `InvalidPathException`
+- `FileNotFoundException` (si requis par le mode)
+- `PermissionDeniedException`
+- `FileOpenException`
+
+---
+
+# 8. Io.tempPath
+
+## Io.tempPath() : string
+
+Retourne un chemin temporaire unique et inexistant.
+
+Comportement normatif :
+
+- retourne une `string`
+- le chemin DOIT être valide pour le système courant
+- le chemin DOIT être inexistant au moment du retour
+- la fonction NE DOIT PAS créer le fichier
+- deux appels successifs DOIVENT retourner deux chemins distincts
+- répertoire temporaire utilisé :
   - POSIX : `$TMPDIR` sinon `/tmp`
-  - Windows : `%TEMP%`
-- En cas d’échec système, **DOIT** lever une erreur runtime.
-- **Aucune réservation durable** n’est effectuée.
-- **Aucune suppression implicite** n’est effectuée.
-- La fonction **NE protège PAS** contre une race condition externe.
+
+Propriétés assumées :
+
+- aucune réservation durable n’est effectuée
+- aucune suppression implicite n’est effectuée
+- la fonction ne protège pas contre une race condition externe
+
+Throws :
+
+- `IOException` (échec système)
 
 ---
 
-## 6. Standard Streams (normatif)
+# 9. Flux standards
 
-Les flux standards suivants sont fournis comme **TextFile deja ouverts** :
+Les flux standards suivants sont fournis comme `TextFile` déjà ouverts :
 
 - `Io.stdin` (lecture)
-- `Io.stdout` (ecriture)
-- `Io.stderr` (ecriture)
+- `Io.stdout` (écriture)
+- `Io.stderr` (écriture)
 
 Règles normatives :
 
-- Ces flux sont **en mode texte**.
-- Ces flux **NE DOIVENT PAS** être fermés par le code utilisateur.
-- Tout appel à `close()` sur l’un d’eux **DOIT** lever une erreur runtime.
-- Leur durée de vie est celle du processus.
-
-Exemples valides :
-
-```ps
-Io.stdout.write("Hello\n");
-Io.stderr.write("Error: something went wrong\n");
-```
+- ces flux sont en mode texte
+- ces flux NE DOIVENT PAS être fermés par le code utilisateur
+- `close()` sur l’un d’eux DOIT lever `StandardStreamCloseException`
+- durée de vie : celle du processus
 
 ---
 
-## 7. Constantes
+# 10. Constantes
 
-### 6.1 Io.EOL
+## Io.EOL : string
 
 ```ps
 Io.EOL == "\n"
 ```
 
-Constante universelle de fin de ligne.
+---
+
+# 11. Io.print et Io.printLine
+
+## 11.1 Io.print(value) : void
+
+Écrit sur `Io.stdout` sans fin de ligne.
+
+Conversion normative :
+
+1. Si `value` est de type `string`, écrire la valeur telle quelle.
+2. Sinon, appeler `value.toString()`.
+3. `toString()` DOIT retourner une `string`.
+4. Si `toString()` n’existe pas, ou ne retourne pas une `string`, lever `InvalidArgumentException`.
+
+Aucune coercition globale implicite (pas de `String(value)` magique).
+
+Throws :
+
+- `InvalidArgumentException`
+- `WriteFailureException` (cf. §14)
+
+## 11.2 Io.printLine(value) : void
+
+Écrit `value` puis `Io.EOL`.
+
+Conversion : identique à `Io.print`.
+
+Throws :
+
+- `InvalidArgumentException`
+- `WriteFailureException`
 
 ---
 
-## 8. Io.print(value)
+# 12. TextFile API
 
-Ecrit `value` sur `Io.stdout` **sans ajouter de fin de ligne**.
+## 12.1 TextFile.read(size: int) : string
 
-Sémantique exacte (normative) :
+Lit `size` glyphes à partir de la position courante.
 
-```ps
-Io.print(value)
-```
+Règles :
 
-est strictement equivalent a :
+- `size` DOIT être un int strictement positif (`>= 1`)
+- EOF n’est pas une erreur
 
-```ps
-Io.stdout.write(String(value))
-```
+Retour :
 
----
+- `string`
+- `length == 0` indique EOF
 
-## 9. Io.printLine(value)
+Throws :
 
-Ecrit `value` sur `Io.stdout` **et ajoute une fin de ligne**.
+- `InvalidArgumentException`
+- `FileClosedException`
+- `Utf8DecodeException`
+- `ReadFailureException`
 
-Sémantique exacte (normative) :
+## 12.2 TextFile.write(text: string) : void
 
-```ps
-Io.printLine(value)
-```
+Écrit `text` à la position courante.
 
-est strictement equivalent a :
+Règles :
 
-```ps
-Io.print(value)
-Io.stdout.write(Io.EOL)
-```
+- `text` DOIT être une `string`
+- aucune fin de ligne implicite
 
----
+Atomicité et erreurs : cf. §14.
 
-## 10. TextFile.read(size)
+Throws :
 
-Lit `size` **glyphes** a partir de la position courante.
+- `InvalidArgumentException`
+- `FileClosedException`
+- `WriteFailureException`
 
-### Signature
+## 12.3 TextFile.tell() : int
 
-```ps
-textFile.read(size)
-```
+Retourne la position courante en glyphes.
 
-### Parametre `size` (normatif)
+Throws :
 
-- `size` **DOIT** être un entier strictement positif (`size >= 1`).
-- Si `size` n’est pas un entier, ou si `size <= 0`, l’appel **DOIT** lever une erreur runtime.
+- `FileClosedException`
+- `ReadFailureException` (si l’OS ne permet pas l’opération)
 
-### Comportement
+## 12.4 TextFile.seek(pos: int) : void
 
-- La lecture démarre a la position courante (en **glyphes**).
-- Le curseur avance du nombre de **glyphes** effectivement lus.
-- L’EOF n’est pas une erreur.
+Positionne le curseur à `pos` glyphes.
 
-### Valeur de retour
+Règles :
 
-- `string`.
-- Une longueur nulle (`length == 0`) **indique EOF**.
+- `pos` DOIT être un int `>= 0`
+- si `pos > size()`, lever `InvalidGlyphPositionException`
 
----
+Throws :
 
-## 11. TextFile.write(text)
+- `InvalidArgumentException`
+- `InvalidGlyphPositionException`
+- `FileClosedException`
+- `ReadFailureException`
 
-Ecrit `text` a la position courante.
+## 12.5 TextFile.size() : int
 
-### Signature
+Retourne la taille du fichier en glyphes.
 
-```ps
-textFile.write(text)
-```
+Throws :
 
-### Parametre `text` (normatif)
+- `FileClosedException`
+- `ReadFailureException`
 
-- `text` **DOIT** être une `string`.
+## 12.6 TextFile.name() : string
 
-### Comportement
+Retourne le chemin/nom associé au handle.
 
-- Le curseur avance du nombre de **glyphes** ecrits.
-- Aucune fin de ligne implicite n’est ajoutee.
+Throws :
 
-Toute incoherence de type **DOIT** lever une erreur runtime.
+- `FileClosedException`
 
----
-
-## 12. TextFile.tell()
-
-Retourne la position courante **en glyphes**.
-
-```ps
-textFile.tell() -> int
-```
-
----
-
-## 13. TextFile.seek(pos)
-
-Positionne le curseur a la position `pos` **en glyphes**.
-
-```ps
-textFile.seek(pos)
-```
-
-Règles normatives :
-
-- `pos` **DOIT** être un entier `>= 0`.
-- Si `pos` est superieur a `size()`, l’appel **DOIT** lever une erreur runtime.
-
----
-
-## 14. TextFile.size()
-
-Retourne la taille du fichier en **glyphes**.
-
-```ps
-textFile.size() -> int
-```
-
----
-
-## 15. TextFile.name()
-
-Retourne le chemin/nom associe au handle.
-
-```ps
-textFile.name() -> string
-```
-
----
-
-## 16. TextFile.close()
+## 12.7 TextFile.close() : void
 
 Ferme explicitement le fichier.
 
+Règles :
+
+- idempotent pour un fichier normal
+- après fermeture, toute opération DOIT lever `FileClosedException`
+
+Throws :
+
+- `StandardStreamCloseException` si appelé sur `Io.stdin/stdout/stderr`
+
+---
+
+# 13. BinaryFile API
+
+## 13.1 BinaryFile.read(size: int) : list<byte>
+
+Lit `size` octets à partir de la position courante.
+
+Règles :
+
+- `size` DOIT être un int strictement positif (`>= 1`)
+- EOF n’est pas une erreur
+
+Retour :
+
+- `list<byte>`
+- `length == 0` indique EOF
+
+Throws :
+
+- `InvalidArgumentException`
+- `FileClosedException`
+- `ReadFailureException`
+
+## 13.2 BinaryFile.write(bytes: list<byte>) : void
+
+Écrit `bytes` à la position courante.
+
+Règles :
+
+- `bytes` DOIT être un `list<byte>`
+- chaque élément DOIT être dans `0..255`
+
+Atomicité et erreurs : cf. §14.
+
+Throws :
+
+- `InvalidArgumentException`
+- `FileClosedException`
+- `WriteFailureException`
+
+## 13.3 BinaryFile.tell() : int
+
+Retourne la position courante en octets.
+
+Throws :
+
+- `FileClosedException`
+- `ReadFailureException`
+
+## 13.4 BinaryFile.seek(pos: int) : void
+
+Positionne le curseur à `pos` octets.
+
+Règles :
+
+- `pos` DOIT être un int `>= 0`
+- si `pos > size()`, lever `InvalidArgumentException`
+
+Throws :
+
+- `InvalidArgumentException`
+- `FileClosedException`
+- `ReadFailureException`
+
+## 13.5 BinaryFile.size() : int
+
+Retourne la taille du fichier en octets.
+
+Throws :
+
+- `FileClosedException`
+- `ReadFailureException`
+
+## 13.6 BinaryFile.name() : string
+
+Retourne le chemin/nom associé au handle.
+
+Throws :
+
+- `FileClosedException`
+
+## 13.7 BinaryFile.close() : void
+
+Identique à `TextFile.close()`.
+
+---
+
+# 14. Write Atomicity and Partial Write Semantics
+
+Les opérations `write()` (texte et binaire) DOIVENT être logiquement atomiques au niveau du langage.
+
 Règles normatives :
 
-- L’operation est **idempotente** pour un fichier normal : fermer un fichier deja ferme ne doit pas echouer.
-- Apres fermeture, toute operation (`read`, `write`, `tell`, `seek`, `size`, etc.) **DOIT** lever une erreur runtime.
-- Appeler `close()` sur `Io.stdin`, `Io.stdout` ou `Io.stderr` **DOIT** lever une erreur runtime (cf. §6).
+1. Si l’OS effectue une écriture partielle, l’implémentation DOIT boucler jusqu’à succès complet ou échec définitif.
+2. En cas d’échec définitif, l’implémentation DOIT lever `WriteFailureException`.
+3. Aucune écriture partielle ne DOIT être observable au niveau ProtoScript2.
+
+## 14.1 État du curseur en cas d’échec
+
+Si `write()` lève `WriteFailureException` :
+
+- la position du curseur DOIT rester identique à la position avant l’appel.
+- aucun avancement partiel n’est permis.
 
 ---
 
-## 17. BinaryFile.read(size)
+# 15. UTF-8 strict (mode texte)
 
-Lit `size` **octets** a partir de la position courante.
+Règles normatives en lecture texte :
 
-### Signature
+- décodage UTF-8 obligatoire
+- séquences UTF-8 invalides → `Utf8DecodeException`
+- octet NUL interdit → `Utf8DecodeException`
+- aucun traitement implicite de BOM
+
+---
+
+# 16. Index des glyphes (mode texte)
+
+Les opérations `read(size)`, `tell()`, `seek(pos)` et `size()` travaillent en glyphes.
+
+L’implémentation peut construire un index des positions de glyphes en parcourant le fichier (passe UTF-8).
+
+Cela peut impliquer :
+
+- un coût O(n) pour la première demande de `size()` ou `seek()`
+- une invalidation/reconstruction après `write()`
+
+Ce comportement est autorisé tant que la sémantique observable reste conforme.
+
+---
+
+# 17. Exemples
+
+## 17.1 Texte séquentiel
 
 ```ps
-binaryFile.read(size)
-```
-
-### Parametre `size` (normatif)
-
-- `size` **DOIT** être un entier strictement positif (`size >= 1`).
-- Si `size` n’est pas un entier, ou si `size <= 0`, l’appel **DOIT** lever une erreur runtime.
-
-### Comportement
-
-- La lecture démarre a la position courante (en **octets**).
-- Le curseur avance du nombre d’**octets** effectivement lus.
-- L’EOF n’est pas une erreur.
-
-### Valeur de retour
-
-- `list<byte>`.
-- Une longueur nulle (`length == 0`) **indique EOF**.
-
----
-
-## 18. BinaryFile.write(bytes)
-
-Ecrit `bytes` a la position courante.
-
-### Signature
-
-```ps
-binaryFile.write(bytes)
-```
-
-### Parametre `bytes` (normatif)
-
-- `bytes` **DOIT** être un `list<byte>`.
-- Chaque element **DOIT** être dans `0..255`.
-
-### Comportement
-
-- Le curseur avance du nombre d’**octets** ecrits.
-- Aucune conversion implicite n’est effectuee.
-
-Toute incoherence de type ou de contenu **DOIT** lever une erreur runtime.
-
----
-
-## 19. BinaryFile.tell()
-
-Retourne la position courante **en octets**.
-
-```ps
-binaryFile.tell() -> int
-```
-
----
-
-## 20. BinaryFile.seek(pos)
-
-Positionne le curseur a la position `pos` **en octets**.
-
-```ps
-binaryFile.seek(pos)
-```
-
-Règles normatives :
-
-- `pos` **DOIT** être un entier `>= 0`.
-- Si `pos` est superieur a `size()`, l’appel **DOIT** lever une erreur runtime.
-
----
-
-## 21. BinaryFile.size()
-
-Retourne la taille du fichier en **octets**.
-
-```ps
-binaryFile.size() -> int
-```
-
----
-
-## 22. BinaryFile.name()
-
-Retourne le chemin/nom associe au handle.
-
-```ps
-binaryFile.name() -> string
-```
-
----
-
-## 23. BinaryFile.close()
-
-Identique a `TextFile.close()`.
-
----
-
-## 24. UTF-8 strict (mode texte)
-
-Regles normatives en lecture texte :
-
-- Decodage UTF-8 obligatoire.
-- Sequences UTF-8 invalides → erreur.
-- Octet NUL interdit → erreur.
-- Aucun traitement implicite de BOM.
-
----
-
-## 25. Mode binaire
-
-- Aucun decodage.
-- Valeurs d’octet 0-255 autorisees.
-- Representation : `list<byte>`.
-
----
-
-## 26. Index des glyphes (mode texte)
-
-Les operations `read(size)`, `tell()`, `seek(pos)` et `size()` travaillent en **glyphes**.
-
-L’implementation **peut** construire un index des positions de glyphes en parcourant le fichier (passe UTF-8). Cela peut impliquer :
-
-- un cout **O(n)** pour la premiere demande de `size()` ou `seek()`,
-- une invalidation/reconstruction apres `write()`.
-
-Ce comportement est **autorise** tant que la semantique observable reste conforme.
-
----
-
-## 27. Exemples
-
-### 26.1 Texte sequentiel
-
-```ps
-var f = Io.openText("notes.txt", "r");
+TextFile f = Io.openText("notes.txt", "r");
 while (true) {
-  var s = f.read(128);
+  string s = f.read(128);
   if (s.length == 0) break;
   Io.print(s);
 }
 f.close();
 ```
 
-### 26.2 Binaire sequentiel
+## 17.2 Binaire séquentiel
 
 ```ps
-var f = Io.openBinary("data.bin", "r");
+BinaryFile f = Io.openBinary("data.bin", "r");
 while (true) {
-  var chunk = f.read(1024);
+  list<byte> chunk = f.read(1024);
   if (chunk.length == 0) break;
   process(chunk);
 }
@@ -471,7 +503,7 @@ f.close();
 
 ---
 
-## 28. Non-objectifs
+# 18. Non-objectifs
 
 - I/O asynchrone
 - mmap
@@ -480,10 +512,19 @@ f.close();
 
 ---
 
-## 29. Exigences d’implementation
+# 19. Exigences d’implémentation
 
-- Module natif C.
-- Respect strict des regles de type.
-- Tests couvrant texte, binaire, EOF via longueur nulle, erreurs, seek/tell/size.
+- module natif C
+- respect strict des règles de type
+- tests couvrant :
+  - texte, binaire
+  - EOF via longueur nulle
+  - erreurs typées
+  - seek/tell/size
+  - UTF-8 strict
+  - atomicité write et échec d’écriture
 
-Fin de la specification.
+---
+
+# End of Specification
+

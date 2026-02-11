@@ -1,0 +1,5 @@
+{
+  "status": "accept-runtime",
+  "expected_stdout": "InvalidModeException\nFileNotFoundException\nInvalidPathException\nFileClosedException\nInvalidArgumentException\nInvalidGlyphPositionException\nUtf8DecodeException\nStandardStreamCloseException\nReadFailureException\nWriteFailureException\n",
+  "requires": ["modules"]
+}

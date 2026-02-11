@@ -390,12 +390,20 @@ static int expect_arity(PS_Context *ctx, IRInstr *ins, size_t min, size_t max) {
   return 1;
 }
 
+static void ps_throw_io(PS_Context *ctx, const char *type, const char *msg) {
+  char buf[256];
+  const char *t = type ? type : "IOException";
+  const char *m = msg ? msg : "";
+  snprintf(buf, sizeof(buf), "io:%s:%s", t, m);
+  ps_throw(ctx, PS_ERR_INTERNAL, buf);
+}
+
 static int read_utf8_glyph_stream(PS_Context *ctx, FILE *fp, uint8_t out[4], size_t *out_len) {
   int c0 = fgetc(fp);
   if (c0 == EOF) return 0;
   uint8_t b0 = (uint8_t)c0;
   if (b0 == 0) {
-    ps_throw_diag(ctx, PS_ERR_UTF8, "invalid UTF-8 sequence", "NUL byte", "non-NUL UTF-8 byte");
+    ps_throw_io(ctx, "Utf8DecodeException", "invalid UTF-8");
     return -1;
   }
   size_t len = 0;
@@ -413,38 +421,38 @@ static int read_utf8_glyph_stream(PS_Context *ctx, FILE *fp, uint8_t out[4], siz
     len = 4;
     cp = (uint32_t)(b0 & 0x07);
   } else {
-    ps_throw_diag(ctx, PS_ERR_UTF8, "invalid UTF-8 sequence", "byte stream", "valid UTF-8");
+    ps_throw_io(ctx, "Utf8DecodeException", "invalid UTF-8");
     return -1;
   }
   out[0] = b0;
   for (size_t i = 1; i < len; i++) {
     int ci = fgetc(fp);
     if (ci == EOF) {
-      ps_throw_diag(ctx, PS_ERR_UTF8, "invalid UTF-8 sequence", "byte stream", "valid UTF-8");
+      ps_throw_io(ctx, "Utf8DecodeException", "invalid UTF-8");
       return -1;
     }
     uint8_t bi = (uint8_t)ci;
     if ((bi & 0xC0) != 0x80) {
-      ps_throw_diag(ctx, PS_ERR_UTF8, "invalid UTF-8 sequence", "byte stream", "valid UTF-8");
+      ps_throw_io(ctx, "Utf8DecodeException", "invalid UTF-8");
       return -1;
     }
     if (bi == 0) {
-      ps_throw_diag(ctx, PS_ERR_UTF8, "invalid UTF-8 sequence", "NUL byte", "non-NUL UTF-8 byte");
+      ps_throw_io(ctx, "Utf8DecodeException", "invalid UTF-8");
       return -1;
     }
     out[i] = bi;
     cp = (cp << 6) | (uint32_t)(bi & 0x3F);
   }
   if (len == 2 && cp < 0x80) {
-    ps_throw_diag(ctx, PS_ERR_UTF8, "invalid UTF-8 sequence", "byte stream", "valid UTF-8");
+    ps_throw_io(ctx, "Utf8DecodeException", "invalid UTF-8");
     return -1;
   }
   if (len == 3 && cp < 0x800) {
-    ps_throw_diag(ctx, PS_ERR_UTF8, "invalid UTF-8 sequence", "byte stream", "valid UTF-8");
+    ps_throw_io(ctx, "Utf8DecodeException", "invalid UTF-8");
     return -1;
   }
   if (len == 4 && (cp < 0x10000 || cp > 0x10FFFF)) {
-    ps_throw_diag(ctx, PS_ERR_UTF8, "invalid UTF-8 sequence", "byte stream", "valid UTF-8");
+    ps_throw_io(ctx, "Utf8DecodeException", "invalid UTF-8");
     return -1;
   }
   *out_len = len;
@@ -515,7 +523,7 @@ static int64_t file_tell_glyphs(PS_Context *ctx, PS_File *f) {
     if (pos > cur) break;
   }
   fseek(f->fp, cur, SEEK_SET);
-  ps_throw_diag(ctx, PS_ERR_RANGE, "invalid tell position", "non-glyph boundary", "glyph boundary position");
+  ps_throw_io(ctx, "InvalidGlyphPositionException", "invalid tell position");
   return -1;
 }
 
@@ -523,7 +531,7 @@ static int file_seek_glyphs(PS_Context *ctx, PS_File *f, int64_t pos) {
   if (pos < 0) {
     char got[64];
     snprintf(got, sizeof(got), "%lld", (long long)pos);
-    ps_throw_diag(ctx, PS_ERR_RANGE, "invalid seek position", got, "pos >= 0");
+    ps_throw_io(ctx, "InvalidArgumentException", "invalid seek position");
     return 0;
   }
   fseek(f->fp, 0, SEEK_SET);
@@ -546,7 +554,7 @@ static int file_seek_glyphs(PS_Context *ctx, PS_File *f, int64_t pos) {
   {
     char got[64];
     snprintf(got, sizeof(got), "%lld", (long long)pos);
-    ps_throw_diag(ctx, PS_ERR_RANGE, "seek out of range", got, "position within file");
+    ps_throw_io(ctx, "InvalidGlyphPositionException", "seek out of range");
   }
   return 0;
 }
@@ -1128,9 +1136,24 @@ static PS_Value *make_exception(PS_Context *ctx, const char *type_name, const ch
 }
 
 static PS_Value *make_runtime_exception_from_error(PS_Context *ctx) {
+  const char *msg = ps_last_error_message(ctx);
+  if (msg && strncmp(msg, "io:", 3) == 0) {
+    const char *type = msg + 3;
+    const char *sep = strchr(type, ':');
+    if (sep && sep > type) {
+      size_t len = (size_t)(sep - type);
+      char type_buf[128];
+      if (len < sizeof(type_buf)) {
+        memcpy(type_buf, type, len);
+        type_buf[len] = '\0';
+        const char *body = sep + 1;
+        return make_exception(ctx, type_buf, "RuntimeException", 1, "", 1, 1, body, NULL, NULL, NULL);
+      }
+    }
+  }
   const char *code = NULL;
-  const char *category = ps_runtime_category(ps_last_error_code(ctx), ps_last_error_message(ctx), &code);
-  return make_exception(ctx, "RuntimeException", "Exception", 1, "", 1, 1, ps_last_error_message(ctx), NULL, code, category);
+  const char *category = ps_runtime_category(ps_last_error_code(ctx), msg, &code);
+  return make_exception(ctx, "RuntimeException", "Exception", 1, "", 1, 1, msg, NULL, code, category);
 }
 
 static void set_exception_location(PS_Context *ctx, PS_Value *v, const char *file, int line, int col) {
@@ -2066,7 +2089,7 @@ static int exec_function(PS_Context *ctx, PS_IR_Module *m, IRFunction *f, PS_Val
           if (strcmp(ins->method, "close") == 0) {
             if (!expect_arity(ctx, ins, 0, 0)) goto raise;
             if (f->flags & PS_FILE_STD) {
-              ps_throw_diag(ctx, PS_ERR_RANGE, "cannot close standard stream", "standard stream", "non-standard stream");
+              ps_throw_io(ctx, "StandardStreamCloseException", "cannot close standard stream");
               goto raise;
             }
             if (!f->closed && f->fp) {
@@ -2080,7 +2103,7 @@ static int exec_function(PS_Context *ctx, PS_IR_Module *m, IRFunction *f, PS_Val
             continue;
           }
           if (f->closed || !f->fp) {
-            ps_throw_diag(ctx, PS_ERR_RANGE, "file is closed", "closed file", "open file");
+            ps_throw_io(ctx, "FileClosedException", "file is closed");
             goto raise;
           }
           if (strcmp(ins->method, "name") == 0) {
@@ -2097,7 +2120,7 @@ static int exec_function(PS_Context *ctx, PS_IR_Module *m, IRFunction *f, PS_Val
             if (is_binary) {
               int64_t pos = file_tell_bytes(ctx, f);
               if (pos < 0) {
-                ps_throw_diag(ctx, PS_ERR_INTERNAL, "tell failed", "I/O failure", "valid stream position");
+                ps_throw_io(ctx, "ReadFailureException", "tell failed");
                 goto raise;
               }
               PS_Value *iv = ps_make_int(ctx, pos);
@@ -2134,7 +2157,7 @@ static int exec_function(PS_Context *ctx, PS_IR_Module *m, IRFunction *f, PS_Val
             if (!sv || sv->tag != PS_V_INT) {
               char got[64];
               snprintf(got, sizeof(got), "%s", value_type_name(sv));
-              ps_throw_diag(ctx, PS_ERR_RANGE, "invalid seek position", got, "int");
+              ps_throw_io(ctx, "InvalidArgumentException", "invalid seek position");
               goto raise;
             }
             if (is_binary) {
@@ -2142,7 +2165,7 @@ static int exec_function(PS_Context *ctx, PS_IR_Module *m, IRFunction *f, PS_Val
               if (pos < 0 || pos > file_size_bytes(ctx, f)) {
                 char got[64];
                 snprintf(got, sizeof(got), "%lld", (long long)pos);
-                ps_throw_diag(ctx, PS_ERR_RANGE, "seek out of range", got, "position within file");
+                ps_throw_io(ctx, "InvalidArgumentException", "seek out of range");
                 goto raise;
               }
               fseek(f->fp, (long)pos, SEEK_SET);
@@ -2154,20 +2177,20 @@ static int exec_function(PS_Context *ctx, PS_IR_Module *m, IRFunction *f, PS_Val
           if (strcmp(ins->method, "read") == 0) {
             if (!expect_arity(ctx, ins, 1, 1)) goto raise;
             if (!can_read) {
-              ps_throw_diag(ctx, PS_ERR_RANGE, "file not readable", "write-only file", "readable file");
+              ps_throw_io(ctx, "ReadFailureException", "file not readable");
               goto raise;
             }
             PS_Value *sv = get_value(&temps, &vars, ins->args[0]);
             if (!sv || sv->tag != PS_V_INT) {
               char got[64];
               snprintf(got, sizeof(got), "%s", value_type_name(sv));
-              ps_throw_diag(ctx, PS_ERR_RANGE, "invalid read size", got, "int >= 1");
+              ps_throw_io(ctx, "InvalidArgumentException", "invalid read size");
               goto raise;
             }
             if (sv->as.int_v <= 0) {
               char got[64];
               snprintf(got, sizeof(got), "%lld", (long long)sv->as.int_v);
-              ps_throw_diag(ctx, PS_ERR_RANGE, "invalid read size", got, "int >= 1");
+              ps_throw_io(ctx, "InvalidArgumentException", "invalid read size");
               goto raise;
             }
             size_t want = (size_t)sv->as.int_v;
@@ -2180,7 +2203,7 @@ static int exec_function(PS_Context *ctx, PS_IR_Module *m, IRFunction *f, PS_Val
               size_t n = fread(buf, 1, want, f->fp);
               if (ferror(f->fp)) {
                 free(buf);
-                ps_throw_diag(ctx, PS_ERR_INTERNAL, "read failed", "I/O failure", "successful read");
+                ps_throw_io(ctx, "ReadFailureException", "read failed");
                 goto raise;
               }
               if (n == 0) {
@@ -2249,7 +2272,7 @@ static int exec_function(PS_Context *ctx, PS_IR_Module *m, IRFunction *f, PS_Val
           if (strcmp(ins->method, "write") == 0) {
             if (!expect_arity(ctx, ins, 1, 1)) goto raise;
             if (!can_write) {
-              ps_throw_diag(ctx, PS_ERR_RANGE, "file not writable", "read-only file", "writable file");
+              ps_throw_io(ctx, "WriteFailureException", "file not writable");
               goto raise;
             }
             PS_Value *arg = get_value(&temps, &vars, ins->args[0]);
@@ -2258,21 +2281,27 @@ static int exec_function(PS_Context *ctx, PS_IR_Module *m, IRFunction *f, PS_Val
               if (arg->tag != PS_V_STRING) {
                 char got[64];
                 snprintf(got, sizeof(got), "%s", value_type_name(arg));
-                ps_throw_diag(ctx, PS_ERR_TYPE, "invalid write value", got, "string");
+                ps_throw_io(ctx, "InvalidArgumentException", "invalid write value");
                 goto raise;
               }
               if (arg->as.string_v.len > 0) {
-                fwrite(arg->as.string_v.ptr, 1, arg->as.string_v.len, f->fp);
-              }
-              if (ferror(f->fp)) {
-                ps_throw_diag(ctx, PS_ERR_INTERNAL, "write failed", "I/O failure", "successful write");
-                goto raise;
+                long start = ftell(f->fp);
+                size_t off = 0;
+                while (off < arg->as.string_v.len) {
+                  size_t n = fwrite(arg->as.string_v.ptr + off, 1, arg->as.string_v.len - off, f->fp);
+                  if (n == 0 || ferror(f->fp)) {
+                    if (start >= 0) fseek(f->fp, start, SEEK_SET);
+                    ps_throw_io(ctx, "WriteFailureException", "write failed");
+                    goto raise;
+                  }
+                  off += n;
+                }
               }
             } else {
               if (arg->tag != PS_V_LIST) {
                 char got[64];
                 snprintf(got, sizeof(got), "%s", value_type_name(arg));
-                ps_throw_diag(ctx, PS_ERR_TYPE, "invalid write value", got, "list<byte>");
+                ps_throw_io(ctx, "InvalidArgumentException", "invalid write value");
                 goto raise;
               }
               size_t n = arg->as.list_v.len;
@@ -2288,7 +2317,7 @@ static int exec_function(PS_Context *ctx, PS_IR_Module *m, IRFunction *f, PS_Val
                   {
                     char got[64];
                     snprintf(got, sizeof(got), "%s", value_type_name(it));
-                    ps_throw_diag(ctx, PS_ERR_TYPE, "invalid byte list element", got, "byte or int");
+                    ps_throw_io(ctx, "InvalidArgumentException", "invalid byte value");
                   }
                   goto raise;
                 }
@@ -2298,17 +2327,25 @@ static int exec_function(PS_Context *ctx, PS_IR_Module *m, IRFunction *f, PS_Val
                   {
                     char got[32];
                     snprintf(got, sizeof(got), "%lld", (long long)v);
-                    ps_throw_diag(ctx, PS_ERR_RANGE, "byte out of range", got, "0..255");
+                    ps_throw_io(ctx, "InvalidArgumentException", "invalid byte value");
                   }
                   goto raise;
                 }
                 buf[i] = (uint8_t)v;
               }
-              if (n > 0) fwrite(buf, 1, n, f->fp);
-              if (ferror(f->fp)) {
-                free(buf);
-                ps_throw_diag(ctx, PS_ERR_INTERNAL, "write failed", "I/O failure", "successful write");
-                goto raise;
+              if (n > 0) {
+                long start = ftell(f->fp);
+                size_t off = 0;
+                while (off < n) {
+                  size_t wn = fwrite(buf + off, 1, n - off, f->fp);
+                  if (wn == 0 || ferror(f->fp)) {
+                    if (start >= 0) fseek(f->fp, start, SEEK_SET);
+                    free(buf);
+                    ps_throw_io(ctx, "WriteFailureException", "write failed");
+                    goto raise;
+                  }
+                  off += wn;
+                }
               }
               free(buf);
             }

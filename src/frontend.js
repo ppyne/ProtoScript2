@@ -1364,10 +1364,31 @@ class Analyzer {
       "InvalidDateException",
       "InvalidISOFormatException",
     ];
+    const ioExceptions = [
+      "InvalidModeException",
+      "FileOpenException",
+      "FileNotFoundException",
+      "PermissionDeniedException",
+      "InvalidPathException",
+      "FileClosedException",
+      "InvalidArgumentException",
+      "InvalidGlyphPositionException",
+      "ReadFailureException",
+      "WriteFailureException",
+      "Utf8DecodeException",
+      "StandardStreamCloseException",
+      "IOException",
+    ];
     for (const name of timeExceptions) {
       if (!this.prototypes.has(name)) {
         const decl = { line: 1, col: 1 };
         this.prototypes.set(name, { decl, parent: "Exception", fields: new Map(), methods: new Map() });
+      }
+    }
+    for (const name of ioExceptions) {
+      if (!this.prototypes.has(name)) {
+        const decl = { line: 1, col: 1 };
+        this.prototypes.set(name, { decl, parent: "RuntimeException", fields: new Map(), methods: new Map() });
       }
     }
     for (const d of this.ast.decls) {
@@ -1376,7 +1397,8 @@ class Analyzer {
         d.name === "Exception" ||
         d.name === "RuntimeException" ||
         d.name === "CivilDateTime" ||
-        timeExceptions.includes(d.name)
+        timeExceptions.includes(d.name) ||
+        ioExceptions.includes(d.name)
       ) {
         this.addDiag(d, "E2001", "UNRESOLVED_NAME", "reserved prototype name");
         continue;

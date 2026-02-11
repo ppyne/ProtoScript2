@@ -1,0 +1,79 @@
+import Io;
+
+function main() : void {
+    TextFile f = Io.openText("io_exceptions.txt", "w");
+    f.write("abc");
+    f.close();
+
+    try {
+        Io.openText("io_exceptions.txt", "x");
+    } catch (InvalidModeException e) {
+        Io.printLine("InvalidModeException");
+    }
+
+    try {
+        Io.openText("io_exceptions_missing.txt", "r");
+    } catch (FileNotFoundException e) {
+        Io.printLine("FileNotFoundException");
+    }
+
+    try {
+        Io.openText("io_exceptions.txt/child", "r");
+    } catch (InvalidPathException e) {
+        Io.printLine("InvalidPathException");
+    }
+
+    TextFile fc = Io.openText("io_exceptions.txt", "r");
+    fc.close();
+    try {
+        fc.read(1);
+    } catch (FileClosedException e) {
+        Io.printLine("FileClosedException");
+    }
+
+    TextFile fr = Io.openText("io_exceptions.txt", "r");
+    try {
+        fr.read(0);
+    } catch (InvalidArgumentException e) {
+        Io.printLine("InvalidArgumentException");
+    }
+    fr.close();
+
+    TextFile fg = Io.openText("io_exceptions.txt", "r");
+    try {
+        fg.seek(4);
+    } catch (InvalidGlyphPositionException e) {
+        Io.printLine("InvalidGlyphPositionException");
+    }
+    fg.close();
+
+    TextFile fb = Io.openText("io_utf8_bad.bin", "r");
+    try {
+        fb.read(1);
+    } catch (Utf8DecodeException e) {
+        Io.printLine("Utf8DecodeException");
+    }
+    fb.close();
+
+    try {
+        Io.stdout.close();
+    } catch (StandardStreamCloseException e) {
+        Io.printLine("StandardStreamCloseException");
+    }
+
+    TextFile fw = Io.openText("io_exceptions.txt", "w");
+    try {
+        fw.read(1);
+    } catch (ReadFailureException e) {
+        Io.printLine("ReadFailureException");
+    }
+    fw.close();
+
+    TextFile fr2 = Io.openText("io_exceptions.txt", "r");
+    try {
+        fr2.write("x");
+    } catch (WriteFailureException e) {
+        Io.printLine("WriteFailureException");
+    }
+    fr2.close();
+}

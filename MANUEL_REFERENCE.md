@@ -1798,47 +1798,51 @@ Le chargeur utilise un registry JSON pour résoudre `import Io`, `import Math`, 
 
 | Fonction | Signature | Description | Erreurs |
 |---|---|---|---|
-| `Io.openText` | `(string path, string mode) -> TextFile` | ouvre un fichier texte | runtime si mode invalide |
-| `Io.openBinary` | `(string path, string mode) -> BinaryFile` | ouvre un fichier binaire | runtime si mode invalide |
-| `Io.tempPath` | `() -> string` | chemin temporaire unique (non créé) | runtime si échec système |
-| `Io.print` | `(any value) -> void` | écrit sans fin de ligne | type si valeur incompatible |
-| `Io.printLine` | `(any value) -> void` | écrit + `Io.EOL` | type si valeur incompatible |
+| `Io.openText` | `(string path, string mode) -> TextFile` | ouvre un fichier texte | `InvalidModeException`, `InvalidPathException`, `FileNotFoundException`, `PermissionDeniedException`, `FileOpenException` |
+| `Io.openBinary` | `(string path, string mode) -> BinaryFile` | ouvre un fichier binaire | `InvalidModeException`, `InvalidPathException`, `FileNotFoundException`, `PermissionDeniedException`, `FileOpenException` |
+| `Io.tempPath` | `() -> string` | chemin temporaire unique (non créé) | `IOException` |
+| `Io.print` | `(any value) -> void` | écrit sans fin de ligne | `InvalidArgumentException`, `WriteFailureException` |
+| `Io.printLine` | `(any value) -> void` | écrit + `Io.EOL` | `InvalidArgumentException`, `WriteFailureException` |
 
 Notes :
 
-- `Io.openText(...)` / `Io.openBinary(...)` **lèvent une exception runtime** si l’ouverture échoue (fichier introuvable, permissions, mode invalide, etc.).
+- `Io.openText(...)` / `Io.openBinary(...)` lèvent une exception runtime si l’ouverture échoue.
 - en cas d’échec, **aucun handle n’est retourné**.
 - `Io.tempPath()` retourne un chemin **inexistant** et **ne crée pas le fichier**.
+- `Io.tempPath()` utilise `$TMPDIR` sinon `/tmp` et ne protège pas contre une race condition externe.
+- `Io.print(...)` / `Io.printLine(...)` : si `value` n’est pas une `string`, `toString()` est appelé et doit retourner une `string`, sinon `InvalidArgumentException`.
+- Exceptions Io (toutes `RuntimeException`) : `InvalidModeException`, `FileOpenException`, `FileNotFoundException`, `PermissionDeniedException`, `InvalidPathException`, `FileClosedException`, `InvalidArgumentException`, `InvalidGlyphPositionException`, `ReadFailureException`, `WriteFailureException`, `Utf8DecodeException`, `StandardStreamCloseException`, `IOException`.
 
 **Méthodes sur `TextFile`**
 
 | Méthode | Signature | Description | Erreurs |
 |---|---|---|---|
-| `read(size)` | `(int) -> string` | lit `size` glyphes | runtime si size < 1 |
-| `write(text)` | `(string) -> void` | écrit du texte | runtime si type invalide |
-| `tell()` | `() -> int` | position en glyphes | runtime si fichier fermé |
-| `seek(pos)` | `(int) -> void` | positionne en glyphes | runtime si pos invalide |
-| `size()` | `() -> int` | taille en glyphes | runtime si fichier fermé |
-| `name()` | `() -> string` | nom/chemin | runtime si fichier fermé |
-| `close()` | `() -> void` | ferme le fichier | runtime si stdin/stdout/stderr |
+| `read(size)` | `(int) -> string` | lit `size` glyphes | `InvalidArgumentException`, `FileClosedException`, `Utf8DecodeException`, `ReadFailureException` |
+| `write(text)` | `(string) -> void` | écrit du texte | `InvalidArgumentException`, `FileClosedException`, `WriteFailureException` |
+| `tell()` | `() -> int` | position en glyphes | `FileClosedException`, `ReadFailureException` |
+| `seek(pos)` | `(int) -> void` | positionne en glyphes | `InvalidArgumentException`, `InvalidGlyphPositionException`, `FileClosedException`, `ReadFailureException` |
+| `size()` | `() -> int` | taille en glyphes | `FileClosedException`, `ReadFailureException` |
+| `name()` | `() -> string` | nom/chemin | `FileClosedException` |
+| `close()` | `() -> void` | ferme le fichier | `StandardStreamCloseException` si stdin/stdout/stderr |
 
 **Méthodes sur `BinaryFile`**
 
 | Méthode | Signature | Description | Erreurs |
 |---|---|---|---|
-| `read(size)` | `(int) -> list<byte>` | lit `size` octets | runtime si size < 1 |
-| `write(bytes)` | `(list<byte>) -> void` | écrit des octets | runtime si type invalide |
-| `tell()` | `() -> int` | position en octets | runtime si fichier fermé |
-| `seek(pos)` | `(int) -> void` | positionne en octets | runtime si pos invalide |
-| `size()` | `() -> int` | taille en octets | runtime si fichier fermé |
-| `name()` | `() -> string` | nom/chemin | runtime si fichier fermé |
-| `close()` | `() -> void` | ferme le fichier | runtime si stdin/stdout/stderr |
+| `read(size)` | `(int) -> list<byte>` | lit `size` octets | `InvalidArgumentException`, `FileClosedException`, `ReadFailureException` |
+| `write(bytes)` | `(list<byte>) -> void` | écrit des octets | `InvalidArgumentException`, `FileClosedException`, `WriteFailureException` |
+| `tell()` | `() -> int` | position en octets | `FileClosedException`, `ReadFailureException` |
+| `seek(pos)` | `(int) -> void` | positionne en octets | `InvalidArgumentException`, `FileClosedException`, `ReadFailureException` |
+| `size()` | `() -> int` | taille en octets | `FileClosedException`, `ReadFailureException` |
+| `name()` | `() -> string` | nom/chemin | `FileClosedException` |
+| `close()` | `() -> void` | ferme le fichier | `StandardStreamCloseException` si stdin/stdout/stderr |
 
 Notes :
 
 - en texte, `read(size)` retourne une `string` dont la longueur est le nombre de **glyphes** lus.
 - en binaire, `read(size)` retourne un `list<byte>`.
 - `read(size)` retourne une **valeur de longueur nulle** (`length == 0`) si EOF.
+- les écritures sont atomiques : aucune écriture partielle ne doit être observable et en cas d’échec la position du curseur est inchangée.
 
 Exemple :
 

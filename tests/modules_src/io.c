@@ -2,16 +2,10 @@
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
-#include <time.h>
 #include <sys/stat.h>
-
-#ifdef _WIN32
-#include <io.h>
-#include <process.h>
-#else
 #include <unistd.h>
 #include <fcntl.h>
-#endif
+#include <time.h>
 
 #include "ps/ps_api.h"
 
@@ -32,25 +26,37 @@ static int parse_mode(const char *mode, uint32_t *flags, char out[3], int binary
   return 1;
 }
 
+static PS_Status io_throw(PS_Context *ctx, const char *type, const char *msg) {
+  char buf[256];
+  const char *t = type ? type : "IOException";
+  const char *m = msg ? msg : "";
+  snprintf(buf, sizeof(buf), "io:%s:%s", t, m);
+  ps_throw(ctx, PS_ERR_INTERNAL, buf);
+  return PS_ERR;
+}
+
+static PS_Status io_throw_errno(PS_Context *ctx, int err) {
+  if (err == ENOENT) return io_throw(ctx, "FileNotFoundException", "file not found");
+  if (err == EACCES || err == EPERM) return io_throw(ctx, "PermissionDeniedException", "permission denied");
+  if (err == ENOTDIR || err == EINVAL || err == ENAMETOOLONG) return io_throw(ctx, "InvalidPathException", "invalid path");
+  return io_throw(ctx, "FileOpenException", "open failed");
+}
+
 static PS_Status io_open_text(PS_Context *ctx, int argc, PS_Value **argv, PS_Value **out) {
   (void)argc;
   if (!argv || !out) return PS_ERR;
-  if (ps_typeof(argv[0]) != PS_T_STRING || ps_typeof(argv[1]) != PS_T_STRING) {
-    ps_throw(ctx, PS_ERR_TYPE, "Io.openText expects (string, string)");
-    return PS_ERR;
-  }
+  if (ps_typeof(argv[0]) != PS_T_STRING) return io_throw(ctx, "InvalidPathException", "invalid path");
+  if (ps_typeof(argv[1]) != PS_T_STRING) return io_throw(ctx, "InvalidModeException", "invalid mode");
   const char *path = ps_string_ptr(argv[0]);
   const char *mode = ps_string_ptr(argv[1]);
   uint32_t flags = 0;
   char fmode[3];
   if (!parse_mode(mode, &flags, fmode, 0)) {
-    ps_throw(ctx, PS_ERR_RANGE, "invalid mode");
-    return PS_ERR;
+    return io_throw(ctx, "InvalidModeException", "invalid mode");
   }
   FILE *fp = fopen(path, fmode);
   if (!fp) {
-    ps_throw(ctx, PS_ERR_INTERNAL, strerror(errno));
-    return PS_ERR;
+    return io_throw_errno(ctx, errno);
   }
   PS_Value *f = ps_make_file(ctx, fp, flags, path);
   if (!f) {
@@ -64,22 +70,18 @@ static PS_Status io_open_text(PS_Context *ctx, int argc, PS_Value **argv, PS_Val
 static PS_Status io_open_binary(PS_Context *ctx, int argc, PS_Value **argv, PS_Value **out) {
   (void)argc;
   if (!argv || !out) return PS_ERR;
-  if (ps_typeof(argv[0]) != PS_T_STRING || ps_typeof(argv[1]) != PS_T_STRING) {
-    ps_throw(ctx, PS_ERR_TYPE, "Io.openBinary expects (string, string)");
-    return PS_ERR;
-  }
+  if (ps_typeof(argv[0]) != PS_T_STRING) return io_throw(ctx, "InvalidPathException", "invalid path");
+  if (ps_typeof(argv[1]) != PS_T_STRING) return io_throw(ctx, "InvalidModeException", "invalid mode");
   const char *path = ps_string_ptr(argv[0]);
   const char *mode = ps_string_ptr(argv[1]);
   uint32_t flags = 0;
   char fmode[3];
   if (!parse_mode(mode, &flags, fmode, 1)) {
-    ps_throw(ctx, PS_ERR_RANGE, "invalid mode");
-    return PS_ERR;
+    return io_throw(ctx, "InvalidModeException", "invalid mode");
   }
   FILE *fp = fopen(path, fmode);
   if (!fp) {
-    ps_throw(ctx, PS_ERR_INTERNAL, strerror(errno));
-    return PS_ERR;
+    return io_throw_errno(ctx, errno);
   }
   PS_Value *f = ps_make_file(ctx, fp, flags, path);
   if (!f) {
@@ -93,31 +95,15 @@ static PS_Status io_open_binary(PS_Context *ctx, int argc, PS_Value **argv, PS_V
 static uint64_t io_temp_seq = 0;
 
 static const char *io_temp_dir(PS_Context *ctx) {
-#ifndef _WIN32
   (void)ctx;
-#endif
-#ifdef _WIN32
-  const char *dir = getenv("TEMP");
-  if (!dir || dir[0] == '\0') {
-    ps_throw(ctx, PS_ERR_INTERNAL, "TEMP not set");
-    return NULL;
-  }
-  return dir;
-#else
   const char *dir = getenv("TMPDIR");
   if (!dir || dir[0] == '\0') dir = "/tmp";
   return dir;
-#endif
 }
 
 static int io_path_exists(const char *path) {
-#ifdef _WIN32
-  struct _stat st;
-  return _stat(path, &st) == 0;
-#else
   struct stat st;
   return stat(path, &st) == 0;
-#endif
 }
 
 static void io_seed_rand(void) {
@@ -125,26 +111,11 @@ static void io_seed_rand(void) {
   if (seeded) return;
   seeded = 1;
   unsigned int seed = (unsigned int)time(NULL);
-#ifdef _WIN32
-  seed ^= (unsigned int)_getpid();
-#else
   seed ^= (unsigned int)getpid();
-#endif
   srand(seed);
 }
 
 static int io_rand_bytes(uint8_t *out, size_t n) {
-#ifdef _WIN32
-  for (size_t i = 0; i < n; i += 1) {
-    unsigned int v = 0;
-    if (rand_s(&v) != 0) {
-      io_seed_rand();
-      v = (unsigned int)rand();
-    }
-    out[i] = (uint8_t)(v & 0xFF);
-  }
-  return 1;
-#else
   int fd = open("/dev/urandom", O_RDONLY);
   if (fd >= 0) {
     size_t off = 0;
@@ -159,7 +130,6 @@ static int io_rand_bytes(uint8_t *out, size_t n) {
   io_seed_rand();
   for (size_t i = 0; i < n; i += 1) out[i] = (uint8_t)(rand() & 0xFF);
   return 1;
-#endif
 }
 
 static void io_hex_encode(const uint8_t *in, size_t n, char *out) {
@@ -181,21 +151,14 @@ static PS_Status io_temp_path(PS_Context *ctx, int argc, PS_Value **argv, PS_Val
   char sep[2] = {0, 0};
   if (dir_len > 0) {
     char last = dir[dir_len - 1];
-    if (last != '/' && last != '\\') {
-#ifdef _WIN32
-      sep[0] = '\\';
-#else
-      sep[0] = '/';
-#endif
-    }
+    if (last != '/') sep[0] = '/';
   }
   const int max_attempts = 128;
   const char *prefix = "ps_";
   for (int attempt = 0; attempt < max_attempts; attempt += 1) {
     uint8_t rnd[16];
     if (!io_rand_bytes(rnd, sizeof(rnd))) {
-      ps_throw(ctx, PS_ERR_INTERNAL, "tempPath failed");
-      return PS_ERR;
+      return io_throw(ctx, "IOException", "tempPath failed");
     }
     char hex[33];
     io_hex_encode(rnd, sizeof(rnd), hex);
@@ -218,12 +181,14 @@ static PS_Status io_temp_path(PS_Context *ctx, int argc, PS_Value **argv, PS_Val
     }
     free(full);
   }
-  ps_throw(ctx, PS_ERR_INTERNAL, "tempPath failed");
-  return PS_ERR;
+  return io_throw(ctx, "IOException", "tempPath failed");
 }
 
 static PS_Value *to_string_value(PS_Context *ctx, PS_Value *v) {
-  if (!v) return ps_make_string_utf8(ctx, "", 0);
+  if (!v) {
+    io_throw(ctx, "InvalidArgumentException", "invalid argument");
+    return NULL;
+  }
   PS_TypeTag t = ps_typeof(v);
   if (t == PS_T_STRING) return ps_value_retain(v);
   if (t == PS_T_BOOL) {
@@ -246,11 +211,28 @@ static PS_Value *to_string_value(PS_Context *ctx, PS_Value *v) {
     return ps_make_string_utf8(ctx, buf, strlen(buf));
   }
   if (t == PS_T_GLYPH) {
-    char buf[32];
-    snprintf(buf, sizeof(buf), "U+%04X", (unsigned)ps_as_glyph(v));
-    return ps_make_string_utf8(ctx, buf, strlen(buf));
+    uint32_t cp = (uint32_t)ps_as_glyph(v);
+    char buf[5];
+    size_t len = 0;
+    if (cp <= 0x7F) {
+      buf[len++] = (char)cp;
+    } else if (cp <= 0x7FF) {
+      buf[len++] = (char)(0xC0 | (cp >> 6));
+      buf[len++] = (char)(0x80 | (cp & 0x3F));
+    } else if (cp <= 0xFFFF) {
+      buf[len++] = (char)(0xE0 | (cp >> 12));
+      buf[len++] = (char)(0x80 | ((cp >> 6) & 0x3F));
+      buf[len++] = (char)(0x80 | (cp & 0x3F));
+    } else {
+      buf[len++] = (char)(0xF0 | (cp >> 18));
+      buf[len++] = (char)(0x80 | ((cp >> 12) & 0x3F));
+      buf[len++] = (char)(0x80 | ((cp >> 6) & 0x3F));
+      buf[len++] = (char)(0x80 | (cp & 0x3F));
+    }
+    return ps_make_string_utf8(ctx, buf, len);
   }
-  return ps_make_string_utf8(ctx, "<value>", 7);
+  io_throw(ctx, "InvalidArgumentException", "invalid argument");
+  return NULL;
 }
 
 static PS_Status io_print(PS_Context *ctx, int argc, PS_Value **argv, PS_Value **out) {
@@ -260,7 +242,15 @@ static PS_Status io_print(PS_Context *ctx, int argc, PS_Value **argv, PS_Value *
   if (!s) return PS_ERR;
   const char *p = ps_string_ptr(s);
   size_t n = ps_string_len(s);
-  if (n > 0) fwrite(p, 1, n, stdout);
+  size_t off = 0;
+  while (off < n) {
+    size_t w = fwrite(p + off, 1, n - off, stdout);
+    if (w == 0 || ferror(stdout)) {
+      ps_value_release(s);
+      return io_throw(ctx, "WriteFailureException", "write failed");
+    }
+    off += w;
+  }
   ps_value_release(s);
   return PS_OK;
 }
@@ -272,8 +262,19 @@ static PS_Status io_print_line(PS_Context *ctx, int argc, PS_Value **argv, PS_Va
   if (!s) return PS_ERR;
   const char *p = ps_string_ptr(s);
   size_t n = ps_string_len(s);
-  if (n > 0) fwrite(p, 1, n, stdout);
-  fwrite("\n", 1, 1, stdout);
+  size_t off = 0;
+  while (off < n) {
+    size_t w = fwrite(p + off, 1, n - off, stdout);
+    if (w == 0 || ferror(stdout)) {
+      ps_value_release(s);
+      return io_throw(ctx, "WriteFailureException", "write failed");
+    }
+    off += w;
+  }
+  if (fwrite("\n", 1, 1, stdout) != 1 || ferror(stdout)) {
+    ps_value_release(s);
+    return io_throw(ctx, "WriteFailureException", "write failed");
+  }
   ps_value_release(s);
   return PS_OK;
 }

@@ -309,6 +309,19 @@ class IRBuilder {
       { name: "InvalidTimeZoneException", parent: "Exception", fields: [] },
       { name: "InvalidDateException", parent: "Exception", fields: [] },
       { name: "InvalidISOFormatException", parent: "Exception", fields: [] },
+      { name: "InvalidModeException", parent: "RuntimeException", fields: [] },
+      { name: "FileOpenException", parent: "RuntimeException", fields: [] },
+      { name: "FileNotFoundException", parent: "RuntimeException", fields: [] },
+      { name: "PermissionDeniedException", parent: "RuntimeException", fields: [] },
+      { name: "InvalidPathException", parent: "RuntimeException", fields: [] },
+      { name: "FileClosedException", parent: "RuntimeException", fields: [] },
+      { name: "InvalidArgumentException", parent: "RuntimeException", fields: [] },
+      { name: "InvalidGlyphPositionException", parent: "RuntimeException", fields: [] },
+      { name: "ReadFailureException", parent: "RuntimeException", fields: [] },
+      { name: "WriteFailureException", parent: "RuntimeException", fields: [] },
+      { name: "Utf8DecodeException", parent: "RuntimeException", fields: [] },
+      { name: "StandardStreamCloseException", parent: "RuntimeException", fields: [] },
+      { name: "IOException", parent: "RuntimeException", fields: [] },
     ];
     const builtinNames = [];
     for (const b of builtin) {

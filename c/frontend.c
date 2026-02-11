@@ -3333,6 +3333,28 @@ static int add_builtin_exception_protos(Analyzer *a) {
     if (!tex) return 0;
     tex->builtin = 1;
   }
+  const char *io_exceptions[] = {
+      "InvalidModeException",
+      "FileOpenException",
+      "FileNotFoundException",
+      "PermissionDeniedException",
+      "InvalidPathException",
+      "FileClosedException",
+      "InvalidArgumentException",
+      "InvalidGlyphPositionException",
+      "ReadFailureException",
+      "WriteFailureException",
+      "Utf8DecodeException",
+      "StandardStreamCloseException",
+      "IOException",
+  };
+  for (size_t i = 0; i < sizeof(io_exceptions) / sizeof(io_exceptions[0]); i += 1) {
+    const char *name = io_exceptions[i];
+    if (proto_find(a->protos, name)) continue;
+    ProtoInfo *iex = proto_append(a, name, "RuntimeException");
+    if (!iex) return 0;
+    iex->builtin = 1;
+  }
   return 1;
 }
 
@@ -3346,7 +3368,14 @@ static int collect_prototypes(Analyzer *a, AstNode *root) {
         strcmp(name, "CivilDateTime") == 0 ||
         strcmp(name, "DSTAmbiguousTimeException") == 0 || strcmp(name, "DSTNonExistentTimeException") == 0 ||
         strcmp(name, "InvalidTimeZoneException") == 0 || strcmp(name, "InvalidDateException") == 0 ||
-        strcmp(name, "InvalidISOFormatException") == 0) {
+        strcmp(name, "InvalidISOFormatException") == 0 ||
+        strcmp(name, "InvalidModeException") == 0 || strcmp(name, "FileOpenException") == 0 ||
+        strcmp(name, "FileNotFoundException") == 0 || strcmp(name, "PermissionDeniedException") == 0 ||
+        strcmp(name, "InvalidPathException") == 0 || strcmp(name, "FileClosedException") == 0 ||
+        strcmp(name, "InvalidArgumentException") == 0 || strcmp(name, "InvalidGlyphPositionException") == 0 ||
+        strcmp(name, "ReadFailureException") == 0 || strcmp(name, "WriteFailureException") == 0 ||
+        strcmp(name, "Utf8DecodeException") == 0 || strcmp(name, "StandardStreamCloseException") == 0 ||
+        strcmp(name, "IOException") == 0) {
       set_diag(a->diag, a->file, pd->line, pd->col, "E2001", "UNRESOLVED_NAME", "reserved prototype name");
       return 0;
     }
