@@ -51,7 +51,10 @@
       "invalid/type/catch_non_exception",
       "invalid/type/throw_exception_call",
       "invalid/type/return_self",
-      "invalid/type/return_self_alias"
+      "invalid/type/return_self_alias",
+      "invalid/type/list_sort_type_error",
+      "invalid/type/list_sort_missing_compareTo",
+      "invalid/type/list_sort_bad_compareTo_signature"
     ],
     "invalid/runtime": [
       "invalid/runtime/int_overflow_add",
@@ -88,7 +91,6 @@
       "invalid/runtime/io_utf8_invalid",
       "invalid/runtime/json_decode_invalid",
       "invalid/runtime/json_encode_nan",
-      "invalid/runtime/list_sort_type_error",
       "invalid/runtime/unhandled_exception",
       "invalid/runtime/manual_ex060",
       "invalid/runtime/manual_ex063"
@@ -134,6 +136,7 @@
       "edge/string_replace_basic",
       "edge/string_substring_emoji",
       "edge/string_utf8_roundtrip",
+      "edge/list_sort_suite",
       "edge/glyph_basic",
       "edge/prototype_basic",
       "edge/prototype_inherit_static",

@@ -1,0 +1,12 @@
+prototype Foo {
+    int x;
+
+    function compareTo(Foo other) : float {
+        return 0.0;
+    }
+}
+
+function main() : void {
+    list<Foo> xs = [];
+    xs.sort();
+}

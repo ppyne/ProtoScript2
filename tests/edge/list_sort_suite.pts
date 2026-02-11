@@ -1,0 +1,44 @@
+import Io;
+import Math;
+
+prototype Item {
+    int key;
+    int id;
+
+    function compareTo(Item other) : int {
+        if (self.key < other.key) return -1;
+        if (self.key > other.key) return 1;
+        return 0;
+    }
+}
+
+function main() : void {
+    list<int> ints = [3, 1, 2];
+    ints.sort();
+    bool okInt = ints[0] == 1 && ints[1] == 2 && ints[2] == 3;
+
+    float nan = Math.log(-1.0);
+    list<float> fs = [2.0, nan, -1.0, nan, 0.0];
+    fs.sort();
+    bool okFloat = fs[0] == -1.0 && fs[1] == 0.0 && fs[2] == 2.0 && fs[3].isNaN() && fs[4].isNaN();
+
+    list<string> ss = ["b", "aa", "a"];
+    ss.sort();
+    bool okString = ss[0] == "a" && ss[1] == "aa" && ss[2] == "b";
+
+    Item a = Item.clone();
+    a.key = 1;
+    a.id = 10;
+    Item b = Item.clone();
+    b.key = 1;
+    b.id = 11;
+    Item c = Item.clone();
+    c.key = 0;
+    c.id = 12;
+    list<Item> ps = [a, b, c];
+    ps.sort();
+    bool okProto = ps[0].id == 12 && ps[1].id == 10 && ps[2].id == 11;
+
+    bool ok = okInt && okFloat && okString && okProto;
+    Io.printLine(ok.toString());
+}

@@ -533,7 +533,7 @@ Les garanties suivantes sont normatives et indépendantes de l’implémentation
 | `list.push(x)`                | **O(1)** amorti | réallocation possible    |
 | `list.pop()`                  | **O(1)**        | suppression en fin       |
 | `list.contains(x)`            | **O(n)**        | comparaison séquentielle |
-| `list.sort()`                 | **O(n log n)**  | si `T` est comparable    |
+| `list.sort()`                 | **O(n log n)**  | si `T` satisfait les conditions définies ci-dessous |
 | `list.slice(offset, len)`     | **O(1)**        | création de vue          |
 
 Règles complémentaires :
@@ -545,6 +545,52 @@ Règles complémentaires :
 - `list[i] = x` est une écriture stricte : l’index doit exister
 - `list[i] = x` ne doit jamais redimensionner la liste
 - `list.pop()` : erreur statique si la vacuité est prouvée, sinon exception runtime si la liste est vide
+
+---
+
+### Tri des listes : `list<T>.sort()` (normatif)
+
+`list<T>.sort()` **est défini** comme un tri en place des éléments de la liste.  
+Il **ne modifie que l’ordre** des éléments, sans changer leur identité ni leur valeur.  
+Sa complexité **doit être** **O(n log n)**.
+
+**Types autorisés** : `list<T>.sort()` **est autorisé** uniquement si `T` est :
+
+- `int`, `float`, `byte`, `string`, ou
+- un prototype qui **déclare** une méthode de comparaison conforme.
+
+**Ordre de tri pour les types primitifs** :
+
+- `int`, `byte` : ordre numérique croissant.
+- `float` : ordre numérique croissant ; `NaN` est **classé supérieur** à toute valeur numérique ; deux `NaN` sont **équivalents**.
+- `string` : ordre lexicographique UTF‑8 binaire, indépendant de la locale.
+
+**Tri des prototypes utilisateur** :
+
+- `list<T>.sort()` **est autorisé** uniquement si le prototype de `T` déclare une méthode `compareTo(T other) : int`.
+- La méthode **doit** retourner une valeur **< 0** si `self < other`, **0** si `self` est égal à `other`, **> 0** si `self > other`.
+- En absence de cette méthode, l’appel de `list<T>.sort()` **est une erreur statique**.
+
+Clarification normative de résolution :
+
+- `compareTo` **est** une méthode d’instance.
+- La comparaison de deux éléments `a` et `b` **est effectuée** par l’appel `a.compareTo(b)`.
+- La résolution **est strictement statique** selon le type `T` de la liste.
+- Aucun dispatch dynamique supplémentaire ni recherche RTTI **n’est** effectué.
+- Si `compareTo` est héritée d’un prototype parent de `T`, elle **est considérée valide** selon les règles générales de résolution des méthodes.
+
+**Interdictions explicites** :
+
+- Aucune variante `sort(cmpFunction)` n’est définie.
+- Aucun comparateur externe (lambda/callback) n’est autorisé.
+- Aucune généricité implicite ni fallback dynamique/RTTI n’est autorisé.
+
+**Propriétés supplémentaires** :
+
+- Le tri **doit être déterministe**.
+- Le tri **doit être** stable.
+- La complexité **doit être** O(n log n).
+- Aucun comportement ne doit dépendre de la locale.
 
 ---
 

@@ -7,6 +7,7 @@ let PROTO_MAP = new Map();
 let VARIADIC_PARAM_TYPE = new Map();
 let VARARG_COUNTER = 0;
 let JSON_TMP_COUNTER = 0;
+let FN_NAMES = new Set();
 
 function loadModuleRegistry() {
   const candidates = [
@@ -502,6 +503,15 @@ function collectProtoFields(protoMap, name) {
     for (const f of chain[i].fields || []) out.push(f);
   }
   return out;
+}
+
+function resolveCompareToOwner(protoMap, protoName) {
+  let cur = protoName;
+  while (cur) {
+    if (FN_NAMES.has(`${cur}.compareTo`)) return cur;
+    cur = protoParent(protoMap, cur);
+  }
+  return null;
 }
 
 function emitTypeDecls(typeNames, protoMap) {
@@ -2476,32 +2486,58 @@ function emitInstr(i, fnInf, state) {
           const recv = aliasOf(i.receiver) || i.receiver;
           const inner = rc.inner;
           out.push(`{`);
+          out.push(`  size_t n = ${n(recv)}.len;`);
+          out.push(`  if (n > 1) {`);
+          out.push(`    ${cTypeFromName(inner)}* buf = (${cTypeFromName(inner)}*)malloc(sizeof(*buf) * n);`);
+          out.push(`    if (!buf) ps_panic("R1998", "RUNTIME_OOM", "out of memory");`);
+          out.push(`    for (size_t width = 1; width < n; width *= 2) {`);
+          out.push(`      for (size_t left = 0; left < n; left += 2 * width) {`);
+          out.push(`        size_t mid = left + width;`);
+          out.push(`        size_t right = left + 2 * width;`);
+          out.push(`        if (mid > n) mid = n;`);
+          out.push(`        if (right > n) right = n;`);
+          out.push(`        size_t i = left;`);
+          out.push(`        size_t j = mid;`);
+          out.push(`        size_t k = left;`);
+          out.push(`        while (i < mid && j < right) {`);
+          out.push(`          int cmp = 0;`);
           if (inner === "string") {
-            out.push(`  for (size_t i = 0; i + 1 < ${n(recv)}.len; i += 1) {`);
-            out.push(`    for (size_t j = i + 1; j < ${n(recv)}.len; j += 1) {`);
-            out.push(`      ps_string a = ${n(recv)}.ptr[i];`);
-            out.push(`      ps_string b = ${n(recv)}.ptr[j];`);
-            out.push(`      size_t ml = (a.len < b.len) ? a.len : b.len;`);
-            out.push(`      int r = memcmp(a.ptr, b.ptr, ml);`);
-            out.push(`      int cmp = (r < 0) ? -1 : (r > 0) ? 1 : (a.len < b.len) ? -1 : (a.len > b.len) ? 1 : 0;`);
-            out.push(`      if (cmp > 0) { ps_string tmp = ${n(recv)}.ptr[i]; ${n(recv)}.ptr[i] = ${n(recv)}.ptr[j]; ${n(recv)}.ptr[j] = tmp; }`);
-            out.push(`    }`);
-            out.push(`  }`);
-          } else if (["int", "float", "byte", "glyph", "bool"].includes(inner)) {
-            out.push(`  for (size_t i = 0; i + 1 < ${n(recv)}.len; i += 1) {`);
-            out.push(`    for (size_t j = i + 1; j < ${n(recv)}.len; j += 1) {`);
-            if (inner === "float") {
-              out.push(`      double a = ${n(recv)}.ptr[i];`);
-              out.push(`      double b = ${n(recv)}.ptr[j];`);
-              out.push(`      if (a > b) { double tmp = ${n(recv)}.ptr[i]; ${n(recv)}.ptr[i] = ${n(recv)}.ptr[j]; ${n(recv)}.ptr[j] = tmp; }`);
+            out.push(`          ps_string a = ${n(recv)}.ptr[i];`);
+            out.push(`          ps_string b = ${n(recv)}.ptr[j];`);
+            out.push(`          size_t ml = (a.len < b.len) ? a.len : b.len;`);
+            out.push(`          int r = memcmp(a.ptr, b.ptr, ml);`);
+            out.push(`          cmp = (r < 0) ? -1 : (r > 0) ? 1 : (a.len < b.len) ? -1 : (a.len > b.len) ? 1 : 0;`);
+          } else if (inner === "float") {
+            out.push(`          double a = ${n(recv)}.ptr[i];`);
+            out.push(`          double b = ${n(recv)}.ptr[j];`);
+            out.push(`          if (isnan(a) && isnan(b)) cmp = 0;`);
+            out.push(`          else if (isnan(a)) cmp = 1;`);
+            out.push(`          else if (isnan(b)) cmp = -1;`);
+            out.push(`          else cmp = (a < b) ? -1 : (a > b) ? 1 : 0;`);
+          } else if (inner === "int" || inner === "byte") {
+            out.push(`          cmp = (${n(recv)}.ptr[i] < ${n(recv)}.ptr[j]) ? -1 : (${n(recv)}.ptr[i] > ${n(recv)}.ptr[j]) ? 1 : 0;`);
+          } else if (PROTO_MAP.has(inner)) {
+            const owner = resolveCompareToOwner(PROTO_MAP, inner);
+            if (owner) {
+              const fn = cIdent(`${owner}.compareTo`);
+              out.push(`          int64_t r = (int64_t)${fn}(${n(recv)}.ptr[i], ${n(recv)}.ptr[j]);`);
+              out.push(`          cmp = (r < 0) ? -1 : (r > 0) ? 1 : 0;`);
             } else {
-              out.push(`      if (${n(recv)}.ptr[i] > ${n(recv)}.ptr[j]) { ${cTypeFromName(inner)} tmp = ${n(recv)}.ptr[i]; ${n(recv)}.ptr[i] = ${n(recv)}.ptr[j]; ${n(recv)}.ptr[j] = tmp; }`);
+              out.push(`          ps_panic("R1010", "RUNTIME_TYPE_ERROR", "list element not comparable");`);
             }
-            out.push(`    }`);
-            out.push(`  }`);
           } else {
-            out.push(`  ps_panic("R1010", "RUNTIME_TYPE_ERROR", "list element not comparable");`);
+            out.push(`          ps_panic("R1010", "RUNTIME_TYPE_ERROR", "list element not comparable");`);
           }
+          out.push(`          if (cmp <= 0) buf[k++] = ${n(recv)}.ptr[i++];`);
+          out.push(`          else buf[k++] = ${n(recv)}.ptr[j++];`);
+          out.push(`        }`);
+          out.push(`        while (i < mid) buf[k++] = ${n(recv)}.ptr[i++];`);
+          out.push(`        while (j < right) buf[k++] = ${n(recv)}.ptr[j++];`);
+          out.push(`      }`);
+          out.push(`      for (size_t i = 0; i < n; i++) ${n(recv)}.ptr[i] = buf[i];`);
+          out.push(`    }`);
+          out.push(`    free(buf);`);
+          out.push(`  }`);
           out.push(`  ${n(i.dst)} = (int64_t)${n(recv)}.len;`);
           out.push(`}`);
         } else if (i.method === "pop" && rc && rc.kind === "list") {
@@ -2909,6 +2945,7 @@ function generateC(ir) {
   const inferred = inferTempTypes(irLocal, protoMap);
   const typeNames = collectTypeNames(irLocal, inferred);
   PROTO_MAP = protoMap;
+  FN_NAMES = new Set(functions.map((fn) => fn.name));
   VARIADIC_PARAM_TYPE = new Map();
   for (const fn of functions) {
     if (!fn || !Array.isArray(fn.params)) continue;

@@ -1,0 +1,11 @@
+{
+  "status": "reject-static",
+  "error_family": "E3xxx",
+  "error_code": "E3001",
+  "category": "TYPE_MISMATCH_ASSIGNMENT",
+  "position": {
+    "file": "invalid/type/list_sort_bad_compareTo_signature.pts",
+    "line": 11,
+    "column": 12
+  }
+}

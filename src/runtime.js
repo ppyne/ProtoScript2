@@ -335,6 +335,38 @@ function glyphStringsOf(s) {
   return Array.from(s);
 }
 
+function compareUtf8Bytes(a, b) {
+  const ml = Math.min(a.length, b.length);
+  for (let i = 0; i < ml; i += 1) {
+    const av = a[i];
+    const bv = b[i];
+    if (av !== bv) return av < bv ? -1 : 1;
+  }
+  return a.length < b.length ? -1 : a.length > b.length ? 1 : 0;
+}
+
+function stableSortInPlace(arr, cmp) {
+  const n = arr.length;
+  if (n < 2) return;
+  const buf = new Array(n);
+  for (let width = 1; width < n; width *= 2) {
+    for (let left = 0; left < n; left += 2 * width) {
+      const mid = Math.min(left + width, n);
+      const right = Math.min(left + 2 * width, n);
+      let i = left;
+      let j = mid;
+      let k = left;
+      while (i < mid && j < right) {
+        if (cmp(arr[i], arr[j]) <= 0) buf[k++] = arr[i++];
+        else buf[k++] = arr[j++];
+      }
+      while (i < mid) buf[k++] = arr[i++];
+      while (j < right) buf[k++] = arr[j++];
+    }
+    for (let i = 0; i < n; i += 1) arr[i] = buf[i];
+  }
+}
+
 function glyphAt(s, idx) {
   const ch = glyphStringsOf(s)[idx];
   if (ch === undefined) return null;
@@ -2206,36 +2238,72 @@ function evalCall(expr, scope, functions, moduleEnv, protoEnv, file, callFunctio
       if (m.name === "sort") {
         expectArity(0, 0);
         if (target.length === 0) return BigInt(0);
-        const first = target[0];
-        let kind = "unknown";
-        if (typeof first === "bigint") kind = "int";
-        else if (typeof first === "number") kind = "float";
-        else if (typeof first === "string") kind = "string";
-        else if (isGlyph(first)) kind = "glyph";
-        else if (typeof first === "boolean") kind = "bool";
-        if (kind === "unknown") {
+        const elemType = expr._listSortElemType;
+        if (!elemType) {
           throw new RuntimeError(rdiag(file, m, "R1010", "RUNTIME_TYPE_ERROR", "list element not comparable"));
         }
-        for (const v of target) {
-          if (
-            (kind === "int" && typeof v !== "bigint") ||
-            (kind === "float" && typeof v !== "number") ||
-            (kind === "string" && typeof v !== "string") ||
-            (kind === "glyph" && !isGlyph(v)) ||
-            (kind === "bool" && typeof v !== "boolean")
-          ) {
+        let cmp = null;
+        if (elemType === "int" || elemType === "byte") {
+          for (const v of target) {
+            if (typeof v !== "bigint") {
+              throw new RuntimeError(rdiag(file, m, "R1010", "RUNTIME_TYPE_ERROR", "list element not comparable"));
+            }
+          }
+          cmp = (a, b) => (a < b ? -1 : a > b ? 1 : 0);
+        } else if (elemType === "float") {
+          for (const v of target) {
+            if (typeof v !== "number") {
+              throw new RuntimeError(rdiag(file, m, "R1010", "RUNTIME_TYPE_ERROR", "list element not comparable"));
+            }
+          }
+          cmp = (a, b) => {
+            const na = Number.isNaN(a);
+            const nb = Number.isNaN(b);
+            if (na && nb) return 0;
+            if (na) return 1;
+            if (nb) return -1;
+            return a < b ? -1 : a > b ? 1 : 0;
+          };
+        } else if (elemType === "string") {
+          for (const v of target) {
+            if (typeof v !== "string") {
+              throw new RuntimeError(rdiag(file, m, "R1010", "RUNTIME_TYPE_ERROR", "list element not comparable"));
+            }
+          }
+          const enc = new TextEncoder();
+          const cache = new Map();
+          const bytesOf = (s) => {
+            let b = cache.get(s);
+            if (!b) {
+              b = enc.encode(s);
+              cache.set(s, b);
+            }
+            return b;
+          };
+          cmp = (a, b) => compareUtf8Bytes(bytesOf(a), bytesOf(b));
+        } else if (protoEnv && typeof elemType === "string" && protoEnv.has(elemType)) {
+          const info = resolveProtoMethodRuntime(protoEnv, elemType, "compareTo");
+          if (!info) {
             throw new RuntimeError(rdiag(file, m, "R1010", "RUNTIME_TYPE_ERROR", "list element not comparable"));
           }
+          const fn = functions.get(`${info.proto}.compareTo`);
+          if (!fn) {
+            throw new RuntimeError(rdiag(file, m, "R1010", "RUNTIME_TYPE_ERROR", "list element not comparable"));
+          }
+          cmp = (a, b) => {
+            if (!isObjectInstance(a) || !isObjectInstance(b)) {
+              throw new RuntimeError(rdiag(file, m, "R1010", "RUNTIME_TYPE_ERROR", "list element not comparable"));
+            }
+            const r = callFunction(fn, [a, b]);
+            if (typeof r !== "bigint") {
+              throw new RuntimeError(rdiag(file, m, "R1010", "RUNTIME_TYPE_ERROR", "compareTo must return int"));
+            }
+            return r < 0n ? -1 : r > 0n ? 1 : 0;
+          };
+        } else {
+          throw new RuntimeError(rdiag(file, m, "R1010", "RUNTIME_TYPE_ERROR", "list element not comparable"));
         }
-        const cmp = (a, b) => {
-          if (kind === "int") return a < b ? -1 : a > b ? 1 : 0;
-          if (kind === "float") return a < b ? -1 : a > b ? 1 : 0;
-          if (kind === "string") return a < b ? -1 : a > b ? 1 : 0;
-          if (kind === "glyph") return a.value < b.value ? -1 : a.value > b.value ? 1 : 0;
-          if (kind === "bool") return a === b ? 0 : a ? 1 : -1;
-          return 0;
-        };
-        if (target.length > 1) target.sort(cmp);
+        if (target.length > 1) stableSortInPlace(target, cmp);
         return BigInt(target.length);
       }
     }

@@ -2371,7 +2371,28 @@ class Analyzer {
         if (name === "isEmpty") return prim("bool");
         if (name === "push") return prim("int");
         if (name === "contains") return prim("bool");
-        if (name === "sort") return prim("int");
+        if (name === "sort") {
+          const elemType = targetType && targetType.kind === "GenericType" ? targetType.args[0] : null;
+          const elemName = elemType ? typeToString(elemType) : "unknown";
+          expr._listSortElemType = elemName;
+          const okPrimitive = ["int", "float", "byte", "string"].includes(elemName);
+          if (okPrimitive) return prim("int");
+          if (elemType && elemType.kind === "NamedType" && this.prototypes.has(elemType.name)) {
+            const pm = this.resolvePrototypeMethod(elemType.name, "compareTo");
+            const paramOk =
+              pm &&
+              pm.params.length === 1 &&
+              !pm.params[0].variadic &&
+              this.isSubtype(elemType, pm.params[0].type);
+            const retOk = pm && sameType(pm.retType, { kind: "PrimitiveType", name: "int" });
+            if (!pm || !paramOk || !retOk) {
+              this.addDiag(expr, "E3001", "TYPE_MISMATCH_ASSIGNMENT", "list.sort requires compareTo(T other) : int");
+            }
+            return prim("int");
+          }
+          this.addDiag(expr, "E3001", "TYPE_MISMATCH_ASSIGNMENT", "list.sort requires comparable element type");
+          return prim("int");
+        }
       }
       if (targetType.kind === "GenericType" && targetType.name === "map" && targetType.args.length === 2) {
         const kt = targetType.args[0];

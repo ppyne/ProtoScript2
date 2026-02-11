@@ -937,7 +937,9 @@ static int compare_values(PS_Value *a, PS_Value *b, PS_ValueTag tag, int *out_cm
       cmp = (a->as.int_v < b->as.int_v) ? -1 : (a->as.int_v > b->as.int_v) ? 1 : 0;
       break;
     case PS_V_FLOAT:
-      if (isnan(a->as.float_v) || isnan(b->as.float_v)) cmp = 0;
+      if (isnan(a->as.float_v) && isnan(b->as.float_v)) cmp = 0;
+      else if (isnan(a->as.float_v)) cmp = 1;
+      else if (isnan(b->as.float_v)) cmp = -1;
       else cmp = (a->as.float_v < b->as.float_v) ? -1 : (a->as.float_v > b->as.float_v) ? 1 : 0;
       break;
     case PS_V_BYTE:
@@ -963,6 +965,82 @@ static int compare_values(PS_Value *a, PS_Value *b, PS_ValueTag tag, int *out_cm
       return 0;
   }
   if (out_cmp) *out_cmp = cmp;
+  return 1;
+}
+
+static const char *proto_parent_name(PS_IR_Module *m, const char *name);
+
+static int proto_exists(PS_IR_Module *m, const char *name) {
+  if (!m || !name) return 0;
+  for (size_t i = 0; i < m->proto_count; i++) {
+    if (m->protos[i].name && strcmp(m->protos[i].name, name) == 0) return 1;
+  }
+  return 0;
+}
+
+static int resolve_compareto_callee(PS_IR_Module *m, const char *proto, char *out, size_t out_len) {
+  const char *cur = proto;
+  while (cur) {
+    if (snprintf(out, out_len, "%s.compareTo", cur) >= (int)out_len) return 0;
+    if (find_fn(m, out)) return 1;
+    cur = proto_parent_name(m, cur);
+  }
+  return 0;
+}
+
+static int exec_call_static(PS_Context *ctx, PS_IR_Module *m, const char *callee, PS_Value **args, size_t argc, PS_Value **out);
+
+static int list_sort_compare(PS_Context *ctx, PS_IR_Module *m, PS_ValueTag tag, const char *cmp_callee, PS_Value *a, PS_Value *b,
+                             int *out_cmp) {
+  if (tag != PS_V_OBJECT) return compare_values(a, b, tag, out_cmp);
+  if (!cmp_callee) return 0;
+  PS_Value *argv[2] = {a, b};
+  PS_Value *ret = NULL;
+  if (exec_call_static(ctx, m, cmp_callee, argv, 2, &ret) != 0) return 0;
+  if (!ret || ret->tag != PS_V_INT) {
+    char got[64];
+    snprintf(got, sizeof(got), "%s", value_type_name(ret));
+    ps_throw_diag(ctx, PS_ERR_TYPE, "compareTo must return int", got, "int");
+    if (ret) ps_value_release(ret);
+    return 0;
+  }
+  int64_t v = ret->as.int_v;
+  ps_value_release(ret);
+  if (out_cmp) *out_cmp = (v < 0) ? -1 : (v > 0) ? 1 : 0;
+  return 1;
+}
+
+static int list_sort_values(PS_Context *ctx, PS_IR_Module *m, PS_Value **items, size_t n, PS_ValueTag tag, const char *cmp_callee) {
+  if (!items || n < 2) return 1;
+  PS_Value **buf = (PS_Value **)malloc(sizeof(PS_Value *) * n);
+  if (!buf) {
+    ps_throw_diag(ctx, PS_ERR_OOM, "out of memory", "list sort buffer allocation failed", "available memory");
+    return 0;
+  }
+  for (size_t width = 1; width < n; width *= 2) {
+    for (size_t left = 0; left < n; left += 2 * width) {
+      size_t mid = left + width;
+      size_t right = left + 2 * width;
+      if (mid > n) mid = n;
+      if (right > n) right = n;
+      size_t i = left;
+      size_t j = mid;
+      size_t k = left;
+      while (i < mid && j < right) {
+        int cmp = 0;
+        if (!list_sort_compare(ctx, m, tag, cmp_callee, items[i], items[j], &cmp)) {
+          free(buf);
+          return 0;
+        }
+        if (cmp <= 0) buf[k++] = items[i++];
+        else buf[k++] = items[j++];
+      }
+      while (i < mid) buf[k++] = items[i++];
+      while (j < right) buf[k++] = items[j++];
+    }
+    for (size_t i = 0; i < n; i++) items[i] = buf[i];
+  }
+  free(buf);
   return 1;
 }
 
@@ -2529,43 +2607,40 @@ static int exec_function(PS_Context *ctx, PS_IR_Module *m, IRFunction *f, PS_Val
           } else if (strcmp(ins->method, "sort") == 0) {
             if (!expect_arity(ctx, ins, 0, 0)) goto raise;
             size_t n = recv->as.list_v.len;
+            const char *elem_t = ins->type;
             PS_ValueTag tag = PS_V_VOID;
-            if (n > 0) {
-              PS_Value *first = recv->as.list_v.items[0];
-              tag = first ? first->tag : PS_V_VOID;
-              if (!(tag == PS_V_INT || tag == PS_V_FLOAT || tag == PS_V_BYTE || tag == PS_V_GLYPH || tag == PS_V_STRING || tag == PS_V_BOOL)) {
-                char got[64];
-                snprintf(got, sizeof(got), "%s", value_type_name(first));
-                ps_throw_diag(ctx, PS_ERR_TYPE, "list element not comparable", got, "int|float|byte|glyph|string|bool");
+            const char *cmp_callee = NULL;
+            char cmp_buf[256];
+            if (!elem_t || elem_t[0] == '\0') {
+              ps_throw_diag(ctx, PS_ERR_TYPE, "list element not comparable", "unknown", "int|float|byte|string|prototype");
+              goto raise;
+            }
+            if (strcmp(elem_t, "int") == 0) tag = PS_V_INT;
+            else if (strcmp(elem_t, "float") == 0) tag = PS_V_FLOAT;
+            else if (strcmp(elem_t, "byte") == 0) tag = PS_V_BYTE;
+            else if (strcmp(elem_t, "string") == 0) tag = PS_V_STRING;
+            else if (proto_exists(m, elem_t)) {
+              tag = PS_V_OBJECT;
+              if (!resolve_compareto_callee(m, elem_t, cmp_buf, sizeof(cmp_buf))) {
+                ps_throw_diag(ctx, PS_ERR_TYPE, "list element not comparable", elem_t, "compareTo(T other) : int");
                 goto raise;
               }
-              for (size_t i = 0; i < n; i++) {
-                PS_Value *it = recv->as.list_v.items[i];
-                if (!it || it->tag != tag) {
-                  char got[64];
-                  snprintf(got, sizeof(got), "%s", value_type_name(it));
-                  ps_throw_diag(ctx, PS_ERR_TYPE, "list element not comparable", got, "homogeneous comparable list");
-                  goto raise;
-                }
+              cmp_callee = cmp_buf;
+            } else {
+              ps_throw_diag(ctx, PS_ERR_TYPE, "list element not comparable", elem_t, "int|float|byte|string|prototype");
+              goto raise;
+            }
+            for (size_t i = 0; i < n; i++) {
+              PS_Value *it = recv->as.list_v.items[i];
+              if (!it || it->tag != tag) {
+                char got[64];
+                snprintf(got, sizeof(got), "%s", value_type_name(it));
+                ps_throw_diag(ctx, PS_ERR_TYPE, "list element not comparable", got, elem_t);
+                goto raise;
               }
             }
             if (n > 1) {
-              for (size_t i = 0; i + 1 < n; i++) {
-                for (size_t j = i + 1; j < n; j++) {
-                  int cmp = 0;
-                  if (!compare_values(recv->as.list_v.items[i], recv->as.list_v.items[j], tag, &cmp)) {
-                    char got[64];
-                    snprintf(got, sizeof(got), "%s", value_type_name(recv->as.list_v.items[j]));
-                    ps_throw_diag(ctx, PS_ERR_TYPE, "list element not comparable", got, "comparable element");
-                    goto raise;
-                  }
-                  if (cmp > 0) {
-                    PS_Value *tmp = recv->as.list_v.items[i];
-                    recv->as.list_v.items[i] = recv->as.list_v.items[j];
-                    recv->as.list_v.items[j] = tmp;
-                  }
-                }
-              }
+              if (!list_sort_values(ctx, m, recv->as.list_v.items, n, tag, cmp_callee)) goto raise;
             }
             PS_Value *v = ps_make_int(ctx, (int64_t)recv->as.list_v.len);
             bindings_set(&temps, ins->dst, v);

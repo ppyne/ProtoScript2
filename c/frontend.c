@@ -4016,6 +4016,27 @@ static char *infer_call_type(Analyzer *a, AstNode *e, Scope *scope, int *ok) {
           free(tt);
           return NULL;
         }
+        if (strncmp(tt, "list<", 5) == 0 && strcmp(callee->text, "sort") == 0) {
+          char *et = ir_type_elem_for_index(tt);
+          int ok_sort = 0;
+          if (et && (strcmp(et, "int") == 0 || strcmp(et, "float") == 0 || strcmp(et, "byte") == 0 || strcmp(et, "string") == 0)) {
+            ok_sort = 1;
+          } else if (et && proto_find(a->protos, et)) {
+            ProtoMethod *pm = proto_find_method(a->protos, et, "compareTo");
+            if (pm && pm->param_count == 1 && pm->param_types && pm->param_types[0] &&
+                proto_is_subtype(a->protos, et, pm->param_types[0]) && pm->ret_type && strcmp(pm->ret_type, "int") == 0) {
+              ok_sort = 1;
+            }
+          }
+          if (!ok_sort) {
+            set_diag(a->diag, a->file, e->line, e->col, "E3001", "TYPE_MISMATCH_ASSIGNMENT", "list.sort requires compareTo(T other) : int");
+            free(et);
+            free(tt);
+            *ok = 0;
+            return NULL;
+          }
+          free(et);
+        }
         if (!check_call_args(a, e, scope, ok)) {
           free(tt);
           return NULL;
@@ -5835,9 +5856,21 @@ static char *ir_lower_call(AstNode *e, IrFnCtx *ctx) {
           free(prev);
           free(arg_esc);
         }
+        char *type_part = NULL;
+        if (recv_type && callee->text && strcmp(callee->text, "sort") == 0 && strncmp(recv_type, "list<", 5) == 0) {
+          char *et = ir_type_elem_for_index(recv_type);
+          if (et) {
+            char *et_esc = json_escape(et);
+            type_part = str_printf(",\"type\":\"%s\"", et_esc ? et_esc : "");
+            free(et_esc);
+          }
+          free(et);
+        }
         char *ins = str_printf(
-            "{\"op\":\"call_method_static\",\"dst\":\"%s\",\"receiver\":\"%s\",\"method\":\"%s\",\"args\":[%s]}",
-            dst_esc ? dst_esc : "", recv_esc ? recv_esc : "", method_esc ? method_esc : "", args_json ? args_json : "");
+            "{\"op\":\"call_method_static\",\"dst\":\"%s\",\"receiver\":\"%s\",\"method\":\"%s\",\"args\":[%s]%s}",
+            dst_esc ? dst_esc : "", recv_esc ? recv_esc : "", method_esc ? method_esc : "", args_json ? args_json : "",
+            type_part ? type_part : "");
+        free(type_part);
         free(args_json);
         if (!ir_emit(ctx, ins)) {
           free(dst);

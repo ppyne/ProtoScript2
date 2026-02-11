@@ -1,0 +1,8 @@
+prototype Foo {
+    int x;
+}
+
+function main() : void {
+    list<Foo> xs = [];
+    xs.sort();
+}

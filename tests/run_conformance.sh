@@ -87,6 +87,8 @@ line_col_match() {
 pass=0
 fail=0
 skip=0
+skip_modules=0
+skip_frontend=0
 
 echo "== ProtoScript V2 Conformance Runner =="
 echo "Rule: compiler is correct only if 100% normative tests pass."
@@ -127,6 +129,7 @@ EOF
 else
   echo "SKIP abs import path (modules not enabled)"
   skip=$((skip + 1))
+  skip_modules=$((skip_modules + 1))
 fi
 
 while IFS= read -r case_id; do
@@ -155,6 +158,7 @@ while IFS= read -r case_id; do
   if [[ -n "$requires_modules" && "$CONFORMANCE_MODULES" != "1" ]]; then
     echo "SKIP $case_id (modules not enabled)"
     skip=$((skip + 1))
+    skip_modules=$((skip_modules + 1))
     rm -f "$out"
     continue
   fi
@@ -200,6 +204,7 @@ while IFS= read -r case_id; do
       if [[ "$FRONTEND_ONLY" == "1" ]]; then
         echo "SKIP $case_id (reject-runtime, frontend-only)"
         skip=$((skip + 1))
+        skip_frontend=$((skip_frontend + 1))
         rm -f "$out"
         continue
       fi
@@ -213,6 +218,7 @@ while IFS= read -r case_id; do
       if [[ "$FRONTEND_ONLY" == "1" ]]; then
         echo "SKIP $case_id (accept-runtime, frontend-only)"
         skip=$((skip + 1))
+        skip_frontend=$((skip_frontend + 1))
         rm -f "$out"
         continue
       fi
@@ -301,10 +307,24 @@ if [[ "$fail" -ne 0 ]]; then
   exit 1
 fi
 
-if [[ "$skip" -ne 0 ]]; then
+allowed_skips=0
+if [[ "$CONFORMANCE_MODULES" != "1" ]]; then
+  allowed_skips=$((allowed_skips + skip_modules))
+fi
+if [[ "$FRONTEND_ONLY" == "1" ]]; then
+  allowed_skips=$((allowed_skips + skip_frontend))
+fi
+
+if [[ "$skip" -ne 0 && "$skip" -ne "$allowed_skips" ]]; then
   rm -f "$TESTS_DIR/.conformance_passed"
   echo "Conformance incomplete (skipped tests present)." >&2
   exit 1
+fi
+
+if [[ "$skip" -ne 0 ]]; then
+  rm -f "$TESTS_DIR/.conformance_passed"
+  echo "Conformance PASSED with allowed skips (modules: $skip_modules, frontend-only: $skip_frontend)."
+  exit 0
 fi
 
 date -u +"%Y-%m-%dT%H:%M:%SZ" > "$TESTS_DIR/.conformance_passed"

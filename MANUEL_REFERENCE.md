@@ -1302,9 +1302,51 @@ Méthodes disponibles :
 | `push(x)` | `(T) -> int` | nouvelle longueur | type si `T` incompatible |
 | `pop()` | `() -> T` | dernier élément | erreur statique si liste prouvée vide, sinon runtime si vide |
 | `contains(x)` | `(T) -> bool` | présence | type si `T` incompatible |
-| `sort()` | `() -> int` | longueur | runtime si éléments non comparables |
+| `sort()` | `() -> int` | longueur | erreur statique si `T` non comparable ou si `compareTo` absent/invalide |
 | `join(sep)` | `(string) -> string` | concat avec séparateur | runtime si liste non `list<string>` |
 | `concat()` | `() -> string` | concat sans séparateur | runtime si liste non `list<string>` |
+
+Notes sur `sort()` :
+
+- tri en place, **stable** et déterministe.
+- aucune variante `sort(cmp)` n’existe.
+
+Exemple (types primitifs) :
+
+```c
+list<int> xs = [3, 1, 2];
+xs.sort();
+```
+Ref: EX-064
+
+Exemple (prototype avec `compareTo`) :
+
+```c
+prototype Item {
+    int key;
+    int id;
+
+    function compareTo(Item other) : int {
+        if (self.key < other.key) return -1;
+        if (self.key > other.key) return 1;
+        return 0;
+    }
+}
+
+function main() : void {
+    Item a = Item.clone();
+    a.key = 2;
+    a.id = 10;
+
+    Item b = Item.clone();
+    b.key = 1;
+    b.id = 20;
+
+    list<Item> xs = [a, b];
+    xs.sort();
+}
+```
+Ref: EX-065
 
 ### 11.2 `map<K,V>` : lecture stricte, écriture constructive
 
