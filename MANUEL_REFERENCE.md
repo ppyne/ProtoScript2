@@ -1416,6 +1416,44 @@ Ref: EX-063
 | `keys()` | `() -> list<K>` | liste des clés | — |
 | `values()` | `() -> list<V>` | liste des valeurs | — |
 
+### 11.2.2 Trier une map par clé ou par valeur
+
+Une `map` conserve l’ordre d’insertion et **ne** définit **aucune** méthode `sort()`.
+Pour trier, il faut extraire une `list` (par exemple via `keys()`) puis utiliser `list.sort()`.
+
+Exemple (tri par clé) :
+
+```c
+map<string, int> m = {"b": 2, "a": 1, "c": 3};
+list<string> ks = m.keys();
+ks.sort();
+for (string k of ks) {
+    int v = m[k];
+    string line = k.concat(":").concat(v.toString());
+    Io.printLine(line);
+}
+```
+Ref: EX-097
+
+Exemple (tri par valeur, valeurs uniques) :
+
+```c
+map<string, int> m = {"a": 3, "b": 1, "c": 2};
+list<int> vals = m.values();
+vals.sort();
+list<string> ks = m.keys();
+for (int v of vals) {
+    for (string k of ks) {
+        if (m[k] == v) {
+            string line = k.concat(":").concat(v.toString());
+            Io.printLine(line);
+            break;
+        }
+    }
+}
+```
+Ref: EX-098
+
 ### 11.3 Erreur fréquente
 
 Supposer que `map[k]` en lecture crée automatiquement une entrée. Ce n'est vrai qu'en écriture (`map[k] = v`).

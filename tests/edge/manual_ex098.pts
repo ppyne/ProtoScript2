@@ -1,0 +1,17 @@
+import Io;
+
+function main() : void {
+    map<string, int> m = {"a": 3, "b": 1, "c": 2};
+    list<int> vals = m.values();
+    vals.sort();
+    list<string> ks = m.keys();
+    for (int v of vals) {
+        for (string k of ks) {
+            if (m[k] == v) {
+                string line = k.concat(":").concat(v.toString());
+                Io.printLine(line);
+                break;
+            }
+        }
+    }
+}
