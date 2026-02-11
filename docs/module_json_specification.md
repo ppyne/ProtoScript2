@@ -3,6 +3,10 @@
 Ce document décrit le module standard `JSON` et le prototype standard `JSONValue`.
 Il est **normatif**.
 
+**Position conceptuelle**
+
+Le module JSON n’introduit pas de généricité cachée ; il introduit une exception volontaire, contrôlée et normée pour interagir avec le monde extérieur.
+
 ---
 
 ## 1. Objectif
@@ -79,6 +83,8 @@ Accepte :
 - un `JSONValue`, ou
 - une valeur récursivement sérialisable :  
   `bool`, `int`, `float`, `string`, `list<T>`, `map<string, T>` (avec `T` sérialisable).
+
+`JSON.encode` est volontairement plus permissif que le cœur du langage et agit comme une frontière de sérialisation vers un format externe normatif.
 
 Contraintes :
 
