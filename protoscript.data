@@ -143,6 +143,39 @@
         { "name": "array", "ret": "JSONValue", "params": ["list<JSONValue>"] },
         { "name": "object", "ret": "JSONValue", "params": ["map<string,JSONValue>"] }
       ]
+    },
+    {
+      "name": "Time",
+      "functions": [
+        { "name": "nowEpochMillis", "ret": "int", "params": [] },
+        { "name": "nowMonotonicNanos", "ret": "int", "params": [] },
+        { "name": "sleepMillis", "ret": "void", "params": ["int"] }
+      ]
+    },
+    {
+      "name": "TimeCivil",
+      "functions": [
+        { "name": "fromEpochUTC", "ret": "CivilDateTime", "params": ["int"] },
+        { "name": "toEpochUTC", "ret": "int", "params": ["CivilDateTime"] },
+        { "name": "fromEpoch", "ret": "CivilDateTime", "params": ["int", "string"] },
+        { "name": "toEpoch", "ret": "int", "params": ["CivilDateTime", "string", "int"] },
+        { "name": "isDST", "ret": "bool", "params": ["int", "string"] },
+        { "name": "offsetSeconds", "ret": "int", "params": ["int", "string"] },
+        { "name": "standardOffsetSeconds", "ret": "int", "params": ["string"] },
+        { "name": "dayOfWeek", "ret": "int", "params": ["int", "string"] },
+        { "name": "dayOfYear", "ret": "int", "params": ["int", "string"] },
+        { "name": "weekOfYearISO", "ret": "int", "params": ["int", "string"] },
+        { "name": "weekYearISO", "ret": "int", "params": ["int", "string"] },
+        { "name": "isLeapYear", "ret": "bool", "params": ["int"] },
+        { "name": "daysInMonth", "ret": "int", "params": ["int", "int"] },
+        { "name": "parseISO8601", "ret": "int", "params": ["string"] },
+        { "name": "formatISO8601", "ret": "string", "params": ["int"] }
+      ],
+      "constants": [
+        { "name": "DST_EARLIER", "type": "int", "value": "0" },
+        { "name": "DST_LATER", "type": "int", "value": "1" },
+        { "name": "DST_ERROR", "type": "int", "value": "2" }
+      ]
     }
   ]
 }
