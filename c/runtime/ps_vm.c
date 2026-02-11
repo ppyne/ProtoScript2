@@ -27,12 +27,12 @@ typedef struct {
 static int parse_int_strict(PS_Context *ctx, const char *s, size_t len, int64_t *out) {
   if (!s || !out) return 0;
   if (len == 0) {
-    ps_throw(ctx, PS_ERR_TYPE, "invalid int format");
+    ps_throw_diag(ctx, PS_ERR_TYPE, "invalid int format", "\"\"", "int literal");
     return 0;
   }
   char *buf = (char *)malloc(len + 1);
   if (!buf) {
-    ps_throw(ctx, PS_ERR_OOM, "out of memory");
+    ps_throw_diag(ctx, PS_ERR_OOM, "out of memory", "allocation failed", "available memory");
     return 0;
   }
   memcpy(buf, s, len);
@@ -41,11 +41,12 @@ static int parse_int_strict(PS_Context *ctx, const char *s, size_t len, int64_t 
   errno = 0;
   long long v = strtoll(buf, &end, 10);
   int ok = (end && *end == '\0' && errno != ERANGE);
-  free(buf);
   if (!ok) {
-    ps_throw(ctx, PS_ERR_TYPE, "invalid int format");
+    ps_throw_diag(ctx, PS_ERR_TYPE, "invalid int format", buf, "int literal");
+    free(buf);
     return 0;
   }
+  free(buf);
   *out = (int64_t)v;
   return 1;
 }
@@ -53,12 +54,12 @@ static int parse_int_strict(PS_Context *ctx, const char *s, size_t len, int64_t 
 static int parse_float_strict(PS_Context *ctx, const char *s, size_t len, double *out) {
   if (!s || !out) return 0;
   if (len == 0) {
-    ps_throw(ctx, PS_ERR_TYPE, "invalid float format");
+    ps_throw_diag(ctx, PS_ERR_TYPE, "invalid float format", "\"\"", "float literal");
     return 0;
   }
   char *buf = (char *)malloc(len + 1);
   if (!buf) {
-    ps_throw(ctx, PS_ERR_OOM, "out of memory");
+    ps_throw_diag(ctx, PS_ERR_OOM, "out of memory", "allocation failed", "available memory");
     return 0;
   }
   memcpy(buf, s, len);
@@ -67,11 +68,12 @@ static int parse_float_strict(PS_Context *ctx, const char *s, size_t len, double
   errno = 0;
   double v = strtod(buf, &end);
   int ok = (end && *end == '\0' && errno != ERANGE);
-  free(buf);
   if (!ok) {
-    ps_throw(ctx, PS_ERR_TYPE, "invalid float format");
+    ps_throw_diag(ctx, PS_ERR_TYPE, "invalid float format", buf, "float literal");
+    free(buf);
     return 0;
   }
+  free(buf);
   *out = v;
   return 1;
 }
@@ -150,6 +152,85 @@ static void format_float_shortest(double v, char *out, size_t out_len) {
     out[best_len + copy_exp] = '\0';
   } else {
     out[best_len] = '\0';
+  }
+}
+
+static const char *value_type_name(PS_Value *v) {
+  if (!v) return "null";
+  switch (v->tag) {
+    case PS_V_BOOL: return "bool";
+    case PS_V_INT: return "int";
+    case PS_V_BYTE: return "byte";
+    case PS_V_FLOAT: return "float";
+    case PS_V_STRING: return "string";
+    case PS_V_LIST: return "list";
+    case PS_V_MAP: return "map";
+    case PS_V_OBJECT: return "object";
+    case PS_V_VIEW: return "view";
+    case PS_V_EXCEPTION: return "Exception";
+    default: return "value";
+  }
+}
+
+static void format_value_short(PS_Value *v, char *out, size_t out_len) {
+  if (!out || out_len == 0) return;
+  if (!v) {
+    snprintf(out, out_len, "null");
+    return;
+  }
+  switch (v->tag) {
+    case PS_V_BOOL:
+      snprintf(out, out_len, v->as.bool_v ? "true" : "false");
+      return;
+    case PS_V_INT:
+      snprintf(out, out_len, "%lld", (long long)v->as.int_v);
+      return;
+    case PS_V_BYTE:
+      snprintf(out, out_len, "%u", (unsigned)v->as.byte_v);
+      return;
+    case PS_V_FLOAT: {
+      char tmp[64];
+      format_float_shortest(v->as.float_v, tmp, sizeof(tmp));
+      snprintf(out, out_len, "%s", tmp);
+      return;
+    }
+    case PS_V_STRING: {
+      const char *s = v->as.string_v.ptr ? v->as.string_v.ptr : "";
+      size_t n = v->as.string_v.len;
+      size_t cap = (n > 32) ? 32 : n;
+      char buf[80];
+      size_t bi = 0;
+      buf[bi++] = '"';
+      for (size_t i = 0; i < cap && bi + 2 < sizeof(buf); i++) {
+        unsigned char c = (unsigned char)s[i];
+        if (c == '\n' || c == '\r' || c == '\t') {
+          buf[bi++] = ' ';
+          continue;
+        }
+        if (c < 0x20) {
+          buf[bi++] = '?';
+          continue;
+        }
+        buf[bi++] = (char)c;
+      }
+      if (n > cap && bi + 3 < sizeof(buf)) {
+        buf[bi++] = '.';
+        buf[bi++] = '.';
+        buf[bi++] = '.';
+      }
+      buf[bi++] = '"';
+      buf[bi] = '\0';
+      snprintf(out, out_len, "%s", buf);
+      return;
+    }
+    case PS_V_EXCEPTION: {
+      const char *tn = v->as.exc_v.type_name ? v->as.exc_v.type_name : "Exception";
+      snprintf(out, out_len, "%s", tn);
+      return;
+    }
+    default:
+      snprintf(out, out_len, "<%s>", value_type_name(v));
+      return;
   }
 }
 
@@ -278,7 +359,12 @@ static int view_is_valid(PS_Value *v) {
 
 static int expect_arity(PS_Context *ctx, IRInstr *ins, size_t min, size_t max) {
   if (ins->arg_count < min || ins->arg_count > max) {
-    ps_throw(ctx, PS_ERR_TYPE, "arity mismatch");
+    char got[32];
+    char expected[64];
+    snprintf(got, sizeof(got), "%zu", ins->arg_count);
+    if (min == max) snprintf(expected, sizeof(expected), "%zu args", min);
+    else snprintf(expected, sizeof(expected), "%zu..%zu args", min, max);
+    ps_throw_diag(ctx, PS_ERR_TYPE, "arity mismatch", got, expected);
     return 0;
   }
   return 1;
@@ -289,7 +375,7 @@ static int read_utf8_glyph_stream(PS_Context *ctx, FILE *fp, uint8_t out[4], siz
   if (c0 == EOF) return 0;
   uint8_t b0 = (uint8_t)c0;
   if (b0 == 0) {
-    ps_throw(ctx, PS_ERR_UTF8, "NUL byte not allowed");
+    ps_throw_diag(ctx, PS_ERR_UTF8, "invalid UTF-8 sequence", "NUL byte", "non-NUL UTF-8 byte");
     return -1;
   }
   size_t len = 0;
@@ -307,38 +393,38 @@ static int read_utf8_glyph_stream(PS_Context *ctx, FILE *fp, uint8_t out[4], siz
     len = 4;
     cp = (uint32_t)(b0 & 0x07);
   } else {
-    ps_throw(ctx, PS_ERR_UTF8, "invalid UTF-8");
+    ps_throw_diag(ctx, PS_ERR_UTF8, "invalid UTF-8 sequence", "byte stream", "valid UTF-8");
     return -1;
   }
   out[0] = b0;
   for (size_t i = 1; i < len; i++) {
     int ci = fgetc(fp);
     if (ci == EOF) {
-      ps_throw(ctx, PS_ERR_UTF8, "invalid UTF-8");
+      ps_throw_diag(ctx, PS_ERR_UTF8, "invalid UTF-8 sequence", "byte stream", "valid UTF-8");
       return -1;
     }
     uint8_t bi = (uint8_t)ci;
     if ((bi & 0xC0) != 0x80) {
-      ps_throw(ctx, PS_ERR_UTF8, "invalid UTF-8");
+      ps_throw_diag(ctx, PS_ERR_UTF8, "invalid UTF-8 sequence", "byte stream", "valid UTF-8");
       return -1;
     }
     if (bi == 0) {
-      ps_throw(ctx, PS_ERR_UTF8, "NUL byte not allowed");
+      ps_throw_diag(ctx, PS_ERR_UTF8, "invalid UTF-8 sequence", "NUL byte", "non-NUL UTF-8 byte");
       return -1;
     }
     out[i] = bi;
     cp = (cp << 6) | (uint32_t)(bi & 0x3F);
   }
   if (len == 2 && cp < 0x80) {
-    ps_throw(ctx, PS_ERR_UTF8, "invalid UTF-8");
+    ps_throw_diag(ctx, PS_ERR_UTF8, "invalid UTF-8 sequence", "byte stream", "valid UTF-8");
     return -1;
   }
   if (len == 3 && cp < 0x800) {
-    ps_throw(ctx, PS_ERR_UTF8, "invalid UTF-8");
+    ps_throw_diag(ctx, PS_ERR_UTF8, "invalid UTF-8 sequence", "byte stream", "valid UTF-8");
     return -1;
   }
   if (len == 4 && (cp < 0x10000 || cp > 0x10FFFF)) {
-    ps_throw(ctx, PS_ERR_UTF8, "invalid UTF-8");
+    ps_throw_diag(ctx, PS_ERR_UTF8, "invalid UTF-8 sequence", "byte stream", "valid UTF-8");
     return -1;
   }
   *out_len = len;
@@ -409,13 +495,15 @@ static int64_t file_tell_glyphs(PS_Context *ctx, PS_File *f) {
     if (pos > cur) break;
   }
   fseek(f->fp, cur, SEEK_SET);
-  ps_throw(ctx, PS_ERR_RANGE, "tell position not at glyph boundary");
+  ps_throw_diag(ctx, PS_ERR_RANGE, "invalid tell position", "non-glyph boundary", "glyph boundary position");
   return -1;
 }
 
 static int file_seek_glyphs(PS_Context *ctx, PS_File *f, int64_t pos) {
   if (pos < 0) {
-    ps_throw(ctx, PS_ERR_RANGE, "seek expects pos >= 0");
+    char got[64];
+    snprintf(got, sizeof(got), "%lld", (long long)pos);
+    ps_throw_diag(ctx, PS_ERR_RANGE, "invalid seek position", got, "pos >= 0");
     return 0;
   }
   fseek(f->fp, 0, SEEK_SET);
@@ -435,7 +523,11 @@ static int file_seek_glyphs(PS_Context *ctx, PS_File *f, int64_t pos) {
       return 1;
     }
   }
-  ps_throw(ctx, PS_ERR_RANGE, "seek out of range");
+  {
+    char got[64];
+    snprintf(got, sizeof(got), "%lld", (long long)pos);
+    ps_throw_diag(ctx, PS_ERR_RANGE, "seek out of range", got, "position within file");
+  }
   return 0;
 }
 
@@ -607,20 +699,20 @@ PS_IR_Module *ps_ir_load_json(PS_Context *ctx, const char *json, size_t len) {
   const char *err = NULL;
   PS_JsonValue *root = ps_json_parse(json, len, &err);
   if (!root) {
-    ps_throw(ctx, PS_ERR_INTERNAL, err ? err : "invalid IR json");
+    ps_throw_diag(ctx, PS_ERR_INTERNAL, "invalid IR", err ? err : "parse failed", "valid IR JSON");
     return NULL;
   }
   PS_JsonValue *module = ps_json_obj_get(root, "module");
   PS_JsonValue *functions = module ? ps_json_obj_get(module, "functions") : NULL;
   if (!functions || functions->type != PS_JSON_ARRAY) {
     ps_json_free(root);
-    ps_throw(ctx, PS_ERR_INTERNAL, "invalid IR json");
+    ps_throw_diag(ctx, PS_ERR_INTERNAL, "invalid IR", "missing functions", "valid IR JSON");
     return NULL;
   }
   PS_IR_Module *m = (PS_IR_Module *)calloc(1, sizeof(PS_IR_Module));
   if (!m) {
     ps_json_free(root);
-    ps_throw(ctx, PS_ERR_OOM, "out of memory");
+    ps_throw_diag(ctx, PS_ERR_OOM, "out of memory", "IR module allocation failed", "available memory");
     return NULL;
   }
   PS_JsonValue *protos = module ? ps_json_obj_get(module, "prototypes") : NULL;
@@ -630,7 +722,7 @@ PS_IR_Module *ps_ir_load_json(PS_Context *ctx, const char *json, size_t len) {
     if (!m->protos) {
       free(m);
       ps_json_free(root);
-      ps_throw(ctx, PS_ERR_OOM, "out of memory");
+      ps_throw_diag(ctx, PS_ERR_OOM, "out of memory", "IR prototype allocation failed", "available memory");
       return NULL;
     }
     for (size_t pi = 0; pi < m->proto_count; pi++) {
@@ -651,7 +743,7 @@ PS_IR_Module *ps_ir_load_json(PS_Context *ctx, const char *json, size_t len) {
     }
     free(m);
     ps_json_free(root);
-    ps_throw(ctx, PS_ERR_OOM, "out of memory");
+    ps_throw_diag(ctx, PS_ERR_OOM, "out of memory", "IR function allocation failed", "available memory");
     return NULL;
   }
   for (size_t fi = 0; fi < m->fn_count; fi++) {
@@ -780,7 +872,7 @@ static PS_Value *value_from_literal(PS_Context *ctx, const char *literalType, PS
     if (!ctx->eof_value) {
       PS_Value *v = ps_value_alloc(PS_V_OBJECT);
       if (!v) {
-        ps_throw(ctx, PS_ERR_OOM, "out of memory");
+        ps_throw_diag(ctx, PS_ERR_OOM, "out of memory", "EOF value allocation failed", "available memory");
         return NULL;
       }
       ctx->eof_value = v;
@@ -802,7 +894,7 @@ static PS_Value *value_from_literal(PS_Context *ctx, const char *literalType, PS
       if (!ctx->stderr_value) ctx->stderr_value = ps_make_file(ctx, stderr, PS_FILE_WRITE | PS_FILE_STD | (is_binary ? PS_FILE_BINARY : 0), "stderr");
       return ctx->stderr_value ? ps_value_retain(ctx->stderr_value) : NULL;
     }
-    ps_throw(ctx, PS_ERR_RANGE, "invalid file constant");
+    ps_throw_diag(ctx, PS_ERR_RANGE, "invalid file constant", name, "stdin|stdout|stderr");
     return NULL;
   }
   return NULL;
@@ -879,7 +971,7 @@ static PS_Value *make_exception(PS_Context *ctx, const char *type_name, const ch
                                 const char *message, PS_Value *cause, const char *code, const char *category) {
   PS_Value *ex = ps_value_alloc(PS_V_EXCEPTION);
   if (!ex) {
-    ps_throw(ctx, PS_ERR_OOM, "out of memory");
+    ps_throw_diag(ctx, PS_ERR_OOM, "out of memory", "exception allocation failed", "available memory");
     return NULL;
   }
   ex->as.exc_v.is_runtime = is_runtime ? 1 : 0;
@@ -888,7 +980,7 @@ static PS_Value *make_exception(PS_Context *ctx, const char *type_name, const ch
   ex->as.exc_v.fields = ps_object_new(ctx);
   if (!ex->as.exc_v.fields) {
     ps_value_release(ex);
-    ps_throw(ctx, PS_ERR_OOM, "out of memory");
+    ps_throw_diag(ctx, PS_ERR_OOM, "out of memory", "exception fields allocation failed", "available memory");
     return NULL;
   }
   ex->as.exc_v.file = ps_make_string_utf8(ctx, file ? file : "", file ? strlen(file) : 0);
@@ -960,7 +1052,9 @@ static int exception_matches(PS_IR_Module *m, PS_Value *v, const char *type_name
 
 static PS_Value *exception_get_field(PS_Context *ctx, PS_Value *v, const char *name) {
   if (!v || v->tag != PS_V_EXCEPTION || !name) {
-    ps_throw(ctx, PS_ERR_TYPE, "not an exception");
+    char got[64];
+    snprintf(got, sizeof(got), "%s", value_type_name(v));
+    ps_throw_diag(ctx, PS_ERR_TYPE, "invalid exception access", got, "Exception");
     return NULL;
   }
   if (strcmp(name, "file") == 0) return v->as.exc_v.file ? ps_value_retain(v->as.exc_v.file) : ps_make_string_utf8(ctx, "", 0);
@@ -1027,7 +1121,7 @@ static int exec_call_static(PS_Context *ctx, PS_IR_Module *m, const char *callee
       return 0;
     }
   }
-  ps_throw(ctx, PS_ERR_IMPORT, "unknown function");
+  ps_throw_diag(ctx, PS_ERR_IMPORT, "unknown function", callee ? callee : "<unknown>", "defined function or module symbol");
   return 1;
 }
 
@@ -1041,6 +1135,9 @@ static int exec_function(PS_Context *ctx, PS_IR_Module *m, IRFunction *f, PS_Val
   size_t try_len = 0;
   size_t try_cap = 0;
   PS_Value *last_exception = NULL;
+  const char *cur_file = NULL;
+  int cur_line = 0;
+  int cur_col = 0;
   size_t fixed = f->variadic ? f->variadic_index : f->param_count;
   for (size_t i = 0; i < fixed && i < argc; i++) {
     bindings_set(&vars, f->params[i], args[i]);
@@ -1064,6 +1161,11 @@ static int exec_function(PS_Context *ctx, PS_IR_Module *m, IRFunction *f, PS_Val
     IRBlock *b = &f->blocks[block_idx];
     for (ip = 0; ip < b->instr_count; ip++) {
       IRInstr *ins = &b->instrs[ip];
+      if (ins->file || ins->line || ins->col) {
+        cur_file = ins->file;
+        cur_line = ins->line;
+        cur_col = ins->col;
+      }
       if (!ins->op) continue;
       if (ctx->trace) fprintf(stderr, "[trace] %s\n", ins->op);
       if (ctx->trace_ir) fprintf(stderr, "[ir] %s\n", ins->op);
@@ -1084,7 +1186,7 @@ static int exec_function(PS_Context *ctx, PS_IR_Module *m, IRFunction *f, PS_Val
           size_t nc = try_cap == 0 ? 4 : try_cap * 2;
           TryFrame *nt = (TryFrame *)realloc(tries, sizeof(TryFrame) * nc);
           if (!nt) {
-            ps_throw(ctx, PS_ERR_OOM, "out of memory");
+            ps_throw_diag(ctx, PS_ERR_OOM, "out of memory", "try handler allocation failed", "available memory");
             goto raise;
           }
           tries = nt;
@@ -1107,7 +1209,7 @@ static int exec_function(PS_Context *ctx, PS_IR_Module *m, IRFunction *f, PS_Val
       }
       if (strcmp(ins->op, "rethrow") == 0) {
         if (!last_exception) {
-          ps_throw(ctx, PS_ERR_INTERNAL, "rethrow with no exception");
+          ps_throw_diag(ctx, PS_ERR_INTERNAL, "invalid rethrow", "no active exception", "active exception");
         }
         goto raise;
       }
@@ -1149,7 +1251,11 @@ static int exec_function(PS_Context *ctx, PS_IR_Module *m, IRFunction *f, PS_Val
           bindings_set(&temps, ins->dst, field);
           continue;
         }
-        ps_throw(ctx, PS_ERR_TYPE, "member access on non-object");
+        {
+          char got[64];
+          snprintf(got, sizeof(got), "%s", value_type_name(recv));
+          ps_throw_diag(ctx, PS_ERR_TYPE, "member access on non-object", got, "object");
+        }
         goto raise;
       }
       if (strcmp(ins->op, "member_set") == 0) {
@@ -1204,7 +1310,11 @@ static int exec_function(PS_Context *ctx, PS_IR_Module *m, IRFunction *f, PS_Val
           }
           continue;
         }
-        ps_throw(ctx, PS_ERR_TYPE, "member assignment on non-object");
+        {
+          char got[64];
+          snprintf(got, sizeof(got), "%s", value_type_name(recv));
+          ps_throw_diag(ctx, PS_ERR_TYPE, "member assignment on non-object", got, "object");
+        }
         goto raise;
       }
       if (strcmp(ins->op, "make_object") == 0) {
@@ -1227,7 +1337,7 @@ static int exec_function(PS_Context *ctx, PS_IR_Module *m, IRFunction *f, PS_Val
       if (strcmp(ins->op, "check_div_zero") == 0) {
         PS_Value *v = get_value(&temps, &vars, ins->divisor);
         if (v && v->tag == PS_V_INT && v->as.int_v == 0) {
-          ps_throw(ctx, PS_ERR_RANGE, "division by zero");
+          ps_throw_diag(ctx, PS_ERR_RANGE, "division by zero", "0", "non-zero divisor");
           goto raise;
         }
         continue;
@@ -1235,7 +1345,9 @@ static int exec_function(PS_Context *ctx, PS_IR_Module *m, IRFunction *f, PS_Val
       if (strcmp(ins->op, "check_int_overflow_unary_minus") == 0) {
         PS_Value *v = get_value(&temps, &vars, ins->value);
         if (v && v->tag == PS_V_INT && v->as.int_v == INT64_MIN) {
-          ps_throw(ctx, PS_ERR_RANGE, "int overflow");
+          char got[64];
+          snprintf(got, sizeof(got), "-%lld", (long long)v->as.int_v);
+          ps_throw_diag(ctx, PS_ERR_RANGE, "int overflow", got, "value within int range");
           goto raise;
         }
         continue;
@@ -1248,26 +1360,36 @@ static int exec_function(PS_Context *ctx, PS_IR_Module *m, IRFunction *f, PS_Val
         int64_t b = r->as.int_v;
         if (strcmp(ins->operator, "+") == 0) {
           if ((b > 0 && a > INT64_MAX - b) || (b < 0 && a < INT64_MIN - b)) {
-            ps_throw(ctx, PS_ERR_RANGE, "int overflow");
+            char got[96];
+            snprintf(got, sizeof(got), "%lld + %lld", (long long)a, (long long)b);
+            ps_throw_diag(ctx, PS_ERR_RANGE, "int overflow", got, "value within int range");
             goto raise;
           }
         } else if (strcmp(ins->operator, "-") == 0) {
           if ((b < 0 && a > INT64_MAX + b) || (b > 0 && a < INT64_MIN + b)) {
-            ps_throw(ctx, PS_ERR_RANGE, "int overflow");
+            char got[96];
+            snprintf(got, sizeof(got), "%lld - %lld", (long long)a, (long long)b);
+            ps_throw_diag(ctx, PS_ERR_RANGE, "int overflow", got, "value within int range");
             goto raise;
           }
         } else if (strcmp(ins->operator, "*") == 0) {
           if (a != 0 && b != 0) {
             if (a == -1 && b == INT64_MIN) {
-              ps_throw(ctx, PS_ERR_RANGE, "int overflow");
+              char got[96];
+              snprintf(got, sizeof(got), "%lld * %lld", (long long)a, (long long)b);
+              ps_throw_diag(ctx, PS_ERR_RANGE, "int overflow", got, "value within int range");
               goto raise;
             }
             if (b == -1 && a == INT64_MIN) {
-              ps_throw(ctx, PS_ERR_RANGE, "int overflow");
+              char got[96];
+              snprintf(got, sizeof(got), "%lld * %lld", (long long)a, (long long)b);
+              ps_throw_diag(ctx, PS_ERR_RANGE, "int overflow", got, "value within int range");
               goto raise;
             }
             if (llabs(a) > INT64_MAX / llabs(b)) {
-              ps_throw(ctx, PS_ERR_RANGE, "int overflow");
+              char got[96];
+              snprintf(got, sizeof(got), "%lld * %lld", (long long)a, (long long)b);
+              ps_throw_diag(ctx, PS_ERR_RANGE, "int overflow", got, "value within int range");
               goto raise;
             }
           }
@@ -1278,7 +1400,11 @@ static int exec_function(PS_Context *ctx, PS_IR_Module *m, IRFunction *f, PS_Val
         PS_Value *s = get_value(&temps, &vars, ins->shift);
         int64_t sh = s ? s->as.int_v : 0;
         if (sh < 0 || sh >= (int64_t)ins->width) {
-          ps_throw(ctx, PS_ERR_RANGE, "invalid shift");
+          char got[32];
+          char expected[64];
+          snprintf(got, sizeof(got), "%lld", (long long)sh);
+          snprintf(expected, sizeof(expected), "0..%d", ins->width - 1);
+          ps_throw_diag(ctx, PS_ERR_RANGE, "invalid shift", got, expected);
           goto raise;
         }
         continue;
@@ -1293,7 +1419,12 @@ static int exec_function(PS_Context *ctx, PS_IR_Module *m, IRFunction *f, PS_Val
         else if (t->tag == PS_V_STRING) len = ps_utf8_glyph_len((const uint8_t *)t->as.string_v.ptr, t->as.string_v.len);
         else if (t->tag == PS_V_VIEW) len = t->as.view_v.len;
         if (idx >= len) {
-          ps_throw(ctx, PS_ERR_RANGE, "index out of bounds");
+          char got[64];
+          char expected[96];
+          snprintf(got, sizeof(got), "%zu", idx);
+          if (len == 0) snprintf(expected, sizeof(expected), "empty %s (no valid index)", value_type_name(t));
+          else snprintf(expected, sizeof(expected), "0..%zu", len - 1);
+          ps_throw_diag(ctx, PS_ERR_RANGE, "index out of bounds", got, expected);
           goto raise;
         }
         continue;
@@ -1306,7 +1437,9 @@ static int exec_function(PS_Context *ctx, PS_IR_Module *m, IRFunction *f, PS_Val
         int64_t off = o->as.int_v;
         int64_t ln = l->as.int_v;
         if (off < 0 || ln < 0) {
-          ps_throw(ctx, PS_ERR_RANGE, "index out of bounds");
+          char got[64];
+          snprintf(got, sizeof(got), "offset=%lld len=%lld", (long long)off, (long long)ln);
+          ps_throw_diag(ctx, PS_ERR_RANGE, "index out of bounds", got, "offset >= 0 and len >= 0");
           goto raise;
         }
         size_t total = 0;
@@ -1314,7 +1447,12 @@ static int exec_function(PS_Context *ctx, PS_IR_Module *m, IRFunction *f, PS_Val
         else if (t->tag == PS_V_STRING) total = ps_utf8_glyph_len((const uint8_t *)t->as.string_v.ptr, t->as.string_v.len);
         else if (t->tag == PS_V_VIEW) total = t->as.view_v.len;
         if ((uint64_t)off + (uint64_t)ln > total) {
-          ps_throw(ctx, PS_ERR_RANGE, "index out of bounds");
+          char got[64];
+          char expected[96];
+          snprintf(got, sizeof(got), "offset=%lld len=%lld", (long long)off, (long long)ln);
+          if (total == 0) snprintf(expected, sizeof(expected), "empty %s (no valid range)", value_type_name(t));
+          else snprintf(expected, sizeof(expected), "offset+len <= %zu", total);
+          ps_throw_diag(ctx, PS_ERR_RANGE, "index out of bounds", got, expected);
           goto raise;
         }
         continue;
@@ -1323,7 +1461,9 @@ static int exec_function(PS_Context *ctx, PS_IR_Module *m, IRFunction *f, PS_Val
         PS_Value *mval = get_value(&temps, &vars, ins->map);
         PS_Value *k = get_value(&temps, &vars, ins->key);
         if (!ps_map_has_key(ctx, mval, k)) {
-          ps_throw(ctx, PS_ERR_RANGE, "missing key");
+          char got[128];
+          format_value_short(k, got, sizeof(got));
+          ps_throw_diag(ctx, PS_ERR_RANGE, "missing key", got, "existing key in map");
           goto raise;
         }
         continue;
@@ -1341,34 +1481,84 @@ static int exec_function(PS_Context *ctx, PS_IR_Module *m, IRFunction *f, PS_Val
         double rf = (r->tag == PS_V_FLOAT) ? r->as.float_v : (double)ri;
         PS_Value *res = NULL;
         if (strcmp(ins->operator, "+") == 0) {
-          if (!is_numeric) { ps_throw(ctx, PS_ERR_TYPE, "invalid glyph operation"); goto raise; }
+          if (!is_numeric) {
+            char got[96];
+            snprintf(got, sizeof(got), "%s + %s", value_type_name(l), value_type_name(r));
+            ps_throw_diag(ctx, PS_ERR_TYPE, "invalid operand types", got, "numeric operands");
+            goto raise;
+          }
           res = is_float ? ps_make_float(ctx, lf + rf) : ps_make_int(ctx, li + ri);
         } else if (strcmp(ins->operator, "-") == 0) {
-          if (!is_numeric) { ps_throw(ctx, PS_ERR_TYPE, "invalid glyph operation"); goto raise; }
+          if (!is_numeric) {
+            char got[96];
+            snprintf(got, sizeof(got), "%s - %s", value_type_name(l), value_type_name(r));
+            ps_throw_diag(ctx, PS_ERR_TYPE, "invalid operand types", got, "numeric operands");
+            goto raise;
+          }
           res = is_float ? ps_make_float(ctx, lf - rf) : ps_make_int(ctx, li - ri);
         } else if (strcmp(ins->operator, "*") == 0) {
-          if (!is_numeric) { ps_throw(ctx, PS_ERR_TYPE, "invalid glyph operation"); goto raise; }
+          if (!is_numeric) {
+            char got[96];
+            snprintf(got, sizeof(got), "%s * %s", value_type_name(l), value_type_name(r));
+            ps_throw_diag(ctx, PS_ERR_TYPE, "invalid operand types", got, "numeric operands");
+            goto raise;
+          }
           res = is_float ? ps_make_float(ctx, lf * rf) : ps_make_int(ctx, li * ri);
         } else if (strcmp(ins->operator, "/") == 0) {
-          if (!is_numeric) { ps_throw(ctx, PS_ERR_TYPE, "invalid glyph operation"); goto raise; }
+          if (!is_numeric) {
+            char got[96];
+            snprintf(got, sizeof(got), "%s / %s", value_type_name(l), value_type_name(r));
+            ps_throw_diag(ctx, PS_ERR_TYPE, "invalid operand types", got, "numeric operands");
+            goto raise;
+          }
           res = is_float ? ps_make_float(ctx, lf / rf) : ps_make_int(ctx, li / ri);
         } else if (strcmp(ins->operator, "%") == 0) {
-          if (!is_numeric || is_float) { ps_throw(ctx, PS_ERR_TYPE, "invalid glyph operation"); goto raise; }
+          if (!is_numeric || is_float) {
+            char got[96];
+            snprintf(got, sizeof(got), "%s %% %s", value_type_name(l), value_type_name(r));
+            ps_throw_diag(ctx, PS_ERR_TYPE, "invalid operand types", got, "int operands");
+            goto raise;
+          }
           res = ps_make_int(ctx, li % ri);
         } else if (strcmp(ins->operator, "<<") == 0) {
-          if (!is_numeric || is_float) { ps_throw(ctx, PS_ERR_TYPE, "invalid glyph operation"); goto raise; }
+          if (!is_numeric || is_float) {
+            char got[96];
+            snprintf(got, sizeof(got), "%s << %s", value_type_name(l), value_type_name(r));
+            ps_throw_diag(ctx, PS_ERR_TYPE, "invalid operand types", got, "int operands");
+            goto raise;
+          }
           res = ps_make_int(ctx, li << ri);
         } else if (strcmp(ins->operator, ">>") == 0) {
-          if (!is_numeric || is_float) { ps_throw(ctx, PS_ERR_TYPE, "invalid glyph operation"); goto raise; }
+          if (!is_numeric || is_float) {
+            char got[96];
+            snprintf(got, sizeof(got), "%s >> %s", value_type_name(l), value_type_name(r));
+            ps_throw_diag(ctx, PS_ERR_TYPE, "invalid operand types", got, "int operands");
+            goto raise;
+          }
           res = ps_make_int(ctx, li >> ri);
         } else if (strcmp(ins->operator, "&") == 0) {
-          if (!is_numeric || is_float) { ps_throw(ctx, PS_ERR_TYPE, "invalid glyph operation"); goto raise; }
+          if (!is_numeric || is_float) {
+            char got[96];
+            snprintf(got, sizeof(got), "%s & %s", value_type_name(l), value_type_name(r));
+            ps_throw_diag(ctx, PS_ERR_TYPE, "invalid operand types", got, "int operands");
+            goto raise;
+          }
           res = ps_make_int(ctx, li & ri);
         } else if (strcmp(ins->operator, "|") == 0) {
-          if (!is_numeric || is_float) { ps_throw(ctx, PS_ERR_TYPE, "invalid glyph operation"); goto raise; }
+          if (!is_numeric || is_float) {
+            char got[96];
+            snprintf(got, sizeof(got), "%s | %s", value_type_name(l), value_type_name(r));
+            ps_throw_diag(ctx, PS_ERR_TYPE, "invalid operand types", got, "int operands");
+            goto raise;
+          }
           res = ps_make_int(ctx, li | ri);
         } else if (strcmp(ins->operator, "^") == 0) {
-          if (!is_numeric || is_float) { ps_throw(ctx, PS_ERR_TYPE, "invalid glyph operation"); goto raise; }
+          if (!is_numeric || is_float) {
+            char got[96];
+            snprintf(got, sizeof(got), "%s ^ %s", value_type_name(l), value_type_name(r));
+            ps_throw_diag(ctx, PS_ERR_TYPE, "invalid operand types", got, "int operands");
+            goto raise;
+          }
           res = ps_make_int(ctx, li ^ ri);
         }
         else if (strcmp(ins->operator, "==") == 0) res = ps_make_bool(ctx, is_float ? (lf == rf) : values_equal(l, r));
@@ -1397,7 +1587,9 @@ static int exec_function(PS_Context *ctx, PS_IR_Module *m, IRFunction *f, PS_Val
           if (v->tag == PS_V_INT) res = ps_make_int(ctx, ~v->as.int_v);
           else if (v->tag == PS_V_BYTE) res = ps_make_int(ctx, ~(int64_t)v->as.byte_v);
           else if (v->tag == PS_V_GLYPH) {
-            ps_throw(ctx, PS_ERR_TYPE, "invalid glyph operation");
+            char got[64];
+            snprintf(got, sizeof(got), "%s", value_type_name(v));
+            ps_throw_diag(ctx, PS_ERR_TYPE, "invalid operand type", got, "int");
             goto raise;
           }
         }
@@ -1442,7 +1634,9 @@ static int exec_function(PS_Context *ctx, PS_IR_Module *m, IRFunction *f, PS_Val
         int64_t off = o->as.int_v;
         int64_t ln = l->as.int_v;
         if (off < 0 || ln < 0) {
-          ps_throw(ctx, PS_ERR_RANGE, "index out of bounds");
+          char got[96];
+          snprintf(got, sizeof(got), "offset=%lld len=%lld", (long long)off, (long long)ln);
+          ps_throw_diag(ctx, PS_ERR_RANGE, "index out of bounds", got, "offset >= 0 and len >= 0");
           goto raise;
         }
         PS_Value *base = src;
@@ -1477,7 +1671,7 @@ static int exec_function(PS_Context *ctx, PS_IR_Module *m, IRFunction *f, PS_Val
         } else if (t->tag == PS_V_MAP) res = ps_map_get(ctx, t, i);
         else if (t->tag == PS_V_VIEW) {
           if (!view_is_valid(t)) {
-            ps_throw(ctx, PS_ERR_RANGE, "view invalidated");
+            ps_throw_diag(ctx, PS_ERR_RANGE, "view invalidated", "invalidated view", "valid view");
             goto raise;
           }
           size_t idx = t->as.view_v.offset + (size_t)i->as.int_v;
@@ -1502,11 +1696,11 @@ static int exec_function(PS_Context *ctx, PS_IR_Module *m, IRFunction *f, PS_Val
           if (!ps_map_set(ctx, t, i, v)) goto raise;
         } else if (t->tag == PS_V_VIEW) {
           if (!view_is_valid(t)) {
-            ps_throw(ctx, PS_ERR_RANGE, "view invalidated");
+            ps_throw_diag(ctx, PS_ERR_RANGE, "view invalidated", "invalidated view", "valid view");
             goto raise;
           }
           if (t->as.view_v.readonly) {
-            ps_throw(ctx, PS_ERR_TYPE, "cannot assign through view");
+            ps_throw_diag(ctx, PS_ERR_TYPE, "cannot assign through view", "view value", "mutable list");
             goto raise;
           }
           size_t idx = t->as.view_v.offset + (size_t)i->as.int_v;
@@ -1514,7 +1708,11 @@ static int exec_function(PS_Context *ctx, PS_IR_Module *m, IRFunction *f, PS_Val
           if (src->tag == PS_V_LIST) {
             if (!ps_list_set_internal(ctx, src, idx, v)) goto raise;
           } else {
-            ps_throw(ctx, PS_ERR_TYPE, "invalid view target");
+            {
+              char got[64];
+              format_value_short(src, got, sizeof(got));
+              ps_throw_diag(ctx, PS_ERR_TYPE, "invalid view target", got, "list");
+            }
             goto raise;
           }
         }
@@ -1543,7 +1741,7 @@ static int exec_function(PS_Context *ctx, PS_IR_Module *m, IRFunction *f, PS_Val
             has = it->as.iter_v.index < gl;
           } else if (src->tag == PS_V_VIEW) {
             if (!view_is_valid(src)) {
-              ps_throw(ctx, PS_ERR_RANGE, "view invalidated");
+              ps_throw_diag(ctx, PS_ERR_RANGE, "view invalidated", "invalidated view", "valid view");
               goto raise;
             }
             has = it->as.iter_v.index < src->as.view_v.len;
@@ -1571,7 +1769,7 @@ static int exec_function(PS_Context *ctx, PS_IR_Module *m, IRFunction *f, PS_Val
             }
           } else if (src->tag == PS_V_VIEW) {
             if (!view_is_valid(src)) {
-              ps_throw(ctx, PS_ERR_RANGE, "view invalidated");
+              ps_throw_diag(ctx, PS_ERR_RANGE, "view invalidated", "invalidated view", "valid view");
               goto raise;
             }
             size_t vidx = src->as.view_v.offset + idx;
@@ -1668,7 +1866,8 @@ static int exec_function(PS_Context *ctx, PS_IR_Module *m, IRFunction *f, PS_Val
           if (strcmp(ins->method, "asBool") == 0) {
             if (!expect_arity(ctx, ins, 0, 0)) goto raise;
             if (!json_kind || strcmp(json_kind, "bool") != 0 || !json_val || json_val->tag != PS_V_BOOL) {
-              ps_throw(ctx, PS_ERR_TYPE, "expected JsonBool");
+              const char *got = json_kind ? json_kind : value_type_name(json_val);
+              ps_throw_diag(ctx, PS_ERR_TYPE, "invalid JsonBool access", got, "JsonBool");
               goto raise;
             }
             bindings_set(&temps, ins->dst, json_val);
@@ -1677,7 +1876,8 @@ static int exec_function(PS_Context *ctx, PS_IR_Module *m, IRFunction *f, PS_Val
           if (strcmp(ins->method, "asNumber") == 0) {
             if (!expect_arity(ctx, ins, 0, 0)) goto raise;
             if (!json_kind || strcmp(json_kind, "number") != 0 || !json_val || json_val->tag != PS_V_FLOAT) {
-              ps_throw(ctx, PS_ERR_TYPE, "expected JsonNumber");
+              const char *got = json_kind ? json_kind : value_type_name(json_val);
+              ps_throw_diag(ctx, PS_ERR_TYPE, "invalid JsonNumber access", got, "JsonNumber");
               goto raise;
             }
             bindings_set(&temps, ins->dst, json_val);
@@ -1686,7 +1886,8 @@ static int exec_function(PS_Context *ctx, PS_IR_Module *m, IRFunction *f, PS_Val
           if (strcmp(ins->method, "asString") == 0) {
             if (!expect_arity(ctx, ins, 0, 0)) goto raise;
             if (!json_kind || strcmp(json_kind, "string") != 0 || !json_val || json_val->tag != PS_V_STRING) {
-              ps_throw(ctx, PS_ERR_TYPE, "expected JsonString");
+              const char *got = json_kind ? json_kind : value_type_name(json_val);
+              ps_throw_diag(ctx, PS_ERR_TYPE, "invalid JsonString access", got, "JsonString");
               goto raise;
             }
             bindings_set(&temps, ins->dst, json_val);
@@ -1695,7 +1896,8 @@ static int exec_function(PS_Context *ctx, PS_IR_Module *m, IRFunction *f, PS_Val
           if (strcmp(ins->method, "asArray") == 0) {
             if (!expect_arity(ctx, ins, 0, 0)) goto raise;
             if (!json_kind || strcmp(json_kind, "array") != 0 || !json_val || json_val->tag != PS_V_LIST) {
-              ps_throw(ctx, PS_ERR_TYPE, "expected JsonArray");
+              const char *got = json_kind ? json_kind : value_type_name(json_val);
+              ps_throw_diag(ctx, PS_ERR_TYPE, "invalid JsonArray access", got, "JsonArray");
               goto raise;
             }
             bindings_set(&temps, ins->dst, json_val);
@@ -1704,7 +1906,8 @@ static int exec_function(PS_Context *ctx, PS_IR_Module *m, IRFunction *f, PS_Val
           if (strcmp(ins->method, "asObject") == 0) {
             if (!expect_arity(ctx, ins, 0, 0)) goto raise;
             if (!json_kind || strcmp(json_kind, "object") != 0 || !json_val || json_val->tag != PS_V_MAP) {
-              ps_throw(ctx, PS_ERR_TYPE, "expected JsonObject");
+              const char *got = json_kind ? json_kind : value_type_name(json_val);
+              ps_throw_diag(ctx, PS_ERR_TYPE, "invalid JsonObject access", got, "JsonObject");
               goto raise;
             }
             bindings_set(&temps, ins->dst, json_val);
@@ -1719,7 +1922,7 @@ static int exec_function(PS_Context *ctx, PS_IR_Module *m, IRFunction *f, PS_Val
           if (strcmp(ins->method, "close") == 0) {
             if (!expect_arity(ctx, ins, 0, 0)) goto raise;
             if (f->flags & PS_FILE_STD) {
-              ps_throw(ctx, PS_ERR_RANGE, "cannot close standard stream");
+              ps_throw_diag(ctx, PS_ERR_RANGE, "cannot close standard stream", "standard stream", "non-standard stream");
               goto raise;
             }
             if (!f->closed && f->fp) {
@@ -1733,7 +1936,7 @@ static int exec_function(PS_Context *ctx, PS_IR_Module *m, IRFunction *f, PS_Val
             continue;
           }
           if (f->closed || !f->fp) {
-            ps_throw(ctx, PS_ERR_RANGE, "file is closed");
+            ps_throw_diag(ctx, PS_ERR_RANGE, "file is closed", "closed file", "open file");
             goto raise;
           }
           if (strcmp(ins->method, "name") == 0) {
@@ -1750,7 +1953,7 @@ static int exec_function(PS_Context *ctx, PS_IR_Module *m, IRFunction *f, PS_Val
             if (is_binary) {
               int64_t pos = file_tell_bytes(ctx, f);
               if (pos < 0) {
-                ps_throw(ctx, PS_ERR_INTERNAL, "tell failed");
+                ps_throw_diag(ctx, PS_ERR_INTERNAL, "tell failed", "I/O failure", "valid stream position");
                 goto raise;
               }
               PS_Value *iv = ps_make_int(ctx, pos);
@@ -1785,13 +1988,17 @@ static int exec_function(PS_Context *ctx, PS_IR_Module *m, IRFunction *f, PS_Val
             if (!expect_arity(ctx, ins, 1, 1)) goto raise;
             PS_Value *sv = get_value(&temps, &vars, ins->args[0]);
             if (!sv || sv->tag != PS_V_INT) {
-              ps_throw(ctx, PS_ERR_RANGE, "invalid seek position");
+              char got[64];
+              snprintf(got, sizeof(got), "%s", value_type_name(sv));
+              ps_throw_diag(ctx, PS_ERR_RANGE, "invalid seek position", got, "int");
               goto raise;
             }
             if (is_binary) {
               int64_t pos = sv->as.int_v;
               if (pos < 0 || pos > file_size_bytes(ctx, f)) {
-                ps_throw(ctx, PS_ERR_RANGE, "seek out of range");
+                char got[64];
+                snprintf(got, sizeof(got), "%lld", (long long)pos);
+                ps_throw_diag(ctx, PS_ERR_RANGE, "seek out of range", got, "position within file");
                 goto raise;
               }
               fseek(f->fp, (long)pos, SEEK_SET);
@@ -1803,29 +2010,33 @@ static int exec_function(PS_Context *ctx, PS_IR_Module *m, IRFunction *f, PS_Val
           if (strcmp(ins->method, "read") == 0) {
             if (!expect_arity(ctx, ins, 1, 1)) goto raise;
             if (!can_read) {
-              ps_throw(ctx, PS_ERR_RANGE, "file not readable");
+              ps_throw_diag(ctx, PS_ERR_RANGE, "file not readable", "write-only file", "readable file");
               goto raise;
             }
             PS_Value *sv = get_value(&temps, &vars, ins->args[0]);
             if (!sv || sv->tag != PS_V_INT) {
-              ps_throw(ctx, PS_ERR_RANGE, "invalid read size");
+              char got[64];
+              snprintf(got, sizeof(got), "%s", value_type_name(sv));
+              ps_throw_diag(ctx, PS_ERR_RANGE, "invalid read size", got, "int >= 1");
               goto raise;
             }
             if (sv->as.int_v <= 0) {
-              ps_throw(ctx, PS_ERR_RANGE, "read size must be >= 1");
+              char got[64];
+              snprintf(got, sizeof(got), "%lld", (long long)sv->as.int_v);
+              ps_throw_diag(ctx, PS_ERR_RANGE, "invalid read size", got, "int >= 1");
               goto raise;
             }
             size_t want = (size_t)sv->as.int_v;
             if (is_binary) {
               uint8_t *buf = (uint8_t *)malloc(want);
               if (!buf) {
-                ps_throw(ctx, PS_ERR_OOM, "out of memory");
+                ps_throw_diag(ctx, PS_ERR_OOM, "out of memory", "read buffer allocation failed", "available memory");
                 goto raise;
               }
               size_t n = fread(buf, 1, want, f->fp);
               if (ferror(f->fp)) {
                 free(buf);
-                ps_throw(ctx, PS_ERR_INTERNAL, "read failed");
+                ps_throw_diag(ctx, PS_ERR_INTERNAL, "read failed", "I/O failure", "successful read");
                 goto raise;
               }
               if (n == 0) {
@@ -1849,7 +2060,7 @@ static int exec_function(PS_Context *ctx, PS_IR_Module *m, IRFunction *f, PS_Val
               if (cap < 16) cap = 16;
               uint8_t *buf = (uint8_t *)malloc(cap);
               if (!buf) {
-                ps_throw(ctx, PS_ERR_OOM, "out of memory");
+                ps_throw_diag(ctx, PS_ERR_OOM, "out of memory", "read buffer allocation failed", "available memory");
                 goto raise;
               }
               size_t len = 0;
@@ -1867,7 +2078,7 @@ static int exec_function(PS_Context *ctx, PS_IR_Module *m, IRFunction *f, PS_Val
                   uint8_t *nbuf = (uint8_t *)realloc(buf, cap);
                   if (!nbuf) {
                     free(buf);
-                    ps_throw(ctx, PS_ERR_OOM, "out of memory");
+                    ps_throw_diag(ctx, PS_ERR_OOM, "out of memory", "read buffer allocation failed", "available memory");
                     goto raise;
                   }
                   buf = nbuf;
@@ -1894,45 +2105,57 @@ static int exec_function(PS_Context *ctx, PS_IR_Module *m, IRFunction *f, PS_Val
           if (strcmp(ins->method, "write") == 0) {
             if (!expect_arity(ctx, ins, 1, 1)) goto raise;
             if (!can_write) {
-              ps_throw(ctx, PS_ERR_RANGE, "file not writable");
+              ps_throw_diag(ctx, PS_ERR_RANGE, "file not writable", "read-only file", "writable file");
               goto raise;
             }
             PS_Value *arg = get_value(&temps, &vars, ins->args[0]);
             if (!arg) goto raise;
             if (!is_binary) {
               if (arg->tag != PS_V_STRING) {
-                ps_throw(ctx, PS_ERR_TYPE, "write expects string");
+                char got[64];
+                snprintf(got, sizeof(got), "%s", value_type_name(arg));
+                ps_throw_diag(ctx, PS_ERR_TYPE, "invalid write value", got, "string");
                 goto raise;
               }
               if (arg->as.string_v.len > 0) {
                 fwrite(arg->as.string_v.ptr, 1, arg->as.string_v.len, f->fp);
               }
               if (ferror(f->fp)) {
-                ps_throw(ctx, PS_ERR_INTERNAL, "write failed");
+                ps_throw_diag(ctx, PS_ERR_INTERNAL, "write failed", "I/O failure", "successful write");
                 goto raise;
               }
             } else {
               if (arg->tag != PS_V_LIST) {
-                ps_throw(ctx, PS_ERR_TYPE, "write expects list<byte>");
+                char got[64];
+                snprintf(got, sizeof(got), "%s", value_type_name(arg));
+                ps_throw_diag(ctx, PS_ERR_TYPE, "invalid write value", got, "list<byte>");
                 goto raise;
               }
               size_t n = arg->as.list_v.len;
               uint8_t *buf = (uint8_t *)malloc(n);
               if (!buf && n > 0) {
-                ps_throw(ctx, PS_ERR_OOM, "out of memory");
+                ps_throw_diag(ctx, PS_ERR_OOM, "out of memory", "write buffer allocation failed", "available memory");
                 goto raise;
               }
               for (size_t i = 0; i < n; i++) {
                 PS_Value *it = arg->as.list_v.items[i];
                 if (!it || (it->tag != PS_V_INT && it->tag != PS_V_BYTE)) {
                   free(buf);
-                  ps_throw(ctx, PS_ERR_TYPE, "list<byte> expected");
+                  {
+                    char got[64];
+                    snprintf(got, sizeof(got), "%s", value_type_name(it));
+                    ps_throw_diag(ctx, PS_ERR_TYPE, "invalid byte list element", got, "byte or int");
+                  }
                   goto raise;
                 }
                 int64_t v = (it->tag == PS_V_BYTE) ? it->as.byte_v : it->as.int_v;
                 if (v < 0 || v > 255) {
                   free(buf);
-                  ps_throw(ctx, PS_ERR_RANGE, "byte out of range");
+                  {
+                    char got[32];
+                    snprintf(got, sizeof(got), "%lld", (long long)v);
+                    ps_throw_diag(ctx, PS_ERR_RANGE, "byte out of range", got, "0..255");
+                  }
                   goto raise;
                 }
                 buf[i] = (uint8_t)v;
@@ -1940,14 +2163,18 @@ static int exec_function(PS_Context *ctx, PS_IR_Module *m, IRFunction *f, PS_Val
               if (n > 0) fwrite(buf, 1, n, f->fp);
               if (ferror(f->fp)) {
                 free(buf);
-                ps_throw(ctx, PS_ERR_INTERNAL, "write failed");
+                ps_throw_diag(ctx, PS_ERR_INTERNAL, "write failed", "I/O failure", "successful write");
                 goto raise;
               }
               free(buf);
             }
             continue;
           }
-          ps_throw(ctx, PS_ERR_TYPE, "unknown method");
+          {
+            char got[96];
+            snprintf(got, sizeof(got), "%s", ins->method ? ins->method : "<unknown>");
+            ps_throw_diag(ctx, PS_ERR_TYPE, "unknown method", got, "valid file method");
+          }
           goto raise;
         }
         if (recv->tag == PS_V_INT) {
@@ -1955,7 +2182,11 @@ static int exec_function(PS_Context *ctx, PS_IR_Module *m, IRFunction *f, PS_Val
             if (!expect_arity(ctx, ins, 0, 0)) goto raise;
             int64_t v = recv->as.int_v;
             if (v < 0 || v > 255) {
-              ps_throw(ctx, PS_ERR_RANGE, "byte out of range");
+              {
+                char got[32];
+                snprintf(got, sizeof(got), "%lld", (long long)v);
+                ps_throw_diag(ctx, PS_ERR_RANGE, "byte out of range", got, "0..255");
+              }
               goto raise;
             }
             PS_Value *b = ps_make_byte(ctx, (uint8_t)v);
@@ -1977,7 +2208,9 @@ static int exec_function(PS_Context *ctx, PS_IR_Module *m, IRFunction *f, PS_Val
           } else if (strcmp(ins->method, "abs") == 0) {
             if (!expect_arity(ctx, ins, 0, 0)) goto raise;
             if (recv->as.int_v == INT64_MIN) {
-              ps_throw(ctx, PS_ERR_RANGE, "int overflow");
+              char got[64];
+              snprintf(got, sizeof(got), "%lld", (long long)recv->as.int_v);
+              ps_throw_diag(ctx, PS_ERR_RANGE, "int overflow", got, "value within int range");
               goto raise;
             }
             int64_t v = recv->as.int_v < 0 ? -recv->as.int_v : recv->as.int_v;
@@ -1991,7 +2224,9 @@ static int exec_function(PS_Context *ctx, PS_IR_Module *m, IRFunction *f, PS_Val
             bindings_set(&temps, ins->dst, i);
             ps_value_release(i);
           } else {
-            ps_throw(ctx, PS_ERR_TYPE, "unknown method");
+            char got[96];
+            snprintf(got, sizeof(got), "%s", ins->method ? ins->method : "<unknown>");
+            ps_throw_diag(ctx, PS_ERR_TYPE, "unknown method", got, "valid int method");
             goto raise;
           }
         } else if (recv->tag == PS_V_BYTE) {
@@ -2006,7 +2241,9 @@ static int exec_function(PS_Context *ctx, PS_IR_Module *m, IRFunction *f, PS_Val
             bindings_set(&temps, ins->dst, f);
             ps_value_release(f);
           } else {
-            ps_throw(ctx, PS_ERR_TYPE, "unknown method");
+            char got[96];
+            snprintf(got, sizeof(got), "%s", ins->method ? ins->method : "<unknown>");
+            ps_throw_diag(ctx, PS_ERR_TYPE, "unknown method", got, "valid byte method");
             goto raise;
           }
         } else if (recv->tag == PS_V_FLOAT) {
@@ -2014,11 +2251,17 @@ static int exec_function(PS_Context *ctx, PS_IR_Module *m, IRFunction *f, PS_Val
             if (!expect_arity(ctx, ins, 0, 0)) goto raise;
             double v = recv->as.float_v;
             if (!isfinite(v)) {
-              ps_throw(ctx, PS_ERR_TYPE, "invalid float to int");
+              char got[64];
+              if (isnan(v)) snprintf(got, sizeof(got), "NaN");
+              else if (v > 0) snprintf(got, sizeof(got), "Infinity");
+              else snprintf(got, sizeof(got), "-Infinity");
+              ps_throw_diag(ctx, PS_ERR_TYPE, "invalid float to int", got, "finite float");
               goto raise;
             }
             if (v > (double)INT64_MAX || v < (double)INT64_MIN) {
-              ps_throw(ctx, PS_ERR_RANGE, "int overflow");
+              char got[64];
+              format_value_short(recv, got, sizeof(got));
+              ps_throw_diag(ctx, PS_ERR_RANGE, "int overflow", got, "value within int range");
               goto raise;
             }
             int64_t i64 = (int64_t)trunc(v);
@@ -2054,7 +2297,9 @@ static int exec_function(PS_Context *ctx, PS_IR_Module *m, IRFunction *f, PS_Val
             bindings_set(&temps, ins->dst, b);
             ps_value_release(b);
           } else {
-            ps_throw(ctx, PS_ERR_TYPE, "unknown method");
+            char got[96];
+            snprintf(got, sizeof(got), "%s", ins->method ? ins->method : "<unknown>");
+            ps_throw_diag(ctx, PS_ERR_TYPE, "unknown method", got, "valid float method");
             goto raise;
           }
         } else if (recv->tag == PS_V_GLYPH) {
@@ -2103,7 +2348,9 @@ static int exec_function(PS_Context *ctx, PS_IR_Module *m, IRFunction *f, PS_Val
             uint8_t buf[4];
             size_t n = 0;
             if (!glyph_to_utf8(recv->as.glyph_v, buf, &n)) {
-              ps_throw(ctx, PS_ERR_UTF8, "invalid UTF-8");
+              char got[64];
+              snprintf(got, sizeof(got), "U+%04X", (unsigned)recv->as.glyph_v);
+              ps_throw_diag(ctx, PS_ERR_UTF8, "invalid UTF-8", got, "valid Unicode scalar");
               goto raise;
             }
             PS_Value *b = ps_make_bytes(ctx, buf, n);
@@ -2111,7 +2358,9 @@ static int exec_function(PS_Context *ctx, PS_IR_Module *m, IRFunction *f, PS_Val
             bindings_set(&temps, ins->dst, b);
             ps_value_release(b);
           } else {
-            ps_throw(ctx, PS_ERR_TYPE, "unknown method");
+            char got[96];
+            snprintf(got, sizeof(got), "%s", ins->method ? ins->method : "<unknown>");
+            ps_throw_diag(ctx, PS_ERR_TYPE, "unknown method", got, "valid glyph method");
             goto raise;
           }
         } else if (recv->tag == PS_V_STRING) {
@@ -2221,7 +2470,9 @@ static int exec_function(PS_Context *ctx, PS_IR_Module *m, IRFunction *f, PS_Val
             PS_Value *b = NULL;
             if (ins->arg_count > 0) b = get_value(&temps, &vars, ins->args[0]);
             if (!b || b->tag != PS_V_STRING) {
-              ps_throw(ctx, PS_ERR_TYPE, "concat expects string");
+              char got[64];
+              snprintf(got, sizeof(got), "%s", value_type_name(b));
+              ps_throw_diag(ctx, PS_ERR_TYPE, "invalid concat argument", got, "string");
               goto raise;
             }
             PS_Value *v = ps_string_concat(ctx, recv, b);
@@ -2229,7 +2480,9 @@ static int exec_function(PS_Context *ctx, PS_IR_Module *m, IRFunction *f, PS_Val
             bindings_set(&temps, ins->dst, v);
             ps_value_release(v);
           } else {
-            ps_throw(ctx, PS_ERR_TYPE, "unknown method");
+            char got[96];
+            snprintf(got, sizeof(got), "%s", ins->method ? ins->method : "<unknown>");
+            ps_throw_diag(ctx, PS_ERR_TYPE, "unknown method", got, "valid string method");
             goto raise;
           }
         } else if (recv->tag == PS_V_LIST) {
@@ -2246,7 +2499,7 @@ static int exec_function(PS_Context *ctx, PS_IR_Module *m, IRFunction *f, PS_Val
           } else if (strcmp(ins->method, "pop") == 0) {
             if (!expect_arity(ctx, ins, 0, 0)) goto raise;
             if (recv->as.list_v.len == 0) {
-              ps_throw(ctx, PS_ERR_RANGE, "pop on empty list");
+              ps_throw_diag(ctx, PS_ERR_RANGE, "pop on empty list", "empty list", "non-empty list");
               goto raise;
             }
             PS_Value *v = recv->as.list_v.items[recv->as.list_v.len - 1];
@@ -2281,13 +2534,17 @@ static int exec_function(PS_Context *ctx, PS_IR_Module *m, IRFunction *f, PS_Val
               PS_Value *first = recv->as.list_v.items[0];
               tag = first ? first->tag : PS_V_VOID;
               if (!(tag == PS_V_INT || tag == PS_V_FLOAT || tag == PS_V_BYTE || tag == PS_V_GLYPH || tag == PS_V_STRING || tag == PS_V_BOOL)) {
-                ps_throw(ctx, PS_ERR_TYPE, "list element not comparable");
+                char got[64];
+                snprintf(got, sizeof(got), "%s", value_type_name(first));
+                ps_throw_diag(ctx, PS_ERR_TYPE, "list element not comparable", got, "int|float|byte|glyph|string|bool");
                 goto raise;
               }
               for (size_t i = 0; i < n; i++) {
                 PS_Value *it = recv->as.list_v.items[i];
                 if (!it || it->tag != tag) {
-                  ps_throw(ctx, PS_ERR_TYPE, "list element not comparable");
+                  char got[64];
+                  snprintf(got, sizeof(got), "%s", value_type_name(it));
+                  ps_throw_diag(ctx, PS_ERR_TYPE, "list element not comparable", got, "homogeneous comparable list");
                   goto raise;
                 }
               }
@@ -2297,7 +2554,9 @@ static int exec_function(PS_Context *ctx, PS_IR_Module *m, IRFunction *f, PS_Val
                 for (size_t j = i + 1; j < n; j++) {
                   int cmp = 0;
                   if (!compare_values(recv->as.list_v.items[i], recv->as.list_v.items[j], tag, &cmp)) {
-                    ps_throw(ctx, PS_ERR_TYPE, "list element not comparable");
+                    char got[64];
+                    snprintf(got, sizeof(got), "%s", value_type_name(recv->as.list_v.items[j]));
+                    ps_throw_diag(ctx, PS_ERR_TYPE, "list element not comparable", got, "comparable element");
                     goto raise;
                   }
                   if (cmp > 0) {
@@ -2316,7 +2575,9 @@ static int exec_function(PS_Context *ctx, PS_IR_Module *m, IRFunction *f, PS_Val
             size_t n = recv->as.list_v.len;
             PS_Value *sepv = get_value(&temps, &vars, ins->args[0]);
             if (sepv && sepv->tag != PS_V_STRING) {
-              ps_throw(ctx, PS_ERR_TYPE, "join expects string separator");
+              char got[64];
+              snprintf(got, sizeof(got), "%s", value_type_name(sepv));
+              ps_throw_diag(ctx, PS_ERR_TYPE, "invalid join separator", got, "string");
               goto raise;
             }
             size_t sep_len = sepv ? sepv->as.string_v.len : 0;
@@ -2324,7 +2585,9 @@ static int exec_function(PS_Context *ctx, PS_IR_Module *m, IRFunction *f, PS_Val
             for (size_t i = 0; i < n; i++) {
               PS_Value *it = recv->as.list_v.items[i];
               if (!it || it->tag != PS_V_STRING) {
-                ps_throw(ctx, PS_ERR_TYPE, "join expects list<string>");
+                char got[64];
+                snprintf(got, sizeof(got), "%s", value_type_name(it));
+                ps_throw_diag(ctx, PS_ERR_TYPE, "invalid join list element", got, "string");
                 goto raise;
               }
               total += it->as.string_v.len;
@@ -2332,7 +2595,7 @@ static int exec_function(PS_Context *ctx, PS_IR_Module *m, IRFunction *f, PS_Val
             if (n > 1) total += sep_len * (n - 1);
             char *buf = (char *)malloc(total + 1);
             if (!buf && total > 0) {
-              ps_throw(ctx, PS_ERR_OOM, "out of memory");
+              ps_throw_diag(ctx, PS_ERR_OOM, "out of memory", "join buffer allocation failed", "available memory");
               goto raise;
             }
             size_t off = 0;
@@ -2359,14 +2622,16 @@ static int exec_function(PS_Context *ctx, PS_IR_Module *m, IRFunction *f, PS_Val
             for (size_t i = 0; i < n; i++) {
               PS_Value *it = recv->as.list_v.items[i];
               if (!it || it->tag != PS_V_STRING) {
-                ps_throw(ctx, PS_ERR_TYPE, "concat expects list<string>");
+                char got[64];
+                snprintf(got, sizeof(got), "%s", value_type_name(it));
+                ps_throw_diag(ctx, PS_ERR_TYPE, "invalid concat list element", got, "string");
                 goto raise;
               }
               total += it->as.string_v.len;
             }
             char *buf = (char *)malloc(total + 1);
             if (!buf && total > 0) {
-              ps_throw(ctx, PS_ERR_OOM, "out of memory");
+              ps_throw_diag(ctx, PS_ERR_OOM, "out of memory", "concat buffer allocation failed", "available memory");
               goto raise;
             }
             size_t off = 0;
@@ -2387,20 +2652,28 @@ static int exec_function(PS_Context *ctx, PS_IR_Module *m, IRFunction *f, PS_Val
             size_t n = recv->as.list_v.len;
             uint8_t *buf = (uint8_t *)malloc(n);
             if (!buf && n > 0) {
-              ps_throw(ctx, PS_ERR_OOM, "out of memory");
+              ps_throw_diag(ctx, PS_ERR_OOM, "out of memory", "UTF-8 buffer allocation failed", "available memory");
               goto raise;
             }
             for (size_t i = 0; i < n; i++) {
               PS_Value *it = recv->as.list_v.items[i];
               if (!it || (it->tag != PS_V_BYTE && it->tag != PS_V_INT)) {
                 free(buf);
-                ps_throw(ctx, PS_ERR_TYPE, "list<byte> expected");
+                {
+                  char got[64];
+                  snprintf(got, sizeof(got), "%s", value_type_name(it));
+                  ps_throw_diag(ctx, PS_ERR_TYPE, "invalid byte list element", got, "byte or int");
+                }
                 goto raise;
               }
               int64_t v = (it->tag == PS_V_BYTE) ? it->as.byte_v : it->as.int_v;
               if (v < 0 || v > 255) {
                 free(buf);
-                ps_throw(ctx, PS_ERR_RANGE, "byte out of range");
+                {
+                  char got[32];
+                  snprintf(got, sizeof(got), "%lld", (long long)v);
+                  ps_throw_diag(ctx, PS_ERR_RANGE, "byte out of range", got, "0..255");
+                }
                 goto raise;
               }
               buf[i] = (uint8_t)v;
@@ -2411,7 +2684,9 @@ static int exec_function(PS_Context *ctx, PS_IR_Module *m, IRFunction *f, PS_Val
             bindings_set(&temps, ins->dst, s);
             ps_value_release(s);
           } else {
-            ps_throw(ctx, PS_ERR_TYPE, "unknown method");
+            char got[96];
+            snprintf(got, sizeof(got), "%s", ins->method ? ins->method : "<unknown>");
+            ps_throw_diag(ctx, PS_ERR_TYPE, "unknown method", got, "valid list method");
             goto raise;
           }
         } else if (recv->tag == PS_V_MAP) {
@@ -2431,7 +2706,11 @@ static int exec_function(PS_Context *ctx, PS_IR_Module *m, IRFunction *f, PS_Val
             if (recv->as.map_v.len > 0) {
               PS_Value *first = map_first_key(recv);
               if (first && key && first->tag != key->tag) {
-                ps_throw(ctx, PS_ERR_TYPE, "map key type mismatch");
+                char got[64];
+                char expected[64];
+                snprintf(got, sizeof(got), "%s", value_type_name(key));
+                snprintf(expected, sizeof(expected), "key of type %s", value_type_name(first));
+                ps_throw_diag(ctx, PS_ERR_TYPE, "map key type mismatch", got, expected);
                 goto raise;
               }
             }
@@ -2446,7 +2725,11 @@ static int exec_function(PS_Context *ctx, PS_IR_Module *m, IRFunction *f, PS_Val
             if (recv->as.map_v.len > 0) {
               PS_Value *first = map_first_key(recv);
               if (first && key && first->tag != key->tag) {
-                ps_throw(ctx, PS_ERR_TYPE, "map key type mismatch");
+                char got[64];
+                char expected[64];
+                snprintf(got, sizeof(got), "%s", value_type_name(key));
+                snprintf(expected, sizeof(expected), "key of type %s", value_type_name(first));
+                ps_throw_diag(ctx, PS_ERR_TYPE, "map key type mismatch", got, expected);
                 goto raise;
               }
             }
@@ -2487,14 +2770,16 @@ static int exec_function(PS_Context *ctx, PS_IR_Module *m, IRFunction *f, PS_Val
             bindings_set(&temps, ins->dst, out);
             ps_value_release(out);
           } else {
-            ps_throw(ctx, PS_ERR_TYPE, "unknown method");
+            char got[96];
+            snprintf(got, sizeof(got), "%s", ins->method ? ins->method : "<unknown>");
+            ps_throw_diag(ctx, PS_ERR_TYPE, "unknown method", got, "valid map method");
             goto raise;
           }
         } else if (recv->tag == PS_V_VIEW) {
           if (strcmp(ins->method, "length") == 0) {
             if (!expect_arity(ctx, ins, 0, 0)) goto raise;
             if (!view_is_valid(recv)) {
-              ps_throw(ctx, PS_ERR_RANGE, "view invalidated");
+              ps_throw_diag(ctx, PS_ERR_RANGE, "view invalidated", "invalidated view", "valid view");
               goto raise;
             }
             PS_Value *v = ps_make_int(ctx, (int64_t)recv->as.view_v.len);
@@ -2503,14 +2788,16 @@ static int exec_function(PS_Context *ctx, PS_IR_Module *m, IRFunction *f, PS_Val
           } else if (strcmp(ins->method, "isEmpty") == 0) {
             if (!expect_arity(ctx, ins, 0, 0)) goto raise;
             if (!view_is_valid(recv)) {
-              ps_throw(ctx, PS_ERR_RANGE, "view invalidated");
+              ps_throw_diag(ctx, PS_ERR_RANGE, "view invalidated", "invalidated view", "valid view");
               goto raise;
             }
             PS_Value *v = ps_make_bool(ctx, recv->as.view_v.len == 0);
             bindings_set(&temps, ins->dst, v);
             ps_value_release(v);
           } else {
-            ps_throw(ctx, PS_ERR_TYPE, "unknown method");
+            char got[96];
+            snprintf(got, sizeof(got), "%s", ins->method ? ins->method : "<unknown>");
+            ps_throw_diag(ctx, PS_ERR_TYPE, "unknown method", got, "valid view method");
             goto raise;
           }
         } else if (recv->tag == PS_V_BYTES) {
@@ -2521,7 +2808,9 @@ static int exec_function(PS_Context *ctx, PS_IR_Module *m, IRFunction *f, PS_Val
             bindings_set(&temps, ins->dst, v);
             ps_value_release(v);
           } else {
-            ps_throw(ctx, PS_ERR_TYPE, "unknown method");
+            char got[96];
+            snprintf(got, sizeof(got), "%s", ins->method ? ins->method : "<unknown>");
+            ps_throw_diag(ctx, PS_ERR_TYPE, "unknown method", got, "valid bytes method");
             goto raise;
           }
         }
@@ -2555,7 +2844,9 @@ static int exec_function(PS_Context *ctx, PS_IR_Module *m, IRFunction *f, PS_Val
           uint8_t buf[4];
           size_t n = 0;
           if (!glyph_to_utf8(v->as.glyph_v, buf, &n)) {
-            ps_throw(ctx, PS_ERR_UTF8, "invalid UTF-8");
+            char got[64];
+            snprintf(got, sizeof(got), "U+%04X", (unsigned)v->as.glyph_v);
+            ps_throw_diag(ctx, PS_ERR_UTF8, "invalid UTF-8", got, "valid Unicode scalar");
             goto raise;
           }
           s = ps_make_string_utf8(ctx, (const char *)buf, n);
@@ -2601,7 +2892,9 @@ static int exec_function(PS_Context *ctx, PS_IR_Module *m, IRFunction *f, PS_Val
       if (strcmp(ins->op, "throw") == 0) {
         PS_Value *v = get_value(&temps, &vars, ins->value);
         if (!v || v->tag != PS_V_EXCEPTION) {
-          ps_throw(ctx, PS_ERR_TYPE, "throw expects Exception");
+          char got[64];
+          snprintf(got, sizeof(got), "%s", value_type_name(v));
+          ps_throw_diag(ctx, PS_ERR_TYPE, "throw expects Exception", got, "Exception");
           goto raise;
         }
         if (ins->file || ins->line || ins->col) {
@@ -2629,10 +2922,16 @@ raise:
       last_exception = NULL;
     }
     last_exception = make_runtime_exception_from_error(ctx);
+    if (last_exception && (cur_file || cur_line || cur_col)) {
+      set_exception_location(ctx, last_exception, cur_file, cur_line, cur_col);
+    }
   }
   if (!last_exception) {
-    ps_throw(ctx, PS_ERR_INTERNAL, "runtime error");
+    ps_throw_diag(ctx, PS_ERR_INTERNAL, "runtime error", "missing exception", "exception or error");
     last_exception = make_runtime_exception_from_error(ctx);
+    if (last_exception && (cur_file || cur_line || cur_col)) {
+      set_exception_location(ctx, last_exception, cur_file, cur_line, cur_col);
+    }
   }
   if (try_len > 0) {
     const char *handler = tries[try_len - 1].handler;
@@ -2663,11 +2962,13 @@ int ps_vm_run_main(PS_Context *ctx, PS_IR_Module *m, PS_Value **args, size_t arg
   }
   IRFunction *main_fn = find_fn(m, "main");
   if (!main_fn) {
-    ps_throw(ctx, PS_ERR_INTERNAL, "no main");
+    ps_throw_diag(ctx, PS_ERR_INTERNAL, "missing entry point", "main not found", "function main");
     return 1;
   }
   if (main_fn->param_count > 1) {
-    ps_throw(ctx, PS_ERR_TYPE, "main must take zero or one argument");
+    char got[64];
+    snprintf(got, sizeof(got), "%zu", main_fn->param_count);
+    ps_throw_diag(ctx, PS_ERR_TYPE, "invalid main signature", got, "0 or 1 parameter");
     return 1;
   }
   if (main_fn->param_count == 1) {

@@ -2647,6 +2647,10 @@ Règles :
 - si l’exception dérive de `RuntimeException`, `e.code` et `e.category` sont définis
 - `finally` est toujours exécuté
 - l’exception est propagée si elle n’est pas interceptée
+- une exception non interceptée produit un diagnostic `R1011` / `UNHANDLED_EXCEPTION` incluant :
+  - le type dynamique de l’exception
+  - la localisation source
+  - l’attente d’un `catch` correspondant
 
 Clarification normative (RTTI et exceptions) :
 
@@ -3688,3 +3692,11 @@ Exemples recommandés :
 - exemples de diagnostics `E*` et `R*`
 - exemples de cas limites de la section 14
 - exemples de correspondance source -> IR de la section 17
+
+# Annexe E — État de conformité
+
+Cette spécification décrit le comportement normatif du langage.
+
+L’annexe E ne liste que **ce qui reste à faire** (écarts à la spécification) et les éléments **partiellement** ou **non** implémentés selon les backends.
+
+L’état détaillé est maintenu séparément dans le fichier docs/STATE_OF_CONFORMITY.md.

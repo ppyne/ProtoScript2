@@ -2,7 +2,83 @@
 #include <string.h>
 
 #include "ps_map.h"
+#include "ps_errors.h"
 #include "ps_string.h"
+
+static const char *value_type_name(PS_Value *v) {
+  if (!v) return "null";
+  switch (v->tag) {
+    case PS_V_BOOL: return "bool";
+    case PS_V_INT: return "int";
+    case PS_V_BYTE: return "byte";
+    case PS_V_FLOAT: return "float";
+    case PS_V_GLYPH: return "glyph";
+    case PS_V_STRING: return "string";
+    case PS_V_LIST: return "list";
+    case PS_V_MAP: return "map";
+    case PS_V_OBJECT: return "object";
+    case PS_V_VIEW: return "view";
+    case PS_V_EXCEPTION: return "Exception";
+    default: return "value";
+  }
+}
+
+static void format_value_short(PS_Value *v, char *out, size_t out_len) {
+  if (!out || out_len == 0) return;
+  if (!v) {
+    snprintf(out, out_len, "null");
+    return;
+  }
+  switch (v->tag) {
+    case PS_V_BOOL:
+      snprintf(out, out_len, v->as.bool_v ? "true" : "false");
+      return;
+    case PS_V_INT:
+      snprintf(out, out_len, "%lld", (long long)v->as.int_v);
+      return;
+    case PS_V_BYTE:
+      snprintf(out, out_len, "%u", (unsigned)v->as.byte_v);
+      return;
+    case PS_V_FLOAT:
+      snprintf(out, out_len, "%.17g", v->as.float_v);
+      return;
+    case PS_V_GLYPH:
+      snprintf(out, out_len, "U+%04X", (unsigned)v->as.glyph_v);
+      return;
+    case PS_V_STRING: {
+      const char *s = v->as.string_v.ptr ? v->as.string_v.ptr : "";
+      size_t n = v->as.string_v.len;
+      size_t cap = (n > 24) ? 24 : n;
+      char buf[64];
+      size_t bi = 0;
+      buf[bi++] = '"';
+      for (size_t i = 0; i < cap && bi + 2 < sizeof(buf); i++) {
+        unsigned char c = (unsigned char)s[i];
+        if (c == '\n' || c == '\r' || c == '\t') {
+          buf[bi++] = ' ';
+          continue;
+        }
+        if (c < 0x20) {
+          buf[bi++] = '?';
+          continue;
+        }
+        buf[bi++] = (char)c;
+      }
+      if (n > cap && bi + 3 < sizeof(buf)) {
+        buf[bi++] = '.';
+        buf[bi++] = '.';
+        buf[bi++] = '.';
+      }
+      buf[bi++] = '"';
+      buf[bi] = '\0';
+      snprintf(out, out_len, "%s", buf);
+      return;
+    }
+    default:
+      snprintf(out, out_len, "<%s>", value_type_name(v));
+      return;
+  }
+}
 
 static size_t hash_value(PS_Value *v) {
   if (!v) return 0;
@@ -103,7 +179,9 @@ PS_Value *ps_map_new(PS_Context *ctx) {
 
 int ps_map_has_key(PS_Context *ctx, PS_Value *map, PS_Value *key) {
   if (!map || map->tag != PS_V_MAP) {
-    ps_throw(ctx, PS_ERR_TYPE, "not a map");
+    char got[64];
+    snprintf(got, sizeof(got), "%s", value_type_name(map));
+    ps_throw_diag(ctx, PS_ERR_TYPE, "invalid map access", got, "map");
     return 0;
   }
   PS_Map *m = &map->as.map_v;
@@ -120,12 +198,16 @@ int ps_map_has_key(PS_Context *ctx, PS_Value *map, PS_Value *key) {
 
 PS_Value *ps_map_get(PS_Context *ctx, PS_Value *map, PS_Value *key) {
   if (!map || map->tag != PS_V_MAP) {
-    ps_throw(ctx, PS_ERR_TYPE, "not a map");
+    char got[64];
+    snprintf(got, sizeof(got), "%s", value_type_name(map));
+    ps_throw_diag(ctx, PS_ERR_TYPE, "invalid map access", got, "map");
     return NULL;
   }
   PS_Map *m = &map->as.map_v;
   if (m->cap == 0) {
-    ps_throw(ctx, PS_ERR_RANGE, "missing key");
+    char got[64];
+    format_value_short(key, got, sizeof(got));
+    ps_throw_diag(ctx, PS_ERR_RANGE, "missing key", got, "present key");
     return NULL;
   }
   size_t h = hash_value(key);
@@ -135,18 +217,24 @@ PS_Value *ps_map_get(PS_Context *ctx, PS_Value *map, PS_Value *key) {
     if (m->used[idx] == 1 && value_equals(m->keys[idx], key)) return m->values[idx];
     idx = (idx + 1) & (m->cap - 1);
   }
-  ps_throw(ctx, PS_ERR_RANGE, "missing key");
+  {
+    char got[64];
+    format_value_short(key, got, sizeof(got));
+    ps_throw_diag(ctx, PS_ERR_RANGE, "missing key", got, "present key");
+  }
   return NULL;
 }
 
 int ps_map_set(PS_Context *ctx, PS_Value *map, PS_Value *key, PS_Value *value) {
   if (!map || map->tag != PS_V_MAP) {
-    ps_throw(ctx, PS_ERR_TYPE, "not a map");
+    char got[64];
+    snprintf(got, sizeof(got), "%s", value_type_name(map));
+    ps_throw_diag(ctx, PS_ERR_TYPE, "invalid map assignment", got, "map");
     return 0;
   }
   PS_Map *m = &map->as.map_v;
   if (!ensure_cap(m, m->len + 1)) {
-    ps_throw(ctx, PS_ERR_OOM, "out of memory");
+    ps_throw_diag(ctx, PS_ERR_OOM, "out of memory", "map allocation failed", "available memory");
     return 0;
   }
   size_t h = hash_value(key);
@@ -166,7 +254,7 @@ int ps_map_set(PS_Context *ctx, PS_Value *map, PS_Value *key, PS_Value *value) {
   m->keys[idx] = ps_value_retain(key);
   m->values[idx] = ps_value_retain(value);
   if (!ensure_order_cap(m, m->order_len + 1)) {
-    ps_throw(ctx, PS_ERR_OOM, "out of memory");
+    ps_throw_diag(ctx, PS_ERR_OOM, "out of memory", "map allocation failed", "available memory");
     return 0;
   }
   m->order[m->order_len++] = m->keys[idx];
@@ -176,7 +264,9 @@ int ps_map_set(PS_Context *ctx, PS_Value *map, PS_Value *key, PS_Value *value) {
 
 int ps_map_remove(PS_Context *ctx, PS_Value *map, PS_Value *key) {
   if (!map || map->tag != PS_V_MAP) {
-    ps_throw(ctx, PS_ERR_TYPE, "not a map");
+    char got[64];
+    snprintf(got, sizeof(got), "%s", value_type_name(map));
+    ps_throw_diag(ctx, PS_ERR_TYPE, "invalid map access", got, "map");
     return 0;
   }
   PS_Map *m = &map->as.map_v;
@@ -216,12 +306,19 @@ size_t ps_map_len(PS_Value *map) {
 
 PS_Status ps_map_entry(PS_Context *ctx, PS_Value *map, size_t index, PS_Value **out_key, PS_Value **out_value) {
   if (!map || map->tag != PS_V_MAP) {
-    ps_throw(ctx, PS_ERR_TYPE, "not a map");
+    char got[64];
+    snprintf(got, sizeof(got), "%s", value_type_name(map));
+    ps_throw_diag(ctx, PS_ERR_TYPE, "invalid map access", got, "map");
     return PS_ERR;
   }
   PS_Map *m = &map->as.map_v;
   if (index >= m->order_len) {
-    ps_throw(ctx, PS_ERR_RANGE, "index out of bounds");
+    char got[64];
+    char expected[64];
+    snprintf(got, sizeof(got), "%zu", index);
+    if (m->order_len == 0) snprintf(expected, sizeof(expected), "empty map");
+    else snprintf(expected, sizeof(expected), "index < %zu", m->order_len);
+    ps_throw_diag(ctx, PS_ERR_RANGE, "index out of bounds", got, expected);
     return PS_ERR;
   }
   PS_Value *k = m->order[index];

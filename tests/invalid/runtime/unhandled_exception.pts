@@ -1,0 +1,5 @@
+function main() : void {
+    Exception e = Exception.clone();
+    e.message = "boom";
+    throw e;
+}

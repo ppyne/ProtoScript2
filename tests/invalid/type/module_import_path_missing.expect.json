@@ -6,5 +6,6 @@
     "file": "invalid/type/module_import_path_missing.pts",
     "line": 1,
     "column": 1
-  }
+  },
+  "expected_output": "invalid/type/module_import_path_missing.pts:1:1 E2002 IMPORT_PATH_NOT_FOUND: import path not found"
 }

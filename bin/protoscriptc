@@ -113,7 +113,7 @@ try {
   process.exit(0);
 } catch (e) {
   if (isExceptionValue(e)) {
-    if (e.code && e.category) {
+    if (e.type === "RuntimeException" && e.code && e.category) {
       console.error(
         formatDiag({
           file: e.file || "<runtime>",
@@ -129,8 +129,10 @@ try {
     const file = e.file || "<runtime>";
     const line = e.line || 1;
     const col = e.column || 1;
-    const msg = e.message || "exception";
-    console.error(`${file}:${line}:${col} exception: ${msg}`);
+    const typeName = e.type || "Exception";
+    const got = e.message ? `${typeName}("${e.message}")` : typeName;
+    const msg = formatDiagMessage("unhandled exception", got, "matching catch");
+    console.error(`${file}:${line}:${col} R1011 UNHANDLED_EXCEPTION: ${msg}`);
     process.exit(1);
   }
   if (e instanceof RuntimeError && e.diag) {
@@ -163,4 +165,12 @@ function enforceOptimizationGate() {
     console.error("error: optimization gate closed (BACKEND_C_STABLE=1 required).");
     process.exit(2);
   }
+}
+
+function formatDiagMessage(shortMsg, got, expected) {
+  const s = shortMsg && shortMsg.length > 0 ? shortMsg : "runtime error";
+  if (got && expected) return `${s}. got ${got}; expected ${expected}`;
+  if (got) return `${s}. got ${got}`;
+  if (expected) return `${s}. expected ${expected}`;
+  return s;
 }

@@ -61,6 +61,13 @@ run_with_prefix() {
   return "$code"
 }
 
+normalize_output() {
+  local text="$1"
+  text="${text//$ROOT_DIR\/tests\//}"
+  text="${text//$ROOT_DIR\//}"
+  printf "%s" "$text"
+}
+
 check_output_contains() {
   local needle="$1"
   local file="$2"
@@ -141,6 +148,7 @@ while IFS= read -r case_id; do
   category="$(jq -r '.category // empty' "$expect")"
   line="$(jq -r '.position.line // empty' "$expect")"
   col="$(jq -r '.position.column // empty' "$expect")"
+  expected_output="$(jq -r '.expected_output // empty' "$expect")"
   requires_modules="$(jq -r '.requires | index("modules") // empty' "$expect")"
   allow_no_diag="$(jq -r '.allow_no_diagnostics // false' "$expect")"
 
@@ -244,17 +252,27 @@ while IFS= read -r case_id; do
       reason="expected non-zero exit for $status"
     fi
 
-    if [[ "$ok" == true && "$allow_no_diag" != "true" ]] && ! check_output_contains "$error_code" "$out"; then
+    if [[ "$ok" == true && -n "$expected_output" ]]; then
+      actual_output="$(normalize_output "$(cat "$out")")"
+      expected_cmp="${expected_output%$'\n'}"
+      actual_cmp="${actual_output%$'\n'}"
+      if [[ "$actual_cmp" != "$expected_cmp" ]]; then
+        ok=false
+        reason="output mismatch for $status"
+      fi
+    fi
+
+    if [[ "$ok" == true && -z "$expected_output" && "$allow_no_diag" != "true" ]] && ! check_output_contains "$error_code" "$out"; then
       ok=false
       reason="missing error_code '$error_code' in compiler output"
     fi
 
-    if [[ "$ok" == true && "$allow_no_diag" != "true" ]] && ! check_output_contains "$category" "$out"; then
+    if [[ "$ok" == true && -z "$expected_output" && "$allow_no_diag" != "true" ]] && ! check_output_contains "$category" "$out"; then
       ok=false
       reason="missing category '$category' in compiler output"
     fi
 
-    if [[ "$ok" == true && "$allow_no_diag" != "true" ]] && ! line_col_match "$line" "$col" "$out"; then
+    if [[ "$ok" == true && -z "$expected_output" && "$allow_no_diag" != "true" ]] && ! line_col_match "$line" "$col" "$out"; then
       ok=false
       reason="missing line:column '${line}:${col}' in compiler output"
     fi

@@ -88,13 +88,13 @@ PS_Value *ps_make_string_utf8(PS_Context *ctx, const char *utf8, size_t len) {
 PS_Value *ps_make_bytes(PS_Context *ctx, const uint8_t *bytes, size_t len) {
   PS_Value *v = ps_value_alloc(PS_V_BYTES);
   if (!v) {
-    ps_throw(ctx, PS_ERR_OOM, "out of memory");
+    ps_throw_diag(ctx, PS_ERR_OOM, "out of memory", "byte buffer allocation failed", "available memory");
     return NULL;
   }
   v->as.bytes_v.ptr = (uint8_t *)malloc(len);
   if (!v->as.bytes_v.ptr && len > 0) {
     ps_value_release(v);
-    ps_throw(ctx, PS_ERR_OOM, "out of memory");
+    ps_throw_diag(ctx, PS_ERR_OOM, "out of memory", "byte buffer allocation failed", "available memory");
     return NULL;
   }
   if (len > 0) memcpy(v->as.bytes_v.ptr, bytes, len);
@@ -145,7 +145,7 @@ PS_Status ps_list_push(PS_Context *ctx, PS_Value *list, PS_Value *value) {
 
 PS_Value *ps_object_get_str(PS_Context *ctx, PS_Value *obj, const char *key_utf8, size_t key_len) {
   if (!ps_utf8_validate((const uint8_t *)key_utf8, key_len)) {
-    ps_throw(ctx, PS_ERR_UTF8, "invalid UTF-8");
+    ps_throw_diag(ctx, PS_ERR_UTF8, "invalid UTF-8", "object key", "valid UTF-8");
     return NULL;
   }
   return ps_object_get_str_internal(ctx, obj, key_utf8, key_len);
@@ -153,7 +153,7 @@ PS_Value *ps_object_get_str(PS_Context *ctx, PS_Value *obj, const char *key_utf8
 
 PS_Status ps_object_set_str(PS_Context *ctx, PS_Value *obj, const char *key_utf8, size_t key_len, PS_Value *value) {
   if (!ps_utf8_validate((const uint8_t *)key_utf8, key_len)) {
-    ps_throw(ctx, PS_ERR_UTF8, "invalid UTF-8");
+    ps_throw_diag(ctx, PS_ERR_UTF8, "invalid UTF-8", "object key", "valid UTF-8");
     return PS_ERR;
   }
   return ps_object_set_str_internal(ctx, obj, key_utf8, key_len, value) ? PS_OK : PS_ERR;
@@ -169,7 +169,8 @@ PS_Status ps_object_entry(PS_Context *ctx, PS_Value *obj, size_t index, const ch
 
 PS_Value *ps_string_to_utf8_bytes(PS_Context *ctx, PS_Value *str) {
   if (!str || str->tag != PS_V_STRING) {
-    ps_throw(ctx, PS_ERR_TYPE, "not a string");
+    const char *got = str ? (str->tag == PS_V_BYTES ? "bytes" : "non-string value") : "null";
+    ps_throw_diag(ctx, PS_ERR_TYPE, "invalid string conversion", got, "string");
     return NULL;
   }
   return ps_make_bytes(ctx, (const uint8_t *)str->as.string_v.ptr, str->as.string_v.len);
@@ -177,11 +178,12 @@ PS_Value *ps_string_to_utf8_bytes(PS_Context *ctx, PS_Value *str) {
 
 PS_Value *ps_bytes_to_utf8_string(PS_Context *ctx, PS_Value *bytes) {
   if (!bytes || bytes->tag != PS_V_BYTES) {
-    ps_throw(ctx, PS_ERR_TYPE, "not bytes");
+    const char *got = bytes ? (bytes->tag == PS_V_STRING ? "string" : "non-bytes value") : "null";
+    ps_throw_diag(ctx, PS_ERR_TYPE, "invalid bytes conversion", got, "bytes");
     return NULL;
   }
   if (!ps_utf8_validate(bytes->as.bytes_v.ptr, bytes->as.bytes_v.len)) {
-    ps_throw(ctx, PS_ERR_UTF8, "invalid UTF-8");
+    ps_throw_diag(ctx, PS_ERR_UTF8, "invalid UTF-8", "byte stream", "valid UTF-8");
     return NULL;
   }
   return ps_string_from_utf8(ctx, (const char *)bytes->as.bytes_v.ptr, bytes->as.bytes_v.len);

@@ -7,5 +7,6 @@
     "file": "invalid/runtime/div_zero_int.pts",
     "line": 6,
     "column": 17
-  }
+  },
+  "expected_output": "invalid/runtime/div_zero_int.pts:6:17 R1004 RUNTIME_DIVIDE_BY_ZERO: division by zero. got 0; expected non-zero divisor"
 }

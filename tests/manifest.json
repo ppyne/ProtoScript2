@@ -48,6 +48,7 @@
       "invalid/type/cast_byte_3_5",
       "invalid/type/cast_byte_int_256",
       "invalid/type/literal_byte_256",
+      "invalid/type/catch_non_exception",
       "invalid/type/throw_exception_call",
       "invalid/type/return_self",
       "invalid/type/return_self_alias"
@@ -88,6 +89,7 @@
       "invalid/runtime/json_decode_invalid",
       "invalid/runtime/json_encode_nan",
       "invalid/runtime/list_sort_type_error",
+      "invalid/runtime/unhandled_exception",
       "invalid/runtime/manual_ex060",
       "invalid/runtime/manual_ex063"
     ],

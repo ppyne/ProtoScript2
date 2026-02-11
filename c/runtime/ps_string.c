@@ -90,18 +90,18 @@ uint32_t ps_utf8_glyph_at(const uint8_t *s, size_t len, size_t index) {
 
 PS_Value *ps_string_from_utf8(PS_Context *ctx, const char *s, size_t len) {
   if (!ps_utf8_validate((const uint8_t *)s, len)) {
-    ps_throw(ctx, PS_ERR_UTF8, "invalid UTF-8");
+    ps_throw_diag(ctx, PS_ERR_UTF8, "invalid UTF-8 sequence", "byte stream", "valid UTF-8");
     return NULL;
   }
   PS_Value *v = ps_value_alloc(PS_V_STRING);
   if (!v) {
-    ps_throw(ctx, PS_ERR_OOM, "out of memory");
+    ps_throw_diag(ctx, PS_ERR_OOM, "out of memory", "allocation failed", "available memory");
     return NULL;
   }
   v->as.string_v.ptr = (char *)malloc(len + 1);
   if (!v->as.string_v.ptr && len > 0) {
     ps_value_release(v);
-    ps_throw(ctx, PS_ERR_OOM, "out of memory");
+    ps_throw_diag(ctx, PS_ERR_OOM, "out of memory", "allocation failed", "available memory");
     return NULL;
   }
   if (len > 0) memcpy(v->as.string_v.ptr, s, len);
@@ -114,13 +114,13 @@ PS_Value *ps_string_concat(PS_Context *ctx, PS_Value *a, PS_Value *b) {
   size_t len = a->as.string_v.len + b->as.string_v.len;
   PS_Value *v = ps_value_alloc(PS_V_STRING);
   if (!v) {
-    ps_throw(ctx, PS_ERR_OOM, "out of memory");
+    ps_throw_diag(ctx, PS_ERR_OOM, "out of memory", "allocation failed", "available memory");
     return NULL;
   }
   v->as.string_v.ptr = (char *)malloc(len + 1);
   if (!v->as.string_v.ptr && len > 0) {
     ps_value_release(v);
-    ps_throw(ctx, PS_ERR_OOM, "out of memory");
+    ps_throw_diag(ctx, PS_ERR_OOM, "out of memory", "allocation failed", "available memory");
     return NULL;
   }
   memcpy(v->as.string_v.ptr, a->as.string_v.ptr, a->as.string_v.len);
@@ -142,7 +142,7 @@ PS_Value *ps_string_substring(PS_Context *ctx, PS_Value *s, size_t start, size_t
     if (glyph == start) byte_start = i;
     int r = utf8_next(buf, len, &i, &cp);
     if (r <= 0) {
-      ps_throw(ctx, PS_ERR_UTF8, "invalid UTF-8");
+      ps_throw_diag(ctx, PS_ERR_UTF8, "invalid UTF-8 sequence", "byte stream", "valid UTF-8");
       return NULL;
     }
     glyph += 1;
@@ -152,7 +152,12 @@ PS_Value *ps_string_substring(PS_Context *ctx, PS_Value *s, size_t start, size_t
     }
   }
   if (glyph < start + length) {
-    ps_throw(ctx, PS_ERR_RANGE, "string index out of bounds");
+    char got[64];
+    char expected[96];
+    snprintf(got, sizeof(got), "%zu", (size_t)index);
+    if (len == 0) snprintf(expected, sizeof(expected), "empty string (no valid index)");
+    else snprintf(expected, sizeof(expected), "0..%zu", len - 1);
+    ps_throw_diag(ctx, PS_ERR_RANGE, "string index out of bounds", got, expected);
     return NULL;
   }
   size_t out_len = byte_end - byte_start;
@@ -204,13 +209,13 @@ PS_Value *ps_string_replace(PS_Context *ctx, PS_Value *s, PS_Value *from, PS_Val
   size_t new_len = pre + to->as.string_v.len + (s->as.string_v.len - pre - from->as.string_v.len);
   PS_Value *v = ps_value_alloc(PS_V_STRING);
   if (!v) {
-    ps_throw(ctx, PS_ERR_OOM, "out of memory");
+    ps_throw_diag(ctx, PS_ERR_OOM, "out of memory", "allocation failed", "available memory");
     return NULL;
   }
   v->as.string_v.ptr = (char *)malloc(new_len + 1);
   if (!v->as.string_v.ptr && new_len > 0) {
     ps_value_release(v);
-    ps_throw(ctx, PS_ERR_OOM, "out of memory");
+    ps_throw_diag(ctx, PS_ERR_OOM, "out of memory", "allocation failed", "available memory");
     return NULL;
   }
   memcpy(v->as.string_v.ptr, h, pre);
@@ -225,14 +230,14 @@ PS_Value *ps_string_replace(PS_Context *ctx, PS_Value *s, PS_Value *from, PS_Val
 PS_Value *ps_string_to_upper(PS_Context *ctx, PS_Value *s) {
   PS_Value *v = ps_value_alloc(PS_V_STRING);
   if (!v) {
-    ps_throw(ctx, PS_ERR_OOM, "out of memory");
+    ps_throw_diag(ctx, PS_ERR_OOM, "out of memory", "allocation failed", "available memory");
     return NULL;
   }
   size_t len = s->as.string_v.len;
   v->as.string_v.ptr = (char *)malloc(len + 1);
   if (!v->as.string_v.ptr && len > 0) {
     ps_value_release(v);
-    ps_throw(ctx, PS_ERR_OOM, "out of memory");
+    ps_throw_diag(ctx, PS_ERR_OOM, "out of memory", "allocation failed", "available memory");
     return NULL;
   }
   for (size_t i = 0; i < len; i++) {
@@ -248,14 +253,14 @@ PS_Value *ps_string_to_upper(PS_Context *ctx, PS_Value *s) {
 PS_Value *ps_string_to_lower(PS_Context *ctx, PS_Value *s) {
   PS_Value *v = ps_value_alloc(PS_V_STRING);
   if (!v) {
-    ps_throw(ctx, PS_ERR_OOM, "out of memory");
+    ps_throw_diag(ctx, PS_ERR_OOM, "out of memory", "allocation failed", "available memory");
     return NULL;
   }
   size_t len = s->as.string_v.len;
   v->as.string_v.ptr = (char *)malloc(len + 1);
   if (!v->as.string_v.ptr && len > 0) {
     ps_value_release(v);
-    ps_throw(ctx, PS_ERR_OOM, "out of memory");
+    ps_throw_diag(ctx, PS_ERR_OOM, "out of memory", "allocation failed", "available memory");
     return NULL;
   }
   for (size_t i = 0; i < len; i++) {
@@ -274,7 +279,7 @@ PS_Value *ps_string_split(PS_Context *ctx, PS_Value *s, PS_Value *sep) {
   size_t nlen = sep->as.string_v.len;
   PS_Value *list = ps_value_alloc(PS_V_LIST);
   if (!list) {
-    ps_throw(ctx, PS_ERR_OOM, "out of memory");
+    ps_throw_diag(ctx, PS_ERR_OOM, "out of memory", "allocation failed", "available memory");
     return NULL;
   }
   list->as.list_v.items = NULL;
@@ -288,7 +293,7 @@ PS_Value *ps_string_split(PS_Context *ctx, PS_Value *s, PS_Value *sep) {
       int r = utf8_next((const uint8_t *)h, s->as.string_v.len, &i, &cp);
       if (r <= 0) {
         ps_value_release(list);
-        ps_throw(ctx, PS_ERR_UTF8, "invalid UTF-8");
+        ps_throw_diag(ctx, PS_ERR_UTF8, "invalid UTF-8 sequence", "byte stream", "valid UTF-8");
         return NULL;
       }
       PS_Value *part = ps_string_from_utf8(ctx, h + start, i - start);

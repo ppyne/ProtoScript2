@@ -1104,7 +1104,7 @@ class Parser {
       return { kind: "MapLiteral", pairs, line: lb.line, col: lb.col };
     }
     throw new FrontendError(
-      diag(this.file, tok.line, tok.col, "E1001", "PARSE_UNEXPECTED_TOKEN", `unexpected token '${tok.value}'`)
+      diag(this.file, tok.line, tok.col, "E1001", "PARSE_UNEXPECTED_TOKEN", `unexpected token '${tok.value}', expecting 'expression'`)
     );
   }
 

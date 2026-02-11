@@ -3,6 +3,7 @@
 #include <string.h>
 
 #include "ps_modules.h"
+#include "ps_errors.h"
 #include "ps_runtime.h"
 
 #ifdef PS_WASM
@@ -57,7 +58,7 @@ static PS_Status try_load_from_dir(PS_Context *ctx, const char *module_name, con
   PS_Status (*init_fn)(PS_Context *, PS_Module *) = (PS_Status(*)(PS_Context*, PS_Module*))ps_dynlib_symbol(lib, "ps_module_init");
   if (!init_fn) {
     ps_dynlib_close(lib);
-    ps_throw(ctx, PS_ERR_IMPORT, "module missing ps_module_init");
+    ps_throw_diag(ctx, PS_ERR_IMPORT, "module missing entry point", "ps_module_init not found", "ps_module_init symbol");
     return PS_ERR;
   }
   PS_Module mod;
@@ -65,17 +66,17 @@ static PS_Status try_load_from_dir(PS_Context *ctx, const char *module_name, con
   PS_Status st = init_fn(ctx, &mod);
   if (st != PS_OK) {
     ps_dynlib_close(lib);
-    if (ps_last_error_code(ctx) == PS_ERR_NONE) ps_throw(ctx, PS_ERR_IMPORT, "module init failed");
+    if (ps_last_error_code(ctx) == PS_ERR_NONE) ps_throw_diag(ctx, PS_ERR_IMPORT, "module init failed", module_name, "successful module init");
     return PS_ERR;
   }
   if (mod.api_version != PS_API_VERSION) {
     ps_dynlib_close(lib);
-    ps_throw(ctx, PS_ERR_IMPORT, "module ABI version mismatch");
+    ps_throw_diag(ctx, PS_ERR_IMPORT, "module ABI version mismatch", module_name, "matching ABI version");
     return PS_ERR;
   }
   if (!ensure_module_cap(ctx)) {
     ps_dynlib_close(lib);
-    ps_throw(ctx, PS_ERR_OOM, "out of memory");
+    ps_throw_diag(ctx, PS_ERR_OOM, "out of memory", "module registry allocation failed", "available memory");
     return PS_ERR;
   }
   ctx->modules[ctx->module_count].desc = mod;
@@ -96,15 +97,15 @@ PS_Status ps_module_load(PS_Context *ctx, const char *module_name) {
     memset(&mod, 0, sizeof(mod));
     PS_Status st = init_fn(ctx, &mod);
     if (st != PS_OK) {
-      if (ps_last_error_code(ctx) == PS_ERR_NONE) ps_throw(ctx, PS_ERR_IMPORT, "module init failed");
+      if (ps_last_error_code(ctx) == PS_ERR_NONE) ps_throw_diag(ctx, PS_ERR_IMPORT, "module init failed", module_name, "successful module init");
       return PS_ERR;
     }
     if (mod.api_version != PS_API_VERSION) {
-      ps_throw(ctx, PS_ERR_IMPORT, "module ABI version mismatch");
+      ps_throw_diag(ctx, PS_ERR_IMPORT, "module ABI version mismatch", module_name, "matching ABI version");
       return PS_ERR;
     }
     if (!ensure_module_cap(ctx)) {
-      ps_throw(ctx, PS_ERR_OOM, "out of memory");
+      ps_throw_diag(ctx, PS_ERR_OOM, "out of memory", "module registry allocation failed", "available memory");
       return PS_ERR;
     }
     ctx->modules[ctx->module_count].desc = mod;
@@ -112,14 +113,14 @@ PS_Status ps_module_load(PS_Context *ctx, const char *module_name) {
     ctx->module_count += 1;
     return PS_OK;
   }
-  ps_throw(ctx, PS_ERR_IMPORT, "module not found");
+  ps_throw_diag(ctx, PS_ERR_IMPORT, "module not found", module_name, "available module");
   return PS_ERR;
 #else
   const char *env = getenv("PS_MODULE_PATH");
   if (env && *env) {
     char *dup = strdup(env);
     if (!dup) {
-      ps_throw(ctx, PS_ERR_OOM, "out of memory");
+      ps_throw_diag(ctx, PS_ERR_OOM, "out of memory", "module path allocation failed", "available memory");
       return PS_ERR;
     }
     char *save = NULL;
@@ -134,7 +135,7 @@ PS_Status ps_module_load(PS_Context *ctx, const char *module_name) {
   // Fallback: ./modules and ./lib
   if (try_load_from_dir(ctx, module_name, "./modules") == PS_OK) return PS_OK;
   if (try_load_from_dir(ctx, module_name, "./lib") == PS_OK) return PS_OK;
-  ps_throw(ctx, PS_ERR_IMPORT, "module not found");
+  ps_throw_diag(ctx, PS_ERR_IMPORT, "module not found", module_name, "available module");
   return PS_ERR;
 #endif
 }
@@ -149,6 +150,6 @@ const PS_NativeFnDesc *ps_module_find_fn(PS_Context *ctx, const char *module_nam
       if (strcmp(m->fns[j].name, fn_name) == 0) return &m->fns[j];
     }
   }
-  ps_throw(ctx, PS_ERR_IMPORT, "symbol not found");
+  ps_throw_diag(ctx, PS_ERR_IMPORT, "symbol not found", fn_name ? fn_name : "<unknown>", "exported symbol");
   return NULL;
 }

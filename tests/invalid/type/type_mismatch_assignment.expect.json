@@ -7,5 +7,6 @@
     "file": "invalid/type/type_mismatch_assignment.pts",
     "line": 3,
     "column": 5
-  }
+  },
+  "expected_output": "invalid/type/type_mismatch_assignment.pts:3:5 E3001 TYPE_MISMATCH_ASSIGNMENT: cannot assign string to int"
 }

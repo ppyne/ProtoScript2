@@ -1111,7 +1111,6 @@ static int parse_try_stmt(Parser *p) {
   }
   int saw_clause = 0;
   while (p_at(p, TK_KW, "catch")) {
-    Token *ct = p_t(p, 0);
     if (!p_eat(p, TK_KW, "catch") || !p_eat(p, TK_SYM, "(")) {
       p_ast_pop(p);
       return 0;
@@ -1129,7 +1128,7 @@ static int parse_try_stmt(Parser *p) {
       return 0;
     }
     AstNode *clause = NULL;
-    if (!p_ast_add(p, "CatchClause", name->text, ct->line, ct->col, &clause)) {
+    if (!p_ast_add(p, "CatchClause", name->text, name->line, name->col, &clause)) {
       p_ast_pop(p);
       return 0;
     }
@@ -4900,6 +4899,9 @@ typedef struct {
   LoopTarget *loop_targets;
   LoopTarget *break_targets;
   const char *file;
+  const char *loc_file;
+  int loc_line;
+  int loc_col;
 } IrFnCtx;
 
 static void str_vec_free(StrVec *v) {
@@ -5114,9 +5116,44 @@ static char *json_escape(const char *s) {
   return out;
 }
 
+static void ir_set_loc(IrFnCtx *ctx, AstNode *node) {
+  if (!ctx) return;
+  const char *file = ctx->file;
+  int line = node ? node->line : 1;
+  int col = node ? node->col : 1;
+  const PreprocessLineMap *map = preprocess_map_lookup(ctx->file);
+  if (map && line > 0 && (size_t)line <= map->len) {
+    const char *mf = map->files[line - 1];
+    int ml = map->lines[line - 1];
+    if (mf && *mf) file = mf;
+    if (ml > 0) line = ml;
+  }
+  ctx->loc_file = file;
+  ctx->loc_line = line;
+  ctx->loc_col = col;
+}
+
+static char *ir_attach_loc(IrFnCtx *c, char *json_obj) {
+  if (!c || !json_obj) return json_obj;
+  const char *file = c->loc_file ? c->loc_file : c->file;
+  int line = c->loc_line > 0 ? c->loc_line : 1;
+  int col = c->loc_col > 0 ? c->loc_col : 1;
+  if (!file || !file[0]) return json_obj;
+  size_t n = strlen(json_obj);
+  if (n == 0 || json_obj[n - 1] != '}') return json_obj;
+  char *fesc = json_escape(file);
+  if (!fesc) return json_obj;
+  char *out = str_printf("%.*s,\"file\":\"%s\",\"line\":%d,\"col\":%d}", (int)(n - 1), json_obj, fesc, line, col);
+  free(fesc);
+  if (!out) return json_obj;
+  free(json_obj);
+  return out;
+}
+
 static int ir_emit(IrFnCtx *c, char *json_obj) {
   if (!json_obj) return 0;
   if (c->blocks.len == 0) return 0;
+  json_obj = ir_attach_loc(c, json_obj);
   if (!str_vec_push(&c->blocks.items[c->cur_block].instrs, json_obj)) {
     free(json_obj);
     return 0;
@@ -5830,6 +5867,7 @@ static char *ir_lower_call(AstNode *e, IrFnCtx *ctx) {
 
 static char *ir_lower_expr(AstNode *e, IrFnCtx *ctx) {
   if (!e) return NULL;
+  ir_set_loc(ctx, e);
   if (strcmp(e->kind, "Literal") == 0) {
     char *dst = ir_next_tmp(ctx);
     if (!dst) return NULL;
@@ -6625,6 +6663,7 @@ static char *ir_lower_expr(AstNode *e, IrFnCtx *ctx) {
 
 static int ir_lower_stmt(AstNode *st, IrFnCtx *ctx) {
   if (!st) return 1;
+  ir_set_loc(ctx, st);
   if (strcmp(st->kind, "Block") == 0) {
     IrScope local;
     ir_scope_init(&local, ctx->scope);
@@ -8154,7 +8193,15 @@ int ps_emit_ir_json(const char *file, PsDiag *out_diag, FILE *out) {
     ctx.registry = a.registry;
     ctx.protos = a.protos;
     ctx.file = file;
-    ctx.file = file;
+    ctx.loc_file = file;
+    ctx.loc_line = 1;
+    ctx.loc_col = 1;
+    ctx.loc_file = file;
+    ctx.loc_line = 1;
+    ctx.loc_col = 1;
+    ctx.loc_file = file;
+    ctx.loc_line = 1;
+    ctx.loc_col = 1;
     IrScope root_scope;
     ir_scope_init(&root_scope, NULL);
     ctx.scope = &root_scope;
@@ -8276,6 +8323,10 @@ int ps_emit_ir_json(const char *file, PsDiag *out_diag, FILE *out) {
       ctx.namespaces = a.namespaces;
       ctx.registry = a.registry;
       ctx.protos = a.protos;
+      ctx.file = file;
+      ctx.loc_file = file;
+      ctx.loc_line = 1;
+      ctx.loc_col = 1;
       IrScope root_scope;
       ir_scope_init(&root_scope, NULL);
       ctx.scope = &root_scope;

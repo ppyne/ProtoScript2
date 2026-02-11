@@ -1,0 +1,7 @@
+function main() : void {
+    try {
+        int x = 1;
+    } catch (int e) {
+        int y = 2;
+    }
+}

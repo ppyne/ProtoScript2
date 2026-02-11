@@ -7,5 +7,6 @@
     "file": "invalid/parse/unexpected_token_comma.pts",
     "line": 2,
     "column": 16
-  }
+  },
+  "expected_output": "invalid/parse/unexpected_token_comma.pts:2:16 E1001 PARSE_UNEXPECTED_TOKEN: unexpected token ',', expecting 'expression'"
 }

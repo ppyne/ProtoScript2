@@ -231,15 +231,92 @@ function isJsonValue(v) {
   return v && v.__json === true;
 }
 
+function defaultDiagParts(category) {
+  switch (category) {
+    case "RUNTIME_INDEX_OOB":
+      return { got: "index", expected: "index within bounds" };
+    case "RUNTIME_MISSING_KEY":
+      return { got: "key", expected: "present key" };
+    case "RUNTIME_DIVIDE_BY_ZERO":
+      return { got: "0", expected: "non-zero divisor" };
+    case "RUNTIME_SHIFT_RANGE":
+      return { got: "shift amount", expected: "0..width-1" };
+    case "RUNTIME_INT_OVERFLOW":
+      return { got: "value", expected: "value within int range" };
+    case "RUNTIME_BYTE_RANGE":
+      return { got: "value", expected: "0..255" };
+    case "RUNTIME_EMPTY_POP":
+      return { got: "empty list", expected: "non-empty list" };
+    case "RUNTIME_VIEW_INVALID":
+      return { got: "invalidated view", expected: "valid view" };
+    case "RUNTIME_INVALID_UTF8":
+      return { got: "byte stream", expected: "valid UTF-8" };
+    case "RUNTIME_TYPE_ERROR":
+      return { got: "value", expected: "compatible type" };
+    case "RUNTIME_IO_ERROR":
+      return { got: "I/O operation", expected: "valid file state" };
+    case "RUNTIME_JSON_ERROR":
+      return { got: "JSON value", expected: "expected JSON type" };
+    case "RUNTIME_MODULE_ERROR":
+      return { got: "module or symbol", expected: "available module/symbol" };
+    default:
+      return null;
+  }
+}
+
 function rdiag(file, node, code, category, message) {
+  let msg = message;
+  if (typeof msg === "string" && !msg.includes("got ") && !msg.includes("; expected")) {
+    const parts = defaultDiagParts(category);
+    if (parts) msg = diagMsg(msg, parts.got, parts.expected);
+  }
   return {
     file,
     line: node && node.line ? node.line : 1,
     col: node && node.col ? node.col : 1,
     code,
     category,
-    message,
+    message: msg,
   };
+}
+
+function diagMsg(shortMsg, got, expected) {
+  const s = shortMsg && shortMsg.length > 0 ? shortMsg : "runtime error";
+  if (got && expected) return `${s}. got ${got}; expected ${expected}`;
+  if (got) return `${s}. got ${got}`;
+  if (expected) return `${s}. expected ${expected}`;
+  return s;
+}
+
+function valueType(v) {
+  if (isExceptionValue(v)) return v.type || "Exception";
+  if (v === null || v === undefined) return "null";
+  if (v instanceof TextFile) return "TextFile";
+  if (v instanceof BinaryFile) return "BinaryFile";
+  if (isView(v)) return v.readonly ? "view" : "slice";
+  if (Array.isArray(v)) return "list";
+  if (v instanceof Map) return "map";
+  if (isObjectInstance(v)) return "object";
+  if (isGlyph(v)) return "glyph";
+  if (typeof v === "bigint") return "int";
+  if (typeof v === "number") return "float";
+  if (typeof v === "boolean") return "bool";
+  if (typeof v === "string") return "string";
+  if (isJsonValue(v)) return "JSONValue";
+  return "value";
+}
+
+function valueShort(v) {
+  if (v === null || v === undefined) return "null";
+  if (typeof v === "boolean") return v ? "true" : "false";
+  if (typeof v === "bigint" || typeof v === "number") return String(v);
+  if (typeof v === "string") {
+    const s = v.length > 32 ? `${v.slice(0, 29)}...` : v;
+    return `"${s.replace(/[\r\n\t]/g, " ")}"`;
+  }
+  if (isGlyph(v)) return `U+${v.value.toString(16).toUpperCase().padStart(4, "0")}`;
+  if (isExceptionValue(v)) return v.type || "Exception";
+  return `<${valueType(v)}>`;
 }
 
 function isGlyph(v) {
@@ -288,7 +365,9 @@ function ensureViewValid(file, node, view) {
   if (!isView(view)) return;
   if (Array.isArray(view.source)) {
     if (getListVersion(view.source) !== view.version) {
-      throw new RuntimeError(rdiag(file, node, "R1012", "RUNTIME_VIEW_INVALID", "view invalidated"));
+      throw new RuntimeError(
+        rdiag(file, node, "R1012", "RUNTIME_VIEW_INVALID", diagMsg("view invalidated", "invalidated view", "valid view"))
+      );
     }
   }
 }
@@ -301,7 +380,9 @@ function makeView(file, node, source, offset, len, readonly) {
   const off = Number(offset);
   const ln = Number(len);
   if (!Number.isInteger(off) || !Number.isInteger(ln) || off < 0 || ln < 0) {
-    throw new RuntimeError(rdiag(file, node, "R1002", "RUNTIME_INDEX_OOB", "index out of bounds"));
+    throw new RuntimeError(
+      rdiag(file, node, "R1002", "RUNTIME_INDEX_OOB", diagMsg("index out of bounds", "offset/length", "valid range"))
+    );
   }
   let base = source;
   let baseOffset = 0;
@@ -315,7 +396,9 @@ function makeView(file, node, source, offset, len, readonly) {
   else if (typeof base === "string") totalLen = glyphStringsOf(base).length;
   else if (isView(base)) totalLen = base.len;
   if (off + ln > totalLen) {
-    throw new RuntimeError(rdiag(file, node, "R1002", "RUNTIME_INDEX_OOB", "index out of bounds"));
+    throw new RuntimeError(
+      rdiag(file, node, "R1002", "RUNTIME_INDEX_OOB", diagMsg("index out of bounds", "offset/length", "within source"))
+    );
   }
   return {
     __view: true,
@@ -371,14 +454,16 @@ function parseIntLiteral(raw) {
 
 function checkIntRange(file, node, n) {
   if (n < INT64_MIN || n > INT64_MAX) {
-    throw new RuntimeError(rdiag(file, node, "R1001", "RUNTIME_INT_OVERFLOW", "int overflow"));
+    throw new RuntimeError(
+      rdiag(file, node, "R1001", "RUNTIME_INT_OVERFLOW", diagMsg("int overflow", "value", "value within int range"))
+    );
   }
   return n;
 }
 
 function checkByteRange(file, node, n) {
   if (n < 0n || n > 255n) {
-    throw new RuntimeError(rdiag(file, node, "R1008", "RUNTIME_BYTE_RANGE", "byte out of range"));
+    throw new RuntimeError(rdiag(file, node, "R1008", "RUNTIME_BYTE_RANGE", diagMsg("byte out of range", "value", "0..255")));
   }
   return n;
 }
@@ -406,18 +491,24 @@ function floatToBytes(x) {
 
 function parseIntStrict(file, node, s) {
   if (!/^[+-]?(?:0|[1-9][0-9]*)$/.test(s)) {
-    throw new RuntimeError(rdiag(file, node, "R1010", "RUNTIME_TYPE_ERROR", "invalid int format"));
+    throw new RuntimeError(
+      rdiag(file, node, "R1010", "RUNTIME_TYPE_ERROR", diagMsg("invalid int format", "string", "int literal"))
+    );
   }
   return checkIntRange(file, node, BigInt(s));
 }
 
 function parseFloatStrict(file, node, s) {
   if (!/^[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?$/.test(s)) {
-    throw new RuntimeError(rdiag(file, node, "R1010", "RUNTIME_TYPE_ERROR", "invalid float format"));
+    throw new RuntimeError(
+      rdiag(file, node, "R1010", "RUNTIME_TYPE_ERROR", diagMsg("invalid float format", "string", "float literal"))
+    );
   }
   const v = Number(s);
   if (Number.isNaN(v)) {
-    throw new RuntimeError(rdiag(file, node, "R1010", "RUNTIME_TYPE_ERROR", "invalid float format"));
+    throw new RuntimeError(
+      rdiag(file, node, "R1010", "RUNTIME_TYPE_ERROR", diagMsg("invalid float format", "string", "float literal"))
+    );
   }
   return v;
 }
@@ -513,13 +604,13 @@ const PS_FILE_BINARY = 0x08;
 
 function decodeUtf8Strict(file, node, bytes) {
   for (const b of bytes) {
-    if (b === 0) throw new RuntimeError(rdiag(file, node, "R1007", "RUNTIME_INVALID_UTF8", "NUL byte not allowed"));
+    if (b === 0) throw new RuntimeError(rdiag(file, node, "R1007", "RUNTIME_INVALID_UTF8", diagMsg("invalid UTF-8 sequence", "NUL byte", "non-NUL UTF-8 byte")));
   }
   try {
     const dec = new TextDecoder("utf-8", { fatal: true });
     return dec.decode(Uint8Array.from(bytes));
   } catch {
-    throw new RuntimeError(rdiag(file, node, "R1007", "RUNTIME_INVALID_UTF8", "invalid UTF-8"));
+    throw new RuntimeError(rdiag(file, node, "R1007", "RUNTIME_INVALID_UTF8", diagMsg("invalid UTF-8 sequence", "byte stream", "valid UTF-8")));
   }
 }
 
@@ -534,7 +625,7 @@ function readUtf8GlyphAt(fd, pos, file, node) {
   const b0 = readByteAt(fd, pos);
   if (b0 === null) return null;
   if (b0 === 0) {
-    throw new RuntimeError(rdiag(file, node, "R1007", "RUNTIME_INVALID_UTF8", "NUL byte not allowed"));
+    throw new RuntimeError(rdiag(file, node, "R1007", "RUNTIME_INVALID_UTF8", diagMsg("invalid UTF-8 sequence", "NUL byte", "non-NUL UTF-8 byte")));
   }
   let len = 0;
   let cp = 0;
@@ -551,31 +642,31 @@ function readUtf8GlyphAt(fd, pos, file, node) {
     len = 4;
     cp = b0 & 0x07;
   } else {
-    throw new RuntimeError(rdiag(file, node, "R1007", "RUNTIME_INVALID_UTF8", "invalid UTF-8"));
+    throw new RuntimeError(rdiag(file, node, "R1007", "RUNTIME_INVALID_UTF8", diagMsg("invalid UTF-8 sequence", "byte stream", "valid UTF-8")));
   }
   const bytes = [b0];
   for (let i = 1; i < len; i += 1) {
     const bi = readByteAt(fd, pos + i);
     if (bi === null) {
-      throw new RuntimeError(rdiag(file, node, "R1007", "RUNTIME_INVALID_UTF8", "invalid UTF-8"));
+      throw new RuntimeError(rdiag(file, node, "R1007", "RUNTIME_INVALID_UTF8", diagMsg("invalid UTF-8 sequence", "byte stream", "valid UTF-8")));
     }
     if ((bi & 0xc0) !== 0x80) {
-      throw new RuntimeError(rdiag(file, node, "R1007", "RUNTIME_INVALID_UTF8", "invalid UTF-8"));
+      throw new RuntimeError(rdiag(file, node, "R1007", "RUNTIME_INVALID_UTF8", diagMsg("invalid UTF-8 sequence", "byte stream", "valid UTF-8")));
     }
     if (bi === 0) {
-      throw new RuntimeError(rdiag(file, node, "R1007", "RUNTIME_INVALID_UTF8", "NUL byte not allowed"));
+      throw new RuntimeError(rdiag(file, node, "R1007", "RUNTIME_INVALID_UTF8", diagMsg("invalid UTF-8 sequence", "NUL byte", "non-NUL UTF-8 byte")));
     }
     bytes.push(bi);
     cp = (cp << 6) | (bi & 0x3f);
   }
   if (len === 2 && cp < 0x80) {
-    throw new RuntimeError(rdiag(file, node, "R1007", "RUNTIME_INVALID_UTF8", "invalid UTF-8"));
+    throw new RuntimeError(rdiag(file, node, "R1007", "RUNTIME_INVALID_UTF8", diagMsg("invalid UTF-8 sequence", "byte stream", "valid UTF-8")));
   }
   if (len === 3 && cp < 0x800) {
-    throw new RuntimeError(rdiag(file, node, "R1007", "RUNTIME_INVALID_UTF8", "invalid UTF-8"));
+    throw new RuntimeError(rdiag(file, node, "R1007", "RUNTIME_INVALID_UTF8", diagMsg("invalid UTF-8 sequence", "byte stream", "valid UTF-8")));
   }
   if (len === 4 && (cp < 0x10000 || cp > 0x10ffff)) {
-    throw new RuntimeError(rdiag(file, node, "R1007", "RUNTIME_INVALID_UTF8", "invalid UTF-8"));
+    throw new RuntimeError(rdiag(file, node, "R1007", "RUNTIME_INVALID_UTF8", diagMsg("invalid UTF-8 sequence", "byte stream", "valid UTF-8")));
   }
   return { bytes, nextPos: pos + len };
 }
@@ -606,11 +697,21 @@ function glyphIndexAtBytePos(fileObj, node) {
     glyphs += 1;
     if (pos === targetPos) return glyphs;
     if (pos > targetPos) {
-      throw new RuntimeError(rdiag(fileObj.path || "<file>", node, "R1010", "RUNTIME_IO_ERROR", "tell position not at glyph boundary"));
+      throw new RuntimeError(
+        rdiag(
+          fileObj.path || "<file>",
+          node,
+          "R1010",
+          "RUNTIME_IO_ERROR",
+          diagMsg("invalid tell position", "non-glyph boundary", "glyph boundary position")
+        )
+      );
     }
   }
   if (targetPos === pos) return glyphs;
-  throw new RuntimeError(rdiag(fileObj.path || "<file>", node, "R1010", "RUNTIME_IO_ERROR", "tell out of range"));
+  throw new RuntimeError(
+    rdiag(fileObj.path || "<file>", node, "R1010", "RUNTIME_IO_ERROR", diagMsg("tell out of range", "position", "within file"))
+  );
 }
 
 function glyphCountTotal(fileObj, node) {
@@ -636,7 +737,9 @@ function byteOffsetForGlyph(fileObj, node, glyphPos) {
     glyphs += 1;
     if (glyphs === glyphPos) return pos;
   }
-  throw new RuntimeError(rdiag(fileObj.path || "<file>", node, "R1010", "RUNTIME_IO_ERROR", "seek out of range"));
+  throw new RuntimeError(
+    rdiag(fileObj.path || "<file>", node, "R1010", "RUNTIME_IO_ERROR", diagMsg("seek out of range", "position", "within file"))
+  );
 }
 
 function buildModuleEnv(ast, file) {
@@ -660,7 +763,9 @@ function buildModuleEnv(ast, file) {
   const toNumberArg = (node, v) => {
     if (typeof v === "bigint") return Number(v);
     if (typeof v === "number") return v;
-    throw new RuntimeError(rdiag(file, node, "R1010", "RUNTIME_TYPE_ERROR", "expected float"));
+    throw new RuntimeError(
+      rdiag(file, node, "R1010", "RUNTIME_TYPE_ERROR", diagMsg("invalid argument", valueType(v), "float"))
+    );
   };
 
   // JS implementations for tests
@@ -751,12 +856,16 @@ function buildModuleEnv(ast, file) {
   ioMod.constants.set("stderr", new TextFile(2, PS_FILE_WRITE, true, "stderr"));
   ioMod.functions.set("openText", (pathStr, modeStr, node) => {
     if (typeof pathStr !== "string" || typeof modeStr !== "string") {
-      throw new RuntimeError(rdiag(file, node, "R1010", "RUNTIME_IO_ERROR", "Io.openText expects (string, string)"));
+      throw new RuntimeError(
+        rdiag(file, node, "R1010", "RUNTIME_IO_ERROR", diagMsg("invalid Io.openText arguments", "args", "(string, string)"))
+      );
     }
     const m = modeStr;
     const valid = ["r", "w", "a"];
     if (!valid.includes(m)) {
-      throw new RuntimeError(rdiag(file, node, "R1010", "RUNTIME_IO_ERROR", "invalid mode"));
+      throw new RuntimeError(
+        rdiag(file, node, "R1010", "RUNTIME_IO_ERROR", diagMsg("invalid mode", valueShort(m), "r|w|a"))
+      );
     }
     let flags = 0;
     if (m === "r") flags = PS_FILE_READ;
@@ -770,17 +879,29 @@ function buildModuleEnv(ast, file) {
       }
       return f;
     } catch (e) {
-      throw new RuntimeError(rdiag(file, node, "R1010", "RUNTIME_IO_ERROR", String(e.message || "open failed")));
+      throw new RuntimeError(
+        rdiag(
+          file,
+          node,
+          "R1010",
+          "RUNTIME_IO_ERROR",
+          diagMsg("open failed", String(e.message || "open failed"), "open successful")
+        )
+      );
     }
   });
   ioMod.functions.set("openBinary", (pathStr, modeStr, node) => {
     if (typeof pathStr !== "string" || typeof modeStr !== "string") {
-      throw new RuntimeError(rdiag(file, node, "R1010", "RUNTIME_IO_ERROR", "Io.openBinary expects (string, string)"));
+      throw new RuntimeError(
+        rdiag(file, node, "R1010", "RUNTIME_IO_ERROR", diagMsg("invalid Io.openBinary arguments", "args", "(string, string)"))
+      );
     }
     const m = modeStr;
     const valid = ["r", "w", "a"];
     if (!valid.includes(m)) {
-      throw new RuntimeError(rdiag(file, node, "R1010", "RUNTIME_IO_ERROR", "invalid mode"));
+      throw new RuntimeError(
+        rdiag(file, node, "R1010", "RUNTIME_IO_ERROR", diagMsg("invalid mode", valueShort(m), "r|w|a"))
+      );
     }
     let flags = 0;
     if (m === "r") flags = PS_FILE_READ;
@@ -796,7 +917,15 @@ function buildModuleEnv(ast, file) {
       }
       return f;
     } catch (e) {
-      throw new RuntimeError(rdiag(file, node, "R1010", "RUNTIME_IO_ERROR", String(e.message || "open failed")));
+      throw new RuntimeError(
+        rdiag(
+          file,
+          node,
+          "R1010",
+          "RUNTIME_IO_ERROR",
+          diagMsg("open failed", String(e.message || "open failed"), "open successful")
+        )
+      );
     }
   });
   ioMod.functions.set("print", (val) => {
@@ -940,7 +1069,11 @@ function buildModuleEnv(ast, file) {
 
   const utf8Mod = makeModule("test.utf8");
   utf8Mod.functions.set("roundtrip", (s) => {
-    if (typeof s !== "string") throw new RuntimeError(rdiag(file, null, "R1010", "RUNTIME_IO_ERROR", "expected string"));
+    if (typeof s !== "string") {
+      throw new RuntimeError(
+        rdiag(file, null, "R1010", "RUNTIME_IO_ERROR", diagMsg("invalid argument", valueType(s), "string"))
+      );
+    }
     return s;
   });
 
@@ -1516,19 +1649,35 @@ function evalBinary(file, expr, l, r) {
     if (op === "-") return checkIntRange(file, expr.left, l - r);
     if (op === "*") return checkIntRange(file, expr.left, l * r);
     if (op === "/") {
-      if (r === 0n) throw new RuntimeError(rdiag(file, expr.right, "R1004", "RUNTIME_DIVIDE_BY_ZERO", "division by zero"));
+      if (r === 0n) {
+        throw new RuntimeError(
+          rdiag(file, expr.right, "R1004", "RUNTIME_DIVIDE_BY_ZERO", diagMsg("division by zero", valueShort(r), "non-zero divisor"))
+        );
+      }
       return l / r;
     }
     if (op === "%") {
-      if (r === 0n) throw new RuntimeError(rdiag(file, expr.right, "R1004", "RUNTIME_DIVIDE_BY_ZERO", "division by zero"));
+      if (r === 0n) {
+        throw new RuntimeError(
+          rdiag(file, expr.right, "R1004", "RUNTIME_DIVIDE_BY_ZERO", diagMsg("division by zero", valueShort(r), "non-zero divisor"))
+        );
+      }
       return l % r;
     }
     if (op === "<<") {
-      if (r < 0n || r >= 64n) throw new RuntimeError(rdiag(file, expr.right, "R1005", "RUNTIME_SHIFT_RANGE", "invalid shift"));
+      if (r < 0n || r >= 64n) {
+        throw new RuntimeError(
+          rdiag(file, expr.right, "R1005", "RUNTIME_SHIFT_RANGE", diagMsg("invalid shift", valueShort(r), "0..63"))
+        );
+      }
       return checkIntRange(file, expr.left, l << r);
     }
     if (op === ">>") {
-      if (r < 0n || r >= 64n) throw new RuntimeError(rdiag(file, expr.right, "R1005", "RUNTIME_SHIFT_RANGE", "invalid shift"));
+      if (r < 0n || r >= 64n) {
+        throw new RuntimeError(
+          rdiag(file, expr.right, "R1005", "RUNTIME_SHIFT_RANGE", diagMsg("invalid shift", valueShort(r), "0..63"))
+        );
+      }
       return l >> r;
     }
     if (op === "&") return l & r;
@@ -1562,7 +1711,9 @@ function indexGet(file, targetNode, indexNode, target, idx) {
   if (Array.isArray(target)) {
     const i = Number(idx);
     if (!Number.isInteger(i) || i < 0 || i >= target.length) {
-      throw new RuntimeError(rdiag(file, targetNode, "R1002", "RUNTIME_INDEX_OOB", "index out of bounds"));
+      throw new RuntimeError(
+        rdiag(file, targetNode, "R1002", "RUNTIME_INDEX_OOB", diagMsg("index out of bounds", valueShort(idx), "index within bounds"))
+      );
     }
     return target[i];
   }
@@ -1570,7 +1721,9 @@ function indexGet(file, targetNode, indexNode, target, idx) {
     ensureViewValid(file, targetNode, target);
     const i = Number(idx);
     if (!Number.isInteger(i) || i < 0 || i >= target.len) {
-      throw new RuntimeError(rdiag(file, targetNode, "R1002", "RUNTIME_INDEX_OOB", "index out of bounds"));
+      throw new RuntimeError(
+        rdiag(file, targetNode, "R1002", "RUNTIME_INDEX_OOB", diagMsg("index out of bounds", valueShort(idx), "index within bounds"))
+      );
     }
     if (Array.isArray(target.source)) return target.source[target.offset + i];
     if (typeof target.source === "string") return glyphAt(target.source, target.offset + i);
@@ -1580,14 +1733,18 @@ function indexGet(file, targetNode, indexNode, target, idx) {
     const glyphs = glyphStringsOf(target);
     const i = Number(idx);
     if (!Number.isInteger(i) || i < 0 || i >= glyphs.length) {
-      throw new RuntimeError(rdiag(file, targetNode, "R1002", "RUNTIME_INDEX_OOB", "index out of bounds"));
+      throw new RuntimeError(
+        rdiag(file, targetNode, "R1002", "RUNTIME_INDEX_OOB", diagMsg("index out of bounds", valueShort(idx), "index within bounds"))
+      );
     }
     return glyphAt(target, i);
   }
   if (target instanceof Map) {
     const k = mapKey(idx);
     if (!target.has(k)) {
-      throw new RuntimeError(rdiag(file, targetNode, "R1003", "RUNTIME_MISSING_KEY", "missing key"));
+      throw new RuntimeError(
+        rdiag(file, targetNode, "R1003", "RUNTIME_MISSING_KEY", diagMsg("missing key", valueShort(unmapKey(k)), "present key"))
+      );
     }
     return target.get(k);
   }
@@ -1598,7 +1755,9 @@ function assignIndex(file, targetNode, indexNode, target, idx, rhs) {
   if (Array.isArray(target)) {
     const i = Number(idx);
     if (!Number.isInteger(i) || i < 0 || i >= target.length) {
-      throw new RuntimeError(rdiag(file, targetNode, "R1002", "RUNTIME_INDEX_OOB", "index out of bounds"));
+      throw new RuntimeError(
+        rdiag(file, targetNode, "R1002", "RUNTIME_INDEX_OOB", diagMsg("index out of bounds", valueShort(idx), "index within bounds"))
+      );
     }
     target[i] = rhs;
     return;
@@ -1610,7 +1769,9 @@ function assignIndex(file, targetNode, indexNode, target, idx, rhs) {
     }
     const i = Number(idx);
     if (!Number.isInteger(i) || i < 0 || i >= target.len) {
-      throw new RuntimeError(rdiag(file, targetNode, "R1002", "RUNTIME_INDEX_OOB", "index out of bounds"));
+      throw new RuntimeError(
+        rdiag(file, targetNode, "R1002", "RUNTIME_INDEX_OOB", diagMsg("index out of bounds", valueShort(idx), "index within bounds"))
+      );
     }
     if (Array.isArray(target.source)) {
       target.source[target.offset + i] = rhs;
@@ -1741,23 +1902,43 @@ function evalCall(expr, scope, functions, moduleEnv, protoEnv, file, callFunctio
       if (m.name === "isArray") return t === "array";
       if (m.name === "isObject") return t === "object";
       if (m.name === "asBool") {
-        if (t !== "bool") throw new RuntimeError(rdiag(file, m, "R1010", "RUNTIME_JSON_ERROR", "expected JsonBool"));
+        if (t !== "bool") {
+          throw new RuntimeError(
+            rdiag(file, m, "R1010", "RUNTIME_JSON_ERROR", diagMsg("invalid JsonBool access", t || "unknown", "JsonBool"))
+          );
+        }
         return target.value;
       }
       if (m.name === "asNumber") {
-        if (t !== "number") throw new RuntimeError(rdiag(file, m, "R1010", "RUNTIME_JSON_ERROR", "expected JsonNumber"));
+        if (t !== "number") {
+          throw new RuntimeError(
+            rdiag(file, m, "R1010", "RUNTIME_JSON_ERROR", diagMsg("invalid JsonNumber access", t || "unknown", "JsonNumber"))
+          );
+        }
         return target.value;
       }
       if (m.name === "asString") {
-        if (t !== "string") throw new RuntimeError(rdiag(file, m, "R1010", "RUNTIME_JSON_ERROR", "expected JsonString"));
+        if (t !== "string") {
+          throw new RuntimeError(
+            rdiag(file, m, "R1010", "RUNTIME_JSON_ERROR", diagMsg("invalid JsonString access", t || "unknown", "JsonString"))
+          );
+        }
         return target.value;
       }
       if (m.name === "asArray") {
-        if (t !== "array") throw new RuntimeError(rdiag(file, m, "R1010", "RUNTIME_JSON_ERROR", "expected JsonArray"));
+        if (t !== "array") {
+          throw new RuntimeError(
+            rdiag(file, m, "R1010", "RUNTIME_JSON_ERROR", diagMsg("invalid JsonArray access", t || "unknown", "JsonArray"))
+          );
+        }
         return target.value;
       }
       if (m.name === "asObject") {
-        if (t !== "object") throw new RuntimeError(rdiag(file, m, "R1010", "RUNTIME_JSON_ERROR", "expected JsonObject"));
+        if (t !== "object") {
+          throw new RuntimeError(
+            rdiag(file, m, "R1010", "RUNTIME_JSON_ERROR", diagMsg("invalid JsonObject access", t || "unknown", "JsonObject"))
+          );
+        }
         return target.value;
       }
     }
@@ -1836,14 +2017,24 @@ function evalCall(expr, scope, functions, moduleEnv, protoEnv, file, callFunctio
         if (args.length === 2) {
           return makeView(file, m, target, args[0], args[1], true);
         }
-        throw new RuntimeError(rdiag(file, m, "R1010", "RUNTIME_TYPE_ERROR", "invalid view arity"));
+        throw new RuntimeError(
+          rdiag(file, m, "R1010", "RUNTIME_TYPE_ERROR", diagMsg("invalid view arity", `arity ${args.length}`, "arity 0 or 2"))
+        );
       }
       if (Array.isArray(target)) {
-        if (args.length !== 2) throw new RuntimeError(rdiag(file, m, "R1010", "RUNTIME_TYPE_ERROR", "invalid view/slice arity"));
+        if (args.length !== 2) {
+          throw new RuntimeError(
+            rdiag(file, m, "R1010", "RUNTIME_TYPE_ERROR", diagMsg("invalid view/slice arity", `arity ${args.length}`, "arity 2"))
+          );
+        }
         return makeView(file, m, target, args[0], args[1], m.name === "view");
       }
       if (isView(target)) {
-        if (args.length !== 2) throw new RuntimeError(rdiag(file, m, "R1010", "RUNTIME_TYPE_ERROR", "invalid view/slice arity"));
+        if (args.length !== 2) {
+          throw new RuntimeError(
+            rdiag(file, m, "R1010", "RUNTIME_TYPE_ERROR", diagMsg("invalid view/slice arity", `arity ${args.length}`, "arity 2"))
+          );
+        }
         if (m.name === "view" && target.readonly) return makeView(file, m, target, args[0], args[1], true);
         if (m.name === "slice" && !target.readonly) return makeView(file, m, target, args[0], args[1], false);
         throw new RuntimeError(rdiag(file, m, "R1010", "RUNTIME_TYPE_ERROR", "invalid view/slice target"));
@@ -1852,7 +2043,8 @@ function evalCall(expr, scope, functions, moduleEnv, protoEnv, file, callFunctio
 
     const expectArity = (min, max, category = "RUNTIME_TYPE_ERROR") => {
       if (args.length < min || args.length > max) {
-        throw new RuntimeError(rdiag(file, m, "R1010", category, "arity mismatch"));
+        const expected = min === max ? `arity ${min}` : `arity ${min}-${max}`;
+        throw new RuntimeError(rdiag(file, m, "R1010", category, diagMsg("arity mismatch", `arity ${args.length}`, expected)));
       }
     };
 
@@ -1932,7 +2124,8 @@ function evalCall(expr, scope, functions, moduleEnv, protoEnv, file, callFunctio
         const length = Number(args[1]);
         const gs = glyphStringsOf(target);
         if (!Number.isInteger(start) || !Number.isInteger(length) || start < 0 || length < 0 || start + length > gs.length) {
-          throw new RuntimeError(rdiag(file, m, "R1002", "RUNTIME_INDEX_OOB", "index out of bounds"));
+          const got = `start=${start}, length=${length}`;
+          throw new RuntimeError(rdiag(file, m, "R1002", "RUNTIME_INDEX_OOB", diagMsg("index out of bounds", got, "range within string")));
         }
         return gs.slice(start, start + length).join("");
       }
@@ -1985,7 +2178,7 @@ function evalCall(expr, scope, functions, moduleEnv, protoEnv, file, callFunctio
       for (const v of target) {
         const n = typeof v === "bigint" ? Number(v) : Number(v);
         if (!Number.isInteger(n) || n < 0 || n > 255) {
-          throw new RuntimeError(rdiag(file, m, "R1007", "RUNTIME_INVALID_UTF8", "invalid UTF-8"));
+          throw new RuntimeError(rdiag(file, m, "R1007", "RUNTIME_INVALID_UTF8", diagMsg("invalid UTF-8 sequence", "byte stream", "valid UTF-8")));
         }
         bytes.push(n);
       }
@@ -1993,7 +2186,7 @@ function evalCall(expr, scope, functions, moduleEnv, protoEnv, file, callFunctio
         const dec = new TextDecoder("utf-8", { fatal: true });
         return dec.decode(Uint8Array.from(bytes));
       } catch {
-        throw new RuntimeError(rdiag(file, m, "R1007", "RUNTIME_INVALID_UTF8", "invalid UTF-8"));
+        throw new RuntimeError(rdiag(file, m, "R1007", "RUNTIME_INVALID_UTF8", diagMsg("invalid UTF-8 sequence", "byte stream", "valid UTF-8")));
       }
     }
     if (Array.isArray(target)) {
@@ -2066,7 +2259,9 @@ function evalCall(expr, scope, functions, moduleEnv, protoEnv, file, callFunctio
       if (m.name === "close") {
         expectArity(0, 0, "RUNTIME_IO_ERROR");
         if (target.isStd) {
-          throw new RuntimeError(rdiag(file, m, "R1010", "RUNTIME_IO_ERROR", "cannot close standard stream"));
+          throw new RuntimeError(
+            rdiag(file, m, "R1010", "RUNTIME_IO_ERROR", diagMsg("cannot close standard stream", "standard stream", "non-standard stream"))
+          );
         }
         if (!target.closed) {
           fs.closeSync(target.fd);
@@ -2075,17 +2270,25 @@ function evalCall(expr, scope, functions, moduleEnv, protoEnv, file, callFunctio
         return null;
       }
       if (target.closed) {
-        throw new RuntimeError(rdiag(file, m, "R1010", "RUNTIME_IO_ERROR", "file is closed"));
+        throw new RuntimeError(
+          rdiag(file, m, "R1010", "RUNTIME_IO_ERROR", diagMsg("file is closed", "closed file", "open file"))
+        );
       }
       const isBinary = target instanceof BinaryFile;
       const canRead = (target.flags & PS_FILE_READ) !== 0;
       const canWrite = (target.flags & (PS_FILE_WRITE | PS_FILE_APPEND)) !== 0;
       if (m.name === "read") {
         expectArity(1, 1, "RUNTIME_IO_ERROR");
-        if (!canRead) throw new RuntimeError(rdiag(file, m, "R1010", "RUNTIME_IO_ERROR", "file not readable"));
+        if (!canRead) {
+          throw new RuntimeError(
+            rdiag(file, m, "R1010", "RUNTIME_IO_ERROR", diagMsg("file not readable", "write-only file", "readable file"))
+          );
+        }
         const size = Number(args[0]);
         if (!Number.isInteger(size) || size <= 0) {
-          throw new RuntimeError(rdiag(file, m, "R1010", "RUNTIME_IO_ERROR", "read size must be >= 1"));
+          throw new RuntimeError(
+            rdiag(file, m, "R1010", "RUNTIME_IO_ERROR", diagMsg("invalid read size", valueShort(size), "int >= 1"))
+          );
         }
         if (isBinary) {
           const buf = Buffer.alloc(size);
@@ -2100,11 +2303,17 @@ function evalCall(expr, scope, functions, moduleEnv, protoEnv, file, callFunctio
       }
       if (m.name === "write") {
         expectArity(1, 1, "RUNTIME_IO_ERROR");
-        if (!canWrite) throw new RuntimeError(rdiag(file, m, "R1010", "RUNTIME_IO_ERROR", "file not writable"));
+        if (!canWrite) {
+          throw new RuntimeError(
+            rdiag(file, m, "R1010", "RUNTIME_IO_ERROR", diagMsg("file not writable", "read-only file", "writable file"))
+          );
+        }
         const v = args[0];
         if (!isBinary) {
           if (typeof v !== "string") {
-            throw new RuntimeError(rdiag(file, m, "R1010", "RUNTIME_IO_ERROR", "write expects string"));
+            throw new RuntimeError(
+              rdiag(file, m, "R1010", "RUNTIME_IO_ERROR", diagMsg("invalid write value", valueType(v), "string"))
+            );
           }
           if (v.length > 0) {
             const n = fs.writeSync(target.fd, v, target.isStd ? null : target.posBytes);
@@ -2113,13 +2322,17 @@ function evalCall(expr, scope, functions, moduleEnv, protoEnv, file, callFunctio
           return null;
         }
         if (!Array.isArray(v)) {
-          throw new RuntimeError(rdiag(file, m, "R1010", "RUNTIME_IO_ERROR", "write expects list<byte>"));
+          throw new RuntimeError(
+            rdiag(file, m, "R1010", "RUNTIME_IO_ERROR", diagMsg("invalid write value", valueType(v), "list<byte>"))
+          );
         }
         const bytes = [];
         for (const it of v) {
           const n = typeof it === "bigint" ? Number(it) : Number(it);
           if (!Number.isInteger(n) || n < 0 || n > 255) {
-            throw new RuntimeError(rdiag(file, m, "R1010", "RUNTIME_IO_ERROR", "byte out of range"));
+            throw new RuntimeError(
+              rdiag(file, m, "R1010", "RUNTIME_IO_ERROR", diagMsg("byte out of range", valueShort(it), "0..255"))
+            );
           }
           bytes.push(n);
         }
@@ -2145,11 +2358,17 @@ function evalCall(expr, scope, functions, moduleEnv, protoEnv, file, callFunctio
         expectArity(1, 1, "RUNTIME_IO_ERROR");
         const pos = Number(args[0]);
         if (!Number.isInteger(pos) || pos < 0) {
-          throw new RuntimeError(rdiag(file, m, "R1010", "RUNTIME_IO_ERROR", "seek expects pos >= 0"));
+          throw new RuntimeError(
+            rdiag(file, m, "R1010", "RUNTIME_IO_ERROR", diagMsg("invalid seek position", valueShort(pos), "pos >= 0"))
+          );
         }
         if (isBinary) {
           const size = fs.fstatSync(target.fd).size;
-          if (pos > size) throw new RuntimeError(rdiag(file, m, "R1010", "RUNTIME_IO_ERROR", "seek out of range"));
+          if (pos > size) {
+            throw new RuntimeError(
+              rdiag(file, m, "R1010", "RUNTIME_IO_ERROR", diagMsg("seek out of range", valueShort(pos), "within file"))
+            );
+          }
           target.posBytes = pos;
           return null;
         }

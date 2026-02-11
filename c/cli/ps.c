@@ -59,7 +59,18 @@ static void print_exception(FILE *out, const char *fallback_file, PS_Value *ex) 
   long long col = ex->as.exc_v.column > 0 ? (long long)ex->as.exc_v.column : 1;
   const char *msg = exc_string(ex->as.exc_v.message);
   const char *tn = ex->as.exc_v.type_name ? ex->as.exc_v.type_name : (ex->as.exc_v.is_runtime ? "RuntimeException" : "Exception");
-  fprintf(out, "%s:%lld:%lld Uncaught %s: %s\n", file, line, col, tn, msg ? msg : "");
+  const char *code = exc_string(ex->as.exc_v.code);
+  const char *category = exc_string(ex->as.exc_v.category);
+  if (ex->as.exc_v.is_runtime && code && *code && category && *category) {
+    fprintf(out, "%s:%lld:%lld %s %s: %s\n", file, line, col, code, category, msg ? msg : "");
+    return;
+  }
+  char got[192];
+  if (msg && *msg) snprintf(got, sizeof(got), "%s(\"%s\")", tn, msg);
+  else snprintf(got, sizeof(got), "%s", tn);
+  char formatted[256];
+  ps_format_diag(formatted, sizeof(formatted), "unhandled exception", got, "matching catch");
+  fprintf(out, "%s:%lld:%lld R1011 UNHANDLED_EXCEPTION: %s\n", file, line, col, formatted);
 }
 
 static int write_temp_source(const char *code, char *out_path, size_t out_sz) {
@@ -324,10 +335,12 @@ int main(int argc, char **argv) {
     } else if (ps_last_error_code(ctx) != PS_ERR_NONE) {
       const char *code = NULL;
       const char *cat = ps_runtime_category(ps_last_error_code(ctx), ps_last_error_message(ctx), &code);
+      const char *file = g_last_run_file ? g_last_run_file : "<runtime>";
+      const char *msg = ps_last_error_message(ctx);
       if (cat && code) {
-        fprintf(stderr, "%s %s: %s\n", code, cat, ps_last_error_message(ctx));
+        fprintf(stderr, "%s:%d:%d %s %s: %s\n", file, 1, 1, code, cat, msg ? msg : "");
       } else {
-        fprintf(stderr, "error: %s\n", ps_last_error_message(ctx));
+        fprintf(stderr, "%s:%d:%d R1010 RUNTIME_ERROR: %s\n", file, 1, 1, msg ? msg : "runtime error");
       }
     }
   }

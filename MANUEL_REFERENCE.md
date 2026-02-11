@@ -2034,6 +2034,55 @@ function main() : void {
 ```
 Ref: EX-087B
 
+### 15.2.4 Exemples de diagnostics runtime
+
+**Exception non catchée**
+
+```c
+function main() : void {
+    Exception e = Exception.clone();
+    e.message = "boom";
+    throw e;
+}
+```
+
+Sortie attendue :
+
+```
+script.pts:4:5 R1011 UNHANDLED_EXCEPTION: unhandled exception. got Exception("boom"); expected matching catch
+```
+
+**Division par zéro**
+
+```c
+function main() : void {
+    int a = 1;
+    int b = 0;
+    int c = a / b;
+}
+```
+
+Sortie attendue :
+
+```
+script.pts:4:17 R1004 RUNTIME_DIVIDE_BY_ZERO: division by zero. got 0; expected non-zero divisor
+```
+
+**Clé manquante dans un map**
+
+```c
+function main() : void {
+    map<string,int> m = {};
+    int v = m["absent"];
+}
+```
+
+Sortie attendue :
+
+```
+script.pts:3:13 R1003 RUNTIME_MISSING_KEY: missing key. got "absent"; expected present key
+```
+
 ### 15.3 `try / catch / finally`
 
 ```c

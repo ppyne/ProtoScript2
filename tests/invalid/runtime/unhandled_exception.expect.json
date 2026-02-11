@@ -1,0 +1,11 @@
+{
+  "status": "reject-runtime",
+  "error_code": "R1011",
+  "category": "UNHANDLED_EXCEPTION",
+  "position": {
+    "file": "invalid/runtime/unhandled_exception.pts",
+    "line": 4,
+    "column": 5
+  },
+  "expected_output": "invalid/runtime/unhandled_exception.pts:4:5 R1011 UNHANDLED_EXCEPTION: unhandled exception. got Exception(\"boom\"); expected matching catch"
+}

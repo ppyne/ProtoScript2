@@ -11,6 +11,11 @@ typedef struct {
 void ps_error_set(PS_Context *ctx, PS_ErrorCode code, const char *msg);
 void ps_error_clear(PS_Context *ctx);
 
+// Build a normative diagnostic message with got/expected details.
+// Format: "<short>. got <got>; expected <expected>"
+void ps_format_diag(char *out, size_t out_sz, const char *short_msg, const char *got, const char *expected);
+void ps_throw_diag(PS_Context *ctx, PS_ErrorCode code, const char *short_msg, const char *got, const char *expected);
+
 // Runtime diagnostic mapping (best-effort).
 // Returns category string or NULL if no mapping exists.
 // If non-NULL, out_code is set to the canonical Rxxxx code.

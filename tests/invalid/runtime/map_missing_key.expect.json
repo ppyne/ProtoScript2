@@ -7,5 +7,6 @@
     "file": "invalid/runtime/map_missing_key.pts",
     "line": 5,
     "column": 13
-  }
+  },
+  "expected_output": "invalid/runtime/map_missing_key.pts:5:13 R1003 RUNTIME_MISSING_KEY: missing key. got \"missing\"; expected present key"
 }

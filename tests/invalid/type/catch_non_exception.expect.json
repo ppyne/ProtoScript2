@@ -1,0 +1,12 @@
+{
+  "status": "reject-static",
+  "error_family": "E3xxx",
+  "error_code": "E3001",
+  "category": "TYPE_MISMATCH_ASSIGNMENT",
+  "position": {
+    "file": "invalid/type/catch_non_exception.pts",
+    "line": 4,
+    "column": 18
+  },
+  "expected_output": "invalid/type/catch_non_exception.pts:4:18 E3001 TYPE_MISMATCH_ASSIGNMENT: catch type must derive from Exception"
+}

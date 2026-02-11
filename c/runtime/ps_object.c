@@ -3,7 +3,26 @@
 #include <stdint.h>
 
 #include "ps_object.h"
+#include "ps_errors.h"
 #include "ps_string.h"
+
+static const char *value_type_name(PS_Value *v) {
+  if (!v) return "null";
+  switch (v->tag) {
+    case PS_V_BOOL: return "bool";
+    case PS_V_INT: return "int";
+    case PS_V_BYTE: return "byte";
+    case PS_V_FLOAT: return "float";
+    case PS_V_GLYPH: return "glyph";
+    case PS_V_STRING: return "string";
+    case PS_V_LIST: return "list";
+    case PS_V_MAP: return "map";
+    case PS_V_OBJECT: return "object";
+    case PS_V_VIEW: return "view";
+    case PS_V_EXCEPTION: return "Exception";
+    default: return "value";
+  }
+}
 
 static uint64_t hash_bytes(const char *s, size_t len) {
   uint64_t h = 1469598103934665603ULL;
@@ -61,7 +80,9 @@ PS_Value *ps_object_new(PS_Context *ctx) {
 
 PS_Value *ps_object_get_str_internal(PS_Context *ctx, PS_Value *obj, const char *key, size_t key_len) {
   if (!obj || obj->tag != PS_V_OBJECT) {
-    ps_throw(ctx, PS_ERR_TYPE, "not an object");
+    char got[64];
+    snprintf(got, sizeof(got), "%s", value_type_name(obj));
+    ps_throw_diag(ctx, PS_ERR_TYPE, "invalid object access", got, "object");
     return NULL;
   }
   PS_Object *o = &obj->as.object_v;
@@ -79,12 +100,14 @@ PS_Value *ps_object_get_str_internal(PS_Context *ctx, PS_Value *obj, const char 
 
 int ps_object_set_str_internal(PS_Context *ctx, PS_Value *obj, const char *key, size_t key_len, PS_Value *value) {
   if (!obj || obj->tag != PS_V_OBJECT) {
-    ps_throw(ctx, PS_ERR_TYPE, "not an object");
+    char got[64];
+    snprintf(got, sizeof(got), "%s", value_type_name(obj));
+    ps_throw_diag(ctx, PS_ERR_TYPE, "invalid object assignment", got, "object");
     return 0;
   }
   PS_Object *o = &obj->as.object_v;
   if (!ensure_cap(o, o->len + 1)) {
-    ps_throw(ctx, PS_ERR_OOM, "out of memory");
+    ps_throw_diag(ctx, PS_ERR_OOM, "out of memory", "object allocation failed", "available memory");
     return 0;
   }
   uint64_t h = hash_bytes(key, key_len);
@@ -101,7 +124,7 @@ int ps_object_set_str_internal(PS_Context *ctx, PS_Value *obj, const char *key, 
   o->used[idx] = 1;
   o->keys[idx].ptr = (char *)malloc(key_len + 1);
   if (!o->keys[idx].ptr && key_len > 0) {
-    ps_throw(ctx, PS_ERR_OOM, "out of memory");
+    ps_throw_diag(ctx, PS_ERR_OOM, "out of memory", "object key allocation failed", "available memory");
     return 0;
   }
   memcpy(o->keys[idx].ptr, key, key_len);
@@ -119,12 +142,19 @@ size_t ps_object_len_internal(PS_Value *obj) {
 
 int ps_object_entry_internal(PS_Context *ctx, PS_Value *obj, size_t index, const char **out_key, size_t *out_len, PS_Value **out_value) {
   if (!obj || obj->tag != PS_V_OBJECT) {
-    ps_throw(ctx, PS_ERR_TYPE, "not an object");
+    char got[64];
+    snprintf(got, sizeof(got), "%s", value_type_name(obj));
+    ps_throw_diag(ctx, PS_ERR_TYPE, "invalid object access", got, "object");
     return 0;
   }
   PS_Object *o = &obj->as.object_v;
   if (index >= o->len) {
-    ps_throw(ctx, PS_ERR_RANGE, "index out of bounds");
+    char got[64];
+    char expected[64];
+    snprintf(got, sizeof(got), "%zu", index);
+    if (o->len == 0) snprintf(expected, sizeof(expected), "empty object");
+    else snprintf(expected, sizeof(expected), "index < %zu", o->len);
+    ps_throw_diag(ctx, PS_ERR_RANGE, "index out of bounds", got, expected);
     return 0;
   }
   size_t seen = 0;
@@ -138,6 +168,13 @@ int ps_object_entry_internal(PS_Context *ctx, PS_Value *obj, size_t index, const
     }
     seen += 1;
   }
-  ps_throw(ctx, PS_ERR_RANGE, "index out of bounds");
+  {
+    char got[64];
+    char expected[64];
+    snprintf(got, sizeof(got), "%zu", index);
+    if (o->len == 0) snprintf(expected, sizeof(expected), "empty object");
+    else snprintf(expected, sizeof(expected), "index < %zu", o->len);
+    ps_throw_diag(ctx, PS_ERR_RANGE, "index out of bounds", got, expected);
+  }
   return 0;
 }

@@ -30,11 +30,16 @@ size_t ps_list_len_internal(PS_Value *list) {
 
 PS_Value *ps_list_get_internal(PS_Context *ctx, PS_Value *list, size_t index) {
   if (!list || list->tag != PS_V_LIST) {
-    ps_throw(ctx, PS_ERR_TYPE, "not a list");
+    ps_throw_diag(ctx, PS_ERR_TYPE, "invalid list access", "non-list value", "list");
     return NULL;
   }
   if (index >= list->as.list_v.len) {
-    ps_throw(ctx, PS_ERR_RANGE, "index out of bounds");
+    char got[64];
+    char expected[96];
+    snprintf(got, sizeof(got), "%zu", index);
+    if (list->as.list_v.len == 0) snprintf(expected, sizeof(expected), "empty list (no valid index)");
+    else snprintf(expected, sizeof(expected), "0..%zu", list->as.list_v.len - 1);
+    ps_throw_diag(ctx, PS_ERR_RANGE, "index out of bounds", got, expected);
     return NULL;
   }
   return list->as.list_v.items[index];
@@ -42,11 +47,16 @@ PS_Value *ps_list_get_internal(PS_Context *ctx, PS_Value *list, size_t index) {
 
 int ps_list_set_internal(PS_Context *ctx, PS_Value *list, size_t index, PS_Value *value) {
   if (!list || list->tag != PS_V_LIST) {
-    ps_throw(ctx, PS_ERR_TYPE, "not a list");
+    ps_throw_diag(ctx, PS_ERR_TYPE, "invalid list assignment", "non-list value", "list");
     return 0;
   }
   if (index >= list->as.list_v.len) {
-    ps_throw(ctx, PS_ERR_RANGE, "index out of bounds");
+    char got[64];
+    char expected[96];
+    snprintf(got, sizeof(got), "%zu", index);
+    if (list->as.list_v.len == 0) snprintf(expected, sizeof(expected), "empty list (no valid index)");
+    else snprintf(expected, sizeof(expected), "0..%zu", list->as.list_v.len - 1);
+    ps_throw_diag(ctx, PS_ERR_RANGE, "index out of bounds", got, expected);
     return 0;
   }
   if (list->as.list_v.items[index]) ps_value_release(list->as.list_v.items[index]);
@@ -56,13 +66,13 @@ int ps_list_set_internal(PS_Context *ctx, PS_Value *list, size_t index, PS_Value
 
 int ps_list_push_internal(PS_Context *ctx, PS_Value *list, PS_Value *value) {
   if (!list || list->tag != PS_V_LIST) {
-    ps_throw(ctx, PS_ERR_TYPE, "not a list");
+    ps_throw_diag(ctx, PS_ERR_TYPE, "invalid list push", "non-list value", "list");
     return 0;
   }
   if (!ensure_cap(&list->as.list_v, list->as.list_v.len + 1)) {
-    ps_throw(ctx, PS_ERR_OOM, "out of memory");
-    return 0;
-  }
+  ps_throw_diag(ctx, PS_ERR_OOM, "out of memory", "list allocation failed", "available memory");
+  return 0;
+}
   list->as.list_v.items[list->as.list_v.len++] = ps_value_retain(value);
   list->as.list_v.version += 1;
   return 1;
