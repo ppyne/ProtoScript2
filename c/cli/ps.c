@@ -11,6 +11,7 @@
 #include "../runtime/ps_runtime.h"
 #include "../runtime/ps_errors.h"
 #include "../runtime/ps_list.h"
+#include "../diag.h"
 
 static const char *g_last_run_file = NULL;
 
@@ -29,7 +30,9 @@ static void usage(void) {
 }
 
 static void print_diag(FILE *out, const char *fallback_file, const PsDiag *d) {
-  const char *file = (d && d->file) ? d->file : fallback_file;
+  char mapped[128];
+  const char *raw = (d && d->file) ? d->file : fallback_file;
+  const char *file = ps_diag_display_file(raw, mapped, sizeof(mapped));
   int line = d ? d->line : 1;
   int col = d ? d->col : 1;
   const char *code = (d && d->code) ? d->code : NULL;
@@ -53,8 +56,10 @@ static const char *exc_string(PS_Value *v) {
 
 static void print_exception(FILE *out, const char *fallback_file, PS_Value *ex) {
   if (!ex || ex->tag != PS_V_EXCEPTION) return;
-  const char *file = exc_string(ex->as.exc_v.file);
-  if (!file || !*file) file = fallback_file ? fallback_file : "<unknown>";
+  char mapped[128];
+  const char *raw = exc_string(ex->as.exc_v.file);
+  if (!raw || !*raw) raw = fallback_file ? fallback_file : "<unknown>";
+  const char *file = ps_diag_display_file(raw, mapped, sizeof(mapped));
   long long line = ex->as.exc_v.line > 0 ? (long long)ex->as.exc_v.line : 1;
   long long col = ex->as.exc_v.column > 0 ? (long long)ex->as.exc_v.column : 1;
   const char *msg = exc_string(ex->as.exc_v.message);

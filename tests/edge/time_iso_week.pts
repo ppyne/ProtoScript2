@@ -1,0 +1,29 @@
+import Io;
+import TimeCivil;
+
+function main() : void {
+    bool ok = true;
+    bool hasUTC = true;
+
+    try {
+        TimeCivil.offsetSeconds(0, "UTC");
+    } catch (InvalidTimeZoneException ex) {
+        hasUTC = false;
+    }
+
+    if (hasUTC) {
+        int epoch = TimeCivil.parseISO8601("2005-01-01T00:00:00.000Z");
+        int dow = TimeCivil.dayOfWeek(epoch, "UTC");
+        int w = TimeCivil.weekOfYearISO(epoch, "UTC");
+        int wy = TimeCivil.weekYearISO(epoch, "UTC");
+        ok = ok && (dow == 6);
+        ok = ok && (w == 53);
+        ok = ok && (wy == 2004);
+
+        int e0 = 0;
+        ok = ok && (TimeCivil.dayOfWeek(e0, "UTC") == 4);
+        ok = ok && (TimeCivil.dayOfYear(e0, "UTC") == 1);
+    }
+
+    Io.printLine(ok.toString());
+}

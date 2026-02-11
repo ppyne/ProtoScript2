@@ -85,6 +85,7 @@ PS_ErrorCode ps_last_error_code(PS_Context *ctx);
 const char *ps_last_error_message(PS_Context *ctx);
 void ps_clear_error(PS_Context *ctx);
 void ps_throw(PS_Context *ctx, PS_ErrorCode code, const char *message);
+PS_Status ps_throw_exception(PS_Context *ctx, const char *type, const char *message);
 
 // Handle ownership:
 // - All constructors return a new handle owned by the caller (refcount +1).
@@ -107,6 +108,7 @@ PS_Value *ps_make_glyph(PS_Context *ctx, uint32_t value);
 PS_Value *ps_make_string_utf8(PS_Context *ctx, const char *utf8, size_t len);
 PS_Value *ps_make_bytes(PS_Context *ctx, const uint8_t *bytes, size_t len);
 PS_Value *ps_make_list(PS_Context *ctx);
+PS_Value *ps_make_map(PS_Context *ctx);
 PS_Value *ps_make_object(PS_Context *ctx);
 PS_Value *ps_make_file(PS_Context *ctx, FILE *fp, uint32_t flags, const char *path);
 
@@ -129,6 +131,7 @@ PS_Status ps_list_push(PS_Context *ctx, PS_Value *list, PS_Value *value);
 
 size_t ps_map_len(PS_Value *map);
 PS_Status ps_map_entry(PS_Context *ctx, PS_Value *map, size_t index, PS_Value **out_key, PS_Value **out_value);
+int ps_map_set(PS_Context *ctx, PS_Value *map, PS_Value *key, PS_Value *value);
 
 PS_Value *ps_object_get_str(PS_Context *ctx, PS_Value *obj, const char *key_utf8, size_t key_len);
 PS_Status ps_object_set_str(PS_Context *ctx, PS_Value *obj, const char *key_utf8, size_t key_len, PS_Value *value);

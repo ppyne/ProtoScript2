@@ -2,6 +2,7 @@
 
 #include "ps_errors.h"
 #include "ps_runtime.h"
+#include "../diag.h"
 
 void ps_error_set(PS_Context *ctx, PS_ErrorCode code, const char *msg) {
   if (!ctx) return;
@@ -21,17 +22,7 @@ void ps_error_clear(PS_Context *ctx) {
 }
 
 void ps_format_diag(char *out, size_t out_sz, const char *short_msg, const char *got, const char *expected) {
-  if (!out || out_sz == 0) return;
-  const char *s = (short_msg && short_msg[0]) ? short_msg : "runtime error";
-  if (got && got[0] && expected && expected[0]) {
-    snprintf(out, out_sz, "%s. got %s; expected %s", s, got, expected);
-  } else if (got && got[0]) {
-    snprintf(out, out_sz, "%s. got %s", s, got);
-  } else if (expected && expected[0]) {
-    snprintf(out, out_sz, "%s. expected %s", s, expected);
-  } else {
-    snprintf(out, out_sz, "%s", s);
-  }
+  ps_diag_format(out, out_sz, PS_DIAG_TEMPLATE_RUNTIME, short_msg, got, expected);
 }
 
 void ps_throw_diag(PS_Context *ctx, PS_ErrorCode code, const char *short_msg, const char *got, const char *expected) {

@@ -291,6 +291,24 @@ class IRBuilder {
           { name: "category", type: { kind: "PrimitiveType", name: "string" } },
         ],
       },
+      {
+        name: "CivilDateTime",
+        parent: null,
+        fields: [
+          { name: "year", type: { kind: "PrimitiveType", name: "int" } },
+          { name: "month", type: { kind: "PrimitiveType", name: "int" } },
+          { name: "day", type: { kind: "PrimitiveType", name: "int" } },
+          { name: "hour", type: { kind: "PrimitiveType", name: "int" } },
+          { name: "minute", type: { kind: "PrimitiveType", name: "int" } },
+          { name: "second", type: { kind: "PrimitiveType", name: "int" } },
+          { name: "millisecond", type: { kind: "PrimitiveType", name: "int" } },
+        ],
+      },
+      { name: "DSTAmbiguousTimeException", parent: "Exception", fields: [] },
+      { name: "DSTNonExistentTimeException", parent: "Exception", fields: [] },
+      { name: "InvalidTimeZoneException", parent: "Exception", fields: [] },
+      { name: "InvalidDateException", parent: "Exception", fields: [] },
+      { name: "InvalidISOFormatException", parent: "Exception", fields: [] },
     ];
     const builtinNames = [];
     for (const b of builtin) {

@@ -2058,6 +2058,122 @@ bool ok = JSON.isValid("{\"x\":1}");
 ```
 Ref: EX-086
 
+### 14.4.4 Module standard : Time
+
+**Fonctions**
+
+| Fonction | Signature | Description |
+|---|---|---|
+| `nowEpochMillis` | `() -> int` | epoch UTC en millisecondes (non déterministe) |
+| `nowMonotonicNanos` | `() -> int` | horloge monotone en nanosecondes (non déterministe) |
+| `sleepMillis` | `(int ms) -> void` | suspend l’exécution au moins `ms` millisecondes |
+
+Notes :
+
+- `nowEpochMillis` retourne un epoch **UTC** (millisecondes).
+- `nowMonotonicNanos` est monotone, indépendante de l’horloge murale.
+- `sleepMillis` peut dépasser la durée demandée.
+
+Exemple :
+
+```c
+import Io;
+import Time;
+
+function main() : void {
+    int start = Time.nowEpochMillis();
+    Time.sleepMillis(10);
+    int end = Time.nowEpochMillis();
+    Io.printLine((end >= start).toString());
+}
+```
+Ref: EX-087
+
+### 14.4.5 Module standard : TimeCivil
+
+**Prototype standard : `CivilDateTime`**
+
+Champs (tous `int`) :
+
+- `year`, `month`, `day`
+- `hour`, `minute`, `second`, `millisecond`
+
+**Constantes DST**
+
+| Nom | Valeur | Usage |
+|---|---|---|
+| `TimeCivil.DST_EARLIER` | `0` | choisit l’occurrence la plus tôt |
+| `TimeCivil.DST_LATER` | `1` | choisit l’occurrence la plus tard |
+| `TimeCivil.DST_ERROR` | `2` | lève une exception en cas d’ambiguïté |
+
+**Fonctions**
+
+| Fonction | Signature | Description | Exceptions |
+|---|---|---|---|
+| `fromEpochUTC` | `(int) -> CivilDateTime` | epoch → civil UTC | `InvalidDateException` |
+| `toEpochUTC` | `(CivilDateTime) -> int` | civil UTC → epoch | `InvalidDateException` |
+| `fromEpoch` | `(int, string tz) -> CivilDateTime` | epoch → civil dans `tz` | `InvalidTimeZoneException`, `InvalidDateException` |
+| `toEpoch` | `(CivilDateTime, string tz, int strategy) -> int` | civil → epoch dans `tz` | `InvalidTimeZoneException`, `InvalidDateException`, `DSTNonExistentTimeException`, `DSTAmbiguousTimeException` |
+| `isDST` | `(int, string tz) -> bool` | vrai si offset ≠ standard | `InvalidTimeZoneException`, `InvalidDateException` |
+| `offsetSeconds` | `(int, string tz) -> int` | offset UTC total | `InvalidTimeZoneException`, `InvalidDateException` |
+| `standardOffsetSeconds` | `(string tz) -> int` | offset hors DST | `InvalidTimeZoneException` |
+| `dayOfWeek` | `(int, string tz) -> int` | 1=lundi … 7=dimanche | `InvalidTimeZoneException`, `InvalidDateException` |
+| `dayOfYear` | `(int, string tz) -> int` | 1–365/366 | `InvalidTimeZoneException`, `InvalidDateException` |
+| `weekOfYearISO` | `(int, string tz) -> int` | semaine ISO 8601 | `InvalidTimeZoneException`, `InvalidDateException` |
+| `weekYearISO` | `(int, string tz) -> int` | année ISO 8601 | `InvalidTimeZoneException`, `InvalidDateException` |
+| `isLeapYear` | `(int year) -> bool` | année bissextile | — |
+| `daysInMonth` | `(int year, int month) -> int` | nombre de jours | `InvalidDateException` |
+| `parseISO8601` | `(string s) -> int` | parse ISO strict → epoch UTC | `InvalidISOFormatException` |
+| `formatISO8601` | `(int epoch) -> string` | format UTC `YYYY-MM-DDTHH:MM:SS.sssZ` | `InvalidDateException` |
+
+**Validation `TimeZone`**
+
+- identifiant IANA strict, sensible à la casse ;
+- aucun whitespace (leading/trailing ou interne) ;
+- pas de normalisation de locale ;
+- pas de fallback implicite vers UTC ;
+- alias acceptés **uniquement** s’ils existent dans la base IANA du système ;
+- `"UTC"` accepté seulement si la base système le supporte.
+
+**Règles DST**
+
+- heure inexistante (spring forward) → **toujours** `DSTNonExistentTimeException`
+- heure ambiguë (fall back) → stratégie obligatoire (`DST_EARLIER`, `DST_LATER`, `DST_ERROR`)
+
+**ISO 8601**
+
+- parsing strict : `YYYY-MM-DD`, `YYYY-MM-DDTHH:MM:SS`, `YYYY-MM-DDTHH:MM:SS.sss`, suffixe `Z` ou offset `±HH:MM`
+- sans suffixe `Z`/offset, l’interprétation est **UTC**
+- pas d’autre format accepté
+- `formatISO8601` retourne toujours en UTC avec `Z`
+
+Exemples :
+
+```c
+import Io;
+import TimeCivil;
+
+function main() : void {
+    int epoch = 0;
+    CivilDateTime dt = TimeCivil.fromEpochUTC(epoch);
+    int round = TimeCivil.toEpochUTC(dt);
+    Io.printLine((round == 0).toString());
+}
+```
+Ref: EX-088
+
+```c
+import Io;
+import TimeCivil;
+
+function main() : void {
+    int epoch = TimeCivil.parseISO8601("1970-01-01T00:00:00.000Z");
+    string s = TimeCivil.formatISO8601(epoch);
+    Io.printLine(s);
+}
+```
+Ref: EX-089
+
 Le comportement complet est normatif et défini dans :
 
 - `docs/module_io_specification.md`

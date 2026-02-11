@@ -156,7 +156,11 @@ static char *strip_line_markers(const char *src, size_t *out_len, const char *in
             if (tmp) {
               memcpy(tmp, src + name_start, name_len);
               tmp[name_len] = '\0';
-              cur_file = map_intern_file(out_map, tmp);
+              if ((strcmp(tmp, "<stdin>") == 0 || strcmp(tmp, "stdin") == 0) && input_name && *input_name) {
+                cur_file = map_intern_file(out_map, input_name);
+              } else {
+                cur_file = map_intern_file(out_map, tmp);
+              }
               free(tmp);
             }
           }

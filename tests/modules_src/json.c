@@ -114,7 +114,7 @@ static int encode_string(PS_Context *ctx, const char *s, size_t len, StrBuf *sb)
 
 static int encode_number(PS_Context *ctx, double v, StrBuf *sb) {
   if (!isfinite(v)) {
-    ps_throw(ctx, PS_ERR_RANGE, "invalid JSON number");
+    ps_throw(ctx, PS_ERR_TYPE, "invalid JSON number");
     return 0;
   }
   if (v == 0.0 && signbit(v)) return sb_append(sb, "-0", 2);
@@ -349,7 +349,7 @@ static PS_Value *parse_string(JsonParser *p) {
     sb_append_c(&sb, (char)c);
   }
   sb_free(&sb);
-  ps_throw(p->ctx, PS_ERR_RANGE, "invalid JSON string");
+  ps_throw(p->ctx, PS_ERR_TYPE, "invalid JSON string");
   return NULL;
 }
 
@@ -390,7 +390,7 @@ static PS_Value *parse_array(JsonParser *p) {
     break;
   }
   ps_value_release(list);
-  ps_throw(p->ctx, PS_ERR_RANGE, "invalid JSON array");
+  ps_throw(p->ctx, PS_ERR_TYPE, "invalid JSON array");
   return NULL;
 }
 
@@ -398,7 +398,7 @@ static PS_Value *parse_object(JsonParser *p) {
   if (p->src[p->pos] != '{') return NULL;
   p->pos++;
   skip_ws(p);
-  PS_Value *obj = ps_make_object(p->ctx);
+  PS_Value *obj = ps_make_map(p->ctx);
   if (!obj) return NULL;
   if (p->pos < p->len && p->src[p->pos] == '}') {
     p->pos++;
@@ -417,7 +417,7 @@ static PS_Value *parse_object(JsonParser *p) {
     if (p->pos >= p->len || p->src[p->pos] != ':') {
       ps_value_release(key);
       ps_value_release(obj);
-      ps_throw(p->ctx, PS_ERR_RANGE, "invalid JSON object");
+      ps_throw(p->ctx, PS_ERR_TYPE, "invalid JSON object");
       return NULL;
     }
     p->pos++;
@@ -428,7 +428,12 @@ static PS_Value *parse_object(JsonParser *p) {
       ps_value_release(obj);
       return NULL;
     }
-    ps_object_set_str(p->ctx, obj, ps_string_ptr(key), ps_string_len(key), val);
+    if (!ps_map_set(p->ctx, obj, key, val)) {
+      ps_value_release(key);
+      ps_value_release(val);
+      ps_value_release(obj);
+      return NULL;
+    }
     ps_value_release(key);
     ps_value_release(val);
     skip_ws(p);
@@ -445,7 +450,7 @@ static PS_Value *parse_object(JsonParser *p) {
     break;
   }
   ps_value_release(obj);
-  ps_throw(p->ctx, PS_ERR_RANGE, "invalid JSON object");
+  ps_throw(p->ctx, PS_ERR_TYPE, "invalid JSON object");
   return NULL;
 }
 
@@ -489,7 +494,7 @@ static PS_Value *parse_number(JsonParser *p) {
   double v = strtod(buf, &ep);
   if (buf != tmp) free(buf);
   if (!ep || *ep != '\0') {
-    ps_throw(p->ctx, PS_ERR_RANGE, "invalid JSON number");
+    ps_throw(p->ctx, PS_ERR_TYPE, "invalid JSON number");
     return NULL;
   }
   PS_Value *fv = ps_make_float(p->ctx, v);
@@ -530,7 +535,7 @@ static PS_Value *parse_value(JsonParser *p) {
   if (c == '-' || (c >= '0' && c <= '9')) {
     return parse_number(p);
   }
-  ps_throw(p->ctx, PS_ERR_RANGE, "invalid JSON value");
+  ps_throw(p->ctx, PS_ERR_TYPE, "invalid JSON value");
   return NULL;
 }
 
@@ -541,7 +546,7 @@ static PS_Value *json_parse(PS_Context *ctx, const char *s, size_t len) {
   skip_ws(&p);
   if (p.pos != p.len) {
     ps_value_release(v);
-    ps_throw(ctx, PS_ERR_RANGE, "invalid JSON");
+    ps_throw(ctx, PS_ERR_TYPE, "invalid JSON");
     return NULL;
   }
   return v;
@@ -564,13 +569,28 @@ static PS_Status mod_encode(PS_Context *ctx, int argc, PS_Value **argv, PS_Value
 
 static PS_Status mod_decode(PS_Context *ctx, int argc, PS_Value **argv, PS_Value **out) {
   (void)argc;
-  if (!argv[0] || ps_typeof(argv[0]) != PS_T_STRING) {
+  PS_Value *sval = argv[0];
+  if (sval && ps_typeof(sval) == PS_T_BYTES) {
+    PS_Value *tmp = ps_bytes_to_utf8_string(ctx, sval);
+    if (!tmp) return PS_ERR;
+    sval = tmp;
+  }
+  if (sval && ps_typeof(sval) == PS_T_OBJECT) {
+    const char *kind = NULL;
+    PS_Value *jval = NULL;
+    if (json_value_kind(ctx, sval, &kind, &jval) && kind && strcmp(kind, "string") == 0 &&
+        jval && ps_typeof(jval) == PS_T_STRING) {
+      sval = jval;
+    }
+  }
+  if (!sval || ps_typeof(sval) != PS_T_STRING) {
     ps_throw(ctx, PS_ERR_TYPE, "decode expects string");
     return PS_ERR;
   }
-  const char *s = ps_string_ptr(argv[0]);
-  size_t len = ps_string_len(argv[0]);
+  const char *s = ps_string_ptr(sval);
+  size_t len = ps_string_len(sval);
   PS_Value *v = json_parse(ctx, s ? s : "", len);
+  if (sval != argv[0]) ps_value_release(sval);
   if (!v) return PS_ERR;
   *out = v;
   return PS_OK;
@@ -578,13 +598,28 @@ static PS_Status mod_decode(PS_Context *ctx, int argc, PS_Value **argv, PS_Value
 
 static PS_Status mod_isvalid(PS_Context *ctx, int argc, PS_Value **argv, PS_Value **out) {
   (void)argc;
-  if (!argv[0] || ps_typeof(argv[0]) != PS_T_STRING) {
+  PS_Value *sval = argv[0];
+  if (sval && ps_typeof(sval) == PS_T_BYTES) {
+    PS_Value *tmp = ps_bytes_to_utf8_string(ctx, sval);
+    if (!tmp) return PS_ERR;
+    sval = tmp;
+  }
+  if (sval && ps_typeof(sval) == PS_T_OBJECT) {
+    const char *kind = NULL;
+    PS_Value *jval = NULL;
+    if (json_value_kind(ctx, sval, &kind, &jval) && kind && strcmp(kind, "string") == 0 &&
+        jval && ps_typeof(jval) == PS_T_STRING) {
+      sval = jval;
+    }
+  }
+  if (!sval || ps_typeof(sval) != PS_T_STRING) {
     ps_throw(ctx, PS_ERR_TYPE, "isValid expects string");
     return PS_ERR;
   }
-  const char *s = ps_string_ptr(argv[0]);
-  size_t len = ps_string_len(argv[0]);
+  const char *s = ps_string_ptr(sval);
+  size_t len = ps_string_len(sval);
   PS_Value *v = json_parse(ctx, s ? s : "", len);
+  if (sval != argv[0]) ps_value_release(sval);
   if (!v) {
     ps_clear_error(ctx);
     *out = ps_make_bool(ctx, 0);
@@ -629,7 +664,7 @@ static PS_Status mod_number(PS_Context *ctx, int argc, PS_Value **argv, PS_Value
     return PS_ERR;
   }
   if (!isfinite(x)) {
-    ps_throw(ctx, PS_ERR_RANGE, "invalid JSON number");
+    ps_throw(ctx, PS_ERR_TYPE, "invalid JSON number");
     return PS_ERR;
   }
   PS_Value *f = ps_make_float(ctx, x);

@@ -1,0 +1,39 @@
+import Io;
+import TimeCivil;
+
+function main() : void {
+    bool ok = true;
+
+    try {
+        TimeCivil.offsetSeconds(0, " europe/paris");
+        ok = false;
+    } catch (InvalidTimeZoneException ex) {
+    }
+
+    try {
+        TimeCivil.offsetSeconds(0, "Europe/paris");
+        ok = false;
+    } catch (InvalidTimeZoneException ex) {
+    }
+
+    try {
+        TimeCivil.offsetSeconds(0, "No/Such_Zone");
+        ok = false;
+    } catch (InvalidTimeZoneException ex) {
+    }
+
+    bool hasUTC = true;
+    try {
+        TimeCivil.offsetSeconds(0, "UTC");
+    } catch (InvalidTimeZoneException ex) {
+        hasUTC = false;
+    }
+
+    if (hasUTC) {
+        CivilDateTime dt = TimeCivil.fromEpoch(0, "UTC");
+        ok = ok && dt.year == 1970 && dt.month == 1 && dt.day == 1
+                 && dt.hour == 0 && dt.minute == 0 && dt.second == 0 && dt.millisecond == 0;
+    }
+
+    Io.printLine(ok.toString());
+}

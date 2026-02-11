@@ -8,8 +8,9 @@ MCPP_CFLAGS := -O2 -Wno-deprecated-declarations
 
 TARGET = pscc
 TARGET_PS = ps
-SRC = pscc.c frontend.c preprocess.c runtime/ps_json.c
+SRC = pscc.c frontend.c preprocess.c diag.c runtime/ps_json.c
 SRC_RUNTIME = \
+  diag.c \
   runtime/ps_api.c \
   runtime/ps_errors.c \
   runtime/ps_heap.c \
@@ -24,6 +25,13 @@ SRC_RUNTIME = \
   runtime/ps_vm.c
 SRC_PS = cli/ps.c frontend.c preprocess.c $(SRC_RUNTIME)
 
+MODULE_OBJS = \
+  modules/time.o \
+  modules/time_civil.o \
+  modules_io.o \
+  modules_json.o \
+  modules_math.o
+
 .PHONY: all clean force-mcpp
 
 all: $(TARGET) $(TARGET_PS)
@@ -31,8 +39,8 @@ all: $(TARGET) $(TARGET_PS)
 $(TARGET): $(SRC) $(MCPP_LIB)
 	$(CC) $(CFLAGS) $(MCPP_INC) $(SRC) $(MCPP_LIB) -o $(TARGET)
 
-$(TARGET_PS): $(SRC_PS) $(MCPP_LIB)
-	$(CC) $(CFLAGS) $(MCPP_INC) $(SRC_PS) $(MCPP_LIB) -o $(TARGET_PS) -ldl
+$(TARGET_PS): $(SRC_PS) $(MODULE_OBJS) $(MCPP_LIB)
+	$(CC) $(CFLAGS) $(MCPP_INC) $(SRC_PS) $(MODULE_OBJS) $(MCPP_LIB) -o $(TARGET_PS) -ldl
 
 $(MCPP_LIB): force-mcpp
 	$(MAKE) -C $(MCPP_DIR) clean
@@ -41,4 +49,19 @@ $(MCPP_LIB): force-mcpp
 force-mcpp:
 
 clean:
-	rm -f $(TARGET) $(TARGET_PS)
+	rm -f $(TARGET) $(TARGET_PS) $(MODULE_OBJS)
+
+modules/time.o: modules/time.c
+	$(CC) $(CFLAGS) $(MCPP_INC) -Dps_module_init=ps_module_init_Time -c $< -o $@
+
+modules/time_civil.o: modules/time_civil.c
+	$(CC) $(CFLAGS) $(MCPP_INC) -Dps_module_init=ps_module_init_TimeCivil -c $< -o $@
+
+modules_io.o: ../tests/modules_src/io.c
+	$(CC) $(CFLAGS) $(MCPP_INC) -Dps_module_init=ps_module_init_Io -c $< -o $@
+
+modules_json.o: ../tests/modules_src/json.c
+	$(CC) $(CFLAGS) $(MCPP_INC) -Dps_module_init=ps_module_init_JSON -c $< -o $@
+
+modules_math.o: ../tests/modules_src/math.c
+	$(CC) $(CFLAGS) $(MCPP_INC) -Dps_module_init=ps_module_init_Math -c $< -o $@

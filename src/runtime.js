@@ -40,6 +40,30 @@ function buildPrototypeEnv(ast) {
     ],
     methods: new Map(),
   });
+  protos.set("CivilDateTime", {
+    name: "CivilDateTime",
+    parent: null,
+    fields: [
+      { name: "year", type: { kind: "PrimitiveType", name: "int" } },
+      { name: "month", type: { kind: "PrimitiveType", name: "int" } },
+      { name: "day", type: { kind: "PrimitiveType", name: "int" } },
+      { name: "hour", type: { kind: "PrimitiveType", name: "int" } },
+      { name: "minute", type: { kind: "PrimitiveType", name: "int" } },
+      { name: "second", type: { kind: "PrimitiveType", name: "int" } },
+      { name: "millisecond", type: { kind: "PrimitiveType", name: "int" } },
+    ],
+    methods: new Map(),
+  });
+  const timeExceptionNames = [
+    "DSTAmbiguousTimeException",
+    "DSTNonExistentTimeException",
+    "InvalidTimeZoneException",
+    "InvalidDateException",
+    "InvalidISOFormatException",
+  ];
+  for (const name of timeExceptionNames) {
+    protos.set(name, { name, parent: "Exception", fields: [], methods: new Map() });
+  }
   for (const d of ast.decls || []) {
     if (d.kind !== "PrototypeDecl") continue;
     const fields = [];
@@ -799,6 +823,12 @@ function buildModuleEnv(ast, file) {
       rdiag(file, node, "R1010", "RUNTIME_TYPE_ERROR", diagMsg("invalid argument", valueType(v), "float"))
     );
   };
+  const toIntArg = (node, v) => {
+    if (typeof v === "bigint") return v;
+    throw new RuntimeError(
+      rdiag(file, node, "R1010", "RUNTIME_TYPE_ERROR", diagMsg("invalid argument", valueType(v), "int"))
+    );
+  };
 
   // JS implementations for tests
   const mathMod = makeModule("Math");
@@ -1095,6 +1125,499 @@ function buildModuleEnv(ast, file) {
     }
     return makeJsonValue("object", members);
   });
+
+  const timeError = (type, node, message) => {
+    const ex = makeExceptionValue({ type, message });
+    setExceptionLocation(ex, file, node);
+    throw ex;
+  };
+
+  const invalidTimeZone = (node, message) => timeError("InvalidTimeZoneException", node, message || "invalid time zone");
+  const invalidDate = (node, message) => timeError("InvalidDateException", node, message || "invalid date");
+  const invalidISO = (node, message) => timeError("InvalidISOFormatException", node, message || "invalid ISO 8601 format");
+  const dstAmbiguous = (node, message) => timeError("DSTAmbiguousTimeException", node, message || "ambiguous DST time");
+  const dstNonExistent = (node, message) => timeError("DSTNonExistentTimeException", node, message || "non-existent DST time");
+
+  const timeZoneCache = new Map();
+  const timeZoneIdRe = /^[A-Za-z0-9_+\-\/]+$/;
+
+  const getTimeZoneFormat = (tz, node) => {
+    if (typeof tz !== "string") {
+      throw new RuntimeError(
+        rdiag(file, node, "R1010", "RUNTIME_TYPE_ERROR", diagMsg("invalid argument", valueType(tz), "string"))
+      );
+    }
+    if (tz.length === 0 || tz.trim() !== tz || /\s/.test(tz)) invalidTimeZone(node);
+    if (!timeZoneIdRe.test(tz)) invalidTimeZone(node);
+    if (timeZoneCache.has(tz)) return timeZoneCache.get(tz);
+    try {
+      const dtf = new Intl.DateTimeFormat("en-GB", {
+        timeZone: tz,
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit",
+        hour: "2-digit",
+        minute: "2-digit",
+        second: "2-digit",
+        hour12: false,
+        hourCycle: "h23",
+      });
+      const resolved = dtf.resolvedOptions().timeZone;
+      if (
+        typeof resolved === "string" &&
+        resolved.length === tz.length &&
+        resolved.toLowerCase() === tz.toLowerCase() &&
+        resolved !== tz
+      ) {
+        invalidTimeZone(node);
+      }
+      timeZoneCache.set(tz, dtf);
+      return dtf;
+    } catch {
+      invalidTimeZone(node);
+      return null;
+    }
+  };
+
+  const toEpochNumber = (node, v) => {
+    const bi = toIntArg(node, v);
+    const num = Number(bi);
+    if (!Number.isFinite(num) || !Number.isSafeInteger(num)) invalidDate(node, "epoch out of range");
+    return { bi, num };
+  };
+
+  const isLeapYearInt = (year) => {
+    const y = typeof year === "bigint" ? year : BigInt(year);
+    if (y % 400n === 0n) return true;
+    if (y % 100n === 0n) return false;
+    return y % 4n === 0n;
+  };
+
+  const daysInMonthInt = (year, month, node, errFn) => {
+    const m = typeof month === "bigint" ? month : BigInt(month);
+    if (m < 1n || m > 12n) {
+      if (errFn) errFn(node, "invalid month");
+      return 0n;
+    }
+    if (m === 2n) return isLeapYearInt(year) ? 29n : 28n;
+    if (m === 4n || m === 6n || m === 9n || m === 11n) return 30n;
+    return 31n;
+  };
+
+  const readCivilDateTime = (dt, node) => {
+    if (!isObjectInstance(dt) || dt.__proto !== "CivilDateTime" || !dt.__fields) {
+      throw new RuntimeError(
+        rdiag(file, node, "R1010", "RUNTIME_TYPE_ERROR", diagMsg("invalid argument", valueType(dt), "CivilDateTime"))
+      );
+    }
+    const year = toIntArg(node, dt.__fields.year);
+    const month = toIntArg(node, dt.__fields.month);
+    const day = toIntArg(node, dt.__fields.day);
+    const hour = toIntArg(node, dt.__fields.hour);
+    const minute = toIntArg(node, dt.__fields.minute);
+    const second = toIntArg(node, dt.__fields.second);
+    const millisecond = toIntArg(node, dt.__fields.millisecond);
+    return { year, month, day, hour, minute, second, millisecond };
+  };
+
+  const validateCivilParts = (node, parts, errFn) => {
+    const y = parts.year;
+    const mo = parts.month;
+    const d = parts.day;
+    const h = parts.hour;
+    const mi = parts.minute;
+    const s = parts.second;
+    const ms = parts.millisecond;
+    if (mo < 1n || mo > 12n) errFn(node, "invalid month");
+    if (h < 0n || h > 23n) errFn(node, "invalid hour");
+    if (mi < 0n || mi > 59n) errFn(node, "invalid minute");
+    if (s < 0n || s > 59n) errFn(node, "invalid second");
+    if (ms < 0n || ms > 999n) errFn(node, "invalid millisecond");
+    const dim = daysInMonthInt(y, mo, node, errFn);
+    if (d < 1n || d > dim) errFn(node, "invalid day");
+    const yNum = Number(y);
+    const moNum = Number(mo);
+    const dNum = Number(d);
+    const hNum = Number(h);
+    const miNum = Number(mi);
+    const sNum = Number(s);
+    const msNum = Number(ms);
+    if (
+      !Number.isSafeInteger(yNum) ||
+      !Number.isSafeInteger(moNum) ||
+      !Number.isSafeInteger(dNum) ||
+      !Number.isSafeInteger(hNum) ||
+      !Number.isSafeInteger(miNum) ||
+      !Number.isSafeInteger(sNum) ||
+      !Number.isSafeInteger(msNum)
+    ) {
+      errFn(node, "date out of range");
+    }
+    return { yNum, moNum, dNum, hNum, miNum, sNum, msNum };
+  };
+
+  const getCivilPartsFromEpoch = (epochMs, epochBi, tz, node) => {
+    const dtf = getTimeZoneFormat(tz, node);
+    const date = new Date(epochMs);
+    if (!Number.isFinite(date.getTime())) invalidDate(node, "invalid epoch");
+    const parts = dtf.formatToParts(date);
+    const out = Object.create(null);
+    for (const p of parts) {
+      if (p.type !== "literal") out[p.type] = p.value;
+    }
+    const year = Number(out.year);
+    const month = Number(out.month);
+    const day = Number(out.day);
+    const hour = Number(out.hour);
+    const minute = Number(out.minute);
+    const second = Number(out.second);
+    const ms = Number(((epochBi % 1000n) + 1000n) % 1000n);
+    return { year, month, day, hour, minute, second, millisecond: ms };
+  };
+
+  const offsetSecondsForEpoch = (epochMs, epochBi, tz, node) => {
+    const parts = getCivilPartsFromEpoch(epochMs, epochBi, tz, node);
+    const utcMillis = Date.UTC(parts.year, parts.month - 1, parts.day, parts.hour, parts.minute, parts.second, parts.millisecond);
+    if (!Number.isFinite(utcMillis)) invalidDate(node, "invalid epoch");
+    return Math.trunc((utcMillis - epochMs) / 1000);
+  };
+
+  const makeCivilDateTime = (parts) => {
+    return {
+      __object: true,
+      __proto: "CivilDateTime",
+      __fields: {
+        year: BigInt(parts.year),
+        month: BigInt(parts.month),
+        day: BigInt(parts.day),
+        hour: BigInt(parts.hour),
+        minute: BigInt(parts.minute),
+        second: BigInt(parts.second),
+        millisecond: BigInt(parts.millisecond),
+      },
+    };
+  };
+
+  const matchCivil = (epochMs, epochBi, tz, parts, node) => {
+    const got = getCivilPartsFromEpoch(epochMs, epochBi, tz, node);
+    return (
+      got.year === parts.year &&
+      got.month === parts.month &&
+      got.day === parts.day &&
+      got.hour === parts.hour &&
+      got.minute === parts.minute &&
+      got.second === parts.second &&
+      got.millisecond === parts.millisecond
+    );
+  };
+
+  const findEpochCandidates = (parts, tz, node) => {
+    const baseEpoch = Date.UTC(parts.year, parts.month - 1, parts.day, parts.hour, parts.minute, parts.second, parts.millisecond);
+    if (!Number.isFinite(baseEpoch) || !Number.isSafeInteger(baseEpoch)) invalidDate(node, "date out of range");
+    const offsets = new Set();
+    const sampleHours = [-48, -24, -12, 0, 12, 24, 48];
+    for (const h of sampleHours) {
+      const sample = baseEpoch + h * 3600 * 1000;
+      const sampleBi = BigInt(sample);
+      offsets.add(offsetSecondsForEpoch(sample, sampleBi, tz, node));
+    }
+    const candidates = new Set();
+    for (const off of offsets) {
+      const candidate = baseEpoch - off * 1000;
+      const candBi = BigInt(candidate);
+      if (matchCivil(candidate, candBi, tz, parts, node)) candidates.add(candidate);
+    }
+    return Array.from(candidates).sort((a, b) => a - b);
+  };
+
+  const dayOfWeekFromYMD = (year, month, day) => {
+    const d = new Date(Date.UTC(year, month - 1, day));
+    const dow = d.getUTCDay(); // 0=Sunday
+    return dow === 0 ? 7 : dow;
+  };
+
+  const dayOfYearFromYMD = (year, month, day) => {
+    let total = 0;
+    for (let m = 1; m < month; m += 1) {
+      total += Number(daysInMonthInt(BigInt(year), BigInt(m), null, null));
+    }
+    return total + day;
+  };
+
+  const weeksInISOYear = (year) => {
+    const jan1Dow = dayOfWeekFromYMD(year, 1, 1); // 1..7
+    if (jan1Dow === 4) return 53;
+    if (jan1Dow === 3 && isLeapYearInt(BigInt(year))) return 53;
+    return 52;
+  };
+
+  const isoWeekInfo = (year, month, day) => {
+    const dow = dayOfWeekFromYMD(year, month, day);
+    const doy = dayOfYearFromYMD(year, month, day);
+    let week = Math.floor((doy - dow + 10) / 7);
+    let weekYear = year;
+    if (week < 1) {
+      weekYear = year - 1;
+      week = weeksInISOYear(weekYear);
+    } else {
+      const weeks = weeksInISOYear(year);
+      if (week > weeks) {
+        weekYear = year + 1;
+        week = 1;
+      }
+    }
+    return { weekYear, week };
+  };
+
+  const parseISO8601 = (node, s) => {
+    if (typeof s !== "string") invalidISO(node);
+    const len = s.length;
+    const isDigit = (c) => c >= "0" && c <= "9";
+    const read2 = (i) => {
+      const a = s[i];
+      const b = s[i + 1];
+      if (!isDigit(a) || !isDigit(b)) return null;
+      return (a.charCodeAt(0) - 48) * 10 + (b.charCodeAt(0) - 48);
+    };
+    const read4 = (i) => {
+      const a = s[i];
+      const b = s[i + 1];
+      const c = s[i + 2];
+      const d = s[i + 3];
+      if (!isDigit(a) || !isDigit(b) || !isDigit(c) || !isDigit(d)) return null;
+      return (a.charCodeAt(0) - 48) * 1000 + (b.charCodeAt(0) - 48) * 100 + (c.charCodeAt(0) - 48) * 10 + (d.charCodeAt(0) - 48);
+    };
+    if (len < 10) invalidISO(node);
+    const year = read4(0);
+    if (year === null || s[4] !== "-" || s[7] !== "-") invalidISO(node);
+    const month = read2(5);
+    const day = read2(8);
+    if (month === null || day === null) invalidISO(node);
+    let hour = 0;
+    let minute = 0;
+    let second = 0;
+    let millisecond = 0;
+    let i = 10;
+    if (i === len) {
+      // date only
+    } else {
+      if (s[i] !== "T") invalidISO(node);
+      if (i + 8 >= len) invalidISO(node);
+      const h = read2(i + 1);
+      const m = read2(i + 4);
+      const sec = read2(i + 7);
+      if (h === null || m === null || sec === null) invalidISO(node);
+      if (s[i + 3] !== ":" || s[i + 6] !== ":") invalidISO(node);
+      hour = h;
+      minute = m;
+      second = sec;
+      i += 9;
+      if (i < len && s[i] === ".") {
+        if (i + 3 >= len) invalidISO(node);
+        const ms1 = s[i + 1];
+        const ms2 = s[i + 2];
+        const ms3 = s[i + 3];
+        if (!isDigit(ms1) || !isDigit(ms2) || !isDigit(ms3)) invalidISO(node);
+        millisecond = (ms1.charCodeAt(0) - 48) * 100 + (ms2.charCodeAt(0) - 48) * 10 + (ms3.charCodeAt(0) - 48);
+        i += 4;
+      }
+    }
+    let offsetMinutes = 0;
+    if (i < len) {
+      const signChar = s[i];
+      if (signChar === "Z") {
+        if (i + 1 !== len) invalidISO(node);
+      } else if (signChar === "+" || signChar === "-") {
+        if (i + 6 !== len) invalidISO(node);
+        const oh = read2(i + 1);
+        const om = read2(i + 4);
+        if (oh === null || om === null || s[i + 3] !== ":") invalidISO(node);
+        if (oh > 23 || om > 59) invalidISO(node);
+        offsetMinutes = oh * 60 + om;
+        if (signChar === "-") offsetMinutes = -offsetMinutes;
+      } else {
+        invalidISO(node);
+      }
+    }
+    const parts = {
+      year: BigInt(year),
+      month: BigInt(month),
+      day: BigInt(day),
+      hour: BigInt(hour),
+      minute: BigInt(minute),
+      second: BigInt(second),
+      millisecond: BigInt(millisecond),
+    };
+    const nums = validateCivilParts(node, parts, invalidISO);
+    let epoch = Date.UTC(nums.yNum, nums.moNum - 1, nums.dNum, nums.hNum, nums.miNum, nums.sNum, nums.msNum);
+    if (!Number.isFinite(epoch) || !Number.isSafeInteger(epoch)) invalidISO(node);
+    epoch -= offsetMinutes * 60 * 1000;
+    if (!Number.isFinite(epoch) || !Number.isSafeInteger(epoch)) invalidISO(node);
+    return BigInt(epoch);
+  };
+
+  const formatISO8601 = (node, epochBi) => {
+    const { num } = toEpochNumber(node, epochBi);
+    const d = new Date(num);
+    if (!Number.isFinite(d.getTime())) invalidDate(node, "invalid epoch");
+    const year = d.getUTCFullYear();
+    const month = d.getUTCMonth() + 1;
+    const day = d.getUTCDate();
+    const hour = d.getUTCHours();
+    const minute = d.getUTCMinutes();
+    const second = d.getUTCSeconds();
+    const millisecond = d.getUTCMilliseconds();
+    const pad2 = (v) => (v < 10 ? `0${v}` : String(v));
+    const pad3 = (v) => (v < 10 ? `00${v}` : v < 100 ? `0${v}` : String(v));
+    const padYear = (v) => {
+      const sign = v < 0 ? "-" : "";
+      const abs = Math.abs(v);
+      const s = abs < 10 ? `000${abs}` : abs < 100 ? `00${abs}` : abs < 1000 ? `0${abs}` : String(abs);
+      return sign + s;
+    };
+    return `${padYear(year)}-${pad2(month)}-${pad2(day)}T${pad2(hour)}:${pad2(minute)}:${pad2(second)}.${pad3(millisecond)}Z`;
+  };
+
+  const timeMod = makeModule("Time");
+  timeMod.functions.set("nowEpochMillis", () => BigInt(Date.now()));
+  timeMod.functions.set("nowMonotonicNanos", () => process.hrtime.bigint());
+  timeMod.functions.set("sleepMillis", (ms, node) => {
+    const v = toIntArg(node, ms);
+    if (v <= 0n) return null;
+    const n = Number(v);
+    if (!Number.isFinite(n) || n < 0) invalidDate(node, "invalid sleep duration");
+    const sab = new SharedArrayBuffer(4);
+    const ia = new Int32Array(sab);
+    Atomics.wait(ia, 0, 0, n);
+    return null;
+  });
+
+  const timeCivilMod = makeModule("TimeCivil");
+  timeCivilMod.constants.set("DST_EARLIER", 0n);
+  timeCivilMod.constants.set("DST_LATER", 1n);
+  timeCivilMod.constants.set("DST_ERROR", 2n);
+
+  timeCivilMod.functions.set("fromEpochUTC", (epoch, node) => {
+    const { bi, num } = toEpochNumber(node, epoch);
+    const d = new Date(num);
+    if (!Number.isFinite(d.getTime())) invalidDate(node, "invalid epoch");
+    return makeCivilDateTime({
+      year: d.getUTCFullYear(),
+      month: d.getUTCMonth() + 1,
+      day: d.getUTCDate(),
+      hour: d.getUTCHours(),
+      minute: d.getUTCMinutes(),
+      second: d.getUTCSeconds(),
+      millisecond: Number(((bi % 1000n) + 1000n) % 1000n),
+    });
+  });
+
+  timeCivilMod.functions.set("toEpochUTC", (dt, node) => {
+    const parts = readCivilDateTime(dt, node);
+    const nums = validateCivilParts(node, parts, invalidDate);
+    const epoch = Date.UTC(nums.yNum, nums.moNum - 1, nums.dNum, nums.hNum, nums.miNum, nums.sNum, nums.msNum);
+    if (!Number.isFinite(epoch) || !Number.isSafeInteger(epoch)) invalidDate(node, "date out of range");
+    return BigInt(epoch);
+  });
+
+  timeCivilMod.functions.set("fromEpoch", (epoch, tz, node) => {
+    const { bi, num } = toEpochNumber(node, epoch);
+    const parts = getCivilPartsFromEpoch(num, bi, tz, node);
+    return makeCivilDateTime(parts);
+  });
+
+  timeCivilMod.functions.set("toEpoch", (dt, tz, strategy, node) => {
+    const strat = toIntArg(node, strategy);
+    if (strat !== 0n && strat !== 1n && strat !== 2n) {
+      throw new RuntimeError(rdiag(file, node, "R1010", "RUNTIME_TYPE_ERROR", "invalid DST strategy"));
+    }
+    const partsRaw = readCivilDateTime(dt, node);
+    const nums = validateCivilParts(node, partsRaw, invalidDate);
+    const parts = {
+      year: nums.yNum,
+      month: nums.moNum,
+      day: nums.dNum,
+      hour: nums.hNum,
+      minute: nums.miNum,
+      second: nums.sNum,
+      millisecond: nums.msNum,
+    };
+    const candidates = findEpochCandidates(parts, tz, node);
+    if (candidates.length === 0) dstNonExistent(node);
+    if (candidates.length === 1) return BigInt(candidates[0]);
+    if (strat === 2n) dstAmbiguous(node);
+    return BigInt(strat === 0n ? candidates[0] : candidates[candidates.length - 1]);
+  });
+
+  timeCivilMod.functions.set("isDST", (epoch, tz, node) => {
+    const { bi, num } = toEpochNumber(node, epoch);
+    const off = offsetSecondsForEpoch(num, bi, tz, node);
+    const std = (() => {
+      const jan = Date.UTC(2024, 0, 15, 0, 0, 0, 0);
+      const jul = Date.UTC(2024, 6, 15, 0, 0, 0, 0);
+      const offJan = offsetSecondsForEpoch(jan, BigInt(jan), tz, node);
+      const offJul = offsetSecondsForEpoch(jul, BigInt(jul), tz, node);
+      return Math.min(offJan, offJul);
+    })();
+    return off !== std;
+  });
+
+  timeCivilMod.functions.set("offsetSeconds", (epoch, tz, node) => {
+    const { bi, num } = toEpochNumber(node, epoch);
+    return BigInt(offsetSecondsForEpoch(num, bi, tz, node));
+  });
+
+  timeCivilMod.functions.set("standardOffsetSeconds", (tz, node) => {
+    const jan = Date.UTC(2024, 0, 15, 0, 0, 0, 0);
+    const jul = Date.UTC(2024, 6, 15, 0, 0, 0, 0);
+    const offJan = offsetSecondsForEpoch(jan, BigInt(jan), tz, node);
+    const offJul = offsetSecondsForEpoch(jul, BigInt(jul), tz, node);
+    return BigInt(Math.min(offJan, offJul));
+  });
+
+  timeCivilMod.functions.set("dayOfWeek", (epoch, tz, node) => {
+    const { bi, num } = toEpochNumber(node, epoch);
+    const parts = getCivilPartsFromEpoch(num, bi, tz, node);
+    return BigInt(dayOfWeekFromYMD(parts.year, parts.month, parts.day));
+  });
+
+  timeCivilMod.functions.set("dayOfYear", (epoch, tz, node) => {
+    const { bi, num } = toEpochNumber(node, epoch);
+    const parts = getCivilPartsFromEpoch(num, bi, tz, node);
+    return BigInt(dayOfYearFromYMD(parts.year, parts.month, parts.day));
+  });
+
+  timeCivilMod.functions.set("weekOfYearISO", (epoch, tz, node) => {
+    const { bi, num } = toEpochNumber(node, epoch);
+    const parts = getCivilPartsFromEpoch(num, bi, tz, node);
+    const info = isoWeekInfo(parts.year, parts.month, parts.day);
+    return BigInt(info.week);
+  });
+
+  timeCivilMod.functions.set("weekYearISO", (epoch, tz, node) => {
+    const { bi, num } = toEpochNumber(node, epoch);
+    const parts = getCivilPartsFromEpoch(num, bi, tz, node);
+    const info = isoWeekInfo(parts.year, parts.month, parts.day);
+    return BigInt(info.weekYear);
+  });
+
+  timeCivilMod.functions.set("isLeapYear", (year, node) => {
+    const y = toIntArg(node, year);
+    return isLeapYearInt(y);
+  });
+
+  timeCivilMod.functions.set("daysInMonth", (year, month, node) => {
+    const y = toIntArg(node, year);
+    const m = toIntArg(node, month);
+    const dim = daysInMonthInt(y, m, node, (n, msg) =>
+      timeError("InvalidDateException", n, msg || "invalid month")
+    );
+    return BigInt(dim);
+  });
+
+  timeCivilMod.functions.set("parseISO8601", (s, node) => parseISO8601(node, s));
+
+  timeCivilMod.functions.set("formatISO8601", (epoch, node) => formatISO8601(node, epoch));
 
   const simpleMod = makeModule("test.simple");
   simpleMod.functions.set("add", (a, b) => BigInt(a) + BigInt(b));
@@ -2475,6 +2998,15 @@ function evalCall(expr, scope, functions, moduleEnv, protoEnv, file, callFunctio
       const v = target.pop();
       bumpList(target);
       return v;
+    }
+    if (m.name === "removeLast" && Array.isArray(target)) {
+      expectArity(0, 0);
+      if (target.length === 0) {
+        throw new RuntimeError(rdiag(file, m.target, "R1006", "RUNTIME_EMPTY_POP", "pop on empty list"));
+      }
+      target.pop();
+      bumpList(target);
+      return null;
     }
   }
 

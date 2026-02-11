@@ -7,6 +7,9 @@
 #include "ps_runtime.h"
 
 #ifdef PS_WASM
+#include "../modules/time.h"
+#include "../modules/time_civil.h"
+
 PS_Status ps_module_init_Io(PS_Context *ctx, PS_Module *out);
 PS_Status ps_module_init_JSON(PS_Context *ctx, PS_Module *out);
 PS_Status ps_module_init_Math(PS_Context *ctx, PS_Module *out);
@@ -92,6 +95,8 @@ PS_Status ps_module_load(PS_Context *ctx, const char *module_name) {
   if (strcmp(module_name, "Io") == 0) init_fn = ps_module_init_Io;
   if (strcmp(module_name, "JSON") == 0) init_fn = ps_module_init_JSON;
   if (strcmp(module_name, "Math") == 0) init_fn = ps_module_init_Math;
+  if (strcmp(module_name, "Time") == 0) init_fn = ps_module_init_Time;
+  if (strcmp(module_name, "TimeCivil") == 0) init_fn = ps_module_init_TimeCivil;
   if (init_fn) {
     PS_Module mod;
     memset(&mod, 0, sizeof(mod));

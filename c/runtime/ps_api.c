@@ -104,6 +104,8 @@ PS_Value *ps_make_bytes(PS_Context *ctx, const uint8_t *bytes, size_t len) {
 
 PS_Value *ps_make_list(PS_Context *ctx) { return ps_list_new(ctx); }
 
+PS_Value *ps_make_map(PS_Context *ctx) { return ps_map_new(ctx); }
+
 PS_Value *ps_make_object(PS_Context *ctx) { return ps_object_new(ctx); }
 
 PS_Value *ps_make_file(PS_Context *ctx, FILE *fp, uint32_t flags, const char *path) {
@@ -187,4 +189,36 @@ PS_Value *ps_bytes_to_utf8_string(PS_Context *ctx, PS_Value *bytes) {
     return NULL;
   }
   return ps_string_from_utf8(ctx, (const char *)bytes->as.bytes_v.ptr, bytes->as.bytes_v.len);
+}
+
+PS_Status ps_throw_exception(PS_Context *ctx, const char *type, const char *message) {
+  if (!ctx) return PS_ERR;
+  if (ctx->last_exception) {
+    ps_value_release(ctx->last_exception);
+    ctx->last_exception = NULL;
+  }
+  PS_Value *ex = ps_value_alloc(PS_V_EXCEPTION);
+  if (!ex) {
+    ps_throw_diag(ctx, PS_ERR_OOM, "out of memory", "exception allocation failed", "available memory");
+    return PS_ERR;
+  }
+  ex->as.exc_v.is_runtime = 0;
+  ex->as.exc_v.type_name = type ? strdup(type) : NULL;
+  ex->as.exc_v.parent_name = strdup("Exception");
+  ex->as.exc_v.fields = ps_object_new(ctx);
+  ex->as.exc_v.file = ps_make_string_utf8(ctx, "", 0);
+  ex->as.exc_v.line = 1;
+  ex->as.exc_v.column = 1;
+  ex->as.exc_v.message = ps_make_string_utf8(ctx, message ? message : "", message ? strlen(message) : 0);
+  ex->as.exc_v.cause = NULL;
+  ex->as.exc_v.code = NULL;
+  ex->as.exc_v.category = NULL;
+  if (!ex->as.exc_v.parent_name || !ex->as.exc_v.fields || !ex->as.exc_v.file || !ex->as.exc_v.message) {
+    ps_value_release(ex);
+    ps_throw_diag(ctx, PS_ERR_OOM, "out of memory", "exception allocation failed", "available memory");
+    return PS_ERR;
+  }
+  ctx->last_exception = ex;
+  ps_error_clear(ctx);
+  return PS_ERR;
 }

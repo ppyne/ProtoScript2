@@ -1,0 +1,53 @@
+import Io;
+import TimeCivil;
+
+function main() : void {
+    bool ok = true;
+
+    string s = TimeCivil.formatISO8601(0);
+    ok = ok && (s == "1970-01-01T00:00:00.000Z");
+
+    int e0 = TimeCivil.parseISO8601("1970-01-01T00:00:00.000Z");
+    ok = ok && (e0 == 0);
+
+    int e1 = TimeCivil.parseISO8601("1970-01-01T01:00:00.000+01:00");
+    ok = ok && (e1 == 0);
+
+    bool caught = false;
+    try {
+        TimeCivil.parseISO8601("1970-00-01");
+        ok = false;
+    } catch (InvalidISOFormatException ex) {
+        caught = true;
+    }
+    ok = ok && caught;
+
+    caught = false;
+    try {
+        TimeCivil.parseISO8601("1970-01-00");
+        ok = false;
+    } catch (InvalidISOFormatException ex) {
+        caught = true;
+    }
+    ok = ok && caught;
+
+    caught = false;
+    try {
+        TimeCivil.parseISO8601("1970-01-01T24:00:00");
+        ok = false;
+    } catch (InvalidISOFormatException ex) {
+        caught = true;
+    }
+    ok = ok && caught;
+
+    caught = false;
+    try {
+        TimeCivil.parseISO8601("1970-01-01T00:00:00+25:00");
+        ok = false;
+    } catch (InvalidISOFormatException ex) {
+        caught = true;
+    }
+    ok = ok && caught;
+
+    Io.printLine(ok.toString());
+}

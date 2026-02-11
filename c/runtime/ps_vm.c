@@ -12,6 +12,7 @@
 #include "ps_object.h"
 #include "ps_string.h"
 #include "ps_vm.h"
+#include "../diag.h"
 
 typedef struct {
   char *name;
@@ -357,6 +358,25 @@ static int view_is_valid(PS_Value *v) {
   return 1;
 }
 
+static PS_Value *bytes_to_list(PS_Context *ctx, const uint8_t *buf, size_t len) {
+  PS_Value *list = ps_list_new(ctx);
+  if (!list) return NULL;
+  for (size_t i = 0; i < len; i++) {
+    PS_Value *bv = ps_make_byte(ctx, buf[i]);
+    if (!bv) {
+      ps_value_release(list);
+      return NULL;
+    }
+    if (!ps_list_push_internal(ctx, list, bv)) {
+      ps_value_release(bv);
+      ps_value_release(list);
+      return NULL;
+    }
+    ps_value_release(bv);
+  }
+  return list;
+}
+
 static int expect_arity(PS_Context *ctx, IRInstr *ins, size_t min, size_t max) {
   if (ins->arg_count < min || ins->arg_count > max) {
     char got[32];
@@ -575,13 +595,23 @@ static char *dup_json_string(PS_JsonValue *v) {
   return strdup(v->as.str_v);
 }
 
+static char *parse_type_name(PS_JsonValue *v) {
+  if (!v) return NULL;
+  if (v->type == PS_JSON_STRING) return strdup(v->as.str_v);
+  if (v->type == PS_JSON_OBJECT) {
+    PS_JsonValue *n = ps_json_obj_get(v, "name");
+    if (n && n->type == PS_JSON_STRING) return strdup(n->as.str_v);
+  }
+  return NULL;
+}
+
 static IRInstr parse_instr(PS_JsonValue *obj) {
   IRInstr ins;
   memset(&ins, 0, sizeof(ins));
   ins.op = dup_json_string(ps_json_obj_get(obj, "op"));
   ins.dst = dup_json_string(ps_json_obj_get(obj, "dst"));
   ins.name = dup_json_string(ps_json_obj_get(obj, "name"));
-  ins.type = dup_json_string(ps_json_obj_get(obj, "type"));
+  ins.type = parse_type_name(ps_json_obj_get(obj, "type"));
   PS_JsonValue *val = ps_json_obj_get(obj, "value");
   ins.value = dup_json_string(val);
   if (!ins.value && val && val->type == PS_JSON_BOOL) {
@@ -865,6 +895,17 @@ static PS_Value *value_from_literal(PS_Context *ctx, const char *literalType, PS
     if (raw) v = strtod(raw, NULL);
     return ps_make_float(ctx, v);
   }
+  if (strcmp(literalType, "glyph") == 0) {
+    int64_t v = 0;
+    if (raw) v = parse_int_literal(raw);
+    if (v < 0 || v > 0x10FFFF) {
+      char got[32];
+      snprintf(got, sizeof(got), "%lld", (long long)v);
+      ps_throw_diag(ctx, PS_ERR_RANGE, "glyph out of range", got, "0..0x10FFFF");
+      return NULL;
+    }
+    return ps_make_glyph(ctx, (uint32_t)v);
+  }
   if (strcmp(literalType, "string") == 0) {
     return ps_make_string_utf8(ctx, raw ? raw : "", raw ? strlen(raw) : 0);
   }
@@ -905,6 +946,17 @@ static PS_Value *get_value(PS_Bindings *temps, PS_Bindings *vars, const char *na
   PS_Value *v = bindings_get(temps, name);
   if (v) return v;
   return bindings_get(vars, name);
+}
+
+static PS_Value *default_value_for_type(PS_Context *ctx, const char *t) {
+  if (!t || !*t) return NULL;
+  if (strcmp(t, "bool") == 0) return ps_make_bool(ctx, 0);
+  if (strcmp(t, "byte") == 0) return ps_make_byte(ctx, 0);
+  if (strcmp(t, "int") == 0) return ps_make_int(ctx, 0);
+  if (strcmp(t, "float") == 0) return ps_make_float(ctx, 0.0);
+  if (strcmp(t, "glyph") == 0) return ps_make_glyph(ctx, 0);
+  if (strcmp(t, "string") == 0) return ps_make_string_utf8(ctx, "", 0);
+  return NULL;
 }
 
 static int values_equal(PS_Value *a, PS_Value *b) {
@@ -1083,14 +1135,15 @@ static PS_Value *make_runtime_exception_from_error(PS_Context *ctx) {
 
 static void set_exception_location(PS_Context *ctx, PS_Value *v, const char *file, int line, int col) {
   if (!v || v->tag != PS_V_EXCEPTION) return;
+  ps_diag_normalize_loc(&line, &col);
   const char *fname = file ? file : "";
   PS_Value *f = ps_make_string_utf8(ctx, fname, strlen(fname));
   if (f) {
     if (v->as.exc_v.file) ps_value_release(v->as.exc_v.file);
     v->as.exc_v.file = f;
   }
-  v->as.exc_v.line = line > 0 ? line : 1;
-  v->as.exc_v.column = col > 0 ? col : 1;
+  v->as.exc_v.line = line;
+  v->as.exc_v.column = col;
 }
 
 static IRProto *proto_find_meta(PS_IR_Module *m, const char *name) {
@@ -1176,6 +1229,12 @@ static int json_value_kind_runtime(PS_Context *ctx, PS_Value *v, const char **ki
   return 1;
 }
 
+static int module_is_std(const char *name) {
+  if (!name) return 0;
+  return strcmp(name, "Io") == 0 || strcmp(name, "JSON") == 0 || strcmp(name, "Math") == 0 ||
+         strcmp(name, "Time") == 0 || strcmp(name, "TimeCivil") == 0;
+}
+
 static int exec_call_static(PS_Context *ctx, PS_IR_Module *m, const char *callee, PS_Value **args, size_t argc, PS_Value **out) {
   IRFunction *fn = find_fn(m, callee);
   if (fn) return exec_function(ctx, m, fn, args, argc, out);
@@ -1194,7 +1253,12 @@ static int exec_call_static(PS_Context *ctx, PS_IR_Module *m, const char *callee
       if (!desc) return 1;
       PS_Value *ret = NULL;
       PS_Status st = desc->fn(ctx, (int)argc, args, &ret);
-      if (st != PS_OK) return 1;
+      if (st != PS_OK) {
+        if (!module_is_std(module)) {
+          ps_throw_diag(ctx, PS_ERR_IMPORT, "module error", module, "successful module call");
+        }
+        return 1;
+      }
       *out = ret;
       return 0;
     }
@@ -1249,7 +1313,9 @@ static int exec_function(PS_Context *ctx, PS_IR_Module *m, IRFunction *f, PS_Val
       if (ctx->trace_ir) fprintf(stderr, "[ir] %s\n", ins->op);
       if (strcmp(ins->op, "nop") == 0) continue;
       if (strcmp(ins->op, "var_decl") == 0) {
-        bindings_set(&vars, ins->name, NULL);
+        PS_Value *def = default_value_for_type(ctx, ins->type);
+        bindings_set(&vars, ins->name, def);
+        if (def) ps_value_release(def);
         continue;
       }
       if (strcmp(ins->op, "const") == 0) {
@@ -1541,7 +1607,7 @@ static int exec_function(PS_Context *ctx, PS_IR_Module *m, IRFunction *f, PS_Val
         if (!ps_map_has_key(ctx, mval, k)) {
           char got[128];
           format_value_short(k, got, sizeof(got));
-          ps_throw_diag(ctx, PS_ERR_RANGE, "missing key", got, "existing key in map");
+          ps_throw_diag(ctx, PS_ERR_RANGE, "missing key", got, "present key");
           goto raise;
         }
         continue;
@@ -2256,7 +2322,12 @@ static int exec_function(PS_Context *ctx, PS_IR_Module *m, IRFunction *f, PS_Val
           goto raise;
         }
         if (recv->tag == PS_V_INT) {
-          if (strcmp(ins->method, "toByte") == 0) {
+          if (strcmp(ins->method, "toInt") == 0) {
+            if (!expect_arity(ctx, ins, 0, 0)) goto raise;
+            PS_Value *i = ps_make_int(ctx, recv->as.int_v);
+            bindings_set(&temps, ins->dst, i);
+            ps_value_release(i);
+          } else if (strcmp(ins->method, "toByte") == 0) {
             if (!expect_arity(ctx, ins, 0, 0)) goto raise;
             int64_t v = recv->as.int_v;
             if (v < 0 || v > 255) {
@@ -2279,10 +2350,10 @@ static int exec_function(PS_Context *ctx, PS_IR_Module *m, IRFunction *f, PS_Val
             if (!expect_arity(ctx, ins, 0, 0)) goto raise;
             uint8_t buf[8];
             memcpy(buf, &recv->as.int_v, 8);
-            PS_Value *b = ps_make_bytes(ctx, buf, 8);
-            if (!b) goto raise;
-            bindings_set(&temps, ins->dst, b);
-            ps_value_release(b);
+            PS_Value *list = bytes_to_list(ctx, buf, 8);
+            if (!list) goto raise;
+            bindings_set(&temps, ins->dst, list);
+            ps_value_release(list);
           } else if (strcmp(ins->method, "abs") == 0) {
             if (!expect_arity(ctx, ins, 0, 0)) goto raise;
             if (recv->as.int_v == INT64_MIN) {
@@ -2350,10 +2421,10 @@ static int exec_function(PS_Context *ctx, PS_IR_Module *m, IRFunction *f, PS_Val
             if (!expect_arity(ctx, ins, 0, 0)) goto raise;
             uint8_t buf[8];
             memcpy(buf, &recv->as.float_v, 8);
-            PS_Value *b = ps_make_bytes(ctx, buf, 8);
-            if (!b) goto raise;
-            bindings_set(&temps, ins->dst, b);
-            ps_value_release(b);
+            PS_Value *list = bytes_to_list(ctx, buf, 8);
+            if (!list) goto raise;
+            bindings_set(&temps, ins->dst, list);
+            ps_value_release(list);
           } else if (strcmp(ins->method, "abs") == 0) {
             if (!expect_arity(ctx, ins, 0, 0)) goto raise;
             PS_Value *f = ps_make_float(ctx, fabs(recv->as.float_v));
@@ -2431,10 +2502,10 @@ static int exec_function(PS_Context *ctx, PS_IR_Module *m, IRFunction *f, PS_Val
               ps_throw_diag(ctx, PS_ERR_UTF8, "invalid UTF-8", got, "valid Unicode scalar");
               goto raise;
             }
-            PS_Value *b = ps_make_bytes(ctx, buf, n);
-            if (!b) goto raise;
-            bindings_set(&temps, ins->dst, b);
-            ps_value_release(b);
+            PS_Value *list = bytes_to_list(ctx, buf, n);
+            if (!list) goto raise;
+            bindings_set(&temps, ins->dst, list);
+            ps_value_release(list);
           } else {
             char got[96];
             snprintf(got, sizeof(got), "%s", ins->method ? ins->method : "<unknown>");
@@ -2540,9 +2611,10 @@ static int exec_function(PS_Context *ctx, PS_IR_Module *m, IRFunction *f, PS_Val
             ps_value_release(v);
           } else if (strcmp(ins->method, "toUtf8Bytes") == 0) {
             if (!expect_arity(ctx, ins, 0, 0)) goto raise;
-            PS_Value *v = ps_string_to_utf8_bytes(ctx, recv);
-            bindings_set(&temps, ins->dst, v);
-            ps_value_release(v);
+            PS_Value *list = bytes_to_list(ctx, (const uint8_t *)recv->as.string_v.ptr, recv->as.string_v.len);
+            if (!list) goto raise;
+            bindings_set(&temps, ins->dst, list);
+            ps_value_release(list);
           } else if (strcmp(ins->method, "concat") == 0) {
             if (!expect_arity(ctx, ins, 1, 1)) goto raise;
             PS_Value *b = NULL;
@@ -2574,6 +2646,14 @@ static int exec_function(PS_Context *ctx, PS_IR_Module *m, IRFunction *f, PS_Val
             PS_Value *v = ps_make_bool(ctx, recv->as.list_v.len == 0);
             bindings_set(&temps, ins->dst, v);
             ps_value_release(v);
+          } else if (strcmp(ins->method, "removeLast") == 0) {
+            if (!expect_arity(ctx, ins, 0, 0)) goto raise;
+            if (recv->as.list_v.len == 0) {
+              ps_throw_diag(ctx, PS_ERR_RANGE, "pop on empty list", "empty list", "non-empty list");
+              goto raise;
+            }
+            recv->as.list_v.len -= 1;
+            recv->as.list_v.version += 1;
           } else if (strcmp(ins->method, "pop") == 0) {
             if (!expect_arity(ctx, ins, 0, 0)) goto raise;
             if (recv->as.list_v.len == 0) {

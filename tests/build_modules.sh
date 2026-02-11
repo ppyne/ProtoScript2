@@ -35,5 +35,7 @@ build_mod "test_nosym" "$SRC_DIR/test_nosym.c"
 build_mod "Math" "$SRC_DIR/math.c" -lm
 build_mod "Io" "$SRC_DIR/io.c"
 build_mod "JSON" "$SRC_DIR/json.c"
+build_mod "Time" "$ROOT_DIR/c/modules/time.c"
+build_mod "TimeCivil" "$ROOT_DIR/c/modules/time_civil.c" -lpthread
 
 echo "modules built in $OUT_DIR"

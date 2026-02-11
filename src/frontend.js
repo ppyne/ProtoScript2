@@ -96,7 +96,7 @@ function isValidRegistryType(s, allowVoid) {
   if (typeof s !== "string") return false;
   const t = stripWs(s);
   if (allowVoid && t === "void") return true;
-  const prim = ["int", "float", "bool", "byte", "glyph", "string", "TextFile", "BinaryFile", "JSONValue"];
+  const prim = ["int", "float", "bool", "byte", "glyph", "string", "TextFile", "BinaryFile", "JSONValue", "CivilDateTime"];
   if (prim.includes(t)) return true;
   if (t.startsWith("list<") || t.startsWith("slice<") || t.startsWith("view<")) {
     if (!t.endsWith(">")) return false;
@@ -1345,9 +1345,39 @@ class Analyzer {
       fields.set("category", { kind: "PrimitiveType", name: "string" });
       this.prototypes.set("RuntimeException", { decl, parent: "Exception", fields, methods: new Map() });
     }
+    if (!this.prototypes.has("CivilDateTime")) {
+      const decl = { line: 1, col: 1 };
+      const fields = new Map();
+      fields.set("year", { kind: "PrimitiveType", name: "int" });
+      fields.set("month", { kind: "PrimitiveType", name: "int" });
+      fields.set("day", { kind: "PrimitiveType", name: "int" });
+      fields.set("hour", { kind: "PrimitiveType", name: "int" });
+      fields.set("minute", { kind: "PrimitiveType", name: "int" });
+      fields.set("second", { kind: "PrimitiveType", name: "int" });
+      fields.set("millisecond", { kind: "PrimitiveType", name: "int" });
+      this.prototypes.set("CivilDateTime", { decl, parent: null, fields, methods: new Map() });
+    }
+    const timeExceptions = [
+      "DSTAmbiguousTimeException",
+      "DSTNonExistentTimeException",
+      "InvalidTimeZoneException",
+      "InvalidDateException",
+      "InvalidISOFormatException",
+    ];
+    for (const name of timeExceptions) {
+      if (!this.prototypes.has(name)) {
+        const decl = { line: 1, col: 1 };
+        this.prototypes.set(name, { decl, parent: "Exception", fields: new Map(), methods: new Map() });
+      }
+    }
     for (const d of this.ast.decls) {
       if (d.kind !== "PrototypeDecl") continue;
-      if (d.name === "Exception" || d.name === "RuntimeException") {
+      if (
+        d.name === "Exception" ||
+        d.name === "RuntimeException" ||
+        d.name === "CivilDateTime" ||
+        timeExceptions.includes(d.name)
+      ) {
         this.addDiag(d, "E2001", "UNRESOLVED_NAME", "reserved prototype name");
         continue;
       }

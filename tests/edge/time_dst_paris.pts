@@ -1,0 +1,71 @@
+import Io;
+import TimeCivil;
+
+function main() : void {
+    bool ok = true;
+    string tz = "Europe/Paris";
+    bool hasParis = true;
+
+    try {
+        TimeCivil.offsetSeconds(0, tz);
+    } catch (InvalidTimeZoneException ex) {
+        hasParis = false;
+    }
+
+    if (hasParis) {
+        CivilDateTime spring = CivilDateTime.clone();
+        spring.year = 2024;
+        spring.month = 3;
+        spring.day = 31;
+        spring.hour = 2;
+        spring.minute = 30;
+        spring.second = 0;
+        spring.millisecond = 0;
+
+        bool caught = false;
+        try {
+            TimeCivil.toEpoch(spring, tz, TimeCivil.DST_EARLIER);
+            ok = false;
+        } catch (DSTNonExistentTimeException ex) {
+            caught = true;
+        }
+        ok = ok && caught;
+
+        CivilDateTime fall = CivilDateTime.clone();
+        fall.year = 2024;
+        fall.month = 10;
+        fall.day = 27;
+        fall.hour = 2;
+        fall.minute = 30;
+        fall.second = 0;
+        fall.millisecond = 0;
+
+        caught = false;
+        try {
+            TimeCivil.toEpoch(fall, tz, TimeCivil.DST_ERROR);
+            ok = false;
+        } catch (DSTAmbiguousTimeException ex) {
+            caught = true;
+        }
+        ok = ok && caught;
+
+        int eEarly = TimeCivil.toEpoch(fall, tz, TimeCivil.DST_EARLIER);
+        int eLate = TimeCivil.toEpoch(fall, tz, TimeCivil.DST_LATER);
+        ok = ok && (eEarly != eLate);
+
+        CivilDateTime back1 = TimeCivil.fromEpoch(eEarly, tz);
+        CivilDateTime back2 = TimeCivil.fromEpoch(eLate, tz);
+        ok = ok && back1.year == 2024 && back1.month == 10 && back1.day == 27
+                 && back1.hour == 2 && back1.minute == 30;
+        ok = ok && back2.year == 2024 && back2.month == 10 && back2.day == 27
+                 && back2.hour == 2 && back2.minute == 30;
+
+        int jan = TimeCivil.parseISO8601("2024-01-15T00:00:00.000Z");
+        int jul = TimeCivil.parseISO8601("2024-07-15T00:00:00.000Z");
+        bool dstJan = TimeCivil.isDST(jan, tz);
+        bool dstJul = TimeCivil.isDST(jul, tz);
+        ok = ok && (dstJan != dstJul);
+    }
+
+    Io.printLine(ok.toString());
+}
