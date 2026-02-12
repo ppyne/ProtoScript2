@@ -2,11 +2,15 @@
 
 const fs = require("fs");
 const path = require("path");
+const { optimizeIR } = require("./optimizer");
 
 const KEYWORDS = new Set([
   "prototype",
+  "sealed",
   "function",
   "var",
+  "const",
+  "group",
   "int",
   "float",
   "bool",
@@ -510,7 +514,8 @@ class Parser {
     const imports = [];
     while (!this.at("eof")) {
       if (this.at("kw", "import")) imports.push(this.parseImportDecl());
-      else if (this.at("kw", "prototype")) decls.push(this.parsePrototypeDecl());
+      else if (this.at("kw", "sealed") || this.at("kw", "prototype")) decls.push(this.parsePrototypeDecl());
+      else if (this.looksLikeGroupDecl()) decls.push(this.parseGroupDecl());
       else if (this.at("kw", "function")) decls.push(this.parseFunctionDecl());
       else {
         const tok = this.t();
@@ -523,6 +528,16 @@ class Parser {
   }
 
   parsePrototypeDecl() {
+    let sealed = false;
+    if (this.at("kw", "sealed")) {
+      const s = this.eat("kw", "sealed");
+      sealed = true;
+      if (!this.at("kw", "prototype")) {
+        throw new FrontendError(
+          diag(this.file, s.line, s.col, "E1001", "PARSE_UNEXPECTED_TOKEN", "prototype expected after sealed")
+        );
+      }
+    }
     const start = this.eat("kw", "prototype");
     const name = this.eat("id").value;
     let parent = null;
@@ -544,7 +559,7 @@ class Parser {
       fields.push({ kind: "FieldDecl", type: t, name: n.value, line: n.line, col: n.col });
     }
     this.eat("sym", "}");
-    return { kind: "PrototypeDecl", name, parent, fields, methods, line: start.line, col: start.col };
+    return { kind: "PrototypeDecl", name, parent, fields, methods, sealed, line: start.line, col: start.col };
   }
 
   parseModulePath() {
@@ -691,6 +706,7 @@ class Parser {
   parseStmt() {
     if (this.at("sym", "{")) return this.parseBlock();
     if (this.at("kw", "var")) return this.parseVarDeclStmt();
+    if (this.at("kw", "const")) return this.parseVarDeclStmt();
     if (this.looksLikeTypedVarDecl()) return this.parseVarDeclStmt();
     if (this.at("kw", "if")) return this.parseIfStmt();
     if (this.at("kw", "while")) return this.parseWhileStmt();
@@ -759,6 +775,17 @@ class Parser {
   }
 
   parseVarDecl() {
+    if (this.at("kw", "const")) {
+      const t = this.eat("kw", "const");
+      const declaredType = this.parseType();
+      const name = this.eat("id");
+      let init = null;
+      if (this.at("sym", "=")) {
+        this.eat("sym", "=");
+        init = this.parseExpr();
+      }
+      return { kind: "VarDecl", declaredType, name: name.value, init, isConst: true, line: t.line, col: t.col };
+    }
     if (this.at("kw", "var")) {
       const t = this.eat("kw", "var");
       const name = this.eat("id");
@@ -774,6 +801,67 @@ class Parser {
       init = this.parseExpr();
     }
     return { kind: "VarDecl", declaredType, name: name.value, init, line: name.line, col: name.col };
+  }
+
+  looksLikeGroupDecl() {
+    const end = this.scanTypeFrom(this.i);
+    if (end < 0) return false;
+    const next = this.tokens[end];
+    return !!next && next.type === "kw" && next.value === "group";
+  }
+
+  scanTypeFrom(start) {
+    const tok = this.tokens[start];
+    if (!tok || (tok.type !== "kw" && tok.type !== "id")) return -1;
+    if (tok.type === "id") return start + 1;
+    const kw = tok.value;
+    if (["int", "float", "bool", "byte", "glyph", "string", "void"].includes(kw)) return start + 1;
+    if (["list", "slice", "view"].includes(kw)) {
+      let i = start + 1;
+      if (!this.tokens[i] || this.tokens[i].type !== "sym" || this.tokens[i].value !== "<") return -1;
+      i = this.scanTypeFrom(i + 1);
+      if (i < 0) return -1;
+      if (!this.tokens[i] || this.tokens[i].type !== "sym" || this.tokens[i].value !== ">") return -1;
+      return i + 1;
+    }
+    if (kw === "map") {
+      let i = start + 1;
+      if (!this.tokens[i] || this.tokens[i].type !== "sym" || this.tokens[i].value !== "<") return -1;
+      i = this.scanTypeFrom(i + 1);
+      if (i < 0) return -1;
+      if (!this.tokens[i] || this.tokens[i].type !== "sym" || this.tokens[i].value !== ",") return -1;
+      i = this.scanTypeFrom(i + 1);
+      if (i < 0) return -1;
+      if (!this.tokens[i] || this.tokens[i].type !== "sym" || this.tokens[i].value !== ">") return -1;
+      return i + 1;
+    }
+    return -1;
+  }
+
+  parseGroupDecl() {
+    const start = this.t();
+    const groupType = this.parseType();
+    this.eat("kw", "group");
+    const name = this.eat("id");
+    this.eat("sym", "{");
+    const members = [];
+    if (!this.at("sym", "}")) {
+      members.push(this.parseGroupMember());
+      while (this.at("sym", ",")) {
+        this.eat("sym", ",");
+        if (this.at("sym", "}")) break;
+        members.push(this.parseGroupMember());
+      }
+    }
+    this.eat("sym", "}");
+    return { kind: "GroupDecl", type: groupType, name: name.value, members, line: start.line, col: start.col };
+  }
+
+  parseGroupMember() {
+    const name = this.eat("id");
+    this.eat("sym", "=");
+    const expr = this.parseExpr();
+    return { kind: "GroupMember", name: name.value, expr, line: name.line, col: name.col };
   }
 
   parseForStmt() {
@@ -1304,6 +1392,103 @@ function constNumericValue(expr) {
   return null;
 }
 
+function isScalarTypeNode(t) {
+  return (
+    !!t &&
+    t.kind === "PrimitiveType" &&
+    ["bool", "byte", "glyph", "int", "float", "string"].includes(t.name)
+  );
+}
+
+function evalConstExprWithOptimizer(expr, groupConsts) {
+  let tempId = 0;
+  const instrs = [];
+  const nextTemp = () => `%c${++tempId}`;
+  const emit = (i) => instrs.push(i);
+
+  const lower = (e) => {
+    if (!e) return null;
+    switch (e.kind) {
+      case "Literal": {
+        const dst = nextTemp();
+        emit({ op: "const", dst, literalType: e.literalType, value: e.value });
+        return { value: dst };
+      }
+      case "UnaryExpr": {
+        if (e.op === "++" || e.op === "--") return null;
+        const inner = lower(e.expr);
+        if (!inner) return null;
+        const dst = nextTemp();
+        emit({ op: "unary_op", dst, operator: e.op, src: inner.value });
+        return { value: dst };
+      }
+      case "BinaryExpr": {
+        const l = lower(e.left);
+        const r = lower(e.right);
+        if (!l || !r) return null;
+        const dst = nextTemp();
+        emit({ op: "bin_op", dst, operator: e.op, left: l.value, right: r.value });
+        return { value: dst };
+      }
+      case "ConditionalExpr": {
+        const c = lower(e.cond);
+        const t = lower(e.thenExpr);
+        const f = lower(e.elseExpr);
+        if (!c || !t || !f) return null;
+        const dst = nextTemp();
+        emit({ op: "select", dst, cond: c.value, thenValue: t.value, elseValue: f.value });
+        return { value: dst };
+      }
+      case "CastExpr": {
+        const inner = lower(e.expr);
+        if (!inner) return null;
+        const dst = nextTemp();
+        emit({ op: "call_method_static", dst, receiver: inner.value, method: "cast", args: [] });
+        return { value: dst };
+      }
+      case "Identifier": {
+        const dst = nextTemp();
+        emit({ op: "load_var", dst, name: e.name, type: { kind: "IRType", name: "unknown" } });
+        return { value: dst };
+      }
+      case "MemberExpr": {
+        if (e.target && e.target.kind === "Identifier" && groupConsts && groupConsts.has(e.target.name)) {
+          const members = groupConsts.get(e.target.name);
+          if (members && members.has(e.name)) {
+            const c = members.get(e.name);
+            const dst = nextTemp();
+            emit({ op: "const", dst, literalType: c.literalType, value: c.value });
+            return { value: dst };
+          }
+        }
+        const dst = nextTemp();
+        emit({ op: "member_get", dst, target: "unknown", name: e.name });
+        return { value: dst };
+      }
+      default: {
+        const dst = nextTemp();
+        emit({ op: "call_unknown", dst });
+        return { value: dst };
+      }
+    }
+  };
+
+  const out = lower(expr);
+  if (!out) return null;
+  const ir = { functions: [{ blocks: [{ instrs }] }] };
+  const opt = optimizeIR(ir);
+  const consts = new Map();
+  const ins = opt.functions[0].blocks[0].instrs || [];
+  for (const i of ins) {
+    if (i.op === "const") consts.set(i.dst, { literalType: i.literalType, value: i.value });
+    else if (i.op === "copy") {
+      if (consts.has(i.src)) consts.set(i.dst, consts.get(i.src));
+      else consts.delete(i.dst);
+    }
+  }
+  return consts.get(out.value) || null;
+}
+
 function sameType(a, b) {
   return typeToString(a) === typeToString(b);
 }
@@ -1314,6 +1499,7 @@ class Analyzer {
     this.ast = ast;
     this.functions = new Map();
     this.prototypes = new Map();
+    this.groups = new Map(); // name -> { type, members: Map(name -> const) }
     this.imported = new Map(); // local name -> { module, name, sig }
     this.namespaces = new Map(); // alias -> { kind: "native"|"proto", name }
     this.moduleConsts = new Map(); // alias -> Map(name -> { type, value })
@@ -1335,6 +1521,7 @@ class Analyzer {
         this.functions.set(`${name}.${mname}`, m);
       }
     }
+    this.collectGroups();
     for (const d of this.ast.decls) {
       if (d.kind === "FunctionDecl") this.analyzeFunction(d);
       if (d.kind === "PrototypeDecl") this.analyzePrototype(d);
@@ -1494,14 +1681,20 @@ class Analyzer {
         }
         methods.set(m.name, m);
       }
-      this.prototypes.set(d.name, { decl: d, parent: d.parent || null, fields, methods });
+      this.prototypes.set(d.name, { decl: d, parent: d.parent || null, fields, methods, sealed: !!d.sealed });
     }
     for (const [name, p] of this.prototypes.entries()) {
+      if (p.sealed && p.parent) {
+        this.addDiag(p.decl, "E3140", "SEALED_INHERITANCE", "sealed prototype cannot declare a parent");
+      }
       if (p.parent && !this.prototypes.has(p.parent)) {
         this.addDiag(p.decl, "E2001", "UNRESOLVED_NAME", `unknown parent prototype '${p.parent}'`);
       }
       const parent = this.prototypes.get(p.parent);
       if (parent) {
+        if (parent.sealed) {
+          this.addDiag(p.decl, "E3140", "SEALED_INHERITANCE", "cannot inherit from sealed prototype");
+        }
         for (const fieldName of p.fields.keys()) {
           if (this.resolvePrototypeField(p.parent, fieldName)) {
             this.addDiag(p.decl, "E3001", "TYPE_MISMATCH_ASSIGNMENT", `field '${fieldName}' already defined in parent`);
@@ -1516,6 +1709,59 @@ class Analyzer {
         }
       }
     }
+  }
+
+  collectGroups() {
+    for (const d of this.ast.decls) {
+      if (d.kind !== "GroupDecl") continue;
+      if (this.groups.has(d.name)) {
+        this.addDiag(d, "E2001", "UNRESOLVED_NAME", `duplicate group '${d.name}'`);
+        continue;
+      }
+      const groupType = d.type;
+      if (!isScalarTypeNode(groupType)) {
+        this.addDiag(d, "E3120", "GROUP_NON_SCALAR_TYPE", "group requires a scalar fundamental type");
+      }
+      const members = new Map();
+      const groupConsts = new Map();
+      groupConsts.set(d.name, members);
+      for (const [gname, g] of this.groups.entries()) {
+        groupConsts.set(gname, g.members);
+      }
+      for (const m of d.members || []) {
+        if (members.has(m.name)) {
+          this.addDiag(m, "E2001", "UNRESOLVED_NAME", `duplicate group member '${m.name}'`);
+          continue;
+        }
+        const t = this.typeOfExpr(m.expr, new Scope(null));
+        const targetType = groupType;
+        const allowByteLiteral = targetType && typeToString(targetType) === "byte" && isByteLiteralExpr(m.expr);
+        if (
+          targetType &&
+          t &&
+          !sameType(t, targetType) &&
+          !this.isSubtype(t, targetType) &&
+          !allowByteLiteral
+        ) {
+          this.addDiag(m, "E3121", "GROUP_TYPE_MISMATCH", `group member '${m.name}' is not assignable to ${typeToString(targetType)}`);
+        }
+        const c = evalConstExprWithOptimizer(m.expr, groupConsts);
+        if (!c) {
+          this.addDiag(m, "E3121", "GROUP_TYPE_MISMATCH", "group member must be a constant expression");
+        } else {
+          m.constValue = c;
+          members.set(m.name, c);
+        }
+      }
+      this.groups.set(d.name, { type: groupType, members });
+    }
+  }
+
+  isGroupMemberTarget(expr) {
+    if (!expr || expr.kind !== "MemberExpr") return false;
+    if (!expr.target || expr.target.kind !== "Identifier") return false;
+    const g = this.groups.get(expr.target.name);
+    return !!(g && g.members && g.members.has(expr.name));
   }
 
   resolvePrototypeField(protoName, fieldName) {
@@ -1829,8 +2075,17 @@ class Analyzer {
   analyzeStmt(stmt, scope, fn) {
     switch (stmt.kind) {
       case "VarDecl": {
+        const isConst = !!stmt.isConst;
         let t = stmt.declaredType;
         let knownListLen = null;
+        if (isConst) {
+          if (!stmt.init) {
+            this.addDiag(stmt, "E3130", "CONST_REASSIGNMENT", "const requires an initializer");
+          }
+          if (t && !isScalarTypeNode(t)) {
+            this.addDiag(stmt, "E3001", "TYPE_MISMATCH_ASSIGNMENT", "const requires a scalar fundamental type");
+          }
+        }
         if (stmt.init) {
           const initType = this.typeOfExpr(stmt.init, scope);
           if (
@@ -1879,10 +2134,21 @@ class Analyzer {
         }
         // Variables are implicitly initialized; no uninitialized state is observable.
         const aliasSelf = stmt.init ? this.isSelfAliasExpr(stmt.init, scope) : false;
-        scope.define(stmt.name, t || { kind: "PrimitiveType", name: "void" }, true, knownListLen, aliasSelf);
+        scope.define(stmt.name, t || { kind: "PrimitiveType", name: "void" }, true, knownListLen, aliasSelf, isConst);
         break;
       }
       case "AssignStmt": {
+        if (stmt.target && this.isGroupMemberTarget(stmt.target)) {
+          this.addDiag(stmt, "E3122", "GROUP_MUTATION", "group members are not assignable");
+          break;
+        }
+        if (stmt.target && stmt.target.kind === "Identifier") {
+          const s = scope.lookup(stmt.target.name);
+          if (s && s.isConst) {
+            this.addDiag(stmt, "E3130", "CONST_REASSIGNMENT", "cannot assign to const");
+            break;
+          }
+        }
         if (stmt.target && stmt.target.kind === "IndexExpr") {
           const targetType = this.typeOfExpr(stmt.target.target, scope);
           const ts = typeToString(targetType);
@@ -2112,6 +2378,17 @@ class Analyzer {
       case "UnaryExpr": {
         const t = this.typeOfExpr(expr.expr, scope);
         if (!t) return null;
+        if (expr.op === "++" || expr.op === "--") {
+          if (expr.expr && expr.expr.kind === "Identifier") {
+            const s = scope.lookup(expr.expr.name);
+            if (s && s.isConst) {
+              this.addDiag(expr, "E3130", "CONST_REASSIGNMENT", "cannot modify const");
+            }
+          }
+          if (this.isGroupMemberTarget(expr.expr)) {
+            this.addDiag(expr, "E3122", "GROUP_MUTATION", "group members are not assignable");
+          }
+        }
         if (expr.op === "-" || expr.op === "++" || expr.op === "--") return t;
         if (expr.op === "!") return { kind: "PrimitiveType", name: "bool" };
         return t;
@@ -2165,6 +2442,12 @@ class Analyzer {
         return null;
       }
       case "MemberExpr":
+        if (expr.target.kind === "Identifier") {
+          const g = this.groups.get(expr.target.name);
+          if (g && g.members && g.members.has(expr.name)) {
+            return g.type;
+          }
+        }
         if (expr.target.kind === "Identifier" && this.moduleConsts.has(expr.target.name)) {
           const consts = this.moduleConsts.get(expr.target.name);
           if (consts && consts.has(expr.name)) {
@@ -2188,6 +2471,17 @@ class Analyzer {
         }
         return null;
       case "PostfixExpr":
+        if (expr.op === "++" || expr.op === "--") {
+          if (expr.expr && expr.expr.kind === "Identifier") {
+            const s = scope.lookup(expr.expr.name);
+            if (s && s.isConst) {
+              this.addDiag(expr, "E3130", "CONST_REASSIGNMENT", "cannot modify const");
+            }
+          }
+          if (this.isGroupMemberTarget(expr.expr)) {
+            this.addDiag(expr, "E3122", "GROUP_MUTATION", "group members are not assignable");
+          }
+        }
         return this.typeOfExpr(expr.expr, scope);
       case "ListLiteral":
         if (expr.items.length === 0) {
@@ -2601,8 +2895,8 @@ class Scope {
     this.parent = parent;
     this.syms = new Map();
   }
-  define(name, type, initialized, knownListLen = null, aliasSelf = false) {
-    this.syms.set(name, { type, initialized, knownListLen, aliasSelf });
+  define(name, type, initialized, knownListLen = null, aliasSelf = false, isConst = false) {
+    this.syms.set(name, { type, initialized, knownListLen, aliasSelf, isConst });
   }
   lookup(name) {
     if (this.syms.has(name)) return this.syms.get(name);

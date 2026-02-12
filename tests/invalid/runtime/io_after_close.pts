@@ -1,8 +1,14 @@
 import Io;
+import Fs;
 
 function main() : void {
-    var f = Io.openText("io_after_close.txt", "w");
+    string path = Io.tempPath();
+    TextFile f = Io.openText(path, "w");
     f.write("x");
     f.close();
-    f.read(1);
+    try {
+        f.read(1);
+    } finally {
+        if (Fs.exists(path)) Fs.rm(path);
+    }
 }

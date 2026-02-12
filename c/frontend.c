@@ -120,10 +120,14 @@ typedef struct AstNode {
   char *text;
   int line;
   int col;
+  int flags;
   struct AstNode **children;
   size_t child_len;
   size_t child_cap;
 } AstNode;
+
+#define AST_FLAG_CONST  (1 << 0)
+#define AST_FLAG_SEALED (1 << 1)
 
 typedef struct {
   const char *file;
@@ -182,6 +186,7 @@ static AstNode *ast_new(const char *kind, const char *text, int line, int col) {
   n->text = text ? strdup(text) : NULL;
   n->line = line;
   n->col = col;
+  n->flags = 0;
   if (!n->kind || (text && !n->text)) {
     free(n->kind);
     free(n->text);
@@ -323,11 +328,11 @@ static char *token_span_text(Parser *p, size_t start, size_t end) {
 
 static int is_keyword(const char *s) {
   static const char *kws[] = {
-      "prototype", "function", "var",      "int",    "float",   "bool",   "byte",  "glyph",
-      "string",    "list",     "map",      "slice",  "view",    "void",   "if",    "else",
-      "for",       "of",       "in",       "while",  "do",      "switch", "case",  "default",
-      "break",     "continue", "return",   "try",    "catch",   "finally","throw", "true",
-      "false",     "self",     "import",   "as",     NULL,
+      "prototype", "sealed",   "function", "var",    "const",   "group",  "int",   "float",
+      "bool",      "byte",     "glyph",    "string", "list",    "map",    "slice", "view",
+      "void",      "if",       "else",     "for",    "of",      "in",     "while", "do",
+      "switch",    "case",     "default",  "break",  "continue","return", "try",   "catch",
+      "finally",   "throw",    "true",     "false",  "self",    "import", "as",    NULL,
   };
   for (int i = 0; kws[i]; i++) {
     if (strcmp(s, kws[i]) == 0) return 1;
@@ -753,6 +758,49 @@ static int looks_like_type_start(Parser *p) {
   return 0;
 }
 
+static int scan_type_from(Parser *p, size_t start, size_t *out_end) {
+  Token *t = (start < p->toks->len) ? &p->toks->items[start] : NULL;
+  if (!t || (t->kind != TK_KW && t->kind != TK_ID)) return 0;
+  if (t->kind == TK_ID) {
+    *out_end = start + 1;
+    return 1;
+  }
+  if (is_primitive_type_kw(t->text)) {
+    *out_end = start + 1;
+    return 1;
+  }
+  if (strcmp(t->text, "list") == 0 || strcmp(t->text, "slice") == 0 || strcmp(t->text, "view") == 0) {
+    size_t i = start + 1;
+    if (i >= p->toks->len || p->toks->items[i].kind != TK_SYM || strcmp(p->toks->items[i].text, "<") != 0) return 0;
+    size_t inner = 0;
+    if (!scan_type_from(p, i + 1, &inner)) return 0;
+    if (inner >= p->toks->len || p->toks->items[inner].kind != TK_SYM || strcmp(p->toks->items[inner].text, ">") != 0) return 0;
+    *out_end = inner + 1;
+    return 1;
+  }
+  if (strcmp(t->text, "map") == 0) {
+    size_t i = start + 1;
+    if (i >= p->toks->len || p->toks->items[i].kind != TK_SYM || strcmp(p->toks->items[i].text, "<") != 0) return 0;
+    size_t left = 0;
+    if (!scan_type_from(p, i + 1, &left)) return 0;
+    if (left >= p->toks->len || p->toks->items[left].kind != TK_SYM || strcmp(p->toks->items[left].text, ",") != 0) return 0;
+    size_t right = 0;
+    if (!scan_type_from(p, left + 1, &right)) return 0;
+    if (right >= p->toks->len || p->toks->items[right].kind != TK_SYM || strcmp(p->toks->items[right].text, ">") != 0) return 0;
+    *out_end = right + 1;
+    return 1;
+  }
+  return 0;
+}
+
+static int looks_like_group_decl(Parser *p) {
+  size_t end = 0;
+  if (!scan_type_from(p, p->i, &end)) return 0;
+  if (end >= p->toks->len) return 0;
+  Token *t = &p->toks->items[end];
+  return t->kind == TK_KW && strcmp(t->text, "group") == 0;
+}
+
 static int parse_expr(Parser *p, AstNode **out);
 static int parse_stmt(Parser *p);
 static int parse_try_stmt(Parser *p);
@@ -858,6 +906,38 @@ static int looks_like_assign_stmt(Parser *p) {
 }
 
 static int parse_var_decl(Parser *p, AstNode **out) {
+  if (p_at(p, TK_KW, "const")) {
+    if (!p_eat(p, TK_KW, "const")) return 0;
+    size_t type_start = p->i;
+    Token *type_tok = p_t(p, 0);
+    if (!parse_type(p)) return 0;
+    size_t type_end = p->i;
+    Token *name = p_t(p, 0);
+    if (!p_eat(p, TK_ID, NULL)) return 0;
+    AstNode *node = ast_new("VarDecl", name->text, name->line, name->col);
+    if (!node) return 0;
+    node->flags |= AST_FLAG_CONST;
+    char *type_txt = token_span_text(p, type_start, type_end);
+    AstNode *tn = ast_new("Type", type_txt ? type_txt : "", type_tok->line, type_tok->col);
+    free(type_txt);
+    if (!tn || !ast_add_child(node, tn)) {
+      ast_free(node);
+      ast_free(tn);
+      return 0;
+    }
+    if (p_at(p, TK_SYM, "=")) {
+      if (!p_eat(p, TK_SYM, "=")) return 0;
+      AstNode *init = NULL;
+      if (!parse_expr(p, &init) || !ast_add_child(node, init)) {
+        ast_free(init);
+        ast_free(node);
+        return 0;
+      }
+    }
+    if (out) *out = node;
+    else ast_free(node);
+    return 1;
+  }
   if (p_at(p, TK_KW, "var")) {
     Token *start = p_t(p, 0);
     if (!p_eat(p, TK_KW, "var")) return 0;
@@ -1342,7 +1422,7 @@ static int parse_for_stmt(Parser *p) {
 
 static int parse_stmt(Parser *p) {
   if (p_at(p, TK_SYM, "{")) return parse_block(p);
-  if (p_at(p, TK_KW, "var") || looks_like_type_start(p)) {
+  if (p_at(p, TK_KW, "var") || p_at(p, TK_KW, "const") || looks_like_type_start(p)) {
     AstNode *decl = NULL;
     size_t mark = p->i;
     int commit_decl = p_at(p, TK_KW, "var") || (p_t(p, 0)->kind == TK_KW);
@@ -1861,13 +1941,83 @@ static int parse_function_decl(Parser *p) {
   return ok;
 }
 
+static int parse_group_decl(Parser *p) {
+  Token *t0 = p_t(p, 0);
+  size_t type_start = p->i;
+  if (!parse_type(p)) return 0;
+  size_t type_end = p->i;
+  if (!p_eat(p, TK_KW, "group")) return 0;
+  Token *name = p_t(p, 0);
+  if (!p_eat(p, TK_ID, NULL)) return 0;
+  AstNode *grp = NULL;
+  if (!p_ast_add(p, "GroupDecl", name->text, t0->line, t0->col, &grp)) return 0;
+  if (!p_ast_push(p, grp)) return 0;
+
+  char *type_txt = token_span_text(p, type_start, type_end);
+  AstNode *tn = ast_new("Type", type_txt ? type_txt : "", t0->line, t0->col);
+  free(type_txt);
+  if (!tn || !ast_add_child(grp, tn)) {
+    ast_free(tn);
+    p_ast_pop(p);
+    return 0;
+  }
+
+  if (!p_eat(p, TK_SYM, "{")) {
+    p_ast_pop(p);
+    return 0;
+  }
+  if (!p_at(p, TK_SYM, "}")) {
+    while (1) {
+      Token *mn = p_t(p, 0);
+      if (!p_eat(p, TK_ID, NULL)) {
+        p_ast_pop(p);
+        return 0;
+      }
+      if (!p_eat(p, TK_SYM, "=")) {
+        p_ast_pop(p);
+        return 0;
+      }
+      AstNode *expr = NULL;
+      if (!parse_expr(p, &expr)) {
+        p_ast_pop(p);
+        return 0;
+      }
+      AstNode *member = ast_new("GroupMember", mn->text, mn->line, mn->col);
+      if (!member || !ast_add_child(member, expr) || !ast_add_child(grp, member)) {
+        ast_free(expr);
+        ast_free(member);
+        p_ast_pop(p);
+        return 0;
+      }
+      if (p_at(p, TK_SYM, ",")) {
+        p_eat(p, TK_SYM, ",");
+        if (p_at(p, TK_SYM, "}")) break;
+        continue;
+      }
+      break;
+    }
+  }
+  if (!p_eat(p, TK_SYM, "}")) {
+    p_ast_pop(p);
+    return 0;
+  }
+  p_ast_pop(p);
+  return 1;
+}
+
 static int parse_prototype_decl(Parser *p) {
   Token *pkw = p_t(p, 0);
+  int sealed = 0;
+  if (p_at(p, TK_KW, "sealed")) {
+    sealed = 1;
+    if (!p_eat(p, TK_KW, "sealed")) return 0;
+  }
   if (!p_eat(p, TK_KW, "prototype")) return 0;
   Token *name = p_t(p, 0);
   if (!p_eat(p, TK_ID, NULL)) return 0;
   AstNode *proto = NULL;
   if (!p_ast_add(p, "PrototypeDecl", name->text, pkw->line, pkw->col, &proto)) return 0;
+  if (sealed) proto->flags |= AST_FLAG_SEALED;
   if (!p_ast_push(p, proto)) return 0;
 
   if (p_at(p, TK_SYM, ":")) {
@@ -2028,8 +2178,12 @@ static int parse_program(Parser *p) {
       if (!parse_import_decl(p)) return 0;
       continue;
     }
-    if (p_at(p, TK_KW, "prototype")) {
+    if (p_at(p, TK_KW, "sealed") || p_at(p, TK_KW, "prototype")) {
       if (!parse_prototype_decl(p)) return 0;
+      continue;
+    }
+    if (looks_like_group_decl(p)) {
+      if (!parse_group_decl(p)) return 0;
       continue;
     }
     if (p_at(p, TK_KW, "function")) {
@@ -2200,6 +2354,7 @@ typedef struct Sym {
   int known_list_len; // -1 = unknown
   int initialized;
   int alias_self;
+  int is_const;
   struct Sym *next;
 } Sym;
 
@@ -2245,6 +2400,27 @@ typedef struct {
   size_t search_len;
 } ModuleRegistry;
 
+typedef struct GroupMemberConst {
+  char *name;
+  char *literal_type;
+  char *value;
+  struct GroupMemberConst *next;
+} GroupMemberConst;
+
+typedef struct GroupInfo {
+  char *name;
+  char *type;
+  int line;
+  int col;
+  GroupMemberConst *members;
+} GroupInfo;
+
+typedef struct GroupInfoVec {
+  GroupInfo **items;
+  size_t len;
+  size_t cap;
+} GroupInfoVec;
+
 typedef struct ImportSymbol {
   char *local;
   char *module;
@@ -2275,6 +2451,7 @@ typedef struct {
   ImportSymbol *imports;
   ImportNamespace *namespaces;
   struct ProtoInfo *protos;
+  GroupInfoVec groups;
   UserModule *user_modules;
 } Analyzer;
 
@@ -2298,6 +2475,7 @@ typedef struct ProtoInfo {
   int line;
   int col;
   int builtin;
+  int sealed;
   ProtoField *fields;
   ProtoMethod *methods;
   struct ProtoInfo *next;
@@ -2418,9 +2596,63 @@ static void free_protos(ProtoInfo *p) {
   }
 }
 
+static int group_vec_push(GroupInfoVec *v, GroupInfo *g) {
+  if (!v) return 0;
+  if (v->len == v->cap) {
+    size_t next_cap = v->cap ? v->cap * 2 : 8;
+    GroupInfo **next = (GroupInfo **)realloc(v->items, next_cap * sizeof(GroupInfo *));
+    if (!next) return 0;
+    v->items = next;
+    v->cap = next_cap;
+  }
+  v->items[v->len++] = g;
+  return 1;
+}
+
+static void free_groups(GroupInfoVec *v) {
+  if (!v) return;
+  for (size_t i = 0; i < v->len; i++) {
+    GroupInfo *g = v->items[i];
+    if (!g) continue;
+    GroupMemberConst *m = g->members;
+    while (m) {
+      GroupMemberConst *mn = m->next;
+      free(m->name);
+      free(m->literal_type);
+      free(m->value);
+      free(m);
+      m = mn;
+    }
+    free(g->name);
+    free(g->type);
+    free(g);
+  }
+  free(v->items);
+  v->items = NULL;
+  v->len = 0;
+  v->cap = 0;
+}
+
 static ProtoInfo *proto_find(ProtoInfo *list, const char *name) {
   for (ProtoInfo *p = list; p; p = p->next) {
     if (p->name && name && strcmp(p->name, name) == 0) return p;
+  }
+  return NULL;
+}
+
+static GroupInfo *group_find(GroupInfoVec *list, const char *name) {
+  if (!list || !name) return NULL;
+  for (size_t i = 0; i < list->len; i++) {
+    GroupInfo *g = list->items[i];
+    if (g && g->name && strcmp(g->name, name) == 0) return g;
+  }
+  return NULL;
+}
+
+static GroupMemberConst *group_member_find(GroupInfo *g, const char *name) {
+  if (!g || !name) return NULL;
+  for (GroupMemberConst *m = g->members; m; m = m->next) {
+    if (m->name && strcmp(m->name, name) == 0) return m;
   }
   return NULL;
 }
@@ -2737,7 +2969,7 @@ static int ast_is_terminator(AstNode *n) {
   return strcmp(n->kind, "BreakStmt") == 0 || strcmp(n->kind, "ReturnStmt") == 0 || strcmp(n->kind, "ThrowStmt") == 0;
 }
 
-static int scope_define_alias(Scope *s, const char *name, const char *type, int known_list_len, int initialized, int alias_self) {
+static int scope_define_alias(Scope *s, const char *name, const char *type, int known_list_len, int initialized, int alias_self, int is_const) {
   Sym *e = (Sym *)calloc(1, sizeof(Sym));
   if (!e) return 0;
   e->name = strdup(name ? name : "");
@@ -2745,6 +2977,7 @@ static int scope_define_alias(Scope *s, const char *name, const char *type, int 
   e->known_list_len = known_list_len;
   e->initialized = initialized;
   e->alias_self = alias_self;
+  e->is_const = is_const;
   if (!e->name || !e->type) {
     free(e->name);
     free(e->type);
@@ -2757,7 +2990,7 @@ static int scope_define_alias(Scope *s, const char *name, const char *type, int 
 }
 
 static int scope_define(Scope *s, const char *name, const char *type, int known_list_len, int initialized) {
-  return scope_define_alias(s, name, type, known_list_len, initialized, 0);
+  return scope_define_alias(s, name, type, known_list_len, initialized, 0, 0);
 }
 
 static Sym *scope_lookup_sym(Scope *s, const char *name) {
@@ -3388,6 +3621,7 @@ static int collect_prototypes(Analyzer *a, AstNode *root) {
     p->name = strdup(name);
     p->line = pd->line;
     p->col = pd->col;
+    p->sealed = (pd->flags & AST_FLAG_SEALED) != 0;
     AstNode *parent = ast_child_kind(pd, "Parent");
     if (parent && parent->text) p->parent = strdup(parent->text);
     p->next = a->protos;
@@ -3470,6 +3704,17 @@ static int collect_prototypes(Analyzer *a, AstNode *root) {
       missing_parent = 1;
       continue;
     }
+    if (p->sealed && p->parent) {
+      set_diag(a->diag, a->file, p->line, p->col, "E3140", "SEALED_INHERITANCE", "sealed prototype cannot declare a parent");
+      return 0;
+    }
+    if (p->parent) {
+      ProtoInfo *pp = proto_find(a->protos, p->parent);
+      if (pp && pp->sealed) {
+        set_diag(a->diag, a->file, p->line, p->col, "E3140", "SEALED_INHERITANCE", "cannot inherit from sealed prototype");
+        return 0;
+      }
+    }
     if (p->parent) {
       for (ProtoField *f = p->fields; f; f = f->next) {
         if (proto_find_field(a->protos, p->parent, f->name)) {
@@ -3492,6 +3737,15 @@ static int collect_prototypes(Analyzer *a, AstNode *root) {
   }
   return 1;
 }
+
+static int is_scalar_type_name(const char *t);
+static int is_byte_literal_expr(AstNode *e);
+typedef struct ConstEval ConstEval;
+static int const_eval_expr(Analyzer *a, AstNode *e, ConstEval *out);
+static void const_eval_clear(ConstEval *v);
+static char *const_eval_to_string(const ConstEval *v);
+static int is_group_member_target(Analyzer *a, AstNode *expr);
+static char *infer_expr_type(Analyzer *a, AstNode *e, Scope *scope, int *ok);
 
 static int add_fn(Analyzer *a, AstNode *fn) {
   FnSig *f = (FnSig *)calloc(1, sizeof(FnSig));
@@ -3643,6 +3897,11 @@ static int is_numeric_type(const char *t) {
   return t && (strcmp(t, "byte") == 0 || strcmp(t, "int") == 0 || strcmp(t, "float") == 0);
 }
 
+static int is_scalar_type_name(const char *t) {
+  return t && (strcmp(t, "bool") == 0 || strcmp(t, "byte") == 0 || strcmp(t, "glyph") == 0 ||
+               strcmp(t, "int") == 0 || strcmp(t, "float") == 0 || strcmp(t, "string") == 0);
+}
+
 static int const_numeric_value(AstNode *e, const char **type_out, long long *iv, double *fv);
 
 static int const_numeric_value(AstNode *e, const char **type_out, long long *iv, double *fv) {
@@ -3732,6 +3991,335 @@ static int const_numeric_value(AstNode *e, const char **type_out, long long *iv,
     }
   }
   return 0;
+}
+
+typedef struct ConstEval {
+  const char *type; // "bool", "int", "float", "string"
+  long long iv;
+  double fv;
+  int bv;
+  char *sv;
+} ConstEval;
+
+static void const_eval_clear(ConstEval *v) {
+  if (!v) return;
+  free(v->sv);
+  v->sv = NULL;
+}
+
+static int const_eval_from_literal(AstNode *e, ConstEval *out) {
+  if (!e || strcmp(e->kind, "Literal") != 0 || !e->text || !out) return 0;
+  const char *raw = e->text;
+  const char *str_prefix = "__str:";
+  if (strncmp(raw, str_prefix, strlen(str_prefix)) == 0) {
+    out->type = "string";
+    out->sv = strdup(raw + strlen(str_prefix));
+    return out->sv != NULL;
+  }
+  if (strcmp(raw, "true") == 0 || strcmp(raw, "false") == 0) {
+    out->type = "bool";
+    out->bv = (strcmp(raw, "true") == 0);
+    return 1;
+  }
+  if (is_float_token(raw)) {
+    out->type = "float";
+    out->fv = strtod(raw, NULL);
+    return 1;
+  }
+  if (is_all_digits(raw) || is_hex_token(raw) || is_bin_token(raw)) {
+    long long v = 0;
+    if (!int_literal_to_ll(raw, &v)) return 0;
+    out->type = "int";
+    out->iv = v;
+    return 1;
+  }
+  return 0;
+}
+
+static int const_eval_from_group_member(GroupInfoVec *groups, const char *gname, const char *mname, ConstEval *out) {
+  if (!groups || !gname || !mname || !out) return 0;
+  GroupInfo *g = group_find(groups, gname);
+  if (!g) return 0;
+  GroupMemberConst *m = group_member_find(g, mname);
+  if (!m || !m->literal_type || !m->value) return 0;
+  if (strcmp(m->literal_type, "string") == 0) {
+    out->type = "string";
+    out->sv = strdup(m->value);
+    return out->sv != NULL;
+  }
+  if (strcmp(m->literal_type, "bool") == 0) {
+    out->type = "bool";
+    out->bv = (strcmp(m->value, "true") == 0);
+    return 1;
+  }
+  if (strcmp(m->literal_type, "float") == 0) {
+    out->type = "float";
+    out->fv = strtod(m->value, NULL);
+    return 1;
+  }
+  if (strcmp(m->literal_type, "int") == 0 || strcmp(m->literal_type, "byte") == 0) {
+    out->type = "int";
+    out->iv = strtoll(m->value, NULL, 10);
+    return 1;
+  }
+  return 0;
+}
+
+static int const_eval_unary(const char *op, const ConstEval *v, ConstEval *out) {
+  if (!op || !v || !out) return 0;
+  if (strcmp(op, "!") == 0) {
+    out->type = "bool";
+    if (strcmp(v->type, "bool") == 0) out->bv = !v->bv;
+    else if (strcmp(v->type, "int") == 0) out->bv = (v->iv == 0);
+    else if (strcmp(v->type, "float") == 0) out->bv = (v->fv == 0.0);
+    else return 0;
+    return 1;
+  }
+  if (strcmp(op, "-") == 0) {
+    if (strcmp(v->type, "int") == 0) {
+      out->type = "int";
+      out->iv = -v->iv;
+      return 1;
+    }
+    if (strcmp(v->type, "float") == 0) {
+      out->type = "float";
+      out->fv = -v->fv;
+      return 1;
+    }
+    return 0;
+  }
+  if (strcmp(op, "~") == 0) {
+    if (strcmp(v->type, "int") != 0) return 0;
+    out->type = "int";
+    out->iv = ~v->iv;
+    return 1;
+  }
+  return 0;
+}
+
+static int const_eval_binary(const char *op, const ConstEval *a, const ConstEval *b, ConstEval *out) {
+  if (!op || !a || !b || !out) return 0;
+  if (strcmp(op, "&&") == 0 || strcmp(op, "||") == 0) {
+    if (strcmp(a->type, "bool") != 0 || strcmp(b->type, "bool") != 0) return 0;
+    out->type = "bool";
+    out->bv = (strcmp(op, "&&") == 0) ? (a->bv && b->bv) : (a->bv || b->bv);
+    return 1;
+  }
+  if (strcmp(op, "==") == 0 || strcmp(op, "!=") == 0 || strcmp(op, "<") == 0 || strcmp(op, "<=") == 0 ||
+      strcmp(op, ">") == 0 || strcmp(op, ">=") == 0) {
+    out->type = "bool";
+    if (strcmp(a->type, "bool") == 0 && strcmp(b->type, "bool") == 0) {
+      int lv = a->bv;
+      int rv = b->bv;
+      if (strcmp(op, "==") == 0) out->bv = (lv == rv);
+      else if (strcmp(op, "!=") == 0) out->bv = (lv != rv);
+      else if (strcmp(op, "<") == 0) out->bv = (lv < rv);
+      else if (strcmp(op, "<=") == 0) out->bv = (lv <= rv);
+      else if (strcmp(op, ">") == 0) out->bv = (lv > rv);
+      else if (strcmp(op, ">=") == 0) out->bv = (lv >= rv);
+      return 1;
+    }
+    if ((strcmp(a->type, "int") == 0 || strcmp(a->type, "float") == 0) &&
+        (strcmp(b->type, "int") == 0 || strcmp(b->type, "float") == 0)) {
+      double lv = (strcmp(a->type, "float") == 0) ? a->fv : (double)a->iv;
+      double rv = (strcmp(b->type, "float") == 0) ? b->fv : (double)b->iv;
+      if (strcmp(op, "==") == 0) out->bv = (lv == rv);
+      else if (strcmp(op, "!=") == 0) out->bv = (lv != rv);
+      else if (strcmp(op, "<") == 0) out->bv = (lv < rv);
+      else if (strcmp(op, "<=") == 0) out->bv = (lv <= rv);
+      else if (strcmp(op, ">") == 0) out->bv = (lv > rv);
+      else if (strcmp(op, ">=") == 0) out->bv = (lv >= rv);
+      return 1;
+    }
+    return 0;
+  }
+
+  if (strcmp(op, "+") == 0 || strcmp(op, "-") == 0 || strcmp(op, "*") == 0 || strcmp(op, "/") == 0) {
+    if ((strcmp(a->type, "int") == 0 || strcmp(a->type, "float") == 0) &&
+        (strcmp(b->type, "int") == 0 || strcmp(b->type, "float") == 0)) {
+      int is_float = (strcmp(a->type, "float") == 0 || strcmp(b->type, "float") == 0);
+      if (is_float) {
+        double lv = (strcmp(a->type, "float") == 0) ? a->fv : (double)a->iv;
+        double rv = (strcmp(b->type, "float") == 0) ? b->fv : (double)b->iv;
+        out->type = "float";
+        if (strcmp(op, "+") == 0) out->fv = lv + rv;
+        else if (strcmp(op, "-") == 0) out->fv = lv - rv;
+        else if (strcmp(op, "*") == 0) out->fv = lv * rv;
+        else out->fv = lv / rv;
+        return 1;
+      }
+      out->type = "int";
+      if (strcmp(op, "+") == 0) out->iv = a->iv + b->iv;
+      else if (strcmp(op, "-") == 0) out->iv = a->iv - b->iv;
+      else if (strcmp(op, "*") == 0) out->iv = a->iv * b->iv;
+      else out->iv = a->iv / b->iv;
+      return 1;
+    }
+    return 0;
+  }
+
+  if (strcmp(op, "%") == 0 || strcmp(op, "<<") == 0 || strcmp(op, ">>") == 0 ||
+      strcmp(op, "&") == 0 || strcmp(op, "|") == 0 || strcmp(op, "^") == 0) {
+    if (strcmp(a->type, "int") != 0 || strcmp(b->type, "int") != 0) return 0;
+    out->type = "int";
+    if (strcmp(op, "%") == 0) out->iv = a->iv % b->iv;
+    else if (strcmp(op, "<<") == 0) {
+      if (b->iv < 0 || b->iv >= 64) return 0;
+      out->iv = a->iv << b->iv;
+    } else if (strcmp(op, ">>") == 0) {
+      if (b->iv < 0 || b->iv >= 64) return 0;
+      out->iv = a->iv >> b->iv;
+    } else if (strcmp(op, "&") == 0) out->iv = a->iv & b->iv;
+    else if (strcmp(op, "|") == 0) out->iv = a->iv | b->iv;
+    else out->iv = a->iv ^ b->iv;
+    return 1;
+  }
+
+  return 0;
+}
+
+static int const_eval_expr(Analyzer *a, AstNode *e, ConstEval *out) {
+  if (!e || !out) return 0;
+  if (strcmp(e->kind, "Literal") == 0) {
+    return const_eval_from_literal(e, out);
+  }
+  if (strcmp(e->kind, "MemberExpr") == 0 && e->child_len > 0) {
+    AstNode *target = e->children[0];
+    if (target && strcmp(target->kind, "Identifier") == 0) {
+      return const_eval_from_group_member(&a->groups, target->text ? target->text : "", e->text ? e->text : "", out);
+    }
+    return 0;
+  }
+  if (strcmp(e->kind, "UnaryExpr") == 0) {
+    if (!e->text || e->child_len == 0) return 0;
+    ConstEval inner = {0};
+    if (!const_eval_expr(a, e->children[0], &inner)) return 0;
+    int ok = const_eval_unary(e->text, &inner, out);
+    const_eval_clear(&inner);
+    return ok;
+  }
+  if (strcmp(e->kind, "BinaryExpr") == 0) {
+    if (!e->text || e->child_len < 2) return 0;
+    ConstEval left = {0};
+    ConstEval right = {0};
+    if (!const_eval_expr(a, e->children[0], &left)) { const_eval_clear(&left); return 0; }
+    if (!const_eval_expr(a, e->children[1], &right)) { const_eval_clear(&left); const_eval_clear(&right); return 0; }
+    int ok = const_eval_binary(e->text, &left, &right, out);
+    const_eval_clear(&left);
+    const_eval_clear(&right);
+    return ok;
+  }
+  if (strcmp(e->kind, "ConditionalExpr") == 0 && e->child_len >= 3) {
+    ConstEval cond = {0};
+    if (!const_eval_expr(a, e->children[0], &cond)) { const_eval_clear(&cond); return 0; }
+    if (strcmp(cond.type, "bool") != 0) { const_eval_clear(&cond); return 0; }
+    int branch = cond.bv ? 1 : 2;
+    const_eval_clear(&cond);
+    return const_eval_expr(a, e->children[branch], out);
+  }
+  return 0;
+}
+
+static char *const_eval_to_string(const ConstEval *v) {
+  if (!v || !v->type) return NULL;
+  if (strcmp(v->type, "string") == 0) return v->sv ? strdup(v->sv) : strdup("");
+  if (strcmp(v->type, "bool") == 0) return strdup(v->bv ? "true" : "false");
+  if (strcmp(v->type, "float") == 0) {
+    char buf[128];
+    snprintf(buf, sizeof(buf), "%.17g", v->fv);
+    return strdup(buf);
+  }
+  if (strcmp(v->type, "int") == 0) {
+    char buf[64];
+    snprintf(buf, sizeof(buf), "%lld", (long long)v->iv);
+    return strdup(buf);
+  }
+  return NULL;
+}
+
+static int collect_groups(Analyzer *a, AstNode *root) {
+  for (size_t i = 0; i < root->child_len; i++) {
+    AstNode *gd = root->children[i];
+    if (strcmp(gd->kind, "GroupDecl") != 0) continue;
+    const char *name = gd->text ? gd->text : "";
+    if (group_find(&a->groups, name)) {
+      set_diag(a->diag, a->file, gd->line, gd->col, "E2001", "UNRESOLVED_NAME", "duplicate group");
+      return 0;
+    }
+    GroupInfo *g = (GroupInfo *)calloc(1, sizeof(GroupInfo));
+    if (!g) return 0;
+    g->name = strdup(name);
+    g->line = gd->line;
+    g->col = gd->col;
+    AstNode *tn = ast_child_kind(gd, "Type");
+    g->type = canon_type(tn ? tn->text : "unknown");
+    if (!group_vec_push(&a->groups, g)) {
+      free(g->name);
+      free(g->type);
+      free(g);
+      return 0;
+    }
+    if (!g->name || !g->type) return 0;
+    if (!is_scalar_type_name(g->type)) {
+      set_diag(a->diag, a->file, gd->line, gd->col, "E3120", "GROUP_NON_SCALAR_TYPE", "group requires a scalar fundamental type");
+      return 0;
+    }
+    Scope empty;
+    memset(&empty, 0, sizeof(empty));
+    for (size_t j = 0; j < gd->child_len; j++) {
+      AstNode *m = gd->children[j];
+      if (strcmp(m->kind, "GroupMember") != 0) continue;
+      const char *mname = m->text ? m->text : "";
+      if (group_member_find(g, mname)) {
+        set_diag(a->diag, a->file, m->line, m->col, "E2001", "UNRESOLVED_NAME", "duplicate group member");
+        return 0;
+      }
+      AstNode *expr = (m->child_len > 0) ? m->children[0] : NULL;
+      int ok = 1;
+      char *rhs = infer_expr_type(a, expr, &empty, &ok);
+      if (!ok) {
+        free(rhs);
+        return 0;
+      }
+      int allow_byte_lit = (g->type && strcmp(g->type, "byte") == 0 && is_byte_literal_expr(expr));
+      if (g->type && rhs && strcmp(rhs, "unknown") != 0 && strcmp(g->type, rhs) != 0 && !allow_byte_lit) {
+        char msg[160];
+        snprintf(msg, sizeof(msg), "group member '%s' is not assignable to %s", mname, g->type);
+        set_diag(a->diag, a->file, m->line, m->col, "E3121", "GROUP_TYPE_MISMATCH", msg);
+        free(rhs);
+        return 0;
+      }
+      free(rhs);
+
+      ConstEval cv = {0};
+      if (!const_eval_expr(a, expr, &cv)) {
+        set_diag(a->diag, a->file, m->line, m->col, "E3121", "GROUP_TYPE_MISMATCH", "group member must be a constant expression");
+        const_eval_clear(&cv);
+        return 0;
+      }
+      char *val = const_eval_to_string(&cv);
+      const_eval_clear(&cv);
+      if (!val) return 0;
+      GroupMemberConst *mc = (GroupMemberConst *)calloc(1, sizeof(GroupMemberConst));
+      if (!mc) {
+        free(val);
+        return 0;
+      }
+      mc->name = strdup(mname);
+      mc->literal_type = strdup(cv.type ? cv.type : "int");
+      mc->value = val;
+      if (!mc->name || !mc->literal_type) {
+        free(mc->name);
+        free(mc->literal_type);
+        free(mc->value);
+        free(mc);
+        return 0;
+      }
+      mc->next = g->members;
+      g->members = mc;
+    }
+  }
+  return 1;
 }
 
 static char *infer_expr_type(Analyzer *a, AstNode *e, Scope *scope, int *ok);
@@ -4234,9 +4822,33 @@ static char *infer_expr_type(Analyzer *a, AstNode *e, Scope *scope, int *ok) {
     return NULL;
   }
   if (strcmp(e->kind, "UnaryExpr") == 0 || strcmp(e->kind, "PostfixExpr") == 0 || strcmp(e->kind, "MemberExpr") == 0) {
+    if ((strcmp(e->kind, "UnaryExpr") == 0 || strcmp(e->kind, "PostfixExpr") == 0) && e->text &&
+        (strcmp(e->text, "++") == 0 || strcmp(e->text, "--") == 0)) {
+      if (e->child_len > 0) {
+        AstNode *target = e->children[0];
+        if (target && strcmp(target->kind, "Identifier") == 0) {
+          Sym *sym = scope_lookup_sym(scope, target->text ? target->text : "");
+          if (sym && sym->is_const) {
+            set_diag(a->diag, a->file, e->line, e->col, "E3130", "CONST_REASSIGNMENT", "cannot modify const");
+            *ok = 0;
+            return NULL;
+          }
+        }
+        if (is_group_member_target(a, target)) {
+          set_diag(a->diag, a->file, e->line, e->col, "E3122", "GROUP_MUTATION", "group members are not assignable");
+          *ok = 0;
+          return NULL;
+        }
+      }
+    }
     if (strcmp(e->kind, "MemberExpr") == 0 && e->child_len > 0) {
       AstNode *target = e->children[0];
       if (strcmp(target->kind, "Identifier") == 0) {
+        GroupInfo *g = group_find(&a->groups, target->text ? target->text : "");
+        if (g) {
+          GroupMemberConst *mc = group_member_find(g, e->text ? e->text : "");
+          if (mc && g->type) return strdup(g->type);
+        }
         ImportNamespace *ns = find_namespace(a, target->text ? target->text : "");
         if (ns && !ns->is_proto) {
           RegConst *rc = registry_find_const(a->registry, ns->module, e->text ? e->text : "");
@@ -4400,6 +5012,12 @@ static char *infer_assignable_type(Analyzer *a, AstNode *lhs, Scope *scope, int 
   if (strcmp(lhs->kind, "Identifier") == 0) return strdup(scope_lookup(scope, lhs->text ? lhs->text : ""));
   if (strcmp(lhs->kind, "IndexExpr") == 0) return infer_expr_type(a, lhs, scope, ok);
   if (strcmp(lhs->kind, "MemberExpr") == 0 && lhs->child_len > 0) {
+    AstNode *t0 = lhs->children[0];
+    if (t0 && strcmp(t0->kind, "Identifier") == 0) {
+      GroupInfo *g = group_find(&a->groups, t0->text ? t0->text : "");
+      GroupMemberConst *mc = g ? group_member_find(g, lhs->text ? lhs->text : "") : NULL;
+      if (mc && g && g->type) return strdup(g->type);
+    }
     int ok2 = 1;
     char *tt = infer_expr_type(a, lhs->children[0], scope, &ok2);
     if (!ok2) {
@@ -4418,6 +5036,14 @@ static char *infer_assignable_type(Analyzer *a, AstNode *lhs, Scope *scope, int 
     free(tt);
   }
   return strdup("unknown");
+}
+
+static int is_group_member_target(Analyzer *a, AstNode *expr) {
+  if (!a || !expr || strcmp(expr->kind, "MemberExpr") != 0 || expr->child_len == 0) return 0;
+  AstNode *target = expr->children[0];
+  if (!target || strcmp(target->kind, "Identifier") != 0) return 0;
+  GroupInfo *g = group_find(&a->groups, target->text ? target->text : "");
+  return g && group_member_find(g, expr->text ? expr->text : "");
 }
 
 static int analyze_stmt(Analyzer *a, AstNode *st, Scope *scope);
@@ -4457,8 +5083,23 @@ static int analyze_switch_termination(Analyzer *a, AstNode *sw) {
 static int analyze_stmt(Analyzer *a, AstNode *st, Scope *scope) {
   if (strcmp(st->kind, "Block") == 0) return analyze_block(a, st, scope);
   if (strcmp(st->kind, "VarDecl") == 0) {
+    int is_const = (st->flags & AST_FLAG_CONST) != 0;
     AstNode *tn = ast_child_kind(st, "Type");
     AstNode *init = ast_last_child(st);
+    if (is_const) {
+      if (!init || (init && strcmp(init->kind, "Type") == 0)) {
+        set_diag(a->diag, a->file, st->line, st->col, "E3130", "CONST_REASSIGNMENT", "const requires an initializer");
+        return 0;
+      }
+      char *ct = canon_type(tn ? tn->text : "unknown");
+      if (!is_scalar_type_name(ct)) {
+        set_diag(a->diag, a->file, st->line, st->col, "E3001", "TYPE_MISMATCH_ASSIGNMENT",
+                 "const requires a scalar fundamental type");
+        free(ct);
+        return 0;
+      }
+      free(ct);
+    }
     if (tn && init && strcmp(init->kind, "Type") != 0) {
       int ok = 1;
       char *lhs = canon_type(tn->text);
@@ -4489,7 +5130,7 @@ static int analyze_stmt(Analyzer *a, AstNode *st, Scope *scope) {
         int alias_self = expr_is_self_alias(init, scope);
         int known_len = -1;
         if (init && strcmp(init->kind, "ListLiteral") == 0) known_len = (int)init->child_len;
-        if (!scope_define_alias(scope, st->text ? st->text : "", lhs, known_len, 1, alias_self)) {
+        if (!scope_define_alias(scope, st->text ? st->text : "", lhs, known_len, 1, alias_self, is_const)) {
           free(lhs);
           free(rhs);
           return 0;
@@ -4501,7 +5142,7 @@ static int analyze_stmt(Analyzer *a, AstNode *st, Scope *scope) {
     }
     if (tn) {
       char *lhs = canon_type(tn->text);
-      if (!lhs || !scope_define(scope, st->text ? st->text : "", lhs, -1, 1)) {
+      if (!lhs || !scope_define_alias(scope, st->text ? st->text : "", lhs, -1, 1, 0, is_const)) {
         free(lhs);
         return 0;
       }
@@ -4521,7 +5162,7 @@ static int analyze_stmt(Analyzer *a, AstNode *st, Scope *scope) {
         return 0;
       }
       int alias_self = expr_is_self_alias(init, scope);
-      if (!scope_define_alias(scope, st->text ? st->text : "", rhs ? rhs : "unknown", -1, 1, alias_self)) {
+      if (!scope_define_alias(scope, st->text ? st->text : "", rhs ? rhs : "unknown", -1, 1, alias_self, is_const)) {
         free(rhs);
         return 0;
       }
@@ -4530,6 +5171,17 @@ static int analyze_stmt(Analyzer *a, AstNode *st, Scope *scope) {
     return 1;
   }
   if (strcmp(st->kind, "AssignStmt") == 0 && st->child_len >= 2) {
+    if (is_group_member_target(a, st->children[0])) {
+      set_diag(a->diag, a->file, st->line, st->col, "E3122", "GROUP_MUTATION", "group members are not assignable");
+      return 0;
+    }
+    if (st->children[0] && strcmp(st->children[0]->kind, "Identifier") == 0) {
+      Sym *sym = scope_lookup_sym(scope, st->children[0]->text ? st->children[0]->text : "");
+      if (sym && sym->is_const) {
+        set_diag(a->diag, a->file, st->line, st->col, "E3130", "CONST_REASSIGNMENT", "cannot assign to const");
+        return 0;
+      }
+    }
     if (st->children[0] && strcmp(st->children[0]->kind, "IndexExpr") == 0 && st->children[0]->child_len > 0) {
       int tok = 1;
       char *target_t = infer_expr_type(a, st->children[0]->children[0], scope, &tok);
@@ -4875,7 +5527,7 @@ static int analyze_method(Analyzer *a, AstNode *fn, const char *self_type) {
   root.parent = NULL;
   if (self_type) {
     char *st = canon_type(self_type);
-    if (!st || !scope_define_alias(&root, "self", st, -1, 1, 1)) {
+    if (!st || !scope_define_alias(&root, "self", st, -1, 1, 1, 0)) {
       free(st);
       free_syms(root.syms);
       return 0;
@@ -5021,6 +5673,7 @@ typedef struct {
   ImportNamespace *namespaces;
   ModuleRegistry *registry;
   ProtoInfo *protos;
+  GroupInfoVec *groups;
   IrScope *scope;
   LoopTarget *loop_targets;
   LoopTarget *break_targets;
@@ -5446,12 +6099,16 @@ static char *ir_guess_expr_type(AstNode *e, IrFnCtx *ctx) {
       if (e->text && strcmp(e->text, "toString") == 0) return strdup("string");
       if (e->child_len > 0) {
         AstNode *target = e->children[0];
-      if (strcmp(target->kind, "Identifier") == 0) {
-        ImportNamespace *ns = ir_find_namespace(ctx, target->text ? target->text : "");
-        if (ns && !ns->is_proto) {
-          RegConst *rc = registry_find_const(ctx->registry, ns->module, e->text ? e->text : "");
-          if (rc && rc->type) {
-            if (strcmp(rc->type, "float") == 0) return strdup("float");
+        if (strcmp(target->kind, "Identifier") == 0) {
+          GroupInfo *g = group_find(ctx->groups, target->text ? target->text : "");
+          if (g && group_member_find(g, e->text ? e->text : "")) {
+            if (g->type) return strdup(g->type);
+          }
+          ImportNamespace *ns = ir_find_namespace(ctx, target->text ? target->text : "");
+          if (ns && !ns->is_proto) {
+            RegConst *rc = registry_find_const(ctx->registry, ns->module, e->text ? e->text : "");
+            if (rc && rc->type) {
+              if (strcmp(rc->type, "float") == 0) return strdup("float");
               if (strcmp(rc->type, "int") == 0) return strdup("int");
               if (strcmp(rc->type, "string") == 0) return strdup("string");
               if (strcmp(rc->type, "TextFile") == 0 || strcmp(rc->type, "BinaryFile") == 0) return strdup(rc->type);
@@ -6648,6 +7305,31 @@ static char *ir_lower_expr(AstNode *e, IrFnCtx *ctx) {
   if (strcmp(e->kind, "MemberExpr") == 0 && e->child_len >= 1) {
     AstNode *target = e->children[0];
     if (target && strcmp(target->kind, "Identifier") == 0) {
+      GroupInfo *g = group_find(ctx->groups, target->text ? target->text : "");
+      GroupMemberConst *mc = g ? group_member_find(g, e->text ? e->text : "") : NULL;
+      if (mc && mc->literal_type && mc->value) {
+        char *dst = ir_next_tmp(ctx);
+        if (!dst) return NULL;
+        char *d_esc = json_escape(dst);
+        char *lt_esc = json_escape(mc->literal_type);
+        char *ins = NULL;
+        if (strcmp(mc->literal_type, "bool") == 0) {
+          ins = str_printf("{\"op\":\"const\",\"dst\":\"%s\",\"literalType\":\"bool\",\"value\":%s}",
+                           d_esc ? d_esc : "", strcmp(mc->value, "true") == 0 ? "true" : "false");
+        } else {
+          char *v_esc = json_escape(mc->value);
+          ins = str_printf("{\"op\":\"const\",\"dst\":\"%s\",\"literalType\":\"%s\",\"value\":\"%s\"}", d_esc ? d_esc : "",
+                           lt_esc ? lt_esc : "", v_esc ? v_esc : "");
+          free(v_esc);
+        }
+        free(d_esc);
+        free(lt_esc);
+        if (!ir_emit(ctx, ins)) {
+          free(dst);
+          return NULL;
+        }
+        return dst;
+      }
       ImportNamespace *ns = ir_find_namespace(ctx, target->text ? target->text : "");
       if (ns) {
         RegConst *rc = registry_find_const(ctx->registry, ns->module, e->text ? e->text : "");
@@ -8267,6 +8949,19 @@ int ps_emit_ir_json(const char *file, PsDiag *out_diag, FILE *out) {
     free_user_modules(a.user_modules);
     free_registry(a.registry);
     free_protos(a.protos);
+    free_groups(&a.groups);
+    return 1;
+  }
+  if (!collect_groups(&a, root)) {
+    ast_free(root);
+    free_fns(a.fns);
+    free_imports(a.imports);
+    free_namespaces(a.namespaces);
+    free_user_modules(a.user_modules);
+    free_registry(a.registry);
+    free_protos(a.protos);
+    free_groups(&a.groups);
+    free_groups(&a.groups);
     return 1;
   }
 
@@ -8383,6 +9078,7 @@ int ps_emit_ir_json(const char *file, PsDiag *out_diag, FILE *out) {
     ctx.namespaces = a.namespaces;
     ctx.registry = a.registry;
     ctx.protos = a.protos;
+    ctx.groups = &a.groups;
     ctx.file = file;
     ctx.loc_file = file;
     ctx.loc_line = 1;
@@ -8514,6 +9210,7 @@ int ps_emit_ir_json(const char *file, PsDiag *out_diag, FILE *out) {
       ctx.namespaces = a.namespaces;
       ctx.registry = a.registry;
       ctx.protos = a.protos;
+      ctx.groups = &a.groups;
       ctx.file = file;
       ctx.loc_file = file;
       ctx.loc_line = 1;
@@ -8529,6 +9226,7 @@ int ps_emit_ir_json(const char *file, PsDiag *out_diag, FILE *out) {
         free_namespaces(a.namespaces);
         free_registry(a.registry);
         free_protos(a.protos);
+        free_groups(&a.groups);
         set_diag(out_diag, file, 1, 1, "E0002", "INTERNAL_ERROR", "IR block allocation failure");
         return 2;
       }
@@ -8649,6 +9347,7 @@ int ps_emit_ir_json(const char *file, PsDiag *out_diag, FILE *out) {
     ctx.namespaces = a.namespaces;
     ctx.registry = a.registry;
     ctx.protos = a.protos;
+    ctx.groups = &a.groups;
     ctx.file = file;
     if (!ir_add_block(&ctx, "entry", &ctx.cur_block)) {
       ast_free(root);
@@ -8658,6 +9357,7 @@ int ps_emit_ir_json(const char *file, PsDiag *out_diag, FILE *out) {
       free_namespaces(a.namespaces);
       free_registry(a.registry);
       free_protos(a.protos);
+      free_groups(&a.groups);
       set_diag(out_diag, file, 1, 1, "E0002", "INTERNAL_ERROR", "IR block allocation failure");
       return 2;
     }
@@ -8753,6 +9453,7 @@ int ps_emit_ir_json(const char *file, PsDiag *out_diag, FILE *out) {
     ctx.namespaces = a.namespaces;
     ctx.registry = a.registry;
     ctx.protos = a.protos;
+    ctx.groups = &a.groups;
     ctx.file = file;
     if (!ir_add_block(&ctx, "entry", &ctx.cur_block)) {
       ast_free(root);
@@ -8762,6 +9463,7 @@ int ps_emit_ir_json(const char *file, PsDiag *out_diag, FILE *out) {
       free_namespaces(a.namespaces);
       free_registry(a.registry);
       free_protos(a.protos);
+      free_groups(&a.groups);
       set_diag(out_diag, file, 1, 1, "E0002", "INTERNAL_ERROR", "IR block allocation failure");
       return 2;
     }
@@ -8853,6 +9555,8 @@ int ps_emit_ir_json(const char *file, PsDiag *out_diag, FILE *out) {
   free_user_modules(a.user_modules);
   free_registry(a.registry);
   free_protos(a.protos);
+  free_groups(&a.groups);
+  free_groups(&a.groups);
   return 0;
 }
 
@@ -8886,6 +9590,19 @@ int ps_check_file_static(const char *file, PsDiag *out_diag) {
     free_user_modules(a.user_modules);
     free_registry(a.registry);
     free_protos(a.protos);
+    free_groups(&a.groups);
+    return 1;
+  }
+  if (!collect_groups(&a, root)) {
+    ast_free(root);
+    free_fns(a.fns);
+    free_imports(a.imports);
+    free_namespaces(a.namespaces);
+    free_user_modules(a.user_modules);
+    free_registry(a.registry);
+    free_protos(a.protos);
+    free_groups(&a.groups);
+    free_groups(&a.groups);
     return 1;
   }
 
@@ -8896,6 +9613,7 @@ int ps_check_file_static(const char *file, PsDiag *out_diag) {
         ast_free(root);
         free_fns(a.fns);
         free_protos(a.protos);
+        free_groups(&a.groups);
         set_diag(out_diag, file, 1, 1, "E0002", "INTERNAL_ERROR", "analyzer allocation failure");
         return 2;
       }
@@ -8909,6 +9627,7 @@ int ps_check_file_static(const char *file, PsDiag *out_diag) {
       ast_free(root);
       free_fns(a.fns);
       free_protos(a.protos);
+      free_groups(&a.groups);
       return 1;
     }
   }
@@ -8924,6 +9643,7 @@ int ps_check_file_static(const char *file, PsDiag *out_diag) {
         ast_free(root);
         free_fns(a.fns);
         free_protos(a.protos);
+        free_groups(&a.groups);
         free_user_modules(a.user_modules);
         return 1;
       }
@@ -8937,5 +9657,7 @@ int ps_check_file_static(const char *file, PsDiag *out_diag) {
   free_user_modules(a.user_modules);
   free_registry(a.registry);
   free_protos(a.protos);
+  free_groups(&a.groups);
+  free_groups(&a.groups);
   return 0;
 }

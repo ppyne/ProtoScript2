@@ -1,0 +1,12 @@
+{
+  "status": "reject-static",
+  "error_family": "E3xxx",
+  "error_code": "E3120",
+  "category": "GROUP_NON_SCALAR_TYPE",
+  "position": {
+    "file": "invalid/type/group_non_scalar.pts",
+    "line": 1,
+    "column": 1
+  },
+  "expected_output": "invalid/type/group_non_scalar.pts:1:1 E3120 GROUP_NON_SCALAR_TYPE: group requires a scalar fundamental type"
+}

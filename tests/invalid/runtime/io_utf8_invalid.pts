@@ -1,11 +1,18 @@
 import Io;
+import Fs;
 
 function main() : void {
-    var f = Io.openBinary("io_utf8_bad.bin", "w");
+    string path = Io.tempPath();
+    BinaryFile f = Io.openBinary(path, "w");
     list<byte> data = [0xC3.toByte(), 0x28.toByte()];
     f.write(data);
     f.close();
 
-    var r = Io.openText("io_utf8_bad.bin", "r");
-    r.read(1);
+    TextFile r = Io.openText(path, "r");
+    try {
+        r.read(1);
+    } finally {
+        r.close();
+        if (Fs.exists(path)) Fs.rm(path);
+    }
 }

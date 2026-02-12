@@ -1,0 +1,10 @@
+import Io;
+
+int group Colors {
+  Red = 1 + 2,
+  Blue = Red + 3,
+}
+
+function main() : void {
+  Io.print(Colors.Blue);
+}

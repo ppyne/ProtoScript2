@@ -1,0 +1,12 @@
+{
+  "status": "reject-static",
+  "error_family": "E3xxx",
+  "error_code": "E3122",
+  "category": "GROUP_MUTATION",
+  "position": {
+    "file": "invalid/type/group_member_mutation.pts",
+    "line": 6,
+    "column": 3
+  },
+  "expected_output": "invalid/type/group_member_mutation.pts:6:3 E3122 GROUP_MUTATION: group members are not assignable"
+}

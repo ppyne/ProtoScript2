@@ -1,29 +1,32 @@
 import Io;
+import Fs;
 
 function main() : void {
-    TextFile f = Io.openText("io_exceptions.txt", "w");
+    string path = Io.tempPath();
+    string utf8_path = Io.tempPath();
+    TextFile f = Io.openText(path, "w");
     f.write("abc");
     f.close();
 
     try {
-        Io.openText("io_exceptions.txt", "x");
+        Io.openText(path, "x");
     } catch (InvalidModeException e) {
         Io.printLine("InvalidModeException");
     }
 
     try {
-        Io.openText("io_exceptions_missing.txt", "r");
+        Io.openText(path.concat("_missing"), "r");
     } catch (FileNotFoundException e) {
         Io.printLine("FileNotFoundException");
     }
 
     try {
-        Io.openText("io_exceptions.txt/child", "r");
+        Io.openText(path.concat("/child"), "r");
     } catch (InvalidPathException e) {
         Io.printLine("InvalidPathException");
     }
 
-    TextFile fc = Io.openText("io_exceptions.txt", "r");
+    TextFile fc = Io.openText(path, "r");
     fc.close();
     try {
         fc.read(1);
@@ -31,7 +34,7 @@ function main() : void {
         Io.printLine("FileClosedException");
     }
 
-    TextFile fr = Io.openText("io_exceptions.txt", "r");
+    TextFile fr = Io.openText(path, "r");
     try {
         fr.read(0);
     } catch (InvalidArgumentException e) {
@@ -39,7 +42,7 @@ function main() : void {
     }
     fr.close();
 
-    TextFile fg = Io.openText("io_exceptions.txt", "r");
+    TextFile fg = Io.openText(path, "r");
     try {
         fg.seek(4);
     } catch (InvalidGlyphPositionException e) {
@@ -47,7 +50,12 @@ function main() : void {
     }
     fg.close();
 
-    TextFile fb = Io.openText("io_utf8_bad.bin", "r");
+    BinaryFile bw = Io.openBinary(utf8_path, "w");
+    list<byte> data = [0xC3.toByte(), 0x28.toByte()];
+    bw.write(data);
+    bw.close();
+
+    TextFile fb = Io.openText(utf8_path, "r");
     try {
         fb.read(1);
     } catch (Utf8DecodeException e) {
@@ -61,7 +69,7 @@ function main() : void {
         Io.printLine("StandardStreamCloseException");
     }
 
-    TextFile fw = Io.openText("io_exceptions.txt", "w");
+    TextFile fw = Io.openText(path, "w");
     try {
         fw.read(1);
     } catch (ReadFailureException e) {
@@ -69,11 +77,14 @@ function main() : void {
     }
     fw.close();
 
-    TextFile fr2 = Io.openText("io_exceptions.txt", "r");
+    TextFile fr2 = Io.openText(path, "r");
     try {
         fr2.write("x");
     } catch (WriteFailureException e) {
         Io.printLine("WriteFailureException");
     }
     fr2.close();
+
+    if (Fs.exists(path)) Fs.rm(path);
+    if (Fs.exists(utf8_path)) Fs.rm(utf8_path);
 }

@@ -1,0 +1,11 @@
+import Io;
+
+sealed prototype Box {
+  int value;
+}
+
+function main() : void {
+  Box b = Box.clone();
+  b.value = 7;
+  Io.print(b.value);
+}

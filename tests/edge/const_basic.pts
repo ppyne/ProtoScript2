@@ -1,0 +1,6 @@
+import Io;
+
+function main() : void {
+  const int x = 5;
+  Io.print(x);
+}

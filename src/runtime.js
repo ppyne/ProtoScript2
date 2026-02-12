@@ -2317,6 +2317,30 @@ function buildModuleEnv(ast, file, hooks = null) {
   return { modules, namespaces, importedFunctions };
 }
 
+function constValueToRuntime(c) {
+  if (!c) return null;
+  if (c.literalType === "int" || c.literalType === "byte") return parseIntLiteral(String(c.value));
+  if (c.literalType === "float") return Number(c.value);
+  if (c.literalType === "bool") return c.value === true || c.value === "true";
+  if (c.literalType === "string") return String(c.value);
+  return c.value;
+}
+
+function buildGroupEnv(ast) {
+  const groups = new Map();
+  for (const d of ast.decls || []) {
+    if (d.kind !== "GroupDecl") continue;
+    const members = new Map();
+    for (const m of d.members || []) {
+      if (m && m.constValue) {
+        members.set(m.name, constValueToRuntime(m.constValue));
+      }
+    }
+    groups.set(d.name, members);
+  }
+  return groups;
+}
+
 function runProgram(ast, file, argv) {
   const functions = new Map();
   const protoEnv = buildPrototypeEnv(ast);
@@ -2359,6 +2383,7 @@ function runProgram(ast, file, argv) {
     }
   };
   moduleEnv = buildModuleEnv(ast, file, { protoEnv, functions, callFunction });
+  moduleEnv.groups = buildGroupEnv(ast);
   for (const [alias, modName] of moduleEnv.namespaces.entries()) {
     const mod = moduleEnv.modules.get(modName);
     if (mod) globalScope.define(alias, mod.obj);
@@ -2703,6 +2728,10 @@ function evalExpr(expr, scope, functions, moduleEnv, protoEnv, file, callFunctio
     }
     case "MemberExpr": {
       const target = evalExpr(expr.target, scope, functions, moduleEnv, protoEnv, file, callFunction);
+      if (expr.target.kind === "Identifier" && moduleEnv && moduleEnv.groups && moduleEnv.groups.has(expr.target.name)) {
+        const members = moduleEnv.groups.get(expr.target.name);
+        if (members && members.has(expr.name)) return members.get(expr.name);
+      }
       if (target && target.__module && moduleEnv) {
         const mod = moduleEnv.modules.get(target.__module);
         if (mod && mod.constants.has(expr.name)) return mod.constants.get(expr.name);
@@ -2791,6 +2820,9 @@ function lvalueRef(expr, scope, functions, moduleEnv, protoEnv, file, callFuncti
     };
   }
   if (expr.kind === "MemberExpr") {
+    if (expr.target && expr.target.kind === "Identifier" && moduleEnv && moduleEnv.groups && moduleEnv.groups.has(expr.target.name)) {
+      throw new RuntimeError(rdiag(file, expr, "R1010", "RUNTIME_TYPE_ERROR", "group members are not assignable"));
+    }
     const target = evalExpr(expr.target, scope, functions, moduleEnv, protoEnv, file, callFunction);
     if (isExceptionValue(target)) {
       if (expr.name === "file") return { get: () => target.file, set: (v) => { target.file = v; } };

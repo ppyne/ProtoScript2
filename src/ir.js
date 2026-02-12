@@ -213,12 +213,26 @@ class IRBuilder {
     this.continueStack = [];
     this.functions = new Map();
     this.prototypes = new Map();
+    this.groupConsts = new Map();
     const imports = buildImportMap(ast);
     this.importedSymbols = imports.imported;
     this.importNamespaces = imports.namespaces;
     this.moduleConsts = imports.moduleConsts;
     this.moduleReturns = imports.moduleReturns;
     this.importedReturns = imports.importedReturns;
+    this.collectGroupConsts();
+  }
+
+  collectGroupConsts() {
+    for (const d of this.ast.decls || []) {
+      if (d.kind !== "GroupDecl") continue;
+      const members = new Map();
+      for (const m of d.members || []) {
+        if (!m || !m.constValue) continue;
+        members.set(m.name, { literalType: m.constValue.literalType, value: m.constValue.value });
+      }
+      this.groupConsts.set(d.name, members);
+    }
   }
 
   inferFileTypeFromIoOpen(expr) {
@@ -1131,6 +1145,15 @@ class IRBuilder {
         return { value: dst, type: this.elementTypeForIndex(t.type), block: i.block };
       }
       case "MemberExpr": {
+        if (expr.target.kind === "Identifier" && this.groupConsts.has(expr.target.name)) {
+          const members = this.groupConsts.get(expr.target.name);
+          if (members && members.has(expr.name)) {
+            const c = members.get(expr.name);
+            const dst = this.nextTemp();
+            this.emit(block, { op: "const", dst, literalType: c.literalType, value: c.value });
+            return { value: dst, type: { kind: "PrimitiveType", name: c.literalType }, block };
+          }
+        }
         if (expr.target.kind === "Identifier" && this.importNamespaces.has(expr.target.name)) {
           const mod = this.importNamespaces.get(expr.target.name);
           const consts = this.moduleConsts.get(mod);

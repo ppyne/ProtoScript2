@@ -117,6 +117,7 @@
       "edge/index_set_list",
       "edge/index_set_map",
   "edge/compound_assign",
+      "edge/group_stress",
   "edge/exception_derived",
       "edge/iter_list_of",
       "edge/iter_list_in",

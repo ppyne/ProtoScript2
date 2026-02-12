@@ -14,6 +14,7 @@ static void usage(void) {
   fprintf(stderr, "  pscc --check <file.pts>\n");
   fprintf(stderr, "  pscc --check-c <file.pts>\n");
   fprintf(stderr, "  pscc --check-c-static <file.pts>\n");
+  fprintf(stderr, "  pscc --check-c-static-twice <file.pts>\n");
   fprintf(stderr, "  pscc --ast-c <file.pts>\n");
   fprintf(stderr, "  pscc --emit-ir-c-json <file.pts>\n");
   fprintf(stderr, "  pscc --emit-ir <file.pts> [--opt]\n");
@@ -87,6 +88,17 @@ static void print_diag(FILE *out, const char *fallback_file, const PsDiag *d) {
   }
 }
 
+static int diag_equal(const PsDiag *a, const PsDiag *b) {
+  if (a == b) return 1;
+  if (!a || !b) return 0;
+  if (a->line != b->line || a->col != b->col) return 0;
+  if (strcmp(a->file ? a->file : "", b->file ? b->file : "") != 0) return 0;
+  if (strcmp(a->code ? a->code : "", b->code ? b->code : "") != 0) return 0;
+  if (strcmp(a->category ? a->category : "", b->category ? b->category : "") != 0) return 0;
+  if (strcmp(a->message, b->message) != 0) return 0;
+  return 1;
+}
+
 int main(int argc, char **argv) {
   if (argc < 3 || argc > 4) {
     usage();
@@ -123,18 +135,37 @@ int main(int argc, char **argv) {
   }
 
   if (!(strcmp(mode, "--check") == 0 || strcmp(mode, "--check-c") == 0 || strcmp(mode, "--check-c-static") == 0 ||
-        strcmp(mode, "--ast-c") == 0 || strcmp(mode, "--emit-ir-c-json") == 0 ||
-        strcmp(mode, "--emit-ir") == 0 ||
-        strcmp(mode, "--emit-c") == 0)) {
+        strcmp(mode, "--check-c-static-twice") == 0 || strcmp(mode, "--ast-c") == 0 ||
+        strcmp(mode, "--emit-ir-c-json") == 0 || strcmp(mode, "--emit-ir") == 0 || strcmp(mode, "--emit-c") == 0)) {
     usage();
     return 2;
   }
 
   if ((strcmp(mode, "--check") == 0 || strcmp(mode, "--check-c") == 0 || strcmp(mode, "--check-c-static") == 0 ||
-       strcmp(mode, "--ast-c") == 0 || strcmp(mode, "--emit-ir-c-json") == 0) &&
+       strcmp(mode, "--check-c-static-twice") == 0 || strcmp(mode, "--ast-c") == 0 || strcmp(mode, "--emit-ir-c-json") == 0) &&
       opt_count > 0) {
     fprintf(stderr, "pscc: --opt is only valid with --emit-ir or --emit-c\n");
     return 2;
+  }
+
+  if (strcmp(mode, "--check-c-static-twice") == 0) {
+    PsDiag d1;
+    PsDiag d2;
+    memset(&d1, 0, sizeof(d1));
+    memset(&d2, 0, sizeof(d2));
+    int rc1 = ps_check_file_static(input, &d1);
+    int rc2 = ps_check_file_static(input, &d2);
+    if (rc1 != rc2 || (rc1 != 0 && !diag_equal(&d1, &d2))) {
+      fprintf(stderr, "pscc: non-deterministic static check\n");
+      if (rc1 != 0) print_diag(stderr, input, &d1);
+      if (rc2 != 0) print_diag(stderr, input, &d2);
+      return 1;
+    }
+    if (rc1 != 0) {
+      print_diag(stderr, input, &d1);
+      return (rc1 == 2) ? 2 : 1;
+    }
+    return 0;
   }
 
   if (strcmp(mode, "--check-c-static") == 0) {

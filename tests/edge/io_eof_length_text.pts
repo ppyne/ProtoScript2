@@ -1,12 +1,15 @@
 import Io;
+import Fs;
 
 function main() : void {
-    var f = Io.openText("io_eof.txt", "w");
+    string path = Io.tempPath();
+    var f = Io.openText(path, "w");
     f.close();
 
-    var r = Io.openText("io_eof.txt", "r");
+    var r = Io.openText(path, "r");
     var chunk = r.read(1);
     r.close();
+    if (Fs.exists(path)) Fs.rm(path);
 
     bool ok = (chunk.length() == 0);
     Io.printLine(ok.toString());

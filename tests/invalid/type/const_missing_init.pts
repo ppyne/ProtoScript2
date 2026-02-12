@@ -1,0 +1,3 @@
+function main() : void {
+  const int x;
+}

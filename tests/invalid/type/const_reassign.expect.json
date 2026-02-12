@@ -1,0 +1,12 @@
+{
+  "status": "reject-static",
+  "error_family": "E3xxx",
+  "error_code": "E3130",
+  "category": "CONST_REASSIGNMENT",
+  "position": {
+    "file": "invalid/type/const_reassign.pts",
+    "line": 3,
+    "column": 3
+  },
+  "expected_output": "invalid/type/const_reassign.pts:3:3 E3130 CONST_REASSIGNMENT: cannot assign to const"
+}

@@ -5,6 +5,7 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 TESTS_DIR="$ROOT_DIR/tests"
 MANIFEST="$TESTS_DIR/manifest.json"
 COMPILER="${COMPILER:-$ROOT_DIR/bin/protoscriptc}"
+RUNTIME_GCC_FLAGS="${RUNTIME_GCC_FLAGS:-}"
 
 if ! command -v jq >/dev/null 2>&1; then
   if [[ -x "/usr/local/bin/jq" ]]; then
@@ -66,7 +67,7 @@ while IFS= read -r case_id; do
   rc_gcc=0
   rc_c=0
   if [[ $rc_emit_c -eq 0 ]]; then
-    gcc -std=c11 -x c -w "$c_file" -o "$c_bin" >>"$out_c" 2>&1
+    gcc -std=c11 -x c -w $RUNTIME_GCC_FLAGS "$c_file" -o "$c_bin" >>"$out_c" 2>&1
     rc_gcc=$?
     if [[ $rc_gcc -eq 0 ]]; then
       "$c_bin" >>"$out_c" 2>&1

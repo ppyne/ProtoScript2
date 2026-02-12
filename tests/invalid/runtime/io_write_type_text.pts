@@ -1,7 +1,14 @@
 import Io;
+import Fs;
 
 function main() : void {
-    var f = Io.openText("io_text_bad.txt", "w");
-    var data = [1, 2, 3];
-    f.write(data);
+    string path = Io.tempPath();
+    TextFile f = Io.openText(path, "w");
+    try {
+        var data = [1, 2, 3];
+        f.write(data);
+    } finally {
+        f.close();
+        if (Fs.exists(path)) Fs.rm(path);
+    }
 }

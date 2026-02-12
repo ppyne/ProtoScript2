@@ -1,6 +1,6 @@
 import Io;
 
 function main() : void {
-    var r = Io.openText("io_text.txt", "r");
+    var r = Io.openText(Io.tempPath(), "r");
     r.read();
 }

@@ -1,0 +1,12 @@
+{
+  "status": "reject-static",
+  "error_family": "E3xxx",
+  "error_code": "E3130",
+  "category": "CONST_REASSIGNMENT",
+  "position": {
+    "file": "invalid/type/const_missing_init.pts",
+    "line": 2,
+    "column": 3
+  },
+  "expected_output": "invalid/type/const_missing_init.pts:2:3 E3130 CONST_REASSIGNMENT: const requires an initializer"
+}

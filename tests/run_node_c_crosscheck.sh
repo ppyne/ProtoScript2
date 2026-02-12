@@ -6,6 +6,7 @@ TESTS_DIR="$ROOT_DIR/tests"
 MANIFEST="$TESTS_DIR/manifest.json"
 COMPILER="${COMPILER:-$ROOT_DIR/bin/protoscriptc}"
 C_COMPILER="${C_COMPILER:-$ROOT_DIR/c/pscc}"
+CROSSCHECK_GCC_FLAGS="${CROSSCHECK_GCC_FLAGS:-}"
 STRICT_AST=0
 STRICT_STATIC_C=0
 
@@ -161,7 +162,7 @@ while IFS= read -r case_id; do
       "$COMPILER" --emit-c "$src" >"$c_file" 2>"$out_c"
       rc_emit_c=$?
       if [[ $rc_emit_c -eq 0 ]]; then
-        gcc -std=c11 -x c -w "$c_file" -o "$c_bin" >>"$out_c" 2>&1
+        gcc -std=c11 -x c -w $CROSSCHECK_GCC_FLAGS "$c_file" -o "$c_bin" >>"$out_c" 2>&1
         rc_gcc=$?
         if [[ $rc_gcc -eq 0 ]]; then
           "$c_bin" >>"$out_c" 2>&1

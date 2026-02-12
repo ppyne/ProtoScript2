@@ -1,0 +1,12 @@
+{
+  "status": "reject-static",
+  "error_family": "E3xxx",
+  "error_code": "E3121",
+  "category": "GROUP_TYPE_MISMATCH",
+  "position": {
+    "file": "invalid/type/group_type_mismatch.pts",
+    "line": 2,
+    "column": 3
+  },
+  "expected_output": "invalid/type/group_type_mismatch.pts:2:3 E3121 GROUP_TYPE_MISMATCH: group member 'A' is not assignable to int"
+}

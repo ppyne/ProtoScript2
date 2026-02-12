@@ -1,10 +1,17 @@
 import Io;
+import Fs;
 
 function main() : void {
-    var f = Io.openText("io_read_size.txt", "w");
+    string path = Io.tempPath();
+    TextFile f = Io.openText(path, "w");
     f.write("x");
     f.close();
 
-    var r = Io.openText("io_read_size.txt", "r");
-    r.read(0);
+    TextFile r = Io.openText(path, "r");
+    try {
+        r.read(0);
+    } finally {
+        r.close();
+        if (Fs.exists(path)) Fs.rm(path);
+    }
 }

@@ -1,0 +1,7 @@
+int group G {
+  A = 1
+}
+
+function main() : void {
+  G.A = 2;
+}

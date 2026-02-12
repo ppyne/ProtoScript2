@@ -1,6 +1,13 @@
 import Io;
+import Fs;
 
 function main() : void {
-    var f = Io.openBinary("io_bin_bad.bin", "w");
-    f.write("abc");
+    string path = Io.tempPath();
+    BinaryFile f = Io.openBinary(path, "w");
+    try {
+        f.write("abc");
+    } finally {
+        f.close();
+        if (Fs.exists(path)) Fs.rm(path);
+    }
 }

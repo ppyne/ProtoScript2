@@ -1,0 +1,11 @@
+import Io;
+
+prototype P {
+  int v;
+}
+
+function main() : void {
+  P p = P.clone();
+  p.v = 9;
+  Io.print(p.v);
+}

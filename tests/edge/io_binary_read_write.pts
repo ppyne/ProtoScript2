@@ -1,15 +1,18 @@
 import Io;
+import Fs;
 
 function main() : void {
-    var f = Io.openBinary("io_bin.bin", "w");
+    string path = Io.tempPath();
+    var f = Io.openBinary(path, "w");
     list<byte> data = [0x01.toByte(), 0x02.toByte(), 0xFF.toByte()];
     f.write(data);
     f.close();
 
-    var r = Io.openBinary("io_bin.bin", "r");
+    var r = Io.openBinary(path, "r");
     var chunk = r.read(3);
     var tail = r.read(1);
     r.close();
+    if (Fs.exists(path)) Fs.rm(path);
 
     bool ok = (chunk.length() == 3) && (tail.length() == 0);
     Io.printLine(ok.toString());

@@ -120,6 +120,8 @@ Le typage est statique et explicite. Les types sont résolus à la compilation.
 - `glyph`
 - `string`
 
+Ces types sont immuables au niveau langage, manipulés par valeur, sans héritage ni champs utilisateur.
+
 Exemples :
 
 ```c
@@ -394,6 +396,26 @@ var x; // Erreur : E1001 PARSE_UNEXPECTED_TOKEN
 ```
 Ref: EX-020
 
+### 5.1.1 Déclaration `const`
+
+`const` est réservé aux **types scalaires fondamentaux** et impose une initialisation immédiate.
+La valeur est ensuite **non réassignable** (affectations simples, composées, `++/--`).
+
+Exemple :
+
+```c
+const int Max = 10;
+const string Name = "ps2";
+```
+
+Contre-exemples :
+
+```c
+const int x;     // Erreur : E3130 CONST_REASSIGNMENT
+const int y = 1;
+y = 2;           // Erreur : E3130 CONST_REASSIGNMENT
+```
+
 ### 5.2 Portée lexicale et shadowing
 
 ```c
@@ -443,6 +465,46 @@ Ref: EX-023
 ### 5.5 Comparaison utile (PHP/JS)
 
 En JS/PHP, des accès à des noms dynamiques peuvent exister. Ici, la résolution est réalisée à la compilation (compile-time).
+
+### 5.6 Groupes de constantes (`T group`)
+
+Un `group` définit un **ensemble de constantes nommées** d’un **type scalaire fondamental**.
+Il ne crée **aucun type nominal** et **aucune entité runtime**.
+
+Forme :
+
+```c
+T group Nom {
+    Member = ExprConstante,
+    ...
+}
+```
+
+Règles pratiques :
+
+- `T` est un type scalaire fondamental (`bool`, `byte`, `glyph`, `int`, `float`, `string`).
+- chaque membre est typé `T`.
+- l’expression doit être constante (réduite par le folding existant).
+- un membre de `group` n’est **jamais assignable**.
+
+Exemple :
+
+```c
+int group Colors {
+    Red = 1,
+    Blue = Red + 3
+}
+
+function main() : void {
+    int x = Colors.Blue;
+}
+```
+
+Erreurs fréquentes :
+
+- type non scalaire (`E3120`)
+- membre non assignable à `T` ou expression non constante (`E3121`)
+- tentative de mutation (`E3122`)
 
 ---
 
@@ -1081,6 +1143,31 @@ Cette relation :
 - ne repose sur aucun mécanisme de lookup tardif,
 
 - garantit la compatibilité structurelle à la compilation.
+
+### 10.3.1 `sealed prototype`
+
+`sealed prototype` interdit **uniquement** l’héritage.
+La création d’objets via `Type.clone()` reste inchangée.
+
+Exemple valide :
+
+```c
+sealed prototype Box {
+    int v;
+}
+
+function main() : void {
+    Box b = Box.clone();
+    b.v = 1;
+}
+```
+
+Contre-exemple :
+
+```c
+sealed prototype Base {}
+prototype Child : Base {} // Erreur : E3140 SEALED_INHERITANCE
+```
 
 ---
 
@@ -1768,6 +1855,10 @@ Aucun chargement dynamique.
 
 Les modules natifs étendent l'environnement de noms, pas la sémantique du langage.
 Documentation officielle : `docs/native-modules.md`.
+
+Note :
+un prototype **non exporté** par un module natif est simplement **inaccessible** depuis l’extérieur.
+Cela ne modifie pas le mécanisme d’instanciation par `Type.clone()`.
 
 ### 14.5 Registry des modules standards
 

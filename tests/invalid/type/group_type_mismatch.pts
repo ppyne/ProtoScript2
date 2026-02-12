@@ -1,0 +1,5 @@
+int group G {
+  A = "x"
+}
+
+function main() : void {}
