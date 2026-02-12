@@ -1,0 +1,5 @@
+{
+  "status": "accept-runtime",
+  "expected_stdout": "FileNotFoundException\nNotADirectoryException\nNotAFileException\nPermissionDeniedException\nDirectoryNotEmptyException\nInvalidPathException\nIOException\n",
+  "requires": ["modules"]
+}

@@ -1,0 +1,67 @@
+import Fs;
+import Io;
+
+function printBool(bool v) : void {
+    if (v) Io.printLine("true");
+    else Io.printLine("false");
+}
+
+function main() : void {
+    string base = Io.tempPath();
+    Fs.mkdir(base);
+
+    string src = base.concat("/src.txt");
+    TextFile f = Io.openText(src, "w");
+    f.write("abc");
+    f.close();
+
+    string dst = base.concat("/dst.txt");
+    Fs.cp(src, dst);
+    TextFile r = Io.openText(dst, "r");
+    string content = r.read(3);
+    r.close();
+    Io.printLine(content);
+
+    string dst2 = base.concat("/dst2.txt");
+    TextFile f2 = Io.openText(dst2, "w");
+    f2.write("old");
+    f2.close();
+    try {
+        Fs.cp(base.concat("/missing.txt"), dst2);
+    } catch (FileNotFoundException e) {
+    }
+    TextFile r2 = Io.openText(dst2, "r");
+    string content2 = r2.read(3);
+    r2.close();
+    Io.printLine(content2);
+
+    string moved = base.concat("/moved.txt");
+    Fs.mv(src, moved);
+    printBool(Fs.exists(src));
+
+    TextFile r3 = Io.openText(moved, "r");
+    string content3 = r3.read(3);
+    r3.close();
+    Io.printLine(content3);
+
+    TextFile f3 = Io.openText(dst, "w");
+    f3.write("old2");
+    f3.close();
+    try {
+        Fs.mv(base.concat("/missing2.txt"), dst);
+    } catch (FileNotFoundException e) {
+    }
+    TextFile r4 = Io.openText(dst, "r");
+    string content4 = r4.read(4);
+    r4.close();
+    Io.printLine(content4);
+
+    Fs.chmod(moved, 448);
+    if (Fs.isExecutable(moved)) Io.printLine("exec");
+    else Io.printLine("noexec");
+
+    Fs.rm(moved);
+    Fs.rm(dst);
+    Fs.rm(dst2);
+    Fs.rmdir(base);
+}

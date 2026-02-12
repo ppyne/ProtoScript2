@@ -304,6 +304,28 @@ class IRBuilder {
           { name: "millisecond", type: { kind: "PrimitiveType", name: "int" } },
         ],
       },
+      {
+        name: "PathInfo",
+        parent: null,
+        fields: [
+          { name: "dirname", type: { kind: "PrimitiveType", name: "string" } },
+          { name: "basename", type: { kind: "PrimitiveType", name: "string" } },
+          { name: "filename", type: { kind: "PrimitiveType", name: "string" } },
+          { name: "extension", type: { kind: "PrimitiveType", name: "string" } },
+        ],
+      },
+      {
+        name: "PathEntry",
+        parent: null,
+        fields: [
+          { name: "path", type: { kind: "PrimitiveType", name: "string" } },
+          { name: "name", type: { kind: "PrimitiveType", name: "string" } },
+          { name: "depth", type: { kind: "PrimitiveType", name: "int" } },
+          { name: "isDir", type: { kind: "PrimitiveType", name: "bool" } },
+          { name: "isFile", type: { kind: "PrimitiveType", name: "bool" } },
+          { name: "isSymlink", type: { kind: "PrimitiveType", name: "bool" } },
+        ],
+      },
       { name: "DSTAmbiguousTimeException", parent: "Exception", fields: [] },
       { name: "DSTNonExistentTimeException", parent: "Exception", fields: [] },
       { name: "InvalidTimeZoneException", parent: "Exception", fields: [] },
@@ -322,6 +344,9 @@ class IRBuilder {
       { name: "Utf8DecodeException", parent: "RuntimeException", fields: [] },
       { name: "StandardStreamCloseException", parent: "RuntimeException", fields: [] },
       { name: "IOException", parent: "RuntimeException", fields: [] },
+      { name: "NotADirectoryException", parent: "RuntimeException", fields: [] },
+      { name: "NotAFileException", parent: "RuntimeException", fields: [] },
+      { name: "DirectoryNotEmptyException", parent: "RuntimeException", fields: [] },
     ];
     const builtinNames = [];
     for (const b of builtin) {
@@ -1273,6 +1298,48 @@ class IRBuilder {
       }
       const lowered = lowerArgs(expr.args, recv.block);
       const args = lowered.args;
+      if (recv.type && recv.type.kind === "NamedType") {
+        const rt = recv.type.name;
+        if (rt === "Dir") {
+          const dst = this.nextTemp();
+          const callee = method === "hasNext" ? "Fs.__dir_hasNext"
+            : method === "next" ? "Fs.__dir_next"
+            : method === "close" ? "Fs.__dir_close"
+            : method === "reset" ? "Fs.__dir_reset"
+            : null;
+          if (callee) {
+            this.emit(lowered.block, {
+              op: "call_static",
+              dst,
+              callee,
+              args: [recv.value, ...args.map((a) => a.value)],
+              variadic: false,
+            });
+            if (method === "hasNext") return { value: dst, type: { kind: "PrimitiveType", name: "bool" }, block: lowered.block };
+            if (method === "next") return { value: dst, type: { kind: "PrimitiveType", name: "string" }, block: lowered.block };
+            return { value: dst, type: { kind: "PrimitiveType", name: "void" }, block: lowered.block };
+          }
+        }
+        if (rt === "Walker") {
+          const dst = this.nextTemp();
+          const callee = method === "hasNext" ? "Fs.__walker_hasNext"
+            : method === "next" ? "Fs.__walker_next"
+            : method === "close" ? "Fs.__walker_close"
+            : null;
+          if (callee) {
+            this.emit(lowered.block, {
+              op: "call_static",
+              dst,
+              callee,
+              args: [recv.value, ...args.map((a) => a.value)],
+              variadic: false,
+            });
+            if (method === "hasNext") return { value: dst, type: { kind: "PrimitiveType", name: "bool" }, block: lowered.block };
+            if (method === "next") return { value: dst, type: { kind: "NamedType", name: "PathEntry" }, block: lowered.block };
+            return { value: dst, type: { kind: "PrimitiveType", name: "void" }, block: lowered.block };
+          }
+        }
+      }
       if (recv.type && recv.type.kind === "NamedType" && this.prototypes.has(recv.type.name)) {
         const dst = this.nextTemp();
         this.emit(lowered.block, {

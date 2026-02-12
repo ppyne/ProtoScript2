@@ -283,6 +283,16 @@
       "edge/manual_ex096",
       "edge/manual_ex097",
       "edge/manual_ex098"
+    ],
+    "fs": [
+      "fs/import_fs",
+      "fs/module_missing",
+      "fs/exceptions",
+      "fs/queries",
+      "fs/size",
+      "fs/mutating",
+      "fs/dir_iterator",
+      "fs/walker"
     ]
   }
 }

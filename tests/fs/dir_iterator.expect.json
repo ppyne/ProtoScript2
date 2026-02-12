@@ -1,0 +1,5 @@
+{
+  "status": "accept-runtime",
+  "expected_stdout": "a.txt,b.txt,sub\nIOException\na.txt,b.txt,sub\nnodot\n",
+  "requires": ["modules"]
+}

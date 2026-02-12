@@ -55,6 +55,30 @@ function buildPrototypeEnv(ast) {
     ],
     methods: new Map(),
   });
+  protos.set("PathInfo", {
+    name: "PathInfo",
+    parent: null,
+    fields: [
+      { name: "dirname", type: { kind: "PrimitiveType", name: "string" } },
+      { name: "basename", type: { kind: "PrimitiveType", name: "string" } },
+      { name: "filename", type: { kind: "PrimitiveType", name: "string" } },
+      { name: "extension", type: { kind: "PrimitiveType", name: "string" } },
+    ],
+    methods: new Map(),
+  });
+  protos.set("PathEntry", {
+    name: "PathEntry",
+    parent: null,
+    fields: [
+      { name: "path", type: { kind: "PrimitiveType", name: "string" } },
+      { name: "name", type: { kind: "PrimitiveType", name: "string" } },
+      { name: "depth", type: { kind: "PrimitiveType", name: "int" } },
+      { name: "isDir", type: { kind: "PrimitiveType", name: "bool" } },
+      { name: "isFile", type: { kind: "PrimitiveType", name: "bool" } },
+      { name: "isSymlink", type: { kind: "PrimitiveType", name: "bool" } },
+    ],
+    methods: new Map(),
+  });
   const timeExceptionNames = [
     "DSTAmbiguousTimeException",
     "DSTNonExistentTimeException",
@@ -80,7 +104,15 @@ function buildPrototypeEnv(ast) {
     "StandardStreamCloseException",
     "IOException",
   ];
+  const fsExceptionNames = [
+    "NotADirectoryException",
+    "NotAFileException",
+    "DirectoryNotEmptyException",
+  ];
   for (const name of ioExceptionNames) {
+    protos.set(name, { name, parent: "RuntimeException", fields: [], methods: new Map() });
+  }
+  for (const name of fsExceptionNames) {
     protos.set(name, { name, parent: "RuntimeException", fields: [], methods: new Map() });
   }
   for (const d of ast.decls || []) {
@@ -1116,6 +1148,345 @@ function buildModuleEnv(ast, file, hooks = null) {
       }
     }
     return null;
+  });
+
+  const fsMod = makeModule("Fs");
+  const fsThrow = (type, node, message) => {
+    throw makeIoException(type, file, node, message);
+  };
+  const fsInvalidPathCodes = new Set(["ENAMETOOLONG", "EINVAL", "ELOOP"]);
+  const fsPermissionCodes = new Set(["EACCES", "EPERM"]);
+  const fsIsInvalidPath = (code) => fsInvalidPathCodes.has(code);
+  const fsIsPermission = (code) => fsPermissionCodes.has(code);
+  const fsJoin = (base, name) => {
+    if (base.endsWith("/")) return base + name;
+    return `${base}/${name}`;
+  };
+  const fsPathInfo = (p, node) => {
+    if (typeof p !== "string" || p.length === 0) fsThrow("InvalidPathException", node, "invalid path");
+    const lastSlash = p.lastIndexOf("/");
+    let dirname = "";
+    let basename = p;
+    if (lastSlash >= 0) {
+      dirname = lastSlash === 0 ? "/" : p.slice(0, lastSlash);
+      basename = p.slice(lastSlash + 1);
+    }
+    let filename = basename;
+    let extension = "";
+    const dot = basename.lastIndexOf(".");
+    if (dot > 0 && dot < basename.length - 1) {
+      filename = basename.slice(0, dot);
+      extension = basename.slice(dot + 1);
+    }
+    const obj = clonePrototype(hooks && hooks.protoEnv ? hooks.protoEnv : buildPrototypeEnv({ decls: [] }), "PathInfo");
+    obj.__fields.dirname = dirname;
+    obj.__fields.basename = basename;
+    obj.__fields.filename = filename;
+    obj.__fields.extension = extension;
+    return obj;
+  };
+  const fsThrowStatError = (node, code) => {
+    if (code === "ENOENT") fsThrow("FileNotFoundException", node, "file not found");
+    if (fsIsPermission(code)) fsThrow("PermissionDeniedException", node, "permission denied");
+    if (code === "ENOTDIR" || fsIsInvalidPath(code)) fsThrow("InvalidPathException", node, "invalid path");
+    fsThrow("IOException", node, "io failed");
+  };
+  const fsThrowOpenDirError = (node, code) => {
+    if (code === "ENOENT") fsThrow("FileNotFoundException", node, "file not found");
+    if (code === "ENOTDIR") fsThrow("NotADirectoryException", node, "not a directory");
+    if (fsIsPermission(code)) fsThrow("PermissionDeniedException", node, "permission denied");
+    if (fsIsInvalidPath(code)) fsThrow("InvalidPathException", node, "invalid path");
+    fsThrow("IOException", node, "io failed");
+  };
+  const fsThrowDirOpError = (node, code) => {
+    if (code === "ENOENT") fsThrow("FileNotFoundException", node, "file not found");
+    if (code === "ENOTDIR") fsThrow("NotADirectoryException", node, "not a directory");
+    if (code === "ENOTEMPTY" || code === "EEXIST") fsThrow("DirectoryNotEmptyException", node, "directory not empty");
+    if (fsIsPermission(code)) fsThrow("PermissionDeniedException", node, "permission denied");
+    if (fsIsInvalidPath(code)) fsThrow("InvalidPathException", node, "invalid path");
+    fsThrow("IOException", node, "io failed");
+  };
+  const fsThrowFileOpError = (node, code) => {
+    if (code === "ENOENT") fsThrow("FileNotFoundException", node, "file not found");
+    if (code === "EISDIR") fsThrow("NotAFileException", node, "not a file");
+    if (code === "ENOTDIR") fsThrow("NotADirectoryException", node, "not a directory");
+    if (fsIsPermission(code)) fsThrow("PermissionDeniedException", node, "permission denied");
+    if (fsIsInvalidPath(code)) fsThrow("InvalidPathException", node, "invalid path");
+    fsThrow("IOException", node, "io failed");
+  };
+  const fsThrowCommonError = (node, code) => {
+    if (code === "ENOENT") fsThrow("FileNotFoundException", node, "file not found");
+    if (fsIsPermission(code)) fsThrow("PermissionDeniedException", node, "permission denied");
+    if (code === "ENOTDIR" || fsIsInvalidPath(code)) fsThrow("InvalidPathException", node, "invalid path");
+    fsThrow("IOException", node, "io failed");
+  };
+  const fsCopyFile = (src, dst, node) => {
+    let srcFd = null;
+    let dstFd = null;
+    let tmpPath = null;
+    const dir = dst.includes("/") ? dst.slice(0, dst.lastIndexOf("/")) : ".";
+    let st = null;
+    try {
+      st = fs.statSync(src);
+    } catch (e) {
+      const code = e && e.code ? String(e.code) : "";
+      fsThrowStatError(node, code);
+    }
+    if (!st.isFile()) fsThrow("NotAFileException", node, "not a file");
+    for (let attempt = 0; attempt < 16; attempt += 1) {
+      const nonce = crypto.randomUUID();
+      tmpPath = fsJoin(dir, `.ps_tmp_${nonce}`);
+      try {
+        dstFd = fs.openSync(tmpPath, "wx");
+        break;
+      } catch (e) {
+        const code = e && e.code ? String(e.code) : "";
+        if (code === "EEXIST") continue;
+        fsThrowCommonError(node, code);
+      }
+    }
+    if (dstFd === null) fsThrow("IOException", node, "io failed");
+    try {
+      srcFd = fs.openSync(src, "r");
+    } catch (e) {
+      const code = e && e.code ? String(e.code) : "";
+      try { fs.closeSync(dstFd); } catch {}
+      try { fs.unlinkSync(tmpPath); } catch {}
+      fsThrowCommonError(node, code);
+    }
+    const buf = Buffer.alloc(16384);
+    try {
+      while (true) {
+        const n = fs.readSync(srcFd, buf, 0, buf.length, null);
+        if (n === 0) break;
+        let off = 0;
+        while (off < n) {
+          const w = fs.writeSync(dstFd, buf, off, n - off);
+          if (w <= 0) throw new Error("write failed");
+          off += w;
+        }
+      }
+      fs.closeSync(srcFd);
+      fs.closeSync(dstFd);
+      fs.renameSync(tmpPath, dst);
+    } catch (e) {
+      try { if (srcFd !== null) fs.closeSync(srcFd); } catch {}
+      try { if (dstFd !== null) fs.closeSync(dstFd); } catch {}
+      try { if (tmpPath) fs.unlinkSync(tmpPath); } catch {}
+      const code = e && e.code ? String(e.code) : "";
+      fsThrowCommonError(node, code);
+    }
+  };
+  fsMod.functions.set("exists", (p, node) => {
+    if (typeof p !== "string" || p.length === 0) fsThrow("InvalidPathException", node, "invalid path");
+    try {
+      fs.lstatSync(p);
+      return true;
+    } catch (e) {
+      const code = e && e.code ? String(e.code) : "";
+      if (code === "ENOENT") return false;
+      if (code === "ENOTDIR" || fsIsInvalidPath(code)) fsThrow("InvalidPathException", node, "invalid path");
+      fsThrow("IOException", node, "io failed");
+    }
+  });
+  fsMod.functions.set("isFile", (p, node) => {
+    if (typeof p !== "string" || p.length === 0) fsThrow("InvalidPathException", node, "invalid path");
+    try {
+      const st = fs.lstatSync(p);
+      return st.isFile();
+    } catch (e) {
+      const code = e && e.code ? String(e.code) : "";
+      if (code === "ENOENT") return false;
+      if (code === "ENOTDIR" || fsIsInvalidPath(code)) fsThrow("InvalidPathException", node, "invalid path");
+      fsThrow("IOException", node, "io failed");
+    }
+  });
+  fsMod.functions.set("isDir", (p, node) => {
+    if (typeof p !== "string" || p.length === 0) fsThrow("InvalidPathException", node, "invalid path");
+    try {
+      const st = fs.lstatSync(p);
+      return st.isDirectory();
+    } catch (e) {
+      const code = e && e.code ? String(e.code) : "";
+      if (code === "ENOENT") return false;
+      if (code === "ENOTDIR" || fsIsInvalidPath(code)) fsThrow("InvalidPathException", node, "invalid path");
+      fsThrow("IOException", node, "io failed");
+    }
+  });
+  fsMod.functions.set("isSymlink", (p, node) => {
+    if (typeof p !== "string" || p.length === 0) fsThrow("InvalidPathException", node, "invalid path");
+    try {
+      const st = fs.lstatSync(p);
+      return st.isSymbolicLink();
+    } catch (e) {
+      const code = e && e.code ? String(e.code) : "";
+      if (code === "ENOENT") return false;
+      if (code === "ENOTDIR" || fsIsInvalidPath(code)) fsThrow("InvalidPathException", node, "invalid path");
+      fsThrow("IOException", node, "io failed");
+    }
+  });
+  fsMod.functions.set("isReadable", (p, node) => {
+    if (typeof p !== "string" || p.length === 0) fsThrow("InvalidPathException", node, "invalid path");
+    try {
+      fs.accessSync(p, fs.constants.R_OK);
+      return true;
+    } catch (e) {
+      const code = e && e.code ? String(e.code) : "";
+      if (code === "ENOENT") return false;
+      if (fsIsPermission(code)) return false;
+      if (code === "ENOTDIR" || fsIsInvalidPath(code)) fsThrow("InvalidPathException", node, "invalid path");
+      fsThrow("IOException", node, "io failed");
+    }
+  });
+  fsMod.functions.set("isWritable", (p, node) => {
+    if (typeof p !== "string" || p.length === 0) fsThrow("InvalidPathException", node, "invalid path");
+    try {
+      fs.accessSync(p, fs.constants.W_OK);
+      return true;
+    } catch (e) {
+      const code = e && e.code ? String(e.code) : "";
+      if (code === "ENOENT") return false;
+      if (fsIsPermission(code)) return false;
+      if (code === "ENOTDIR" || fsIsInvalidPath(code)) fsThrow("InvalidPathException", node, "invalid path");
+      fsThrow("IOException", node, "io failed");
+    }
+  });
+  fsMod.functions.set("isExecutable", (p, node) => {
+    if (typeof p !== "string" || p.length === 0) fsThrow("InvalidPathException", node, "invalid path");
+    try {
+      fs.accessSync(p, fs.constants.X_OK);
+      return true;
+    } catch (e) {
+      const code = e && e.code ? String(e.code) : "";
+      if (code === "ENOENT") return false;
+      if (fsIsPermission(code)) return false;
+      if (code === "ENOTDIR" || fsIsInvalidPath(code)) fsThrow("InvalidPathException", node, "invalid path");
+      fsThrow("IOException", node, "io failed");
+    }
+  });
+  fsMod.functions.set("size", (p, node) => {
+    if (typeof p !== "string" || p.length === 0) fsThrow("InvalidPathException", node, "invalid path");
+    let st = null;
+    try {
+      st = fs.statSync(p);
+    } catch (e) {
+      const code = e && e.code ? String(e.code) : "";
+      fsThrowStatError(node, code);
+    }
+    if (!st.isFile()) fsThrow("NotAFileException", node, "not a file");
+    return BigInt(st.size);
+  });
+  fsMod.functions.set("mkdir", (p, node) => {
+    if (typeof p !== "string" || p.length === 0) fsThrow("InvalidPathException", node, "invalid path");
+    try {
+      fs.mkdirSync(p);
+    } catch (e) {
+      const code = e && e.code ? String(e.code) : "";
+      if (code === "EEXIST") fsThrow("IOException", node, "io failed");
+      if (code === "ENOTDIR") fsThrow("NotADirectoryException", node, "not a directory");
+      if (code === "ENOENT") fsThrow("FileNotFoundException", node, "file not found");
+      if (fsIsPermission(code)) fsThrow("PermissionDeniedException", node, "permission denied");
+      if (fsIsInvalidPath(code)) fsThrow("InvalidPathException", node, "invalid path");
+      fsThrow("IOException", node, "io failed");
+    }
+  });
+  fsMod.functions.set("rmdir", (p, node) => {
+    if (typeof p !== "string" || p.length === 0) fsThrow("InvalidPathException", node, "invalid path");
+    try {
+      fs.rmdirSync(p);
+    } catch (e) {
+      const code = e && e.code ? String(e.code) : "";
+      fsThrowDirOpError(node, code);
+    }
+  });
+  fsMod.functions.set("rm", (p, node) => {
+    if (typeof p !== "string" || p.length === 0) fsThrow("InvalidPathException", node, "invalid path");
+    try {
+      fs.unlinkSync(p);
+    } catch (e) {
+      const code = e && e.code ? String(e.code) : "";
+      fsThrowFileOpError(node, code);
+    }
+  });
+  fsMod.functions.set("cp", (src, dst, node) => {
+    if (typeof src !== "string" || src.length === 0) fsThrow("InvalidPathException", node, "invalid path");
+    if (typeof dst !== "string" || dst.length === 0) fsThrow("InvalidPathException", node, "invalid path");
+    fsCopyFile(src, dst, node);
+  });
+  fsMod.functions.set("mv", (src, dst, node) => {
+    if (typeof src !== "string" || src.length === 0) fsThrow("InvalidPathException", node, "invalid path");
+    if (typeof dst !== "string" || dst.length === 0) fsThrow("InvalidPathException", node, "invalid path");
+    try {
+      fs.renameSync(src, dst);
+    } catch (e) {
+      const code = e && e.code ? String(e.code) : "";
+      if (code === "EXDEV") fsThrow("IOException", node, "io failed");
+      fsThrowCommonError(node, code);
+    }
+  });
+  fsMod.functions.set("chmod", (p, mode, node) => {
+    if (typeof p !== "string" || p.length === 0) fsThrow("InvalidPathException", node, "invalid path");
+    const m = typeof mode === "bigint" ? Number(mode) : Number(mode);
+    if (!Number.isInteger(m)) fsThrow("IOException", node, "io failed");
+    try {
+      fs.chmodSync(p, m);
+    } catch (e) {
+      const code = e && e.code ? String(e.code) : "";
+      fsThrowCommonError(node, code);
+    }
+  });
+  fsMod.functions.set("cwd", (node) => {
+    try {
+      return process.cwd();
+    } catch {
+      fsThrow("IOException", node, "io failed");
+    }
+  });
+  fsMod.functions.set("cd", (p, node) => {
+    if (typeof p !== "string" || p.length === 0) fsThrow("InvalidPathException", node, "invalid path");
+    try {
+      process.chdir(p);
+    } catch (e) {
+      const code = e && e.code ? String(e.code) : "";
+      if (code === "ENOENT") fsThrow("FileNotFoundException", node, "file not found");
+      if (code === "ENOTDIR") fsThrow("NotADirectoryException", node, "not a directory");
+      if (fsIsPermission(code)) fsThrow("PermissionDeniedException", node, "permission denied");
+      if (fsIsInvalidPath(code)) fsThrow("InvalidPathException", node, "invalid path");
+      fsThrow("IOException", node, "io failed");
+    }
+  });
+  fsMod.functions.set("pathInfo", (p, node) => fsPathInfo(p, node));
+  fsMod.functions.set("openDir", (p, node) => {
+    if (typeof p !== "string" || p.length === 0) fsThrow("InvalidPathException", node, "invalid path");
+    let handle = null;
+    try {
+      handle = fs.opendirSync(p);
+    } catch (e) {
+      const code = e && e.code ? String(e.code) : "";
+      fsThrowOpenDirError(node, code);
+    }
+    return { __fs_dir: true, path: p, handle, next: null, done: false, closed: false };
+  });
+  fsMod.functions.set("walk", (p, maxDepth, followSymlinks, node) => {
+    if (typeof p !== "string" || p.length === 0) fsThrow("InvalidPathException", node, "invalid path");
+    const md = typeof maxDepth === "bigint" ? Number(maxDepth) : Number(maxDepth);
+    if (!Number.isInteger(md)) fsThrow("IOException", node, "io failed");
+    const follow = !!followSymlinks;
+    try {
+      const dir = fs.opendirSync(p);
+      return {
+        __fs_walker: true,
+        root: p,
+        maxDepth: md,
+        followSymlinks: follow,
+        stack: [{ path: p, dir, depth: 0 }],
+        next: null,
+        closed: false,
+      };
+    } catch (e) {
+      const code = e && e.code ? String(e.code) : "";
+      fsThrowOpenDirError(node, code);
+    }
   });
 
   const jsonError = (node, message) => {
@@ -2563,6 +2934,170 @@ function evalCall(expr, scope, functions, moduleEnv, protoEnv, file, callFunctio
       const fn = functions.get(`${info.proto}.${m.name}`);
       if (!fn) throw new RuntimeError(rdiag(file, m, "R1010", "RUNTIME_TYPE_ERROR", "missing method"));
       return callFunction(fn, [target, ...args]);
+    }
+
+    const fsThrowEval = (type, message) => {
+      throw makeIoException(type, file, m, message);
+    };
+    const fsInvalidPathCodes = new Set(["ENAMETOOLONG", "EINVAL", "ELOOP"]);
+    const fsPermissionCodes = new Set(["EACCES", "EPERM"]);
+    const fsThrowCommonEval = (code) => {
+      if (code === "ENOENT") fsThrowEval("FileNotFoundException", "file not found");
+      if (fsPermissionCodes.has(code)) fsThrowEval("PermissionDeniedException", "permission denied");
+      if (code === "ENOTDIR" || fsInvalidPathCodes.has(code)) fsThrowEval("InvalidPathException", "invalid path");
+      fsThrowEval("IOException", "io failed");
+    };
+    const fsThrowOpenDirEval = (code) => {
+      if (code === "ENOENT") fsThrowEval("FileNotFoundException", "file not found");
+      if (code === "ENOTDIR") fsThrowEval("NotADirectoryException", "not a directory");
+      if (fsPermissionCodes.has(code)) fsThrowEval("PermissionDeniedException", "permission denied");
+      if (fsInvalidPathCodes.has(code)) fsThrowEval("InvalidPathException", "invalid path");
+      fsThrowEval("IOException", "io failed");
+    };
+    if (target && target.__fs_dir) {
+      const dir = target;
+      const fillNext = () => {
+        if (dir.closed) fsThrowEval("IOException", "dir closed");
+        if (dir.next !== null) return true;
+        if (dir.done) return false;
+        while (true) {
+          let ent = null;
+          try {
+            ent = dir.handle.readSync();
+          } catch (e) {
+            const code = e && e.code ? String(e.code) : "";
+            fsThrowEval("IOException", code ? code : "io failed");
+          }
+          if (!ent) {
+            dir.done = true;
+            return false;
+          }
+          if (ent.name === "." || ent.name === "..") continue;
+          dir.next = ent.name;
+          return true;
+        }
+      };
+      if (m.name === "hasNext") return fillNext();
+      if (m.name === "next") {
+        if (!fillNext()) fsThrowEval("IOException", "no more entries");
+        const name = dir.next;
+        dir.next = null;
+        return name;
+      }
+      if (m.name === "reset") {
+        if (dir.closed) fsThrowEval("IOException", "dir closed");
+        try {
+          dir.handle.closeSync();
+          dir.handle = fs.opendirSync(dir.path);
+          dir.next = null;
+          dir.done = false;
+          dir.closed = false;
+        } catch (e) {
+          const code = e && e.code ? String(e.code) : "";
+          fsThrowOpenDirEval(code);
+        }
+        return null;
+      }
+      if (m.name === "close") {
+        if (!dir.closed) {
+          try {
+            dir.handle.closeSync();
+          } catch {
+          }
+          dir.closed = true;
+        }
+        return null;
+      }
+    }
+    if (target && target.__fs_walker) {
+      const walker = target;
+      const joinPath = (base, name) => (base.endsWith("/") ? base + name : `${base}/${name}`);
+      const fillNext = () => {
+        if (walker.closed) fsThrowEval("IOException", "walker closed");
+        if (walker.next) return true;
+        while (walker.stack.length > 0) {
+          const frame = walker.stack[walker.stack.length - 1];
+          let ent = null;
+          try {
+            ent = frame.dir.readSync();
+          } catch (e) {
+            const code = e && e.code ? String(e.code) : "";
+            fsThrowEval("IOException", code ? code : "io failed");
+          }
+          if (!ent) {
+            try { frame.dir.closeSync(); } catch {}
+            walker.stack.pop();
+            continue;
+          }
+          if (ent.name === "." || ent.name === "..") continue;
+          const full = joinPath(frame.path, ent.name);
+          let lst = null;
+          try {
+            lst = fs.lstatSync(full);
+          } catch (e) {
+            const code = e && e.code ? String(e.code) : "";
+            fsThrowCommonEval(code);
+          }
+          let isSymlink = lst.isSymbolicLink();
+          let isDir = lst.isDirectory();
+          let isFile = lst.isFile();
+          if (isSymlink && walker.followSymlinks) {
+            try {
+              const st = fs.statSync(full);
+              isDir = st.isDirectory();
+              isFile = st.isFile();
+            } catch (e) {
+              const code = e && e.code ? String(e.code) : "";
+              if (code === "ENOENT") {
+                isDir = false;
+                isFile = false;
+              } else {
+                fsThrowCommonEval(code);
+              }
+            }
+          } else if (isSymlink) {
+            isDir = false;
+            isFile = false;
+          }
+          const depth = frame.depth;
+          if (isDir && (walker.maxDepth < 0 || depth < walker.maxDepth)) {
+            try {
+              const child = fs.opendirSync(full);
+              walker.stack.push({ path: full, dir: child, depth: depth + 1 });
+            } catch (e) {
+              const code = e && e.code ? String(e.code) : "";
+              fsThrowOpenDirEval(code);
+            }
+          }
+          walker.next = { path: full, name: ent.name, depth, isDir, isFile, isSymlink };
+          return true;
+        }
+        return false;
+      };
+      if (m.name === "hasNext") return fillNext();
+      if (m.name === "next") {
+        if (!fillNext()) fsThrowEval("IOException", "no more entries");
+        const info = walker.next;
+        walker.next = null;
+        const obj = clonePrototype(protoEnv, "PathEntry");
+        obj.__fields.path = info.path;
+        obj.__fields.name = info.name;
+        obj.__fields.depth = BigInt(info.depth);
+        obj.__fields.isDir = !!info.isDir;
+        obj.__fields.isFile = !!info.isFile;
+        obj.__fields.isSymlink = !!info.isSymlink;
+        return obj;
+      }
+      if (m.name === "close") {
+        if (!walker.closed) {
+          for (const frame of walker.stack) {
+            try { frame.dir.closeSync(); } catch {}
+          }
+          walker.stack = [];
+          walker.closed = true;
+        }
+        return null;
+      }
     }
 
     if (isJsonValue(target)) {

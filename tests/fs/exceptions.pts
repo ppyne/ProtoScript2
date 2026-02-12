@@ -1,0 +1,78 @@
+import Fs;
+import Io;
+
+function main() : void {
+    string base = Io.tempPath();
+    Fs.mkdir(base);
+
+    string file = base.concat("/file.txt");
+    TextFile f = Io.openText(file, "w");
+    f.write("abc");
+    f.close();
+
+    string sub = base.concat("/sub");
+    Fs.mkdir(sub);
+
+    try {
+        Fs.size(base.concat("/missing"));
+    } catch (FileNotFoundException e) {
+        Io.printLine("FileNotFoundException");
+    }
+
+    try {
+        Fs.openDir(file);
+    } catch (NotADirectoryException e) {
+        Io.printLine("NotADirectoryException");
+    }
+
+    try {
+        Fs.size(sub);
+    } catch (NotAFileException e) {
+        Io.printLine("NotAFileException");
+    }
+
+    string perm = base.concat("/perm");
+    Fs.mkdir(perm);
+    Fs.chmod(perm, 0);
+    try {
+        Fs.openDir(perm);
+    } catch (PermissionDeniedException e) {
+        Io.printLine("PermissionDeniedException");
+    }
+    Fs.chmod(perm, 448);
+    Fs.rmdir(perm);
+
+    string notempty = base.concat("/notempty");
+    Fs.mkdir(notempty);
+    TextFile f2 = Io.openText(notempty.concat("/x.txt"), "w");
+    f2.write("x");
+    f2.close();
+    try {
+        Fs.rmdir(notempty);
+    } catch (DirectoryNotEmptyException e) {
+        Io.printLine("DirectoryNotEmptyException");
+    }
+    Fs.rm(notempty.concat("/x.txt"));
+    Fs.rmdir(notempty);
+
+    try {
+        Fs.exists("");
+    } catch (InvalidPathException e) {
+        Io.printLine("InvalidPathException");
+    }
+
+    Dir d = Fs.openDir(base);
+    while (d.hasNext()) {
+        d.next();
+    }
+    try {
+        d.next();
+    } catch (IOException e) {
+        Io.printLine("IOException");
+    }
+    d.close();
+
+    Fs.rm(file);
+    Fs.rmdir(sub);
+    Fs.rmdir(base);
+}

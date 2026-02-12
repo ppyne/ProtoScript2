@@ -1,0 +1,4 @@
+import FsMissing;
+
+function main() : void {
+}

@@ -1,0 +1,38 @@
+import Fs;
+import Io;
+
+function printBool(bool v) : void {
+    if (v) Io.printLine("true");
+    else Io.printLine("false");
+}
+
+function main() : void {
+    string link = "tests/fixtures/fs_link";
+    string target = "tests/fixtures/fs_target.txt";
+    printBool(Fs.exists(target));
+    printBool(Fs.isFile(target));
+    printBool(Fs.isDir(target));
+    printBool(Fs.isSymlink(link));
+    printBool(Fs.isFile(link));
+    printBool(Fs.isDir(link));
+    printBool(Fs.exists("tests/fixtures/does_not_exist"));
+    printBool(Fs.isReadable("tests/fixtures/does_not_exist"));
+
+    string base = Io.tempPath();
+    Fs.mkdir(base);
+    string f = base.concat("/perm.txt");
+    TextFile tf = Io.openText(f, "w");
+    tf.write("x");
+    tf.close();
+
+    Fs.chmod(f, 0);
+    printBool(Fs.isReadable(f));
+    printBool(Fs.isWritable(f));
+    printBool(Fs.isExecutable(f));
+
+    Fs.chmod(f, 448);
+    printBool(Fs.isExecutable(f));
+
+    Fs.rm(f);
+    Fs.rmdir(base);
+}

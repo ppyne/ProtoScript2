@@ -1,0 +1,5 @@
+{
+  "status": "accept-runtime",
+  "expected_stdout": "link,real,root.txt\ndepth0\nlink,real,real.txt,root.txt\nlinkSymlink\nlinkNotDir\nlinkNotFile\nfollow\n",
+  "requires": ["modules"]
+}

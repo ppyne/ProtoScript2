@@ -1,0 +1,42 @@
+import Fs;
+import Io;
+
+function main() : void {
+    string base = Io.tempPath();
+    Fs.mkdir(base);
+    TextFile a = Io.openText(base.concat("/a.txt"), "w");
+    a.write("a");
+    a.close();
+    TextFile b = Io.openText(base.concat("/b.txt"), "w");
+    b.write("b");
+    b.close();
+    Fs.mkdir(base.concat("/sub"));
+
+    Dir d = Fs.openDir(base);
+    list<string> names = [];
+    while (d.hasNext()) {
+        names.push(d.next());
+    }
+    names.sort();
+    Io.printLine(names.join(","));
+    try {
+        d.next();
+    } catch (IOException e) {
+        Io.printLine("IOException");
+    }
+    d.reset();
+    list<string> names2 = [];
+    while (d.hasNext()) {
+        names2.push(d.next());
+    }
+    names2.sort();
+    Io.printLine(names2.join(","));
+    if (!names2.contains(".") && !names2.contains("..")) Io.printLine("nodot");
+    d.close();
+    d.close();
+
+    Fs.rm(base.concat("/a.txt"));
+    Fs.rm(base.concat("/b.txt"));
+    Fs.rmdir(base.concat("/sub"));
+    Fs.rmdir(base);
+}

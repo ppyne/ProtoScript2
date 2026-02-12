@@ -1,0 +1,60 @@
+import Fs;
+import Io;
+
+function main() : void {
+    string root = "tests/fixtures/fs_walk_root";
+
+    Walker w0 = Fs.walk(root, 0, false);
+    list<string> names0 = [];
+    list<int> depths0 = [];
+    while (w0.hasNext()) {
+        PathEntry e = w0.next();
+        names0.push(e.name);
+        depths0.push(e.depth);
+    }
+    w0.close();
+    names0.sort();
+    Io.printLine(names0.join(","));
+    bool depthOk = true;
+    int i = 0;
+    while (i < depths0.length()) {
+        if (depths0[i] != 0) depthOk = false;
+        i = i + 1;
+    }
+    if (depthOk) Io.printLine("depth0");
+    else Io.printLine("depthbad");
+
+    Walker w1 = Fs.walk(root, 1, false);
+    list<string> names1 = [];
+    bool linkSymlink = false;
+    bool linkDir = false;
+    bool linkFile = false;
+    while (w1.hasNext()) {
+        PathEntry e = w1.next();
+        names1.push(e.name);
+        if (e.name == "link") {
+            linkSymlink = e.isSymlink;
+            linkDir = e.isDir;
+            linkFile = e.isFile;
+        }
+    }
+    w1.close();
+    names1.sort();
+    Io.printLine(names1.join(","));
+    if (linkSymlink) Io.printLine("linkSymlink");
+    else Io.printLine("linkNoSymlink");
+    if (linkDir) Io.printLine("linkDir");
+    else Io.printLine("linkNotDir");
+    if (linkFile) Io.printLine("linkFile");
+    else Io.printLine("linkNotFile");
+
+    Walker w2 = Fs.walk(root, 1, true);
+    bool follow = false;
+    while (w2.hasNext()) {
+        PathEntry e = w2.next();
+        if (e.name == "link" && e.isDir) follow = true;
+    }
+    w2.close();
+    if (follow) Io.printLine("follow");
+    else Io.printLine("nofollow");
+}

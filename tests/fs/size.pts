@@ -1,0 +1,47 @@
+import Fs;
+import Io;
+
+function main() : void {
+    string base = Io.tempPath();
+    Fs.mkdir(base);
+
+    string f = base.concat("/a.txt");
+    TextFile tf = Io.openText(f, "w");
+    tf.write("abcd");
+    tf.close();
+    Io.printLine(Fs.size(f).toString());
+
+    string sub = base.concat("/sub");
+    Fs.mkdir(sub);
+    try {
+        Fs.size(sub);
+    } catch (NotAFileException e) {
+        Io.printLine("NotAFileException");
+    }
+
+    string dir = base.concat("/perm");
+    Fs.mkdir(dir);
+    string f2 = dir.concat("/x.txt");
+    TextFile t2 = Io.openText(f2, "w");
+    t2.write("x");
+    t2.close();
+    Fs.chmod(dir, 0);
+    try {
+        Fs.size(f2);
+    } catch (PermissionDeniedException e) {
+        Io.printLine("PermissionDeniedException");
+    }
+    Fs.chmod(dir, 448);
+    Fs.rm(f2);
+    Fs.rmdir(dir);
+
+    Fs.rm(f);
+    Fs.rmdir(sub);
+    Fs.rmdir(base);
+
+    try {
+        Fs.size(f);
+    } catch (FileNotFoundException e) {
+        Io.printLine("FileNotFoundException");
+    }
+}

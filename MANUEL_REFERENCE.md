@@ -2190,11 +2190,130 @@ function main() : void {
 ```
 Ref: EX-089
 
+### 14.4.6 Module standard : Fs
+
+Le module `Fs` fournit des primitives synchrones pour le système de fichiers POSIX.
+
+**Exceptions Fs** (toutes `RuntimeException`)
+
+- `FileNotFoundException`
+- `NotADirectoryException`
+- `NotAFileException`
+- `PermissionDeniedException`
+- `DirectoryNotEmptyException`
+- `InvalidPathException`
+- `IOException`
+
+**Fonctions**
+
+| Fonction | Signature | Description | Exceptions |
+|---|---|---|---|
+| `exists` | `(string path) -> bool` | vrai si le chemin existe | `InvalidPathException`, `IOException` |
+| `isFile` | `(string path) -> bool` | vrai si fichier régulier | `InvalidPathException`, `IOException` |
+| `isDir` | `(string path) -> bool` | vrai si répertoire | `InvalidPathException`, `IOException` |
+| `isSymlink` | `(string path) -> bool` | vrai si lien symbolique | `InvalidPathException`, `IOException` |
+| `isReadable` | `(string path) -> bool` | vérifie la lisibilité | `InvalidPathException`, `IOException` |
+| `isWritable` | `(string path) -> bool` | vérifie l’écriture | `InvalidPathException`, `IOException` |
+| `isExecutable` | `(string path) -> bool` | vérifie l’exécution | `InvalidPathException`, `IOException` |
+| `size` | `(string path) -> int` | taille en octets d’un fichier | `FileNotFoundException`, `NotAFileException`, `PermissionDeniedException`, `IOException` |
+| `mkdir` | `(string path) -> void` | crée un répertoire | `FileNotFoundException`, `NotADirectoryException`, `PermissionDeniedException`, `InvalidPathException`, `IOException` |
+| `rmdir` | `(string path) -> void` | supprime un répertoire vide | `FileNotFoundException`, `NotADirectoryException`, `DirectoryNotEmptyException`, `PermissionDeniedException`, `InvalidPathException`, `IOException` |
+| `rm` | `(string path) -> void` | supprime un fichier | `FileNotFoundException`, `NotAFileException`, `PermissionDeniedException`, `InvalidPathException`, `IOException` |
+| `cp` | `(string src, string dst) -> void` | copie un fichier | `FileNotFoundException`, `NotAFileException`, `PermissionDeniedException`, `InvalidPathException`, `IOException` |
+| `mv` | `(string src, string dst) -> void` | déplace un fichier | `FileNotFoundException`, `PermissionDeniedException`, `InvalidPathException`, `IOException` |
+| `chmod` | `(string path, int mode) -> void` | change les permissions POSIX | `FileNotFoundException`, `PermissionDeniedException`, `InvalidPathException`, `IOException` |
+| `cwd` | `() -> string` | répertoire courant | `IOException` |
+| `cd` | `(string path) -> void` | change de répertoire | `FileNotFoundException`, `NotADirectoryException`, `PermissionDeniedException`, `IOException` |
+| `pathInfo` | `(string path) -> PathInfo` | découpe un chemin sans normalisation | `InvalidPathException`, `IOException` |
+| `openDir` | `(string path) -> Dir` | ouvre un itérateur de répertoire | `FileNotFoundException`, `NotADirectoryException`, `PermissionDeniedException`, `IOException` |
+| `walk` | `(string path, int maxDepth, bool followSymlinks) -> Walker` | parcours récursif itératif | `FileNotFoundException`, `NotADirectoryException`, `PermissionDeniedException`, `IOException` |
+
+Notes :
+
+- Les requêtes de capacité (`isReadable`, `isWritable`, `isExecutable`) renvoient `false` si l’accès est refusé.
+- En cas d’erreur système inattendue, les requêtes lèvent `IOException` ou `InvalidPathException`.
+- Les opérations mutantes sont atomiques : en cas d’exception, aucune modification partielle n’est visible.
+- Les liens symboliques cassés : `exists` retourne `true`, `isFile` et `isDir` retournent `false`.
+- Le module Fs.walk fournit un itérateur récursif streaming de l’arborescence des fichiers. Comparé à une implémentation récursive côté utilisateur, il évite les débordements de pile et gère efficacement les arborescences profondes, tout en restant synchrone, déterministe et sans allocation massive.
+
+**Prototype `PathInfo`** (champs en lecture seule)
+
+- `dirname : string`
+- `basename : string`
+- `filename : string`
+- `extension : string`
+
+**Prototype `Dir`**
+
+Méthodes :
+
+| Méthode | Signature | Description | Erreurs |
+|---|---|---|---|
+| `hasNext` | `() -> bool` | vrai si un `next()` est possible | — |
+| `next` | `() -> string` | retourne l’entrée suivante | `IOException` si fin |
+| `close` | `() -> void` | ferme le handle | — |
+| `reset` | `() -> void` | rembobine le flux | `IOException` en cas d’échec |
+
+Les entrées `.` et `..` sont filtrées.
+
+**Prototype `Walker`**
+
+Méthodes :
+
+| Méthode | Signature | Description | Erreurs |
+|---|---|---|---|
+| `hasNext` | `() -> bool` | vrai si une entrée suivante existe | — |
+| `next` | `() -> PathEntry` | entrée suivante | `IOException` si fin |
+| `close` | `() -> void` | libère les ressources | — |
+
+**Prototype `PathEntry`** (champs en lecture seule)
+
+- `path : string`
+- `name : string`
+- `depth : int`
+- `isDir : bool`
+- `isFile : bool`
+- `isSymlink : bool`
+
+Exemple : listing simple
+
+```c
+import Fs;
+import Io;
+
+function main() : void {
+    Dir d = Fs.openDir(\".\");
+    while (d.hasNext()) {
+        Io.printLine(d.next());
+    }
+    d.close();
+}
+```
+Ref: EX-099
+
+Exemple : walk récursif
+
+```c
+import Fs;
+import Io;
+
+function main() : void {
+    Walker w = Fs.walk(\".\", -1, false);
+    while (w.hasNext()) {
+        PathEntry e = w.next();
+        Io.printLine(e.path);
+    }
+    w.close();
+}
+```
+Ref: EX-100
+
 Le comportement complet est normatif et défini dans :
 
 - `docs/module_io_specification.md`
 - `docs/module_math_specification.md`
 - `docs/module_json_specification.md`
+- `docs/module_fs_specification.md`
 
 ### 14.5 Ce que les modules ne peuvent pas faire
 
@@ -2208,6 +2327,7 @@ Le comportement complet est normatif et défini dans :
 L'extension est un mécanisme d'intégration, pas un mécanisme de mutation du langage.
 
 ---
+
 
 ## 15. Erreurs et exceptions
 

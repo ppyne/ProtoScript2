@@ -96,7 +96,22 @@ function isValidRegistryType(s, allowVoid) {
   if (typeof s !== "string") return false;
   const t = stripWs(s);
   if (allowVoid && t === "void") return true;
-  const prim = ["int", "float", "bool", "byte", "glyph", "string", "TextFile", "BinaryFile", "JSONValue", "CivilDateTime"];
+  const prim = [
+    "int",
+    "float",
+    "bool",
+    "byte",
+    "glyph",
+    "string",
+    "TextFile",
+    "BinaryFile",
+    "JSONValue",
+    "CivilDateTime",
+    "PathInfo",
+    "PathEntry",
+    "Dir",
+    "Walker",
+  ];
   if (prim.includes(t)) return true;
   if (t.startsWith("list<") || t.startsWith("slice<") || t.startsWith("view<")) {
     if (!t.endsWith(">")) return false;
@@ -1357,6 +1372,26 @@ class Analyzer {
       fields.set("millisecond", { kind: "PrimitiveType", name: "int" });
       this.prototypes.set("CivilDateTime", { decl, parent: null, fields, methods: new Map() });
     }
+    if (!this.prototypes.has("PathInfo")) {
+      const decl = { line: 1, col: 1 };
+      const fields = new Map();
+      fields.set("dirname", { kind: "PrimitiveType", name: "string" });
+      fields.set("basename", { kind: "PrimitiveType", name: "string" });
+      fields.set("filename", { kind: "PrimitiveType", name: "string" });
+      fields.set("extension", { kind: "PrimitiveType", name: "string" });
+      this.prototypes.set("PathInfo", { decl, parent: null, fields, methods: new Map() });
+    }
+    if (!this.prototypes.has("PathEntry")) {
+      const decl = { line: 1, col: 1 };
+      const fields = new Map();
+      fields.set("path", { kind: "PrimitiveType", name: "string" });
+      fields.set("name", { kind: "PrimitiveType", name: "string" });
+      fields.set("depth", { kind: "PrimitiveType", name: "int" });
+      fields.set("isDir", { kind: "PrimitiveType", name: "bool" });
+      fields.set("isFile", { kind: "PrimitiveType", name: "bool" });
+      fields.set("isSymlink", { kind: "PrimitiveType", name: "bool" });
+      this.prototypes.set("PathEntry", { decl, parent: null, fields, methods: new Map() });
+    }
     const timeExceptions = [
       "DSTAmbiguousTimeException",
       "DSTNonExistentTimeException",
@@ -1379,6 +1414,11 @@ class Analyzer {
       "StandardStreamCloseException",
       "IOException",
     ];
+    const fsExceptions = [
+      "NotADirectoryException",
+      "NotAFileException",
+      "DirectoryNotEmptyException",
+    ];
     for (const name of timeExceptions) {
       if (!this.prototypes.has(name)) {
         const decl = { line: 1, col: 1 };
@@ -1391,14 +1431,25 @@ class Analyzer {
         this.prototypes.set(name, { decl, parent: "RuntimeException", fields: new Map(), methods: new Map() });
       }
     }
+    for (const name of fsExceptions) {
+      if (!this.prototypes.has(name)) {
+        const decl = { line: 1, col: 1 };
+        this.prototypes.set(name, { decl, parent: "RuntimeException", fields: new Map(), methods: new Map() });
+      }
+    }
     for (const d of this.ast.decls) {
       if (d.kind !== "PrototypeDecl") continue;
       if (
         d.name === "Exception" ||
         d.name === "RuntimeException" ||
         d.name === "CivilDateTime" ||
+        d.name === "PathInfo" ||
+        d.name === "PathEntry" ||
+        d.name === "Dir" ||
+        d.name === "Walker" ||
         timeExceptions.includes(d.name) ||
-        ioExceptions.includes(d.name)
+        ioExceptions.includes(d.name) ||
+        fsExceptions.includes(d.name)
       ) {
         this.addDiag(d, "E2001", "UNRESOLVED_NAME", "reserved prototype name");
         continue;
@@ -2306,6 +2357,20 @@ class Analyzer {
       }
       const targetType = this.typeOfExpr(member.target, scope);
       if (!targetType) return null;
+      const name = member.name;
+      const prim = (n) => ({ kind: "PrimitiveType", name: n });
+      if (targetType.kind === "NamedType") {
+        if (targetType.name === "Dir") {
+          if (name === "hasNext") return prim("bool");
+          if (name === "next") return prim("string");
+          if (name === "close" || name === "reset") return prim("void");
+        }
+        if (targetType.name === "Walker") {
+          if (name === "hasNext") return prim("bool");
+          if (name === "next") return { kind: "NamedType", name: "PathEntry" };
+          if (name === "close") return prim("void");
+        }
+      }
       if (targetType.kind === "NamedType" && this.prototypes.has(targetType.name)) {
         const pm = this.resolvePrototypeMethod(targetType.name, member.name);
         if (!pm) {
@@ -2319,8 +2384,6 @@ class Analyzer {
         return pm.retType;
       }
       const t = typeToString(targetType);
-      const name = member.name;
-      const prim = (n) => ({ kind: "PrimitiveType", name: n });
       this.checkMethodArity(expr, t, name);
 
       if (t === "int") {
