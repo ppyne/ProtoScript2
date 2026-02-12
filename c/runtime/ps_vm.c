@@ -1137,6 +1137,20 @@ static PS_Value *make_exception(PS_Context *ctx, const char *type_name, const ch
 
 static PS_Value *make_runtime_exception_from_error(PS_Context *ctx) {
   const char *msg = ps_last_error_message(ctx);
+  if (msg && strncmp(msg, "sys:", 4) == 0) {
+    const char *type = msg + 4;
+    const char *sep = strchr(type, ':');
+    if (sep && sep > type) {
+      size_t len = (size_t)(sep - type);
+      char type_buf[128];
+      if (len < sizeof(type_buf)) {
+        memcpy(type_buf, type, len);
+        type_buf[len] = '\0';
+        const char *body = sep + 1;
+        return make_exception(ctx, type_buf, "RuntimeException", 1, "", 1, 1, body, NULL, NULL, NULL);
+      }
+    }
+  }
   if (msg && strncmp(msg, "fs:", 3) == 0) {
     const char *type = msg + 3;
     const char *sep = strchr(type, ':');

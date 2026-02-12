@@ -293,6 +293,25 @@
       "fs/mutating",
       "fs/dir_iterator",
       "fs/walker"
+    ],
+    "sys": [
+      "sys/import_sys",
+      "sys/module_missing",
+      "sys/has_env",
+      "sys/env"
+    ],
+    "sys_execute": [
+      "sys_execute/exit_code",
+      "sys_execute/stdout_only",
+      "sys_execute/stderr_only",
+      "sys_execute/both_order",
+      "sys_execute/input_echo",
+      "sys_execute/large_binary_output",
+      "sys_execute/args_variants",
+      "sys_execute/invalid_program",
+      "sys_execute/permission_denied",
+      "sys_execute/exec_failure",
+      "sys_execute/invalid_utf8_output"
     ]
   }
 }

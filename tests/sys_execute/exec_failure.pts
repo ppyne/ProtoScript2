@@ -1,0 +1,19 @@
+import Sys;
+import Io;
+import Fs;
+
+function main() : void {
+    list<string> args = [];
+    list<byte> input = [];
+    string path = Io.tempPath();
+    TextFile f = Io.openText(path, "w");
+    f.write("not an executable");
+    f.close();
+    Fs.chmod(path, 448);
+    try {
+        Sys.execute(path, args, input, false, false);
+    } catch (ProcessExecutionException e) {
+        Io.printLine("ProcessExecutionException");
+    }
+    Fs.rm(path);
+}

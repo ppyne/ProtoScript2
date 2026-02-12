@@ -1,0 +1,4 @@
+import SysMissing;
+
+function main() : void {
+}

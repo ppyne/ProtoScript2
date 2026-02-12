@@ -23,6 +23,13 @@
       ]
     },
     {
+      "name": "test.env",
+      "functions": [
+        { "name": "set", "ret": "void", "params": ["string", "string"] },
+        { "name": "setInvalidUtf8", "ret": "void", "params": ["string"] }
+      ]
+    },
+    {
       "name": "test.throw",
       "functions": [
         { "name": "fail", "ret": "void", "params": [] }
@@ -153,6 +160,14 @@
         { "name": "pathInfo", "ret": "PathInfo", "params": ["string"] },
         { "name": "openDir", "ret": "Dir", "params": ["string"] },
         { "name": "walk", "ret": "Walker", "params": ["string", "int", "bool"] }
+      ]
+    },
+    {
+      "name": "Sys",
+      "functions": [
+        { "name": "hasEnv", "ret": "bool", "params": ["string"] },
+        { "name": "env", "ret": "string", "params": ["string"] },
+        { "name": "execute", "ret": "ProcessResult", "params": ["string", "list<string>", "list<byte>", "bool", "bool"] }
       ]
     },
     {

@@ -1,0 +1,5 @@
+{
+  "status": "accept-runtime",
+  "expected_stdout": "true\nfalse\nInvalidEnvironmentNameException\nInvalidEnvironmentNameException\ntrue\n",
+  "requires": ["modules"]
+}

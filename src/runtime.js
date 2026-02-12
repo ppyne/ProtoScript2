@@ -3,6 +3,8 @@
 const fs = require("fs");
 const path = require("path");
 const crypto = require("crypto");
+const childProcess = require("child_process");
+const os = require("os");
 
 const INT64_MIN = -(2n ** 63n);
 const INT64_MAX = 2n ** 63n - 1n;
@@ -79,6 +81,24 @@ function buildPrototypeEnv(ast) {
     ],
     methods: new Map(),
   });
+  protos.set("ProcessEvent", {
+    name: "ProcessEvent",
+    parent: null,
+    fields: [
+      { name: "stream", type: { kind: "PrimitiveType", name: "int" } },
+      { name: "data", type: { kind: "GenericType", name: "list", args: [{ kind: "PrimitiveType", name: "byte" }] } },
+    ],
+    methods: new Map(),
+  });
+  protos.set("ProcessResult", {
+    name: "ProcessResult",
+    parent: null,
+    fields: [
+      { name: "exitCode", type: { kind: "PrimitiveType", name: "int" } },
+      { name: "events", type: { kind: "GenericType", name: "list", args: [{ kind: "NamedType", name: "ProcessEvent" }] } },
+    ],
+    methods: new Map(),
+  });
   const timeExceptionNames = [
     "DSTAmbiguousTimeException",
     "DSTNonExistentTimeException",
@@ -97,6 +117,12 @@ function buildPrototypeEnv(ast) {
     "InvalidPathException",
     "FileClosedException",
     "InvalidArgumentException",
+    "ProcessCreationException",
+    "ProcessExecutionException",
+    "ProcessPermissionException",
+    "InvalidExecutableException",
+    "EnvironmentAccessException",
+    "InvalidEnvironmentNameException",
     "InvalidGlyphPositionException",
     "ReadFailureException",
     "WriteFailureException",
@@ -2126,6 +2152,141 @@ function buildModuleEnv(ast, file, hooks = null) {
   });
 
   makeModule("test.nosym");
+
+  const sysRawEnv = new Map();
+  const sysInvalidName = (node) => {
+    throw makeIoException("InvalidEnvironmentNameException", file, node, "invalid environment name");
+  };
+  const sysValidateName = (name, node) => {
+    if (typeof name !== "string" || name.length === 0 || name.includes("=")) sysInvalidName(node);
+  };
+  const sysHasOwnEnv = (name) => Object.prototype.hasOwnProperty.call(process.env, name);
+  const sysDecodeUtf8 = (buf, node) => {
+    try {
+      const { TextDecoder } = require("util");
+      const dec = new TextDecoder("utf-8", { fatal: true });
+      return dec.decode(buf);
+    } catch {
+      throw makeIoException("EnvironmentAccessException", file, node, "invalid utf8");
+    }
+  };
+  const sysMod = makeModule("Sys");
+  const sysProtoEnv = () => (hooks && hooks.protoEnv ? hooks.protoEnv : buildPrototypeEnv({ decls: [] }));
+  const sysMakeEvent = (stream, buf) => {
+    const ev = clonePrototype(sysProtoEnv(), "ProcessEvent");
+    ev.__fields.stream = BigInt(stream);
+    const bytes = Array.from(buf || [], (b) => BigInt(b));
+    ev.__fields.data = makeList(bytes);
+    return ev;
+  };
+  const sysMakeResult = (exitCode, events) => {
+    const res = clonePrototype(sysProtoEnv(), "ProcessResult");
+    res.__fields.exitCode = BigInt(exitCode);
+    res.__fields.events = events;
+    return res;
+  };
+  sysMod.functions.set("hasEnv", (name, node) => {
+    sysValidateName(name, node);
+    if (sysRawEnv.has(name)) return true;
+    return sysHasOwnEnv(name);
+  });
+  sysMod.functions.set("env", (name, node) => {
+    sysValidateName(name, node);
+    if (sysRawEnv.has(name)) {
+      const raw = sysRawEnv.get(name);
+      if (!Buffer.isBuffer(raw)) {
+        throw makeIoException("EnvironmentAccessException", file, node, "invalid utf8");
+      }
+      return sysDecodeUtf8(raw, node);
+    }
+    if (!sysHasOwnEnv(name)) throw makeIoException("EnvironmentAccessException", file, node, "variable not found");
+    const v = process.env[name];
+    if (typeof v !== "string") throw makeIoException("EnvironmentAccessException", file, node, "variable not found");
+    return v;
+  });
+  sysMod.functions.set("execute", (program, args, input, captureStdout, captureStderr, node) => {
+    if (typeof program !== "string") throw makeIoException("InvalidArgumentException", file, node, "invalid program");
+    if (program.length === 0) throw makeIoException("InvalidExecutableException", file, node, "invalid executable");
+    if (!Array.isArray(args)) throw makeIoException("InvalidArgumentException", file, node, "invalid args");
+    if (!Array.isArray(input)) throw makeIoException("InvalidArgumentException", file, node, "invalid input");
+    if (typeof captureStdout !== "boolean" || typeof captureStderr !== "boolean") {
+      throw makeIoException("InvalidArgumentException", file, node, "invalid capture flags");
+    }
+
+    const argv = [];
+    for (const it of args) {
+      if (typeof it !== "string") throw makeIoException("InvalidArgumentException", file, node, "invalid args");
+      argv.push(it);
+    }
+
+    const bytes = [];
+    for (const it of input) {
+      const n = typeof it === "bigint" ? Number(it) : Number(it);
+      if (!Number.isInteger(n) || n < 0 || n > 255) {
+        throw makeIoException("InvalidArgumentException", file, node, "invalid input");
+      }
+      bytes.push(n);
+    }
+
+    const stdio = ["pipe", captureStdout ? "pipe" : "inherit", captureStderr ? "pipe" : "inherit"];
+    const result = childProcess.spawnSync(program, argv, {
+      input: Buffer.from(bytes),
+      stdio,
+      encoding: "buffer",
+      maxBuffer: 1024 * 1024 * 16,
+    });
+
+    if (result.error) {
+      const code = result.error.code;
+      if (code === "ENOENT" || code === "ENOTDIR") {
+        throw makeIoException("InvalidExecutableException", file, node, "invalid executable");
+      }
+      if (code === "EACCES") {
+        throw makeIoException("ProcessPermissionException", file, node, "permission denied");
+      }
+      if (code === "EAGAIN") {
+        throw makeIoException("ProcessCreationException", file, node, "fork failed");
+      }
+      throw makeIoException("ProcessExecutionException", file, node, "execution failed");
+    }
+
+    let exitCode = 0;
+    if (typeof result.status === "number") exitCode = result.status;
+    else if (result.signal) {
+      const num = os.constants.signals[result.signal] || 0;
+      exitCode = 128 + num;
+    }
+
+    const events = makeList([]);
+    if (captureStdout && result.stdout && result.stdout.length > 0) {
+      events.push(sysMakeEvent(1, result.stdout));
+      bumpList(events);
+    }
+    if (captureStderr && result.stderr && result.stderr.length > 0) {
+      events.push(sysMakeEvent(2, result.stderr));
+      bumpList(events);
+    }
+    return sysMakeResult(exitCode, events);
+  });
+
+  const envMod = makeModule("test.env");
+  envMod.functions.set("set", (name, value, node) => {
+    if (typeof name !== "string" || typeof value !== "string") {
+      throw new RuntimeError(rdiag(file, node, "R1010", "RUNTIME_MODULE_ERROR", "invalid argument"));
+    }
+    sysRawEnv.delete(name);
+    process.env[name] = value;
+    return null;
+  });
+  envMod.functions.set("setInvalidUtf8", (name, node) => {
+    if (typeof name !== "string") {
+      throw new RuntimeError(rdiag(file, node, "R1010", "RUNTIME_MODULE_ERROR", "invalid argument"));
+    }
+    const bad = Buffer.from([0xc3, 0x28]);
+    sysRawEnv.set(name, bad);
+    delete process.env[name];
+    return null;
+  });
   loadModuleRegistry(); // ensures registry exists if needed
 
   const imports = ast.imports || [];

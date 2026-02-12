@@ -1,0 +1,21 @@
+import Sys;
+import Io;
+import Fs;
+
+function main() : void {
+    list<string> args = [];
+    list<byte> input = [];
+    string path = Io.tempPath();
+    BinaryFile f = Io.openBinary(path, "w");
+    list<byte> b = [ (byte)120 ];
+    f.write(b);
+    f.close();
+    Fs.chmod(path, 0);
+    try {
+        Sys.execute(path, args, input, false, false);
+    } catch (ProcessPermissionException e) {
+        Io.printLine("ProcessPermissionException");
+    }
+    Fs.chmod(path, 448);
+    Fs.rm(path);
+}

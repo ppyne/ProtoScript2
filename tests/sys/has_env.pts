@@ -1,0 +1,30 @@
+import Sys;
+import Io;
+import test.env as env;
+
+function main() : void {
+    env.set("PS_SYS_TEST", "value");
+    Io.printLine(Sys.hasEnv("PS_SYS_TEST").toString());
+    Io.printLine(Sys.hasEnv("PS_SYS_MISSING").toString());
+
+    try {
+        Sys.hasEnv("");
+    } catch (InvalidEnvironmentNameException e) {
+        Io.printLine("InvalidEnvironmentNameException");
+    }
+
+    try {
+        Sys.hasEnv("A=B");
+    } catch (InvalidEnvironmentNameException e) {
+        Io.printLine("InvalidEnvironmentNameException");
+    }
+
+    string longName = "PS_SYS_LONG_";
+    int i = 0;
+    while (i < 200) {
+        longName = longName.concat("a");
+        i = i + 1;
+    }
+    env.set(longName, "x");
+    Io.printLine(Sys.hasEnv(longName).toString());
+}

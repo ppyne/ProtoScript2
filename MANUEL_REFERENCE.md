@@ -2282,7 +2282,7 @@ import Fs;
 import Io;
 
 function main() : void {
-    Dir d = Fs.openDir(\".\");
+    Dir d = Fs.openDir(".");
     while (d.hasNext()) {
         Io.printLine(d.next());
     }
@@ -2298,7 +2298,7 @@ import Fs;
 import Io;
 
 function main() : void {
-    Walker w = Fs.walk(\".\", -1, false);
+    Walker w = Fs.walk(".", -1, false);
     while (w.hasNext()) {
         PathEntry e = w.next();
         Io.printLine(e.path);
@@ -2308,12 +2308,95 @@ function main() : void {
 ```
 Ref: EX-100
 
+### 14.4.7 Module standard : Sys
+
+Le module `Sys` expose un accès minimal **en lecture seule** à l'environnement du processus et une exécution contrôlée de processus.
+
+**Exceptions Sys** (toutes `RuntimeException`)
+
+- `InvalidArgumentException`
+- `EnvironmentAccessException`
+- `InvalidEnvironmentNameException`
+- `IOException`
+- `ProcessCreationException`
+- `ProcessExecutionException`
+- `ProcessPermissionException`
+- `InvalidExecutableException`
+
+**Fonctions**
+
+| Fonction | Signature | Description | Exceptions |
+|---|---|---|---|
+| `hasEnv` | `(string name) -> bool` | vrai si la variable d'environnement existe | `InvalidEnvironmentNameException`, `EnvironmentAccessException`, `IOException` |
+| `env` | `(string name) -> string` | valeur de la variable d'environnement | `InvalidEnvironmentNameException`, `EnvironmentAccessException`, `IOException` |
+| `execute` | `(string program, list<string> args, list<byte> input, bool captureStdout, bool captureStderr) -> ProcessResult` | exécution synchrone d'un programme POSIX | `InvalidExecutableException`, `ProcessPermissionException`, `ProcessCreationException`, `ProcessExecutionException`, `InvalidArgumentException`, `IOException` |
+
+Notes :
+
+- Accès **lecture seule** : aucune mutation ni énumération de l'environnement.
+- Pas de cache : chaque appel reflète l'état courant du processus.
+- Nom invalide si chaîne vide ou si le caractère `=` est présent.
+- Les valeurs doivent être du UTF-8 valide ; sinon `EnvironmentAccessException`.
+- Une variable existante peut avoir une valeur vide.
+- `execute` n'invoque **aucun shell** ; `program` est exécuté tel quel et `args` sont passés verbatim.
+- `input` est écrit intégralement sur stdin puis stdin est fermé (EOF).
+- Si `captureStdout`/`captureStderr` est `false`, le flux hérite du processus parent.
+
+**Prototype `ProcessResult`** (champs en lecture seule)
+
+- `exitCode : int`
+- `events : list<ProcessEvent>`
+
+**Prototype `ProcessEvent`** (champs en lecture seule)
+
+- `stream : int` (`1` = stdout, `2` = stderr)
+- `data : list<byte>`
+
+**Ordonnancement**
+
+- `events` est **chronologique** : l'ordre correspond à l'ordre d'observation des lectures multiplexées stdout/stderr.
+- La taille des chunks est dépendante de l'implémentation.
+- Si le processus est terminé par un signal, `exitCode` est mappé à `128 + signal`.
+
+Exemple : environnement
+
+```c
+import Sys;
+import Io;
+
+function main() : void {
+    if (Sys.hasEnv("HOME")) {
+        Io.printLine(Sys.env("HOME"));
+    }
+}
+```
+Ref: EX-101
+
+Exemple : exécution
+
+```c
+import Sys;
+import Io;
+
+function main() : void {
+    ProcessResult r = Sys.execute("/bin/echo", ["hello"], [], true, true);
+    for (ProcessEvent e in r.events) {
+        if (e.stream == 1) {
+            Io.printLine(e.data.toUtf8String());
+        }
+    }
+}
+```
+Ref: EX-102
+
 Le comportement complet est normatif et défini dans :
 
 - `docs/module_io_specification.md`
 - `docs/module_math_specification.md`
 - `docs/module_json_specification.md`
 - `docs/module_fs_specification.md`
+- `docs/module_sys_specification.md`
+- `docs/module_sys_execute_specification.md`
 
 ### 14.5 Ce que les modules ne peuvent pas faire
 

@@ -1,0 +1,19 @@
+import Sys;
+import Io;
+
+function main() : void {
+    list<string> args = [];
+    list<byte> input = [];
+    int i = 0;
+    while (i < 4096) {
+        input.push((byte)0);
+        i = i + 1;
+    }
+    ProcessResult r = Sys.execute("/bin/cat", args, input, true, false);
+    ProcessEvent e = r.events[0];
+    bool ok = e.data.length() == input.length();
+    if (ok) {
+        ok = (e.data[0] == (byte)0) && (e.data[1] == (byte)0);
+    }
+    Io.printLine(ok.toString());
+}

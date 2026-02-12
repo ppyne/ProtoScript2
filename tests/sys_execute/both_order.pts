@@ -1,0 +1,16 @@
+import Sys;
+import Io;
+
+function main() : void {
+    list<string> args = ["-c", "printf out; printf err 1>&2"];
+    list<byte> input = [];
+    ProcessResult r = Sys.execute("/bin/sh", args, input, true, true);
+    bool ok = (r.events.length() == 2);
+    if (ok) {
+        ProcessEvent e0 = r.events[0];
+        ProcessEvent e1 = r.events[1];
+        ok = (e0.stream == 1) && (e0.data.toUtf8String() == "out") &&
+             (e1.stream == 2) && (e1.data.toUtf8String() == "err");
+    }
+    Io.printLine(ok.toString());
+}

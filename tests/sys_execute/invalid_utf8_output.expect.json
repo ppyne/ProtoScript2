@@ -1,0 +1,5 @@
+{
+  "status": "accept-runtime",
+  "expected_stdout": "RuntimeException\n",
+  "requires": ["modules"]
+}

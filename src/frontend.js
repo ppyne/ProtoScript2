@@ -1392,6 +1392,20 @@ class Analyzer {
       fields.set("isSymlink", { kind: "PrimitiveType", name: "bool" });
       this.prototypes.set("PathEntry", { decl, parent: null, fields, methods: new Map() });
     }
+    if (!this.prototypes.has("ProcessEvent")) {
+      const decl = { line: 1, col: 1 };
+      const fields = new Map();
+      fields.set("stream", { kind: "PrimitiveType", name: "int" });
+      fields.set("data", { kind: "GenericType", name: "list", args: [{ kind: "PrimitiveType", name: "byte" }] });
+      this.prototypes.set("ProcessEvent", { decl, parent: null, fields, methods: new Map() });
+    }
+    if (!this.prototypes.has("ProcessResult")) {
+      const decl = { line: 1, col: 1 };
+      const fields = new Map();
+      fields.set("exitCode", { kind: "PrimitiveType", name: "int" });
+      fields.set("events", { kind: "GenericType", name: "list", args: [{ kind: "NamedType", name: "ProcessEvent" }] });
+      this.prototypes.set("ProcessResult", { decl, parent: null, fields, methods: new Map() });
+    }
     const timeExceptions = [
       "DSTAmbiguousTimeException",
       "DSTNonExistentTimeException",
@@ -1407,6 +1421,12 @@ class Analyzer {
       "InvalidPathException",
       "FileClosedException",
       "InvalidArgumentException",
+      "ProcessCreationException",
+      "ProcessExecutionException",
+      "ProcessPermissionException",
+      "InvalidExecutableException",
+      "EnvironmentAccessException",
+      "InvalidEnvironmentNameException",
       "InvalidGlyphPositionException",
       "ReadFailureException",
       "WriteFailureException",
