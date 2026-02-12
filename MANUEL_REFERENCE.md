@@ -111,7 +111,7 @@ Oublier `;` en fin d'instruction. ProtoScript n'a pas d'insertion automatique de
 
 Le typage est statique et explicite. Les types sont résolus à la compilation.
 
-### 3.2 Types primitifs
+### 3.2 Types scalaires fondamentaux
 
 - `bool`
 - `byte`

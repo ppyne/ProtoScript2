@@ -66,9 +66,9 @@ ProtoScript V2 est guidé par un principe central :
 
 Toute fonctionnalité qui améliorerait artificiellement le confort d’écriture au détriment de la lisibilité, de l’analyse statique ou des performances est volontairement exclue.
 
-# 2. Types primitifs
+# 2. Types scalaires fondamentaux
 
-ProtoScript V2 définit un ensemble restreint de **types scalaires primitifs**, dont la sémantique est fixe, explicite et exploitable statiquement.
+ProtoScript V2 définit un ensemble restreint de **types scalaires fondamentaux**, dont la sémantique est fixe, explicite et exploitable statiquement.
 
 Types scalaires intégrés :
 
@@ -78,6 +78,29 @@ Types scalaires intégrés :
 - `int` — entier signé **64 bits**, type entier par défaut du langage
 - `float` — flottant double précision IEEE‑754
 - `string` — séquence de glyphes, stockée en UTF‑8
+
+---
+
+## 2.0 Types scalaires fondamentaux (normatif)
+
+Les **types scalaires fondamentaux** sont strictement :
+
+- `bool`
+- `byte`
+- `glyph`
+- `int`
+- `float`
+- `string`
+
+Propriétés normatives :
+
+- ils sont manipulés **par valeur**
+- ils ne participent **pas** au mécanisme d’héritage
+- ils ne possèdent **aucun** champ utilisateur
+- ils sont **immuables** au niveau du langage
+- toute mutation indexée de `string` est **interdite**
+
+Les types composés (`list<T>`, `map<K,V>`) et les `prototype` ne sont **pas** des types scalaires fondamentaux.
 
 ---
 
@@ -125,7 +148,7 @@ ProtoScript V2 ne définit **aucune valeur ****null**** universelle**.
 
 Règles :
 
-- les types scalaires (`int`, `float`, `bool`, `byte`) ont toujours une valeur valide
+- les types scalaires fondamentaux (`int`, `float`, `bool`, `byte`, `glyph`, `string`) ont toujours une valeur valide
 - `string` n’est jamais `null` (la chaîne vide `""` représente l’absence de contenu)
 - `list<T>` et `map<K,V>` ne sont jamais `null` (une collection vide est valide)
 - toute situation d’absence, d’échec ou d’erreur est gérée explicitement par des **exceptions**
@@ -186,6 +209,43 @@ Règles :
 - les méthodes sont **pures** (sans effet de bord)
 - aucune allocation implicite n’est effectuée
 - les méthodes sont résolues statiquement
+
+---
+
+## 2.4 Construction `T group` (normatif)
+
+Un `group` est une déclaration **statique** d’un ensemble fermé de constantes homogènes.
+
+Syntaxe normative (EBNF) :
+
+```ebnf
+GroupDecl = ScalarType "group" Identifier "{" GroupMemberList "}" ;
+```
+
+Contraintes normatives :
+
+- `T` doit être un **type scalaire fondamental**
+- chaque membre doit être **assignable** à `T`
+- les membres sont **implicitement constants**
+- aucun membre ne peut être réassigné
+- aucun doublon d’`Identifier` n’est autorisé dans un même `group`
+- un `group` ne définit pas un nouveau type
+- un `group` ne peut pas être instancié
+- un `group` ne peut pas être utilisé comme type
+- un `group` n’a **aucune** représentation runtime
+- les membres sont substitués comme constantes dans l’IR
+
+Contraintes sur les membres :
+
+- chaque membre est de la forme `Identifier = Expression`
+- chaque `Expression` doit être une **expression constante**, sans effet de bord
+- aucun `MethodDecl`, aucun modificateur, aucune annotation n’est autorisé dans un `group`
+
+Erreurs statiques associées :
+
+- `E3120` — `GROUP_NON_SCALAR_TYPE` : `group` exige un type scalaire fondamental
+- `E3121` — `GROUP_TYPE_MISMATCH` : un membre n’est pas assignable à `T`
+- `E3122` — `GROUP_MUTATION` : tentative d’affectation à un membre de `group`
 
 # 3. Structures de données
 
@@ -559,7 +619,7 @@ Sa complexité **doit être** **O(n log n)**.
 - `int`, `float`, `byte`, `string`, ou
 - un prototype qui **déclare** une méthode de comparaison conforme.
 
-**Ordre de tri pour les types primitifs** :
+**Ordre de tri pour les types scalaires fondamentaux** :
 
 - `int`, `byte` : ordre numérique croissant.
 - `float` : ordre numérique croissant ; `NaN` est **classé supérieur** à toute valeur numérique ; deux `NaN` sont **équivalents**.
@@ -916,6 +976,22 @@ Règles :
 
 ---
 
+## 4.2.1 `sealed` prototype (normatif)
+
+Le modificateur `sealed` appliqué à un `prototype` interdit toute relation d’héritage impliquant ce prototype.
+
+Règles :
+
+- un `sealed prototype` reste instanciable
+- `sealed` n’interdit pas `clone()`
+- `sealed` n’affecte pas les règles d’instanciation
+
+Erreur statique associée :
+
+- `E3140` — `SEALED_INHERITANCE` : tentative d’héritage impliquant un `sealed prototype`
+
+---
+
 ## 4.3 Instanciation et clonage
 
 Les objets sont créés par **clonage d’un prototype**.
@@ -931,6 +1007,16 @@ Règles :
 - `clone()` effectue une copie structurale de l’objet
 - aucune allocation implicite autre que l’instance clonée
 - le type statique de l’objet est celui du prototype
+
+---
+
+## 4.3.1 Clarification `clone()` (normatif)
+
+La sémantique existante de `clone()` n’est **pas modifiée**.
+
+Un module natif ProtoScript en C peut restreindre l’accès à certains prototypes non exportés.
+
+Cette restriction relève du mécanisme de module et n’altère pas la règle générale du langage concernant l’instanciation des prototypes.
 
 ---
 
@@ -1555,6 +1641,24 @@ Règles :
 
 ---
 
+## 5.3.1 Mot-clé `const` (normatif)
+
+Portée :
+
+- `const` est autorisé uniquement pour les variables de **types scalaires fondamentaux**
+
+Sémantique :
+
+- `const` interdit toute réaffectation
+- `const` ne modifie pas le type
+- `const` ne crée pas d’immuabilité profonde
+
+Erreur statique associée :
+
+- `E3130` — `CONST_REASSIGNMENT`
+
+---
+
 ## 5.4 Paramètres et valeurs de retour
 
 - les paramètres sont passés **par valeur**
@@ -1663,7 +1767,7 @@ function sum(list<int> values...) : int {
 
 Le type `T` de `list<T>` peut être :
 
-- un type primitif (`int`, `float`, `string`, etc.)
+- un type scalaire fondamental (`int`, `float`, `string`, etc.)
 - un type prototype
 
 ---
@@ -1771,7 +1875,7 @@ l.log("x=", "42", "done");
 
 - une méthode peut définir **au plus un paramètre variadique**
 - le paramètre variadique doit être **le dernier paramètre explicite** (après `self`)
-- le type `T` peut être un type primitif ou un type prototype
+- le type `T` peut être un type scalaire fondamental ou un type prototype
 - toutes les valeurs passées doivent être du même type `T`
 - aucune hétérogénéité n’est autorisée
 
@@ -2525,6 +2629,7 @@ Les constructions du langage sont traduites de manière directe :
 - appels de méthodes → appels de fonctions avec `self` explicite
 - boucles → structures de contrôle explicites
 - `slice` / `view` → vues mémoire sans allocation
+- membres de `group` → constantes typées (substitution, aucune entité IR)
 
 Aucune transformation spéculative n’est effectuée à ce stade.
 
@@ -3122,6 +3227,11 @@ Codes canoniques minimaux :
 - `E3004` : `IMMUTABLE_INDEX_WRITE`
 - `E3005` : `STATIC_EMPTY_POP`
 - `E3007` : `INVALID_RETURN`
+- `E3120` : `GROUP_NON_SCALAR_TYPE`
+- `E3121` : `GROUP_TYPE_MISMATCH`
+- `E3122` : `GROUP_MUTATION`
+- `E3130` : `CONST_REASSIGNMENT`
+- `E3140` : `SEALED_INHERITANCE`
 
 Exigences minimales de diagnostic :
 
@@ -3129,6 +3239,19 @@ Exigences minimales de diagnostic :
 - catégorie
 - position `file:line:column`
 - message descriptif
+
+## 15.7 Compatibilité et non-régression (normatif)
+
+Les modifications introduites par la présente spécification doivent respecter les contraintes suivantes :
+
+1. Aucun comportement existant valide ne doit devenir invalide sauf si explicitement lié à l’introduction de `group`, `const` ou `sealed`.
+2. Aucune règle implicite supplémentaire ne doit être ajoutée au système de types.
+3. Aucun mécanisme d’inférence automatique ne doit être introduit.
+4. `prototype` conserve intégralement sa sémantique actuelle.
+5. `sealed` ne modifie pas les règles d’instanciation.
+6. `const` n’introduit pas d’immuabilité profonde.
+7. `group` n’introduit aucun nouveau type nominal.
+8. L’IR existant pour les expressions constantes ne doit pas être modifié sauf pour la substitution explicite des accès `G.Member`.
 
 # 16. Modèle mémoire normatif
 
@@ -3240,6 +3363,46 @@ Règles :
 - chaque construction source doit avoir une traduction IR définie
 - chaque erreur runtime normative doit correspondre à un point IR identifiable
 - la chaîne source -> IR -> backend doit conserver les garanties des sections 14, 15 et 16
+
+## 17.7 `group` et substitution constante (normatif)
+
+### 17.7.1 Absence d’entité runtime
+
+Un `group` ne doit générer :
+
+- aucune entité `Type`
+- aucune structure mémoire
+- aucun symbole runtime représentant le groupe lui‑même
+
+### 17.7.2 Substitution constante
+
+Pour chaque membre :
+
+```
+T group G { A = Expr }
+```
+
+le frontend doit :
+
+1. vérifier que `Expr` est une expression constante valide
+2. évaluer `Expr` à la compilation si requis par les règles existantes
+3. enregistrer `G.A` comme constante typée dans la table des symboles
+
+Toute occurrence de :
+
+```
+G.A
+```
+
+doit être remplacée dans l’IR par la valeur constante correspondante.
+
+Il ne doit exister aucune instruction IR de type “GroupAccess”.
+
+### 17.7.3 Ordre d’évaluation
+
+Les membres d’un `group` ne peuvent pas dépendre d’effets de bord.
+
+Toute expression non constante ou dépendant d’un état runtime doit déclencher une erreur statique.
 
 # 18. Conformité et test suite
 
@@ -3579,7 +3742,7 @@ Catégories :
 
 ## A.4 Mots-clés réservés
 
-`prototype`, `function`, `var`, `int`, `float`, `bool`, `byte`, `glyph`, `string`, `list`, `map`, `slice`, `view`, `void`, `if`, `else`, `for`, `of`, `in`, `while`, `do`, `switch`, `case`, `default`, `break`, `continue`, `return`, `try`, `catch`, `finally`, `throw`, `true`, `false`, `self`
+`prototype`, `sealed`, `function`, `var`, `const`, `group`, `int`, `float`, `bool`, `byte`, `glyph`, `string`, `list`, `map`, `slice`, `view`, `void`, `if`, `else`, `for`, `of`, `in`, `while`, `do`, `switch`, `case`, `default`, `break`, `continue`, `return`, `try`, `catch`, `finally`, `throw`, `true`, `false`, `self`
 
 ## A.5 Littéraux
 
@@ -3608,19 +3771,24 @@ Catégories :
 ```ebnf
 Program          = { TopDecl } ;
 
-TopDecl          = PrototypeDecl | FunctionDecl | VarDecl ";" ;
+TopDecl          = PrototypeDecl | FunctionDecl | GroupDecl | VarDecl ";" ;
 
-PrototypeDecl    = "prototype" Identifier [ ":" TypeName ] "{" { ProtoMember } "}" ;
+PrototypeDecl    = [ "sealed" ] "prototype" Identifier [ ":" TypeName ] "{" { ProtoMember } "}" ;
 ProtoMember      = FieldDecl | MethodDecl ;
 FieldDecl        = Type Identifier ";" ;
 MethodDecl       = FunctionDecl ;
+
+GroupDecl        = ScalarType "group" Identifier "{" GroupMemberList "}" ;
 
 FunctionDecl     = "function" Identifier "(" [ ParamList ] ")" ":" Type Block ;
 ParamList        = Param { "," Param } ;
 Param            = Type Identifier | "list" "<" Type ">" Identifier "..." ;
 
 VarDecl          = "var" Identifier "=" Expr
-                 | Type Identifier [ "=" Expr ] ;
+                 | Type Identifier [ "=" Expr ]
+                 | ConstDecl ;
+
+ConstDecl        = "const" ScalarType Identifier [ "=" Expr ] ;
 
 Type             = PrimitiveType
                  | TypeName
@@ -3629,7 +3797,8 @@ Type             = PrimitiveType
                  | "slice" "<" Type ">"
                  | "view" "<" Type ">" ;
 
-PrimitiveType    = "int" | "float" | "bool" | "byte" | "glyph" | "string" | "void" ;
+ScalarType       = "bool" | "byte" | "glyph" | "int" | "float" | "string" ;
+PrimitiveType    = ScalarType | "void" ;
 TypeName         = Identifier ;
 
 Block            = "{" { Stmt } "}" ;
@@ -3709,6 +3878,10 @@ MapPair          = Expr ":" Expr ;
 
 Literal          = IntLiteral | FloatLiteral | StringLiteral | BoolLiteral ;
 BoolLiteral      = "true" | "false" ;
+
+GroupMemberList  = GroupMember { "," GroupMember } [ "," ] ;
+GroupMember      = Identifier "=" Expression ;
+Expression       = Expr ;
 ```
 
 # Annexe C (normative) — Précédence, associativité, ordre d’évaluation
