@@ -132,6 +132,30 @@
       ]
     },
     {
+      "name": "Fs",
+      "functions": [
+        { "name": "exists", "ret": "bool", "params": ["string"] },
+        { "name": "isFile", "ret": "bool", "params": ["string"] },
+        { "name": "isDir", "ret": "bool", "params": ["string"] },
+        { "name": "isSymlink", "ret": "bool", "params": ["string"] },
+        { "name": "isReadable", "ret": "bool", "params": ["string"] },
+        { "name": "isWritable", "ret": "bool", "params": ["string"] },
+        { "name": "isExecutable", "ret": "bool", "params": ["string"] },
+        { "name": "size", "ret": "int", "params": ["string"] },
+        { "name": "mkdir", "ret": "void", "params": ["string"] },
+        { "name": "rmdir", "ret": "void", "params": ["string"] },
+        { "name": "rm", "ret": "void", "params": ["string"] },
+        { "name": "cp", "ret": "void", "params": ["string", "string"] },
+        { "name": "mv", "ret": "void", "params": ["string", "string"] },
+        { "name": "chmod", "ret": "void", "params": ["string", "int"] },
+        { "name": "cwd", "ret": "string", "params": [] },
+        { "name": "cd", "ret": "void", "params": ["string"] },
+        { "name": "pathInfo", "ret": "PathInfo", "params": ["string"] },
+        { "name": "openDir", "ret": "Dir", "params": ["string"] },
+        { "name": "walk", "ret": "Walker", "params": ["string", "int", "bool"] }
+      ]
+    },
+    {
       "name": "JSON",
       "functions": [
         { "name": "encode", "ret": "string", "params": ["JSONValue"] },
