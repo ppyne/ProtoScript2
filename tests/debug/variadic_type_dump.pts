@@ -1,0 +1,14 @@
+import Debug;
+
+prototype P {
+  list<int> li;
+  function test(list<string> args...) : void {
+    Debug.dump(args);
+    Debug.dump(self.li);
+  }
+}
+
+function main() : void {
+  P p = P.clone();
+  p.test("hello");
+}

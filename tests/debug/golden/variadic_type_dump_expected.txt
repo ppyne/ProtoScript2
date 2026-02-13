@@ -1,0 +1,5 @@
+list<string>(len=1) [
+  [0] string(len=5) "hello"
+]
+list<int>(len=0) [
+]

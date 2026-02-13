@@ -4,9 +4,13 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 OUT_DIR="$ROOT_DIR/tests/debug"
 EXPECTED="$OUT_DIR/golden/debug_expected.txt"
+EXPECTED_VARIADIC="$OUT_DIR/golden/variadic_type_dump_expected.txt"
+VARIADIC_SRC="$OUT_DIR/variadic_type_dump.pts"
 TMP_C_OUT="$(mktemp)"
 TMP_NODE_OUT="$(mktemp)"
 TMP_BIN="$(mktemp)"
+TMP_VARIADIC_NODE="$(mktemp)"
+TMP_VARIADIC_C="$(mktemp)"
 
 cc -std=c11 -Wall -Wextra -Werror -O2 -Dps_module_init=ps_module_init_JSON \
   -I"$ROOT_DIR/include" -I"$ROOT_DIR/c" \
@@ -43,5 +47,20 @@ if ! diff -u "$EXPECTED" "$TMP_NODE_OUT" >/dev/null; then
   exit 1
 fi
 
-rm -f "$TMP_C_OUT" "$TMP_NODE_OUT" "$TMP_BIN"
+"$ROOT_DIR/bin/protoscriptc" --run "$VARIADIC_SRC" >"$TMP_VARIADIC_NODE" 2>&1
+"$ROOT_DIR/c/ps" run "$VARIADIC_SRC" >"$TMP_VARIADIC_C" 2>&1
+
+if ! diff -u "$EXPECTED_VARIADIC" "$TMP_VARIADIC_NODE" >/dev/null; then
+  echo "FAIL Node variadic debug typing mismatch" >&2
+  diff -u "$EXPECTED_VARIADIC" "$TMP_VARIADIC_NODE" >&2 || true
+  exit 1
+fi
+
+if ! diff -u "$EXPECTED_VARIADIC" "$TMP_VARIADIC_C" >/dev/null; then
+  echo "FAIL C variadic debug typing mismatch" >&2
+  diff -u "$EXPECTED_VARIADIC" "$TMP_VARIADIC_C" >&2 || true
+  exit 1
+fi
+
+rm -f "$TMP_C_OUT" "$TMP_NODE_OUT" "$TMP_BIN" "$TMP_VARIADIC_NODE" "$TMP_VARIADIC_C"
 echo "PASS Debug module tests"

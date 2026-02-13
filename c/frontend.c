@@ -6595,6 +6595,22 @@ static char *ir_emit_default_value(IrFnCtx *ctx, const char *type, const char *c
   char *dst = ir_next_tmp(ctx);
   if (!dst) return NULL;
   const char *t = type ? type : "unknown";
+  char *t_compact = NULL;
+  {
+    size_t n = strlen(t);
+    t_compact = (char *)calloc(n + 1, 1);
+    if (!t_compact) {
+      free(dst);
+      return NULL;
+    }
+    size_t j = 0;
+    for (size_t i = 0; i < n; i++) {
+      unsigned char ch = (unsigned char)t[i];
+      if (ch == ' ' || ch == '\t' || ch == '\n' || ch == '\r') continue;
+      t_compact[j++] = (char)ch;
+    }
+    t_compact[j] = '\0';
+  }
   char *d_esc = json_escape(dst);
   if (strcmp(t, "int") == 0) {
     ir_emit(ctx, str_printf("{\"op\":\"const\",\"dst\":\"%s\",\"literalType\":\"int\",\"value\":\"0\"}", d_esc ? d_esc : ""));
@@ -6619,14 +6635,21 @@ static char *ir_emit_default_value(IrFnCtx *ctx, const char *type, const char *c
       free(callee);
       free(callee_esc);
     }
-  } else if (strncmp(t, "list<", 5) == 0) {
-    ir_emit(ctx, str_printf("{\"op\":\"make_list\",\"dst\":\"%s\",\"items\":[]}", d_esc ? d_esc : ""));
-  } else if (strncmp(t, "map<", 4) == 0) {
-    ir_emit(ctx, str_printf("{\"op\":\"make_map\",\"dst\":\"%s\",\"pairs\":[]}", d_esc ? d_esc : ""));
+  } else if (strncmp(t_compact, "list<", 5) == 0) {
+    char *type_esc = json_escape(t_compact);
+    ir_emit(ctx, str_printf("{\"op\":\"make_list\",\"dst\":\"%s\",\"items\":[],\"type\":\"%s\"}", d_esc ? d_esc : "",
+                            type_esc ? type_esc : ""));
+    free(type_esc);
+  } else if (strncmp(t_compact, "map<", 4) == 0) {
+    char *type_esc = json_escape(t_compact);
+    ir_emit(ctx, str_printf("{\"op\":\"make_map\",\"dst\":\"%s\",\"pairs\":[],\"type\":\"%s\"}", d_esc ? d_esc : "",
+                            type_esc ? type_esc : ""));
+    free(type_esc);
   } else {
     ir_emit(ctx, str_printf("{\"op\":\"const\",\"dst\":\"%s\",\"literalType\":\"int\",\"value\":\"0\"}", d_esc ? d_esc : ""));
   }
   free(d_esc);
+  free(t_compact);
   return dst;
 }
 

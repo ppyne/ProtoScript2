@@ -331,6 +331,7 @@ typedef struct {
 typedef struct {
   char *name;
   char **params;
+  char **param_types;
   size_t param_count;
   int variadic;
   size_t variadic_index;
@@ -920,10 +921,13 @@ PS_IR_Module *ps_ir_load_json(PS_Context *ctx, const char *json, size_t len) {
     if (params && params->type == PS_JSON_ARRAY) {
       m->fns[fi].param_count = params->as.array_v.len;
       m->fns[fi].params = (char **)calloc(m->fns[fi].param_count, sizeof(char *));
+      m->fns[fi].param_types = (char **)calloc(m->fns[fi].param_count, sizeof(char *));
       for (size_t i = 0; i < m->fns[fi].param_count; i++) {
         PS_JsonValue *p = params->as.array_v.items[i];
         PS_JsonValue *pn = ps_json_obj_get(p, "name");
         m->fns[fi].params[i] = dup_json_string(pn);
+        PS_JsonValue *pt = ps_json_obj_get(p, "type");
+        m->fns[fi].param_types[i] = parse_type_name(pt);
         PS_JsonValue *pv = ps_json_obj_get(p, "variadic");
         if (pv && pv->type == PS_JSON_BOOL && pv->as.bool_v) {
           m->fns[fi].variadic = 1;
@@ -963,6 +967,10 @@ void ps_ir_free(PS_IR_Module *m) {
     if (f->params) {
       for (size_t i = 0; i < f->param_count; i++) free(f->params[i]);
       free(f->params);
+    }
+    if (f->param_types) {
+      for (size_t i = 0; i < f->param_count; i++) free(f->param_types[i]);
+      free(f->param_types);
     }
     free(f->ret_type);
     if (f->blocks) {
@@ -1386,6 +1394,35 @@ static PS_IR_Proto *proto_find_meta(PS_IR_Module *m, const char *name) {
   return NULL;
 }
 
+static const char *proto_field_type_meta(PS_IR_Module *m, const char *proto_name, const char *field_name) {
+  if (!m || !proto_name || !field_name) return NULL;
+  PS_IR_Proto *p = proto_find_meta(m, proto_name);
+  while (p) {
+    for (size_t i = 0; i < p->field_count; i++) {
+      if (p->fields[i].name && strcmp(p->fields[i].name, field_name) == 0) return p->fields[i].type;
+    }
+    if (!p->parent) break;
+    p = proto_find_meta(m, p->parent);
+  }
+  return NULL;
+}
+
+static void apply_runtime_type_hint(PS_Context *ctx, PS_Value *v, const char *type_name) {
+  if (!ctx || !v || !type_name || !*type_name) return;
+  if (v->tag == PS_V_LIST) {
+    if (!ps_list_type_name_internal(v)) ps_list_set_type_name_internal(ctx, v, type_name);
+    return;
+  }
+  if (v->tag == PS_V_MAP) {
+    if (!ps_map_type_name_internal(v)) ps_map_set_type_name_internal(ctx, v, type_name);
+    return;
+  }
+  if (v->tag == PS_V_VIEW) {
+    if (!v->as.view_v.type_name) v->as.view_v.type_name = strdup(type_name);
+    return;
+  }
+}
+
 const PS_IR_Proto *ps_ir_find_proto(const PS_IR_Module *m, const char *name) {
   if (!m || !name) return NULL;
   for (size_t i = 0; i < m->proto_count; i++) {
@@ -1567,6 +1604,9 @@ static int exec_function(PS_Context *ctx, PS_IR_Module *m, IRFunction *f, PS_Val
       bindings_free(&temps);
       return 1;
     }
+    if (f->param_types && f->param_types[f->variadic_index]) {
+      ps_list_set_type_name_internal(ctx, list, f->param_types[f->variadic_index]);
+    }
     for (size_t i = fixed; i < argc; i++) {
       ps_list_push_internal(ctx, list, args[i]);
     }
@@ -1644,6 +1684,7 @@ static int exec_function(PS_Context *ctx, PS_IR_Module *m, IRFunction *f, PS_Val
       }
       if (strcmp(ins->op, "load_var") == 0) {
         PS_Value *v = bindings_get(&vars, ins->name);
+        apply_runtime_type_hint(ctx, v, ins->type);
         bindings_set(&temps, ins->dst, v);
         continue;
       }
@@ -1668,6 +1709,12 @@ static int exec_function(PS_Context *ctx, PS_IR_Module *m, IRFunction *f, PS_Val
         }
         if (recv && recv->tag == PS_V_OBJECT) {
           PS_Value *field = ps_object_get_str_internal(ctx, recv, ins->name ? ins->name : "", ins->name ? strlen(ins->name) : 0);
+          const char *hint = NULL;
+          if (field) {
+            const char *proto_name = ps_object_proto_name_internal(recv);
+            hint = proto_field_type_meta(m, proto_name, ins->name ? ins->name : "");
+          }
+          apply_runtime_type_hint(ctx, field, hint);
           bindings_set(&temps, ins->dst, field);
           continue;
         }

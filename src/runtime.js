@@ -212,6 +212,16 @@ function isRuntimeExceptionProto(protos, name) {
   return isProtoSubtype(protos, name, "RuntimeException");
 }
 
+function typeNodeToRuntimeTypeName(t) {
+  if (!t) return "unknown";
+  if (t.kind === "PrimitiveType" || t.kind === "NamedType" || t.kind === "BuiltinType") return t.name || "unknown";
+  if (t.kind === "GenericType") {
+    const args = Array.isArray(t.args) ? t.args.map((a) => typeNodeToRuntimeTypeName(a)) : [];
+    return `${t.name || "unknown"}<${args.join(",")}>`;
+  }
+  return "unknown";
+}
+
 function defaultValueForTypeNode(protos, t) {
   if (!t || t.kind === "PrimitiveType") {
     const n = t ? t.name : "void";
@@ -230,8 +240,16 @@ function defaultValueForTypeNode(protos, t) {
     return null;
   }
   if (t.kind === "GenericType") {
-    if (t.name === "list") return [];
-    if (t.name === "map") return new Map();
+    if (t.name === "list") {
+      const list = makeList([]);
+      list.__type = typeNodeToRuntimeTypeName(t);
+      return list;
+    }
+    if (t.name === "map") {
+      const map = new Map();
+      map.__type = typeNodeToRuntimeTypeName(t);
+      return map;
+    }
     if (t.name === "view" || t.name === "slice") return { __view: true, source: [], offset: 0, len: 0, readonly: t.name === "view" };
   }
   return null;
@@ -2438,7 +2456,9 @@ function runProgram(ast, file, argv) {
       const p = fn.params[i];
       if (p.variadic) {
         const rest = args.slice(argIndex + i);
-        scope.define(p.name, makeList(rest));
+        const variadicValues = makeList(rest);
+        variadicValues.__type = typeNodeToRuntimeTypeName(p.type);
+        scope.define(p.name, variadicValues);
         break;
       }
       scope.define(p.name, args[argIndex + i]);
