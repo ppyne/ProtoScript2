@@ -107,6 +107,25 @@ function buildPrototypeEnv(ast) {
     ],
     methods: new Map(),
   });
+  protos.set("JSONValue", {
+    name: "JSONValue",
+    parent: null,
+    sealed: true,
+    fields: [],
+    methods: new Map([
+      ["isNull", { name: "isNull", params: [], retType: { kind: "PrimitiveType", name: "bool" } }],
+      ["isBool", { name: "isBool", params: [], retType: { kind: "PrimitiveType", name: "bool" } }],
+      ["isNumber", { name: "isNumber", params: [], retType: { kind: "PrimitiveType", name: "bool" } }],
+      ["isString", { name: "isString", params: [], retType: { kind: "PrimitiveType", name: "bool" } }],
+      ["isArray", { name: "isArray", params: [], retType: { kind: "PrimitiveType", name: "bool" } }],
+      ["isObject", { name: "isObject", params: [], retType: { kind: "PrimitiveType", name: "bool" } }],
+      ["asBool", { name: "asBool", params: [], retType: { kind: "PrimitiveType", name: "bool" } }],
+      ["asNumber", { name: "asNumber", params: [], retType: { kind: "PrimitiveType", name: "float" } }],
+      ["asString", { name: "asString", params: [], retType: { kind: "PrimitiveType", name: "string" } }],
+      ["asArray", { name: "asArray", params: [], retType: { kind: "GenericType", name: "list", args: [{ kind: "NamedType", name: "JSONValue" }] } }],
+      ["asObject", { name: "asObject", params: [], retType: { kind: "GenericType", name: "map", args: [{ kind: "PrimitiveType", name: "string" }, { kind: "NamedType", name: "JSONValue" }] } }],
+    ]),
+  });
   const timeExceptionNames = [
     "DSTAmbiguousTimeException",
     "DSTNonExistentTimeException",

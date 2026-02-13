@@ -980,17 +980,18 @@ Règles :
 
 ## 4.2.1 `sealed` prototype (normatif)
 
-Le modificateur `sealed` appliqué à un `prototype` interdit toute relation d’héritage impliquant ce prototype.
+Le modificateur `sealed` appliqué à un `prototype` interdit **l’héritage depuis** ce prototype.
 
 Règles :
 
+- un `sealed prototype` peut déclarer un parent
 - un `sealed prototype` reste instanciable
 - `sealed` n’interdit pas `clone()`
 - `sealed` n’affecte pas les règles d’instanciation
 
 Erreur statique associée :
 
-- `E3140` — `SEALED_INHERITANCE` : tentative d’héritage impliquant un `sealed prototype`
+- `E3140` — `SEALED_INHERITANCE` : tentative d’héritage **depuis** un `sealed prototype`
 
 ---
 

@@ -8,5 +8,5 @@
     "line": 3,
     "column": 1
   },
-  "expected_output": "invalid/type/sealed_inherit.pts:3:1 E3140 SEALED_INHERITANCE: cannot inherit from sealed prototype"
+  "expected_output": "invalid/type/sealed_inherit.pts:3:1 E3140 SEALED_INHERITANCE: cannot inherit from sealed prototype 'Base'"
 }

@@ -1697,16 +1697,13 @@ class Analyzer {
       this.prototypes.set(d.name, { decl: d, parent: d.parent || null, fields, methods, sealed: !!d.sealed });
     }
     for (const [name, p] of this.prototypes.entries()) {
-      if (p.sealed && p.parent) {
-        this.addDiag(p.decl, "E3140", "SEALED_INHERITANCE", "sealed prototype cannot declare a parent");
-      }
       if (p.parent && !this.prototypes.has(p.parent)) {
         this.addDiag(p.decl, "E2001", "UNRESOLVED_NAME", `unknown parent prototype '${p.parent}'`);
       }
       const parent = this.prototypes.get(p.parent);
       if (parent) {
         if (parent.sealed) {
-          this.addDiag(p.decl, "E3140", "SEALED_INHERITANCE", "cannot inherit from sealed prototype");
+          this.addDiag(p.decl, "E3140", "SEALED_INHERITANCE", `cannot inherit from sealed prototype '${parent.decl.name}'`);
         }
         for (const fieldName of p.fields.keys()) {
           if (this.resolvePrototypeField(p.parent, fieldName)) {

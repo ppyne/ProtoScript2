@@ -24,6 +24,10 @@ function isObjectInstance(v) {
   return v && v.__object === true;
 }
 
+function isJsonValue(v) {
+  return v && v.__json === true;
+}
+
 function isExceptionValue(v) {
   return v && v.__exception === true;
 }
@@ -85,6 +89,7 @@ function inferTypeOfValue(v) {
   if (Array.isArray(v)) return "list";
   if (v instanceof Map) return "map";
   if (isView(v)) return v.readonly ? "view" : "slice";
+  if (isJsonValue(v)) return "JSONValue";
   if (isObjectInstance(v)) return v.__proto || "object";
   return "unknown";
 }
@@ -253,7 +258,7 @@ function dump(value, opts = {}) {
   };
 
   const isRef = (v) => {
-    return Array.isArray(v) || v instanceof Map || isView(v) || isObjectInstance(v) || isExceptionValue(v);
+    return Array.isArray(v) || v instanceof Map || isView(v) || isObjectInstance(v) || isExceptionValue(v) || isJsonValue(v);
   };
 
   const dumpScalar = (v, expectedType) => {
@@ -286,6 +291,121 @@ function dump(value, opts = {}) {
     write(`unknown(${typeof v})`);
   };
 
+  const dumpJsonValue = (v, depth, baseIndent) => {
+    const kind = v && v.type ? v.type : "unknown";
+    if (kind === "null") {
+      write("JSONValue(null)");
+      return;
+    }
+    if (kind === "bool") {
+      write(`JSONValue(bool=${v.value ? "true" : "false"})`);
+      return;
+    }
+    if (kind === "number") {
+      write(`JSONValue(number=${Number.isFinite(v.value) ? String(v.value) : "unknown"})`);
+      return;
+    }
+    if (kind === "string") {
+      const raw = typeof v.value === "string" ? v.value : "";
+      const glyphs = Array.from(raw).length;
+      const info = stringifyString(raw, maxString);
+      write(`JSONValue(string,len=${glyphs}) "${info.out}"`);
+      if (info.truncated) write(" … (truncated)");
+      return;
+    }
+    if (kind === "array") {
+      const items = Array.isArray(v.value) ? v.value : [];
+      write(`JSONValue(array,len=${items.length}) [`);
+      if (depth >= maxDepth) {
+        write("...]");
+        return;
+      }
+      write("\n");
+      const shown = Math.min(items.length, maxItems);
+      for (let i = 0; i < shown; i += 1) {
+        indent(baseIndent + 2);
+        write(`[${i}] `);
+        dumpValue(items[i], depth + 1, baseIndent + 2, null);
+        write("\n");
+      }
+      if (items.length > shown) {
+        indent(baseIndent + 2);
+        write("… (truncated)\n");
+      }
+      indent(baseIndent);
+      write("]");
+      return;
+    }
+    if (kind === "object") {
+      const members = v.value instanceof Map ? Array.from(v.value.entries()) : [];
+      write(`JSONValue(object,len=${members.length}) {`);
+      if (depth >= maxDepth) {
+        write("...}");
+        return;
+      }
+      write("\n");
+      const shown = Math.min(members.length, maxItems);
+      for (let i = 0; i < shown; i += 1) {
+        const [k, val] = members[i];
+        indent(baseIndent + 2);
+        write("[");
+        const key = typeof k === "string" ? k : "";
+        const info = stringifyString(key, maxString);
+        write(`"${info.out}"`);
+        if (info.truncated) write(" … (truncated)");
+        write("] ");
+        dumpValue(val, depth + 1, baseIndent + 2, null);
+        write("\n");
+      }
+      if (members.length > shown) {
+        indent(baseIndent + 2);
+        write("… (truncated)\n");
+      }
+      indent(baseIndent);
+      write("}");
+      return;
+    }
+    write("JSONValue(unknown)");
+  };
+
+  const dumpRefDesc = (v, expectedType) => {
+    if (v === null || v === undefined) {
+      write("unknown(null)");
+      return;
+    }
+    if (Array.isArray(v)) {
+      const typeName = v.__type || "list<unknown>";
+      write(`${typeName}(len=${v.length}) [...]`);
+      return;
+    }
+    if (v instanceof Map) {
+      const entries = Array.from(v.entries()).map(([k, val]) => [unmapKey(k), val]);
+      const typeName = v.__type || "map<unknown,unknown>";
+      write(`${typeName}(len=${entries.length}) {...}`);
+      return;
+    }
+    if (isView(v)) {
+      const typeName = v.__type || inferViewType(v);
+      write(`${typeName}(len=${v.len}) [...]`);
+      return;
+    }
+    if (isJsonValue(v)) {
+      dumpJsonValue(v, maxDepth, 0);
+      return;
+    }
+    if (isObjectInstance(v)) {
+      const protoName = v.__proto || "unknown";
+      write(`object<${protoName}>`);
+      return;
+    }
+    if (isExceptionValue(v)) {
+      const protoName = v.type || "Exception";
+      write(`object<${protoName}>`);
+      return;
+    }
+    dumpScalar(v, expectedType);
+  };
+
   const dumpValue = (v, depth, baseIndent, expectedType) => {
     if (isGroupType(v)) {
       const gname = getGroupTypeName(v);
@@ -303,7 +423,9 @@ function dump(value, opts = {}) {
     }
     if (isRef(v)) {
       if (seen.has(v)) {
-        write(`@cycle#${seen.get(v)}`);
+        const id = seen.get(v);
+        write(`@ref#${id} `);
+        dumpRefDesc(v, expectedType);
         return;
       }
       seenId += 1;
@@ -311,7 +433,7 @@ function dump(value, opts = {}) {
     }
 
     if (Array.isArray(v)) {
-      const typeName = v.__type || inferListType(v);
+      const typeName = v.__type || "list<unknown>";
       const parsed = parseTypeName(typeName);
       const elemType = parsed.args[0] || "unknown";
       write(`${typeName}(len=${v.length}) [`);
@@ -342,7 +464,7 @@ function dump(value, opts = {}) {
 
     if (v instanceof Map) {
       const entries = Array.from(v.entries()).map(([k, val]) => [unmapKey(k), val]);
-      const typeName = v.__type || inferMapType(entries);
+      const typeName = v.__type || "map<unknown,unknown>";
       const parsed = parseTypeName(typeName);
       const keyType = parsed.args[0] || "unknown";
       const valType = parsed.args[1] || "unknown";
@@ -418,8 +540,8 @@ function dump(value, opts = {}) {
       return;
     }
 
-    if (isObjectInstance(v)) {
-      const protoName = v.__proto || "unknown";
+    if (isObjectInstance(v) || isJsonValue(v)) {
+      const protoName = isObjectInstance(v) ? (v.__proto || "unknown") : "JSONValue";
       write(`object<${protoName}> {`);
       if (depth >= maxDepth) {
         write("\n");
@@ -434,6 +556,14 @@ function dump(value, opts = {}) {
       const chain = protoChain(protoEnv, protoName);
       write(`delegation: ${chain.length ? chain.join(" -> ") : "<unknown>"}`);
       write("\n");
+      indent(baseIndent + 2);
+      write("native: ");
+      if (isJsonValue(v)) {
+        dumpJsonValue(v, depth + 1, baseIndent + 2);
+        write("\n");
+      } else {
+        write("<none>\n");
+      }
       indent(baseIndent + 2);
       write("fields:\n");
       const protoMap = protoEnv && protoEnv.protos ? protoEnv.protos : protoEnv;
@@ -453,7 +583,8 @@ function dump(value, opts = {}) {
         for (const f of cur.fields || []) {
           indent(baseIndent + 4);
           write(`[${cur.name}] ${f.name} : ${typeToString(f.type)} = `);
-          const val = v.__fields ? v.__fields[f.name] : undefined;
+          const fieldSrc = isObjectInstance(v) ? v.__fields : null;
+          const val = fieldSrc ? fieldSrc[f.name] : undefined;
           if (val === undefined) {
             write("unknown(missing)");
           } else {

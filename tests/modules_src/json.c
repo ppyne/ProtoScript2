@@ -51,9 +51,112 @@ static void sb_free(StrBuf *sb) {
   sb->cap = 0;
 }
 
+static int utf8_next(const uint8_t *s, size_t len, size_t *i, uint32_t *out) {
+  if (*i >= len) return 0;
+  uint8_t c = s[*i];
+  if (c < 0x80) {
+    *out = c;
+    *i += 1;
+    return 1;
+  }
+  if ((c & 0xE0) == 0xC0) {
+    if (*i + 1 >= len) return -1;
+    uint8_t c1 = s[*i + 1];
+    if ((c1 & 0xC0) != 0x80) return -1;
+    uint32_t cp = ((uint32_t)(c & 0x1F) << 6) | (uint32_t)(c1 & 0x3F);
+    if (cp < 0x80) return -1;
+    *out = cp;
+    *i += 2;
+    return 1;
+  }
+  if ((c & 0xF0) == 0xE0) {
+    if (*i + 2 >= len) return -1;
+    uint8_t c1 = s[*i + 1];
+    uint8_t c2 = s[*i + 2];
+    if ((c1 & 0xC0) != 0x80 || (c2 & 0xC0) != 0x80) return -1;
+    uint32_t cp = ((uint32_t)(c & 0x0F) << 12) | ((uint32_t)(c1 & 0x3F) << 6) | (uint32_t)(c2 & 0x3F);
+    if (cp < 0x800) return -1;
+    *out = cp;
+    *i += 3;
+    return 1;
+  }
+  if ((c & 0xF8) == 0xF0) {
+    if (*i + 3 >= len) return -1;
+    uint8_t c1 = s[*i + 1];
+    uint8_t c2 = s[*i + 2];
+    uint8_t c3 = s[*i + 3];
+    if ((c1 & 0xC0) != 0x80 || (c2 & 0xC0) != 0x80 || (c3 & 0xC0) != 0x80) return -1;
+    uint32_t cp = ((uint32_t)(c & 0x07) << 18) | ((uint32_t)(c1 & 0x3F) << 12) | ((uint32_t)(c2 & 0x3F) << 6) |
+                  (uint32_t)(c3 & 0x3F);
+    if (cp < 0x10000 || cp > 0x10FFFF) return -1;
+    *out = cp;
+    *i += 4;
+    return 1;
+  }
+  return -1;
+}
+
+static int sb_append_escaped(StrBuf *sb, uint32_t cp, const uint8_t *bytes, size_t blen) {
+  switch (cp) {
+    case '"': return sb_append(sb, "\\\"", 2);
+    case '\\': return sb_append(sb, "\\\\", 2);
+    case '\n': return sb_append(sb, "\\n", 2);
+    case '\r': return sb_append(sb, "\\r", 2);
+    case '\t': return sb_append(sb, "\\t", 2);
+    case '\b': return sb_append(sb, "\\b", 2);
+    case '\f': return sb_append(sb, "\\f", 2);
+    default:
+      if (cp < 0x20) {
+        char buf[7];
+        snprintf(buf, sizeof(buf), "\\u%04X", (unsigned)cp);
+        return sb_append(sb, buf, 6);
+      }
+      if (bytes && blen > 0) return sb_append(sb, (const char *)bytes, blen);
+      return 0;
+  }
+}
+
+static int sb_append_string_escaped(StrBuf *sb, const char *s, size_t len, size_t max_glyphs, int *truncated) {
+  if (truncated) *truncated = 0;
+  const uint8_t *buf = (const uint8_t *)s;
+  size_t i = 0;
+  size_t glyphs = 0;
+  while (i < len) {
+    if (glyphs >= max_glyphs) {
+      if (truncated) *truncated = 1;
+      break;
+    }
+    size_t start = i;
+    uint32_t cp = 0;
+    int r = utf8_next(buf, len, &i, &cp);
+    if (r <= 0) break;
+    size_t blen = i - start;
+    if (!sb_append_escaped(sb, cp, buf + start, blen)) return 0;
+    glyphs += 1;
+  }
+  if (i < len && truncated) *truncated = 1;
+  return 1;
+}
+
+static size_t utf8_glyph_len_local(const uint8_t *s, size_t len) {
+  size_t i = 0;
+  size_t glyphs = 0;
+  while (i < len) {
+    uint32_t cp = 0;
+    int r = utf8_next(s, len, &i, &cp);
+    if (r <= 0) break;
+    glyphs += 1;
+  }
+  return glyphs;
+}
+
 static PS_Value *json_make_value(PS_Context *ctx, const char *kind, PS_Value *value) {
   PS_Value *obj = ps_make_object(ctx);
   if (!obj) return NULL;
+  if (ps_object_set_proto_name(ctx, obj, "JSONValue") != PS_OK) {
+    ps_value_release(obj);
+    return NULL;
+  }
   PS_Value *k = ps_make_string_utf8(ctx, kind, strlen(kind));
   if (!k) {
     ps_value_release(obj);
@@ -739,6 +842,135 @@ static PS_Status mod_object(PS_Context *ctx, int argc, PS_Value **argv, PS_Value
   return PS_OK;
 }
 
+static int json_debug_dump(PS_Context *ctx, PS_Value *v, const PS_DebugWriter *w, int depth, int indent) {
+  const char *kind = NULL;
+  PS_Value *val = NULL;
+  if (!json_value_kind(ctx, v, &kind, &val)) return 0;
+  if (!w || !w->write || !w->printf || !w->indent || !w->dump_value) return 0;
+  if (strcmp(kind, "null") == 0) return w->write(w->ud, "JSONValue(null)");
+  if (strcmp(kind, "bool") == 0) {
+    if (!val || ps_typeof(val) != PS_T_BOOL) return w->write(w->ud, "JSONValue(bool=unknown)");
+    return w->printf(w->ud, "JSONValue(bool=%s)", ps_as_bool(val) ? "true" : "false");
+  }
+  if (strcmp(kind, "number") == 0) {
+    if (!val || ps_typeof(val) != PS_T_FLOAT) return w->write(w->ud, "JSONValue(number=unknown)");
+    char buf[64];
+    snprintf(buf, sizeof(buf), "%.17g", ps_as_float(val));
+    return w->printf(w->ud, "JSONValue(number=%s)", buf);
+  }
+  if (strcmp(kind, "string") == 0) {
+    if (!val || ps_typeof(val) != PS_T_STRING) return w->write(w->ud, "JSONValue(string=unknown)");
+    StrBuf sb;
+    sb_init(&sb);
+    int truncated = 0;
+    const char *raw = ps_string_ptr(val);
+    size_t raw_len = ps_string_len(val);
+    size_t glyphs = utf8_glyph_len_local((const uint8_t *)raw, raw_len);
+    sb_append_string_escaped(&sb, raw, raw_len, w->max_string, &truncated);
+    int ok = w->printf(w->ud, "JSONValue(string,len=%zu) \"", glyphs);
+    if (ok) ok = w->write(w->ud, sb.buf ? sb.buf : "");
+    if (ok) ok = w->write(w->ud, "\"");
+    if (truncated) ok = ok && w->write(w->ud, " \xE2\x80\xA6 (truncated)");
+    sb_free(&sb);
+    return ok;
+  }
+  if (strcmp(kind, "array") == 0) {
+    if (!val || ps_typeof(val) != PS_T_LIST) return w->write(w->ud, "JSONValue(array,len=unknown)");
+    size_t len = ps_list_len(val);
+    if (!w->printf(w->ud, "JSONValue(array,len=%zu) [", len)) return 0;
+    if (depth >= (int)w->max_depth) {
+      return w->write(w->ud, "...]");
+    }
+    if (!w->write(w->ud, "\n")) return 0;
+    size_t shown = len < w->max_items ? len : w->max_items;
+    for (size_t i = 0; i < shown; i++) {
+      PS_Value *item = ps_list_get(ctx, val, i);
+      w->indent(w->ud, indent + 2);
+      if (!w->printf(w->ud, "[%zu] ", i)) return 0;
+      if (!w->dump_value(w->ud, item, depth + 1, indent + 2)) return 0;
+      if (!w->write(w->ud, "\n")) return 0;
+    }
+    if (len > shown) {
+      w->indent(w->ud, indent + 2);
+      if (!w->write(w->ud, "\xE2\x80\xA6 (truncated)\n")) return 0;
+    }
+    w->indent(w->ud, indent);
+    return w->write(w->ud, "]");
+  }
+  if (strcmp(kind, "object") == 0) {
+    if (!val || ps_typeof(val) != PS_T_MAP) return w->write(w->ud, "JSONValue(object,len=unknown)");
+    size_t len = ps_map_len(val);
+    if (!w->printf(w->ud, "JSONValue(object,len=%zu) {", len)) return 0;
+    if (depth >= (int)w->max_depth) {
+      return w->write(w->ud, "...}");
+    }
+    if (!w->write(w->ud, "\n")) return 0;
+    size_t shown = len < w->max_items ? len : w->max_items;
+    for (size_t i = 0; i < shown; i++) {
+      PS_Value *key = NULL;
+      PS_Value *value = NULL;
+      if (ps_map_entry(ctx, val, i, &key, &value) != PS_OK) return 0;
+      w->indent(w->ud, indent + 2);
+      if (!w->write(w->ud, "[")) return 0;
+      if (key && ps_typeof(key) == PS_T_STRING) {
+        StrBuf kb;
+        sb_init(&kb);
+        int kt = 0;
+        sb_append_c(&kb, '"');
+        sb_append_string_escaped(&kb, ps_string_ptr(key), ps_string_len(key), w->max_string, &kt);
+        sb_append_c(&kb, '"');
+        if (!w->write(w->ud, kb.buf ? kb.buf : "\"\"")) {
+          sb_free(&kb);
+          return 0;
+        }
+        if (kt && !w->write(w->ud, " \xE2\x80\xA6 (truncated)")) {
+          sb_free(&kb);
+          return 0;
+        }
+        sb_free(&kb);
+      } else {
+        if (!w->write(w->ud, "unknown(key)")) return 0;
+      }
+      if (!w->write(w->ud, "] ")) return 0;
+      if (!w->dump_value(w->ud, value, depth + 1, indent + 2)) return 0;
+      if (!w->write(w->ud, "\n")) return 0;
+    }
+    if (len > shown) {
+      w->indent(w->ud, indent + 2);
+      if (!w->write(w->ud, "\xE2\x80\xA6 (truncated)\n")) return 0;
+    }
+    w->indent(w->ud, indent);
+    return w->write(w->ud, "}");
+  }
+  return 0;
+}
+
+static const PS_ProtoMethodDesc JSONValue_methods[] = {
+  { .name = "isNull", .params = NULL, .param_count = 0, .ret_type = "bool" },
+  { .name = "isBool", .params = NULL, .param_count = 0, .ret_type = "bool" },
+  { .name = "isNumber", .params = NULL, .param_count = 0, .ret_type = "bool" },
+  { .name = "isString", .params = NULL, .param_count = 0, .ret_type = "bool" },
+  { .name = "isArray", .params = NULL, .param_count = 0, .ret_type = "bool" },
+  { .name = "isObject", .params = NULL, .param_count = 0, .ret_type = "bool" },
+  { .name = "asBool", .params = NULL, .param_count = 0, .ret_type = "bool" },
+  { .name = "asNumber", .params = NULL, .param_count = 0, .ret_type = "float" },
+  { .name = "asString", .params = NULL, .param_count = 0, .ret_type = "string" },
+  { .name = "asArray", .params = NULL, .param_count = 0, .ret_type = "list<JSONValue>" },
+  { .name = "asObject", .params = NULL, .param_count = 0, .ret_type = "map<string,JSONValue>" },
+};
+
+static const PS_ProtoDesc JSON_protos[] = {
+  {
+    .name = "JSONValue",
+    .parent = NULL,
+    .fields = NULL,
+    .field_count = 0,
+    .methods = JSONValue_methods,
+    .method_count = sizeof(JSONValue_methods) / sizeof(JSONValue_methods[0]),
+    .is_sealed = 1
+  }
+};
+
 PS_Status ps_module_init(PS_Context *ctx, PS_Module *out) {
   (void)ctx;
   static PS_NativeFnDesc fns[] = {
@@ -756,5 +988,8 @@ PS_Status ps_module_init(PS_Context *ctx, PS_Module *out) {
   out->api_version = PS_API_VERSION;
   out->fn_count = sizeof(fns) / sizeof(fns[0]);
   out->fns = fns;
+  out->proto_count = sizeof(JSON_protos) / sizeof(JSON_protos[0]);
+  out->protos = JSON_protos;
+  out->debug_dump = json_debug_dump;
   return PS_OK;
 }

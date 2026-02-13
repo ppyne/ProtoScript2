@@ -123,6 +123,14 @@ PS_Value *ps_make_file(PS_Context *ctx, FILE *fp, uint32_t flags, const char *pa
   return v;
 }
 
+PS_Status ps_object_set_proto_name(PS_Context *ctx, PS_Value *obj, const char *name) {
+  if (!obj || obj->tag != PS_V_OBJECT) {
+    ps_throw_diag(ctx, PS_ERR_TYPE, "invalid object prototype assignment", obj ? "non-object value" : "null", "object");
+    return PS_ERR;
+  }
+  return ps_object_set_proto_name_internal(ctx, obj, name) ? PS_OK : PS_ERR;
+}
+
 int ps_as_bool(PS_Value *v) { return v ? v->as.bool_v : 0; }
 int64_t ps_as_int(PS_Value *v) { return v ? v->as.int_v : 0; }
 double ps_as_float(PS_Value *v) { return v ? v->as.float_v : 0.0; }

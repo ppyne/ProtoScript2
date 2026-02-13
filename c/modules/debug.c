@@ -7,6 +7,7 @@
 #include "runtime/ps_list.h"
 #include "runtime/ps_map.h"
 #include "runtime/ps_object.h"
+#include "runtime/ps_modules.h"
 #include "runtime/ps_runtime.h"
 #include "runtime/ps_string.h"
 #include "runtime/ps_vm_internal.h"
@@ -191,6 +192,7 @@ static const char *view_type_name(PS_Value *v) {
   return "view<unknown>";
 }
 
+
 static const char *value_tag_name(PS_Value *v) {
   if (!v) return "null";
   switch (v->tag) {
@@ -213,9 +215,65 @@ static const char *value_tag_name(PS_Value *v) {
   }
 }
 
-static const PS_IR_Proto *debug_find_proto(PS_Context *ctx, const char *name) {
-  if (!ctx || !ctx->current_module || !name) return NULL;
-  return ps_ir_find_proto(ctx->current_module, name);
+typedef enum {
+  DEBUG_PROTO_NONE = 0,
+  DEBUG_PROTO_IR = 1,
+  DEBUG_PROTO_NATIVE = 2
+} DebugProtoKind;
+
+typedef struct {
+  DebugProtoKind kind;
+  const PS_IR_Proto *ir;
+  const PS_ProtoDesc *native;
+} DebugProto;
+
+static DebugProto debug_proto_none(void) {
+  DebugProto p;
+  p.kind = DEBUG_PROTO_NONE;
+  p.ir = NULL;
+  p.native = NULL;
+  return p;
+}
+
+static DebugProto debug_proto_from_ir(const PS_IR_Proto *p) {
+  DebugProto out = debug_proto_none();
+  if (p) {
+    out.kind = DEBUG_PROTO_IR;
+    out.ir = p;
+  }
+  return out;
+}
+
+static DebugProto debug_proto_from_native(const PS_ProtoDesc *p) {
+  DebugProto out = debug_proto_none();
+  if (p) {
+    out.kind = DEBUG_PROTO_NATIVE;
+    out.native = p;
+  }
+  return out;
+}
+
+static const PS_ProtoDesc *debug_find_native_proto(PS_Context *ctx, const char *name) {
+  if (!ctx || !name) return NULL;
+  for (size_t i = 0; i < ctx->module_count; i++) {
+    PS_Module *m = &ctx->modules[i].desc;
+    if (!m->protos || m->proto_count == 0) continue;
+    for (size_t j = 0; j < m->proto_count; j++) {
+      if (m->protos[j].name && strcmp(m->protos[j].name, name) == 0) return &m->protos[j];
+    }
+  }
+  return NULL;
+}
+
+static DebugProto debug_find_proto(PS_Context *ctx, const char *name) {
+  if (!ctx || !name) return debug_proto_none();
+  if (ctx->current_module) {
+    const PS_IR_Proto *p = ps_ir_find_proto(ctx->current_module, name);
+    if (p) return debug_proto_from_ir(p);
+  }
+  const PS_ProtoDesc *np = debug_find_native_proto(ctx, name);
+  if (np) return debug_proto_from_native(np);
+  return debug_proto_none();
 }
 
 static const PS_IR_Group *debug_find_group(PS_Context *ctx, const char *name) {
@@ -393,6 +451,85 @@ static int debug_dump_group_type(PS_Context *ctx, DebugState *st, const PS_IR_Gr
   return debug_write(st, "}");
 }
 
+static const char *debug_proto_name(DebugProto p) {
+  if (p.kind == DEBUG_PROTO_IR && p.ir) return p.ir->name;
+  if (p.kind == DEBUG_PROTO_NATIVE && p.native) return p.native->name;
+  return NULL;
+}
+
+static const char *debug_proto_parent(DebugProto p) {
+  if (p.kind == DEBUG_PROTO_IR && p.ir) return p.ir->parent;
+  if (p.kind == DEBUG_PROTO_NATIVE && p.native) return p.native->parent;
+  return NULL;
+}
+
+static int debug_proto_is_sealed(DebugProto p) {
+  if (p.kind == DEBUG_PROTO_IR && p.ir) return p.ir->is_sealed;
+  if (p.kind == DEBUG_PROTO_NATIVE && p.native) return p.native->is_sealed;
+  return 0;
+}
+
+static size_t debug_proto_field_count(DebugProto p) {
+  if (p.kind == DEBUG_PROTO_IR && p.ir) return p.ir->field_count;
+  if (p.kind == DEBUG_PROTO_NATIVE && p.native) return p.native->field_count;
+  return 0;
+}
+
+static void debug_proto_field(DebugProto p, size_t idx, const char **name, const char **type) {
+  if (name) *name = NULL;
+  if (type) *type = NULL;
+  if (p.kind == DEBUG_PROTO_IR && p.ir && idx < p.ir->field_count) {
+    if (name) *name = p.ir->fields[idx].name;
+    if (type) *type = p.ir->fields[idx].type;
+  } else if (p.kind == DEBUG_PROTO_NATIVE && p.native && idx < p.native->field_count) {
+    if (name) *name = p.native->fields[idx].name;
+    if (type) *type = p.native->fields[idx].type;
+  }
+}
+
+static size_t debug_proto_method_count(DebugProto p) {
+  if (p.kind == DEBUG_PROTO_IR && p.ir) return p.ir->method_count;
+  if (p.kind == DEBUG_PROTO_NATIVE && p.native) return p.native->method_count;
+  return 0;
+}
+
+static const char *debug_proto_method_name(DebugProto p, size_t idx) {
+  if (p.kind == DEBUG_PROTO_IR && p.ir && idx < p.ir->method_count) return p.ir->methods[idx].name;
+  if (p.kind == DEBUG_PROTO_NATIVE && p.native && idx < p.native->method_count) return p.native->methods[idx].name;
+  return NULL;
+}
+
+static const char *debug_proto_method_ret_type(DebugProto p, size_t idx) {
+  if (p.kind == DEBUG_PROTO_IR && p.ir && idx < p.ir->method_count) return p.ir->methods[idx].ret_type;
+  if (p.kind == DEBUG_PROTO_NATIVE && p.native && idx < p.native->method_count) return p.native->methods[idx].ret_type;
+  return NULL;
+}
+
+static size_t debug_proto_method_param_count(DebugProto p, size_t idx) {
+  if (p.kind == DEBUG_PROTO_IR && p.ir && idx < p.ir->method_count) return p.ir->methods[idx].param_count;
+  if (p.kind == DEBUG_PROTO_NATIVE && p.native && idx < p.native->method_count) return p.native->methods[idx].param_count;
+  return 0;
+}
+
+static void debug_proto_method_param(DebugProto p, size_t midx, size_t pidx, const char **name, const char **type, int *variadic) {
+  if (name) *name = NULL;
+  if (type) *type = NULL;
+  if (variadic) *variadic = 0;
+  if (p.kind == DEBUG_PROTO_IR && p.ir && midx < p.ir->method_count) {
+    if (pidx < p.ir->methods[midx].param_count) {
+      if (name) *name = p.ir->methods[midx].params[pidx].name;
+      if (type) *type = p.ir->methods[midx].params[pidx].type;
+      if (variadic) *variadic = p.ir->methods[midx].params[pidx].variadic;
+    }
+  } else if (p.kind == DEBUG_PROTO_NATIVE && p.native && midx < p.native->method_count) {
+    if (pidx < p.native->methods[midx].param_count) {
+      if (name) *name = p.native->methods[midx].params[pidx].name;
+      if (type) *type = p.native->methods[midx].params[pidx].type;
+      if (variadic) *variadic = p.native->methods[midx].params[pidx].variadic;
+    }
+  }
+}
+
 static void debug_print_chain(DebugState *st, PS_Context *ctx, const char *proto_name) {
   if (!proto_name) {
     debug_write(st, "delegation: <unknown>");
@@ -402,11 +539,12 @@ static void debug_print_chain(DebugState *st, PS_Context *ctx, const char *proto
   const char *cur = proto_name;
   for (size_t depth = 0; depth < 64; depth++) {
     if (depth > 0) debug_write(st, " -> ");
-    const PS_IR_Proto *p = debug_find_proto(ctx, cur);
-    if (p && p->is_sealed) debug_write(st, "sealed ");
+    DebugProto p = debug_find_proto(ctx, cur);
+    if (debug_proto_is_sealed(p)) debug_write(st, "sealed ");
     debug_write(st, cur);
-    if (!p || !p->parent || p->parent[0] == '\0') break;
-    cur = p->parent;
+    const char *parent = debug_proto_parent(p);
+    if (!parent || parent[0] == '\0') break;
+    cur = parent;
   }
 }
 
@@ -431,6 +569,91 @@ static PS_Value *debug_exception_field(PS_Context *ctx, PS_Value *ex, const char
 }
 
 static int debug_dump_value(PS_Context *ctx, DebugState *st, PS_Value *v, int depth, int indent);
+static int debug_dump_native(PS_Context *ctx, DebugState *st, PS_Value *v, int depth, int indent);
+
+typedef struct {
+  PS_Context *ctx;
+  DebugState *st;
+} DebugWriterState;
+
+static int debug_writer_write(void *ud, const char *s) {
+  DebugWriterState *ws = (DebugWriterState *)ud;
+  return debug_write(ws->st, s);
+}
+
+static int debug_writer_printf(void *ud, const char *fmt, ...) {
+  DebugWriterState *ws = (DebugWriterState *)ud;
+  if (!ws || !ws->st || ws->st->io_error) return 0;
+  va_list args;
+  va_start(args, fmt);
+  int ok = vfprintf(ws->st->out, fmt, args) >= 0;
+  va_end(args);
+  if (!ok) ws->st->io_error = 1;
+  return ok;
+}
+
+static void debug_writer_indent(void *ud, int spaces) {
+  DebugWriterState *ws = (DebugWriterState *)ud;
+  debug_indent(ws->st, spaces);
+}
+
+static int debug_writer_dump_value(void *ud, PS_Value *value, int depth, int indent) {
+  DebugWriterState *ws = (DebugWriterState *)ud;
+  return debug_dump_value(ws->ctx, ws->st, value, depth, indent);
+}
+
+static int debug_dump_ref_desc(PS_Context *ctx, DebugState *st, PS_Value *v) {
+  if (!v) return debug_write(st, "unknown(null)");
+  if (v->tag == PS_V_BOOL || v->tag == PS_V_BYTE || v->tag == PS_V_INT || v->tag == PS_V_FLOAT ||
+      v->tag == PS_V_GLYPH || v->tag == PS_V_STRING) {
+    return debug_dump_scalar(st, v);
+  }
+  if (v->tag == PS_V_LIST) {
+    size_t len = v->as.list_v.len;
+    return debug_printf(st, "%s(len=%zu) [...]", list_type_name(v), len);
+  }
+  if (v->tag == PS_V_MAP) {
+    size_t len = ps_map_len(v);
+    const char *tname = map_type_name(v);
+    return debug_printf(st, "%s(len=%zu) {...}", tname, len);
+  }
+  if (v->tag == PS_V_VIEW) {
+    size_t len = v->as.view_v.len;
+    return debug_printf(st, "%s(len=%zu) [...]", view_type_name(v), len);
+  }
+  if (v->tag == PS_V_OBJECT || v->tag == PS_V_EXCEPTION) {
+    if (debug_dump_native(ctx, st, v, (int)st->max_depth, 0)) return 1;
+    const char *proto_name = NULL;
+    if (v->tag == PS_V_EXCEPTION) proto_name = v->as.exc_v.type_name;
+    if (!proto_name && v->tag == PS_V_OBJECT) proto_name = ps_object_proto_name_internal(v);
+    return debug_printf(st, "object<%s>", proto_name ? proto_name : "unknown");
+  }
+  return debug_printf(st, "unknown(%s)", value_tag_name(v));
+}
+
+static int debug_dump_native(PS_Context *ctx, DebugState *st, PS_Value *v, int depth, int indent) {
+  if (!ctx || !st || !v) return 0;
+  if (!ctx->modules || ctx->module_count == 0) return 0;
+  DebugWriterState ws;
+  ws.ctx = ctx;
+  ws.st = st;
+  PS_DebugWriter writer;
+  memset(&writer, 0, sizeof(writer));
+  writer.ud = &ws;
+  writer.write = debug_writer_write;
+  writer.printf = debug_writer_printf;
+  writer.indent = debug_writer_indent;
+  writer.dump_value = debug_writer_dump_value;
+  writer.max_depth = st->max_depth;
+  writer.max_items = st->max_items;
+  writer.max_string = st->max_string;
+  for (size_t i = 0; i < ctx->module_count; i++) {
+    PS_Module *m = &ctx->modules[i].desc;
+    if (!m->debug_dump) continue;
+    if (m->debug_dump(ctx, v, &writer, depth, indent)) return 1;
+  }
+  return 0;
+}
 
 static int debug_dump_scalar(DebugState *st, PS_Value *v) {
   if (!v) return debug_write(st, "unknown(null)");
@@ -507,7 +730,8 @@ static int debug_dump_map_key(PS_Context *ctx, DebugState *st, PS_Value *key) {
 
 static int debug_dump_map(PS_Context *ctx, DebugState *st, PS_Value *v, int depth, int indent) {
   size_t len = ps_map_len(v);
-  if (!debug_printf(st, "%s(len=%zu) {", map_type_name(v), len)) return 0;
+  const char *tname = map_type_name(v);
+  if (!debug_printf(st, "%s(len=%zu) {", tname, len)) return 0;
   if (depth >= (int)st->max_depth) {
     if (!debug_write(st, "\n")) return 0;
     debug_indent(st, indent + 2);
@@ -579,12 +803,16 @@ static int debug_dump_view(PS_Context *ctx, DebugState *st, PS_Value *v, int dep
   return debug_write(st, "]");
 }
 
-static int debug_dump_object_fields(PS_Context *ctx, DebugState *st, PS_Value *v, const PS_IR_Proto *proto, int depth, int indent) {
-  const PS_IR_Proto *cur = proto;
-  for (size_t guard = 0; cur && guard < 64; guard++) {
-    for (size_t i = 0; i < cur->field_count; i++) {
-      const char *fname = cur->fields[i].name ? cur->fields[i].name : "";
-      const char *ftype = cur->fields[i].type ? cur->fields[i].type : "unknown";
+static int debug_dump_object_fields(PS_Context *ctx, DebugState *st, PS_Value *v, DebugProto proto, int depth, int indent) {
+  DebugProto cur = proto;
+  for (size_t guard = 0; cur.kind != DEBUG_PROTO_NONE && guard < 64; guard++) {
+    size_t field_count = debug_proto_field_count(cur);
+    for (size_t i = 0; i < field_count; i++) {
+      const char *fname = NULL;
+      const char *ftype = NULL;
+      debug_proto_field(cur, i, &fname, &ftype);
+      fname = fname ? fname : "";
+      ftype = ftype ? ftype : "unknown";
       PS_Value *fval = NULL;
       PS_Value *tmp_int = NULL;
       if (v->tag == PS_V_EXCEPTION) {
@@ -596,7 +824,7 @@ static int debug_dump_object_fields(PS_Context *ctx, DebugState *st, PS_Value *v
         fval = ps_object_get_str_internal(ctx, v, fname, strlen(fname));
       }
       debug_indent(st, indent);
-      if (!debug_printf(st, "[%s] %s : %s = ", cur->name ? cur->name : "<unknown>", fname, ftype)) return 0;
+      if (!debug_printf(st, "[%s] %s : %s = ", debug_proto_name(cur) ? debug_proto_name(cur) : "<unknown>", fname, ftype)) return 0;
       if (fval) {
         if (!debug_dump_value(ctx, st, fval, depth + 1, indent)) return 0;
       } else {
@@ -605,23 +833,27 @@ static int debug_dump_object_fields(PS_Context *ctx, DebugState *st, PS_Value *v
       if (tmp_int) ps_value_release(tmp_int);
       if (!debug_write(st, "\n")) return 0;
     }
-    if (!cur->parent) break;
-    cur = debug_find_proto(ctx, cur->parent);
+    const char *parent = debug_proto_parent(cur);
+    if (!parent) break;
+    cur = debug_find_proto(ctx, parent);
   }
   return 1;
 }
 
-static const PS_IR_Proto *debug_find_parent_proto(PS_Context *ctx, const PS_IR_Proto *proto) {
-  if (!proto || !proto->parent) return NULL;
-  return debug_find_proto(ctx, proto->parent);
+static DebugProto debug_find_parent_proto(PS_Context *ctx, DebugProto proto) {
+  const char *parent = debug_proto_parent(proto);
+  if (!parent) return debug_proto_none();
+  return debug_find_proto(ctx, parent);
 }
 
-static const char *debug_find_override(PS_Context *ctx, const PS_IR_Proto *proto, const char *method_name) {
-  const PS_IR_Proto *cur = debug_find_parent_proto(ctx, proto);
-  while (cur) {
-    for (size_t i = 0; i < cur->method_count; i++) {
-      if (cur->methods[i].name && strcmp(cur->methods[i].name, method_name) == 0) {
-        return cur->name;
+static const char *debug_find_override(PS_Context *ctx, DebugProto proto, const char *method_name) {
+  DebugProto cur = debug_find_parent_proto(ctx, proto);
+  while (cur.kind != DEBUG_PROTO_NONE) {
+    size_t method_count = debug_proto_method_count(cur);
+    for (size_t i = 0; i < method_count; i++) {
+      const char *mname = debug_proto_method_name(cur, i);
+      if (mname && strcmp(mname, method_name) == 0) {
+        return debug_proto_name(cur);
       }
     }
     cur = debug_find_parent_proto(ctx, cur);
@@ -629,34 +861,43 @@ static const char *debug_find_override(PS_Context *ctx, const PS_IR_Proto *proto
   return NULL;
 }
 
-static int debug_dump_object_methods(PS_Context *ctx, DebugState *st, const PS_IR_Proto *proto, int indent) {
-  const PS_IR_Proto *cur = proto;
-  for (size_t guard = 0; cur && guard < 64; guard++) {
-    for (size_t i = 0; i < cur->method_count; i++) {
-      const char *mname = cur->methods[i].name ? cur->methods[i].name : "";
+static int debug_dump_object_methods(PS_Context *ctx, DebugState *st, DebugProto proto, int indent) {
+  DebugProto cur = proto;
+  for (size_t guard = 0; cur.kind != DEBUG_PROTO_NONE && guard < 64; guard++) {
+    size_t method_count = debug_proto_method_count(cur);
+    for (size_t i = 0; i < method_count; i++) {
+      const char *mname = debug_proto_method_name(cur, i);
+      mname = mname ? mname : "";
       debug_indent(st, indent);
-      if (!debug_printf(st, "[%s] %s(", cur->name ? cur->name : "<unknown>", mname)) return 0;
-      for (size_t p = 0; p < cur->methods[i].param_count; p++) {
-        const char *pname = cur->methods[i].params[p].name ? cur->methods[i].params[p].name : "";
-        const char *ptype = cur->methods[i].params[p].type ? cur->methods[i].params[p].type : "unknown";
+      if (!debug_printf(st, "[%s] %s(", debug_proto_name(cur) ? debug_proto_name(cur) : "<unknown>", mname)) return 0;
+      size_t param_count = debug_proto_method_param_count(cur, i);
+      for (size_t p = 0; p < param_count; p++) {
+        const char *pname = NULL;
+        const char *ptype = NULL;
+        int variadic = 0;
+        debug_proto_method_param(cur, i, p, &pname, &ptype, &variadic);
+        pname = pname ? pname : "";
+        ptype = ptype ? ptype : "unknown";
         if (p > 0) {
           if (!debug_write(st, ", ")) return 0;
         }
-        if (cur->methods[i].params[p].variadic) {
+        if (variadic) {
           if (!debug_printf(st, "...%s:%s", pname, ptype)) return 0;
         } else {
           if (!debug_printf(st, "%s:%s", pname, ptype)) return 0;
         }
       }
-      if (!debug_printf(st, ") : %s", cur->methods[i].ret_type ? cur->methods[i].ret_type : "unknown")) return 0;
+      const char *ret = debug_proto_method_ret_type(cur, i);
+      if (!debug_printf(st, ") : %s", ret ? ret : "unknown")) return 0;
       const char *over = debug_find_override(ctx, cur, mname);
       if (over) {
         if (!debug_printf(st, "  (overrides %s.%s)", over, mname)) return 0;
       }
       if (!debug_write(st, "\n")) return 0;
     }
-    if (!cur->parent) break;
-    cur = debug_find_proto(ctx, cur->parent);
+    const char *parent = debug_proto_parent(cur);
+    if (!parent) break;
+    cur = debug_find_proto(ctx, parent);
   }
   return 1;
 }
@@ -679,9 +920,16 @@ static int debug_dump_object(PS_Context *ctx, DebugState *st, PS_Value *v, int d
   debug_print_chain(st, ctx, proto_name);
   if (!debug_write(st, "\n")) return 0;
   debug_indent(st, indent + 2);
+  if (!debug_write(st, "native: ")) return 0;
+  if (debug_dump_native(ctx, st, v, depth + 1, indent + 2)) {
+    if (!debug_write(st, "\n")) return 0;
+  } else {
+    if (!debug_write(st, "<none>\n")) return 0;
+  }
+  debug_indent(st, indent + 2);
   if (!debug_write(st, "fields:\n")) return 0;
-  const PS_IR_Proto *proto = debug_find_proto(ctx, proto_name);
-  if (proto) {
+  DebugProto proto = debug_find_proto(ctx, proto_name);
+  if (proto.kind != DEBUG_PROTO_NONE) {
     if (!debug_dump_object_fields(ctx, st, v, proto, depth, indent + 4)) return 0;
   } else {
     debug_indent(st, indent + 4);
@@ -689,7 +937,7 @@ static int debug_dump_object(PS_Context *ctx, DebugState *st, PS_Value *v, int d
   }
   debug_indent(st, indent + 2);
   if (!debug_write(st, "methods:\n")) return 0;
-  if (proto) {
+  if (proto.kind != DEBUG_PROTO_NONE) {
     if (!debug_dump_object_methods(ctx, st, proto, indent + 4)) return 0;
   } else {
     debug_indent(st, indent + 4);
@@ -714,7 +962,8 @@ static int debug_dump_value(PS_Context *ctx, DebugState *st, PS_Value *v, int de
   if (debug_is_ref_type(v)) {
     size_t id = 0;
     if (debug_seen_find(st, v, &id)) {
-      return debug_printf(st, "@cycle#%zu", id);
+      if (!debug_printf(st, "@ref#%zu ", id)) return 0;
+      return debug_dump_ref_desc(ctx, st, v);
     }
     if (!debug_seen_add(st, v, &id)) return debug_printf(st, "unknown(cycle)");
   }

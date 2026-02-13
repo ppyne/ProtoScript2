@@ -60,10 +60,60 @@ typedef struct {
 } PS_NativeFnDesc;
 
 typedef struct {
+  const char *name;
+  const char *type; // type name, e.g. "int" or "list<JSONValue>"
+} PS_ProtoFieldDesc;
+
+typedef struct {
+  const char *name;
+  const char *type; // type name, e.g. "int" or "list<JSONValue>"
+  int variadic;
+} PS_ProtoParamDesc;
+
+typedef struct {
+  const char *name;
+  const PS_ProtoParamDesc *params;
+  size_t param_count;
+  const char *ret_type; // type name, e.g. "void"
+} PS_ProtoMethodDesc;
+
+typedef struct {
+  const char *name;
+  const char *parent; // optional
+  const PS_ProtoFieldDesc *fields;
+  size_t field_count;
+  const PS_ProtoMethodDesc *methods;
+  size_t method_count;
+  int is_sealed;
+} PS_ProtoDesc;
+
+typedef struct PS_DebugWriter PS_DebugWriter;
+typedef int (*PS_DebugWriteFn)(void *ud, const char *s);
+typedef int (*PS_DebugPrintfFn)(void *ud, const char *fmt, ...);
+typedef void (*PS_DebugIndentFn)(void *ud, int spaces);
+typedef int (*PS_DebugDumpValueFn)(void *ud, PS_Value *value, int depth, int indent);
+
+struct PS_DebugWriter {
+  void *ud;
+  PS_DebugWriteFn write;
+  PS_DebugPrintfFn printf;
+  PS_DebugIndentFn indent;
+  PS_DebugDumpValueFn dump_value;
+  size_t max_depth;
+  size_t max_items;
+  size_t max_string;
+};
+
+typedef int (*PS_DebugDumpFn)(PS_Context *ctx, PS_Value *value, const PS_DebugWriter *writer, int depth, int indent);
+
+typedef struct {
   const char *module_name; // e.g., "std.io"
   int api_version;         // must be PS_API_VERSION
   size_t fn_count;
   const PS_NativeFnDesc *fns;
+  size_t proto_count;
+  const PS_ProtoDesc *protos;
+  PS_DebugDumpFn debug_dump;
 } PS_Module;
 
 // File flags (for native modules creating File handles).
@@ -112,6 +162,7 @@ PS_Value *ps_make_list(PS_Context *ctx);
 PS_Value *ps_make_map(PS_Context *ctx);
 PS_Value *ps_make_object(PS_Context *ctx);
 PS_Value *ps_make_file(PS_Context *ctx, FILE *fp, uint32_t flags, const char *path);
+PS_Status ps_object_set_proto_name(PS_Context *ctx, PS_Value *obj, const char *name);
 
 // Accessors (do not transfer ownership).
 int ps_as_bool(PS_Value *v);

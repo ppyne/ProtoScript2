@@ -3710,14 +3710,12 @@ static int collect_prototypes(Analyzer *a, AstNode *root) {
       missing_parent = 1;
       continue;
     }
-    if (p->sealed && p->parent) {
-      set_diag(a->diag, a->file, p->line, p->col, "E3140", "SEALED_INHERITANCE", "sealed prototype cannot declare a parent");
-      return 0;
-    }
     if (p->parent) {
       ProtoInfo *pp = proto_find(a->protos, p->parent);
       if (pp && pp->sealed) {
-        set_diag(a->diag, a->file, p->line, p->col, "E3140", "SEALED_INHERITANCE", "cannot inherit from sealed prototype");
+        char msg[256];
+        snprintf(msg, sizeof(msg), "cannot inherit from sealed prototype '%s'", pp->name ? pp->name : "");
+        set_diag(a->diag, a->file, p->line, p->col, "E3140", "SEALED_INHERITANCE", msg);
         return 0;
       }
     }
@@ -7481,6 +7479,7 @@ static char *ir_lower_expr(AstNode *e, IrFnCtx *ctx) {
       free(dst);
       return NULL;
     }
+    char *lt = ir_guess_expr_type(e, ctx);
     for (size_t i = 0; i < e->child_len; i++) {
       char *v = ir_lower_expr(e->children[i], ctx);
       char *v_esc = json_escape(v ? v : "");
@@ -7495,9 +7494,13 @@ static char *ir_lower_expr(AstNode *e, IrFnCtx *ctx) {
       }
     }
     char *d_esc = json_escape(dst);
-    char *ins = str_printf("{\"op\":\"make_list\",\"dst\":\"%s\",\"items\":[%s]}", d_esc ? d_esc : "", items);
+    char *t_esc = json_escape(lt ? lt : "unknown");
+    char *ins = str_printf("{\"op\":\"make_list\",\"dst\":\"%s\",\"items\":[%s],\"type\":\"%s\"}", d_esc ? d_esc : "", items,
+                           t_esc ? t_esc : "unknown");
     free(d_esc);
+    free(t_esc);
     free(items);
+    free(lt);
     if (!ir_emit(ctx, ins)) {
       free(dst);
       return NULL;
@@ -7512,6 +7515,7 @@ static char *ir_lower_expr(AstNode *e, IrFnCtx *ctx) {
       free(dst);
       return NULL;
     }
+    char *mt = ir_guess_expr_type(e, ctx);
     for (size_t i = 0; i < e->child_len; i++) {
       AstNode *p = e->children[i];
       if (!p || strcmp(p->kind, "MapPair") != 0 || p->child_len < 2) continue;
@@ -7533,9 +7537,13 @@ static char *ir_lower_expr(AstNode *e, IrFnCtx *ctx) {
       }
     }
     char *d_esc = json_escape(dst);
-    char *ins = str_printf("{\"op\":\"make_map\",\"dst\":\"%s\",\"pairs\":[%s]}", d_esc ? d_esc : "", pairs);
+    char *t_esc = json_escape(mt ? mt : "unknown");
+    char *ins = str_printf("{\"op\":\"make_map\",\"dst\":\"%s\",\"pairs\":[%s],\"type\":\"%s\"}", d_esc ? d_esc : "", pairs,
+                           t_esc ? t_esc : "unknown");
     free(d_esc);
+    free(t_esc);
     free(pairs);
+    free(mt);
     if (!ir_emit(ctx, ins)) {
       free(dst);
       return NULL;
@@ -8995,17 +9003,108 @@ int ps_emit_ir_json(const char *file, PsDiag *out_diag, FILE *out) {
   fputs("  \"module\": {\n", out);
   fputs("    \"kind\": \"Module\",\n", out);
   fputs("    \"prototypes\": [\n", out);
+  AstNode *proto_root = root;
+  if (proto_root && strcmp(proto_root->kind, "Program") != 0) proto_root = NULL;
   int first_proto = 1;
   for (ProtoInfo *p = a.protos; p; p = p->next) {
     if (!p->name) continue;
     char *n = json_escape(p->name);
     char *parent = p->parent ? json_escape(p->parent) : NULL;
+    AstNode *pnode = NULL;
+    if (proto_root) {
+      for (size_t ci = 0; ci < proto_root->child_len; ci++) {
+        AstNode *c = proto_root->children[ci];
+        if (!c || strcmp(c->kind, "PrototypeDecl") != 0) continue;
+        if (c->text && strcmp(c->text, p->name) == 0) {
+          pnode = c;
+          break;
+        }
+      }
+    }
     if (!first_proto) fputs(",\n", out);
     first_proto = 0;
     fprintf(out, "      {\"name\":\"%s\"", n ? n : "");
     if (parent) fprintf(out, ",\"parent\":\"%s\"", parent);
     if (p->sealed) fprintf(out, ",\"sealed\":true");
-    fputs("}", out);
+    fputs(",\"fields\":[", out);
+    int first_field = 1;
+    if (pnode) {
+      for (size_t fi = 0; fi < pnode->child_len; fi++) {
+        AstNode *fd = pnode->children[fi];
+        if (!fd || strcmp(fd->kind, "FieldDecl") != 0) continue;
+        const char *fname = fd->text ? fd->text : "";
+        AstNode *ft = ast_child_kind(fd, "Type");
+        char *fn = json_escape(fname);
+        char *ftype = json_escape(ft && ft->text ? ft->text : "unknown");
+        if (!first_field) fputs(",", out);
+        first_field = 0;
+        fprintf(out, "{\"name\":\"%s\",\"type\":{\"kind\":\"IRType\",\"name\":\"%s\"}}", fn ? fn : "", ftype ? ftype : "");
+        free(fn);
+        free(ftype);
+      }
+    } else if (p->fields) {
+      for (ProtoField *f = p->fields; f; f = f->next) {
+        char *fn = json_escape(f->name ? f->name : "");
+        char *ftype = json_escape(f->type ? f->type : "unknown");
+        if (!first_field) fputs(",", out);
+        first_field = 0;
+        fprintf(out, "{\"name\":\"%s\",\"type\":{\"kind\":\"IRType\",\"name\":\"%s\"}}", fn ? fn : "", ftype ? ftype : "");
+        free(fn);
+        free(ftype);
+      }
+    }
+    fputs("],\"methods\":[", out);
+    int first_method = 1;
+    if (pnode) {
+      for (size_t mi = 0; mi < pnode->child_len; mi++) {
+        AstNode *md = pnode->children[mi];
+        if (!md || strcmp(md->kind, "FunctionDecl") != 0) continue;
+        const char *mname = md->text ? md->text : "";
+        AstNode *rt = ast_child_kind(md, "ReturnType");
+        char *mn = json_escape(mname);
+        char *mret = json_escape(rt && rt->text ? rt->text : "void");
+        if (!first_method) fputs(",", out);
+        first_method = 0;
+        fprintf(out, "{\"name\":\"%s\",\"params\":[", mn ? mn : "");
+        int first_param = 1;
+        for (size_t pi = 0; pi < md->child_len; pi++) {
+          AstNode *pn = md->children[pi];
+          if (!pn || strcmp(pn->kind, "Param") != 0) continue;
+          AstNode *pt = ast_child_kind(pn, "Type");
+          int variadic = ast_child_kind(pn, "Variadic") != NULL;
+          char *pname = json_escape(pn->text ? pn->text : "");
+          char *ptype = json_escape(pt && pt->text ? pt->text : "unknown");
+          if (!first_param) fputs(",", out);
+          first_param = 0;
+          fprintf(out, "{\"name\":\"%s\",\"type\":{\"kind\":\"IRType\",\"name\":\"%s\"}", pname ? pname : "", ptype ? ptype : "");
+          if (variadic) fputs(",\"variadic\":true", out);
+          fputs("}", out);
+          free(pname);
+          free(ptype);
+        }
+        fprintf(out, "],\"returnType\":{\"kind\":\"IRType\",\"name\":\"%s\"}}", mret ? mret : "void");
+        free(mn);
+        free(mret);
+      }
+    } else if (p->methods) {
+      for (ProtoMethod *m = p->methods; m; m = m->next) {
+        char *mn = json_escape(m->name ? m->name : "");
+        char *mret = json_escape(m->ret_type ? m->ret_type : "void");
+        if (!first_method) fputs(",", out);
+        first_method = 0;
+        fprintf(out, "{\"name\":\"%s\",\"params\":[", mn ? mn : "");
+        for (int pi = 0; pi < m->param_count; pi++) {
+          if (pi > 0) fputs(",", out);
+          char *ptype = json_escape(m->param_types && m->param_types[pi] ? m->param_types[pi] : "unknown");
+          fprintf(out, "{\"name\":\"\",\"type\":{\"kind\":\"IRType\",\"name\":\"%s\"}}", ptype ? ptype : "");
+          free(ptype);
+        }
+        fprintf(out, "],\"returnType\":{\"kind\":\"IRType\",\"name\":\"%s\"}}", mret ? mret : "void");
+        free(mn);
+        free(mret);
+      }
+    }
+    fputs("]}", out);
     free(n);
     free(parent);
   }

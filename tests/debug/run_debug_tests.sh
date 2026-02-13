@@ -8,9 +8,10 @@ TMP_C_OUT="$(mktemp)"
 TMP_NODE_OUT="$(mktemp)"
 TMP_BIN="$(mktemp)"
 
-cc -std=c11 -Wall -Wextra -Werror -O2 \
+cc -std=c11 -Wall -Wextra -Werror -O2 -Dps_module_init=ps_module_init_JSON \
   -I"$ROOT_DIR/include" -I"$ROOT_DIR/c" \
   "$OUT_DIR/test_debug.c" \
+  "$ROOT_DIR/tests/modules_src/json.c" \
   "$ROOT_DIR/c/diag.c" \
   "$ROOT_DIR/c/runtime/ps_api.c" \
   "$ROOT_DIR/c/runtime/ps_errors.c" \

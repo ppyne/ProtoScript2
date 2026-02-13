@@ -1,0 +1,13 @@
+sealed prototype Base {
+  int a;
+}
+
+sealed prototype Child : Base {
+  int b;
+}
+
+function main() : void {
+  Child c = Child.clone();
+  c.a = 1;
+  c.b = 2;
+}

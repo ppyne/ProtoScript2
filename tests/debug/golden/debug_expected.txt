@@ -12,9 +12,20 @@ list<int>(len=3) [
   [1] int(2)
   [2] int(3)
 ]
+-- typed list literal --
+list<int>(len=4) [
+  [0] Color.Black = int(0)
+  [1] int(1)
+  [2] int(2)
+  [3] int(3)
+]
 list<byte>(len=2) [
   [0] byte(0)
   [1] byte(255)
+]
+list<string>(len=2) [
+  [0] string(len=1) "a"
+  [1] string(len=1) "b"
 ]
 map<string,int>(len=2) {
   ["a"] int(1)
@@ -144,10 +155,10 @@ list<int>(len=1) [
 ]
 -- cycles --
 list<unknown>(len=1) [
-  [0] @cycle#1
+  [0] @ref#1 list<unknown>(len=1) [...]
 ]
 map<string,map>(len=1) {
-  ["self"] @cycle#1
+  ["self"] @ref#1 map<string,map>(len=1) {...}
 }
 -- groups --
 Color.Cyan = int(65535)
@@ -155,9 +166,221 @@ group int Color {
   Black = int(0)
   Cyan = int(65535)
 }
+-- native json --
+object<JSONValue> {
+  delegation: sealed JSONValue
+  native: JSONValue(null)
+  fields:
+  methods:
+    [JSONValue] isNull() : bool
+    [JSONValue] isBool() : bool
+    [JSONValue] isNumber() : bool
+    [JSONValue] isString() : bool
+    [JSONValue] isArray() : bool
+    [JSONValue] isObject() : bool
+    [JSONValue] asBool() : bool
+    [JSONValue] asNumber() : float
+    [JSONValue] asString() : string
+    [JSONValue] asArray() : list<JSONValue>
+    [JSONValue] asObject() : map<string,JSONValue>
+}
+object<JSONValue> {
+  delegation: sealed JSONValue
+  native: JSONValue(bool=true)
+  fields:
+  methods:
+    [JSONValue] isNull() : bool
+    [JSONValue] isBool() : bool
+    [JSONValue] isNumber() : bool
+    [JSONValue] isString() : bool
+    [JSONValue] isArray() : bool
+    [JSONValue] isObject() : bool
+    [JSONValue] asBool() : bool
+    [JSONValue] asNumber() : float
+    [JSONValue] asString() : string
+    [JSONValue] asArray() : list<JSONValue>
+    [JSONValue] asObject() : map<string,JSONValue>
+}
+object<JSONValue> {
+  delegation: sealed JSONValue
+  native: JSONValue(number=2.25)
+  fields:
+  methods:
+    [JSONValue] isNull() : bool
+    [JSONValue] isBool() : bool
+    [JSONValue] isNumber() : bool
+    [JSONValue] isString() : bool
+    [JSONValue] isArray() : bool
+    [JSONValue] isObject() : bool
+    [JSONValue] asBool() : bool
+    [JSONValue] asNumber() : float
+    [JSONValue] asString() : string
+    [JSONValue] asArray() : list<JSONValue>
+    [JSONValue] asObject() : map<string,JSONValue>
+}
+object<JSONValue> {
+  delegation: sealed JSONValue
+  native: JSONValue(string,len=5) "Hello"
+  fields:
+  methods:
+    [JSONValue] isNull() : bool
+    [JSONValue] isBool() : bool
+    [JSONValue] isNumber() : bool
+    [JSONValue] isString() : bool
+    [JSONValue] isArray() : bool
+    [JSONValue] isObject() : bool
+    [JSONValue] asBool() : bool
+    [JSONValue] asNumber() : float
+    [JSONValue] asString() : string
+    [JSONValue] asArray() : list<JSONValue>
+    [JSONValue] asObject() : map<string,JSONValue>
+}
+object<JSONValue> {
+  delegation: sealed JSONValue
+  native: JSONValue(array,len=2) [
+    [0] object<JSONValue> {
+      delegation: sealed JSONValue
+      native: JSONValue(null)
+      fields:
+      methods:
+        [JSONValue] isNull() : bool
+        [JSONValue] isBool() : bool
+        [JSONValue] isNumber() : bool
+        [JSONValue] isString() : bool
+        [JSONValue] isArray() : bool
+        [JSONValue] isObject() : bool
+        [JSONValue] asBool() : bool
+        [JSONValue] asNumber() : float
+        [JSONValue] asString() : string
+        [JSONValue] asArray() : list<JSONValue>
+        [JSONValue] asObject() : map<string,JSONValue>
+    }
+    [1] object<JSONValue> {
+      delegation: sealed JSONValue
+      native: JSONValue(bool=false)
+      fields:
+      methods:
+        [JSONValue] isNull() : bool
+        [JSONValue] isBool() : bool
+        [JSONValue] isNumber() : bool
+        [JSONValue] isString() : bool
+        [JSONValue] isArray() : bool
+        [JSONValue] isObject() : bool
+        [JSONValue] asBool() : bool
+        [JSONValue] asNumber() : float
+        [JSONValue] asString() : string
+        [JSONValue] asArray() : list<JSONValue>
+        [JSONValue] asObject() : map<string,JSONValue>
+    }
+  ]
+  fields:
+  methods:
+    [JSONValue] isNull() : bool
+    [JSONValue] isBool() : bool
+    [JSONValue] isNumber() : bool
+    [JSONValue] isString() : bool
+    [JSONValue] isArray() : bool
+    [JSONValue] isObject() : bool
+    [JSONValue] asBool() : bool
+    [JSONValue] asNumber() : float
+    [JSONValue] asString() : string
+    [JSONValue] asArray() : list<JSONValue>
+    [JSONValue] asObject() : map<string,JSONValue>
+}
+list<JSONValue>(len=2) [
+  [0] object<JSONValue> {
+    delegation: sealed JSONValue
+    native: JSONValue(null)
+    fields:
+    methods:
+      [JSONValue] isNull() : bool
+      [JSONValue] isBool() : bool
+      [JSONValue] isNumber() : bool
+      [JSONValue] isString() : bool
+      [JSONValue] isArray() : bool
+      [JSONValue] isObject() : bool
+      [JSONValue] asBool() : bool
+      [JSONValue] asNumber() : float
+      [JSONValue] asString() : string
+      [JSONValue] asArray() : list<JSONValue>
+      [JSONValue] asObject() : map<string,JSONValue>
+  }
+  [1] object<JSONValue> {
+    delegation: sealed JSONValue
+    native: JSONValue(bool=false)
+    fields:
+    methods:
+      [JSONValue] isNull() : bool
+      [JSONValue] isBool() : bool
+      [JSONValue] isNumber() : bool
+      [JSONValue] isString() : bool
+      [JSONValue] isArray() : bool
+      [JSONValue] isObject() : bool
+      [JSONValue] asBool() : bool
+      [JSONValue] asNumber() : float
+      [JSONValue] asString() : string
+      [JSONValue] asArray() : list<JSONValue>
+      [JSONValue] asObject() : map<string,JSONValue>
+  }
+]
+object<JSONValue> {
+  delegation: sealed JSONValue
+  native: JSONValue(object,len=1) {
+    ["null"] object<JSONValue> {
+      delegation: sealed JSONValue
+      native: JSONValue(null)
+      fields:
+      methods:
+        [JSONValue] isNull() : bool
+        [JSONValue] isBool() : bool
+        [JSONValue] isNumber() : bool
+        [JSONValue] isString() : bool
+        [JSONValue] isArray() : bool
+        [JSONValue] isObject() : bool
+        [JSONValue] asBool() : bool
+        [JSONValue] asNumber() : float
+        [JSONValue] asString() : string
+        [JSONValue] asArray() : list<JSONValue>
+        [JSONValue] asObject() : map<string,JSONValue>
+    }
+  }
+  fields:
+  methods:
+    [JSONValue] isNull() : bool
+    [JSONValue] isBool() : bool
+    [JSONValue] isNumber() : bool
+    [JSONValue] isString() : bool
+    [JSONValue] isArray() : bool
+    [JSONValue] isObject() : bool
+    [JSONValue] asBool() : bool
+    [JSONValue] asNumber() : float
+    [JSONValue] asString() : string
+    [JSONValue] asArray() : list<JSONValue>
+    [JSONValue] asObject() : map<string,JSONValue>
+}
+map<string,JSONValue>(len=1) {
+  ["a"] object<JSONValue> {
+    delegation: sealed JSONValue
+    native: JSONValue(null)
+    fields:
+    methods:
+      [JSONValue] isNull() : bool
+      [JSONValue] isBool() : bool
+      [JSONValue] isNumber() : bool
+      [JSONValue] isString() : bool
+      [JSONValue] isArray() : bool
+      [JSONValue] isObject() : bool
+      [JSONValue] asBool() : bool
+      [JSONValue] asNumber() : float
+      [JSONValue] asString() : string
+      [JSONValue] asArray() : list<JSONValue>
+      [JSONValue] asObject() : map<string,JSONValue>
+  }
+}
 -- object --
 object<ProtoB> {
   delegation: ProtoB -> sealed ProtoA
+  native: <none>
   fields:
     [ProtoB] b : bool = bool(true)
     [ProtoA] a : int = int(1234)
@@ -168,4 +391,87 @@ object<ProtoB> {
     [ProtoB] baz(s:string, g:glyph) : string
     [ProtoA] foo(x:int) : int
     [ProtoA] bar(...vals:int) : void
+}
+-- proto chain --
+object<ProtoC> {
+  delegation: ProtoC -> ProtoB -> sealed ProtoA
+  native: <none>
+  fields:
+    [ProtoC] c : float = float(1.25)
+    [ProtoB] b : bool = bool(true)
+    [ProtoA] a : int = int(1234)
+    [ProtoA] name : string = unknown(missing)
+    [ProtoA] self : ProtoA = unknown(missing)
+  methods:
+    [ProtoC] baz(s:string, g:glyph) : string  (overrides ProtoB.baz)
+    [ProtoB] foo(x:int) : int  (overrides ProtoA.foo)
+    [ProtoB] baz(s:string, g:glyph) : string
+    [ProtoA] foo(x:int) : int
+    [ProtoA] bar(...vals:int) : void
+}
+-- proto simple --
+object<Simple> {
+  delegation: Simple
+  native: <none>
+  fields:
+    [Simple] x : int = int(10)
+    [Simple] y : string = string(len=5) "first"
+  methods:
+    [Simple] ping() : int
+}
+object<Simple> {
+  delegation: Simple
+  native: <none>
+  fields:
+    [Simple] x : int = int(10)
+    [Simple] y : string = string(len=6) "second"
+  methods:
+    [Simple] ping() : int
+}
+-- proto sealed --
+object<SealedChild> {
+  delegation: sealed SealedChild -> Simple
+  native: <none>
+  fields:
+    [SealedChild] z : int = int(7)
+    [Simple] x : int = unknown(missing)
+    [Simple] y : string = unknown(missing)
+  methods:
+    [Simple] ping() : int
+}
+-- determinism --
+object<Simple> {
+  delegation: Simple
+  native: <none>
+  fields:
+    [Simple] x : int = int(10)
+    [Simple] y : string = string(len=6) "second"
+  methods:
+    [Simple] ping() : int
+}
+object<Simple> {
+  delegation: Simple
+  native: <none>
+  fields:
+    [Simple] x : int = int(10)
+    [Simple] y : string = string(len=6) "second"
+  methods:
+    [Simple] ping() : int
+}
+-- repro --
+object<P> {
+  delegation: sealed P
+  native: <none>
+  fields:
+    [P] v : int = unknown(missing)
+  methods:
+    [P] init() : void
+}
+object<P> {
+  delegation: sealed P
+  native: <none>
+  fields:
+    [P] v : int = int(42)
+  methods:
+    [P] init() : void
 }
