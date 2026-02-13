@@ -4,7 +4,7 @@ const fs = require("fs");
 const path = require("path");
 
 let PROTO_MAP = new Map();
-let VARIADIC_PARAM_TYPE = new Map();
+let VARIADIC_PARAM_INFO = new Map();
 let VARARG_COUNTER = 0;
 let JSON_TMP_COUNTER = 0;
 let FN_NAMES = new Set();
@@ -3602,25 +3602,29 @@ function emitInstr(i, fnInf, state) {
       }
       break;
     case "call_static":
-      if (i.variadic && VARIADIC_PARAM_TYPE.has(i.callee)) {
-        const listType = VARIADIC_PARAM_TYPE.get(i.callee);
+      if (i.variadic && VARIADIC_PARAM_INFO.has(i.callee)) {
+        const info = VARIADIC_PARAM_INFO.get(i.callee);
+        const listType = info.type;
+        const fixedCount = info.fixedCount;
         const cont = parseContainer(listType);
         const inner = cont?.inner || "int";
         const listC = cTypeFromName(listType);
         const innerC = cTypeFromName(inner);
         const tmp = `__va_${VARARG_COUNTER++}`;
         out.push(`{ ${listC} ${tmp};`);
-        out.push(`${tmp}.len = ${i.args.length};`);
-        out.push(`${tmp}.cap = ${i.args.length};`);
+        out.push(`${tmp}.len = ${i.args.length - fixedCount};`);
+        out.push(`${tmp}.cap = ${i.args.length - fixedCount};`);
         out.push(`${tmp}.version = 0;`);
-        if (i.args.length > 0) {
-          out.push(`${tmp}.ptr = (${innerC}*)malloc(sizeof(*${tmp}.ptr) * ${i.args.length});`);
-          i.args.forEach((a, idx) => out.push(`${tmp}.ptr[${idx}] = ${n(a)};`));
+        if (i.args.length > fixedCount) {
+          out.push(`${tmp}.ptr = (${innerC}*)malloc(sizeof(*${tmp}.ptr) * ${i.args.length - fixedCount});`);
+          i.args.slice(fixedCount).forEach((a, idx) => out.push(`${tmp}.ptr[${idx}] = ${n(a)};`));
         } else {
           out.push(`${tmp}.ptr = NULL;`);
         }
-        if (t(i.dst) === "void") out.push(`${cIdent(i.callee)}(${tmp});`);
-        else out.push(`${n(i.dst)} = ${cIdent(i.callee)}(${tmp});`);
+        const fixedArgs = i.args.slice(0, fixedCount).map((a) => n(a));
+        const callArgs = [...fixedArgs, tmp].join(", ");
+        if (t(i.dst) === "void") out.push(`${cIdent(i.callee)}(${callArgs});`);
+        else out.push(`${n(i.dst)} = ${cIdent(i.callee)}(${callArgs});`);
         out.push("}");
       } else if (i.callee === "Exception") {
         if (i.args.length > 2) {
@@ -4362,11 +4366,13 @@ function generateC(ir) {
   const typeNames = collectTypeNames(irLocal, inferred);
   PROTO_MAP = protoMap;
   FN_NAMES = new Set(functions.map((fn) => fn.name));
-  VARIADIC_PARAM_TYPE = new Map();
+  VARIADIC_PARAM_INFO = new Map();
   for (const fn of functions) {
     if (!fn || !Array.isArray(fn.params)) continue;
-    const variadic = fn.params.find((p) => p.variadic);
-    if (variadic) VARIADIC_PARAM_TYPE.set(fn.name, variadic.type.name);
+    const variadicIndex = fn.params.findIndex((p) => p.variadic);
+    if (variadicIndex >= 0) {
+      VARIADIC_PARAM_INFO.set(fn.name, { type: fn.params[variadicIndex].type.name, fixedCount: variadicIndex });
+    }
   }
   const out = [];
   out.push("/* ProtoScript V2 reference C backend (non-optimized) */");

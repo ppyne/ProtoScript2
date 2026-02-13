@@ -1,0 +1,13 @@
+import Io;
+
+prototype P {
+    function f(int a, list<int> xs...) : int {
+        return xs.length();
+    }
+}
+
+function main() : void {
+    P p = P.clone();
+    Io.printLine(p.f(10).toString());
+    Io.printLine(p.f(10, 20, 30).toString());
+}

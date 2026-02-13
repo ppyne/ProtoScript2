@@ -1,0 +1,10 @@
+prototype P {
+    function f(int a, list<int> xs...) : int {
+        return xs.length();
+    }
+}
+
+function main() : void {
+    P p = P.clone();
+    p.f();
+}

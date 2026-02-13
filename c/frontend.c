@@ -2477,6 +2477,8 @@ typedef struct ProtoMethod {
   char *ret_type;
   char **param_types;
   int param_count;
+  int fixed_count;
+  int variadic;
   struct ProtoMethod *next;
 } ProtoMethod;
 
@@ -3135,7 +3137,7 @@ static void diag_unresolved_expected(Analyzer *a, AstNode *n, const char *name, 
   a->diag->expected_kind = expected;
 }
 
-static int add_imported_fn(Analyzer *a, const char *local, const char *ret_type, int param_count) {
+static int add_imported_fn(Analyzer *a, const char *local, const char *ret_type, int param_count, int variadic, int fixed_count) {
   FnSig *f = (FnSig *)calloc(1, sizeof(FnSig));
   if (!f) return 0;
   f->name = strdup(local ? local : "");
@@ -3147,8 +3149,8 @@ static int add_imported_fn(Analyzer *a, const char *local, const char *ret_type,
     return 0;
   }
   f->param_count = param_count;
-  f->fixed_count = param_count;
-  f->variadic = 0;
+  f->fixed_count = variadic ? fixed_count : param_count;
+  f->variadic = variadic ? 1 : 0;
   f->next = a->fns;
   a->fns = f;
   return 1;
@@ -3499,7 +3501,7 @@ static int collect_imports(Analyzer *a, AstNode *root) {
             s->name = strdup(name);
             s->next = a->imports;
             a->imports = s;
-            if (!add_imported_fn(a, local, um->proto ? um->proto : "unknown", 0)) return 0;
+            if (!add_imported_fn(a, local, um->proto ? um->proto : "unknown", 0, 0, 0)) return 0;
             continue;
           }
           AstNode *method = proto_find_method_node(um->proto_node, name);
@@ -3523,6 +3525,14 @@ static int collect_imports(Analyzer *a, AstNode *root) {
           }
           char *ret = proto_method_ret_type(method);
           int pc = proto_method_param_count(method) + 1;
+          int variadic = 0;
+          int fixed = 1;
+          for (size_t pi = 0; pi < method->child_len; pi++) {
+            AstNode *pn = method->children[pi];
+            if (!pn || strcmp(pn->kind, "Param") != 0) continue;
+            if (ast_child_kind(pn, "Variadic")) variadic = 1;
+            else fixed += 1;
+          }
           const char *alias = import_item_alias(it);
           const char *local = alias ? alias : name;
           ImportSymbol *s = (ImportSymbol *)calloc(1, sizeof(ImportSymbol));
@@ -3536,7 +3546,7 @@ static int collect_imports(Analyzer *a, AstNode *root) {
           s->name = strdup(name);
           s->next = a->imports;
           a->imports = s;
-          if (!add_imported_fn(a, local, ret ? ret : "void", pc)) {
+          if (!add_imported_fn(a, local, ret ? ret : "void", pc, variadic, fixed)) {
             free(ret);
             free(root_dir);
             return 0;
@@ -3573,7 +3583,7 @@ static int collect_imports(Analyzer *a, AstNode *root) {
           s->name = strdup(name);
           s->next = a->imports;
           a->imports = s;
-          if (!add_imported_fn(a, local, rf->ret_type, rf->param_count)) {
+          if (!add_imported_fn(a, local, rf->ret_type, rf->param_count, 0, rf->param_count)) {
             free(root_dir);
             return 0;
           }
@@ -3618,6 +3628,8 @@ static int proto_same_signature(ProtoMethod *a, ProtoMethod *b) {
   if (!a || !b) return 0;
   if (strcmp(a->ret_type ? a->ret_type : "void", b->ret_type ? b->ret_type : "void") != 0) return 0;
   if (a->param_count != b->param_count) return 0;
+  if (a->fixed_count != b->fixed_count) return 0;
+  if (a->variadic != b->variadic) return 0;
   for (int i = 0; i < a->param_count; i++) {
     const char *at = a->param_types ? a->param_types[i] : NULL;
     const char *bt = b->param_types ? b->param_types[i] : NULL;
@@ -3804,6 +3816,8 @@ static int collect_prototypes(Analyzer *a, AstNode *root) {
           if (strcmp(c->children[pi]->kind, "Param") == 0) pc++;
         }
         nm->param_count = pc;
+        nm->fixed_count = 0;
+        nm->variadic = 0;
         if (pc > 0) {
           nm->param_types = (char **)calloc((size_t)pc, sizeof(char *));
           if (!nm->param_types) return 0;
@@ -3813,6 +3827,8 @@ static int collect_prototypes(Analyzer *a, AstNode *root) {
             if (strcmp(pn->kind, "Param") != 0) continue;
             AstNode *pt = ast_child_kind(pn, "Type");
             nm->param_types[idx++] = canon_type(pt ? pt->text : "unknown");
+            if (ast_child_kind(pn, "Variadic")) nm->variadic = 1;
+            else nm->fixed_count += 1;
           }
         }
         nm->next = NULL;
@@ -4753,8 +4769,9 @@ static char *infer_call_type(Analyzer *a, AstNode *e, Scope *scope, int *ok) {
           *ok = 0;
           return NULL;
         }
-        int expected = pm->param_count + 1;
-        if (argc != expected) {
+        int min_arity = pm->fixed_count + 1;
+        int bad = pm->variadic ? (argc < min_arity) : (argc != (pm->param_count + 1));
+        if (bad) {
           set_diag(a->diag, a->file, e->line, e->col, "E1003", "ARITY_MISMATCH", "arity mismatch");
           *ok = 0;
           return NULL;
@@ -4798,8 +4815,9 @@ static char *infer_call_type(Analyzer *a, AstNode *e, Scope *scope, int *ok) {
             *ok = 0;
             return NULL;
           }
-          int expected = pm->param_count + 1;
-          if (argc != expected) {
+          int min_arity = pm->fixed_count + 1;
+          int bad = pm->variadic ? (argc < min_arity) : (argc != (pm->param_count + 1));
+          if (bad) {
             set_diag(a->diag, a->file, e->line, e->col, "E1003", "ARITY_MISMATCH", "arity mismatch");
             *ok = 0;
             return NULL;
@@ -4855,7 +4873,9 @@ static char *infer_call_type(Analyzer *a, AstNode *e, Scope *scope, int *ok) {
             free(tt);
             return NULL;
           }
-          if (argc != pm->param_count) {
+          int min_arity = pm->fixed_count;
+          int bad = pm->variadic ? (argc < min_arity) : (argc != pm->param_count);
+          if (bad) {
             set_diag(a->diag, a->file, e->line, e->col, "E1003", "ARITY_MISMATCH", "arity mismatch");
             *ok = 0;
             free(tt);
@@ -9467,7 +9487,7 @@ int ps_emit_ir_json(const char *file, PsDiag *out_diag, FILE *out) {
       }
       ms->name = str_printf("%s.%s", p->name, m->name ? m->name : "");
       ms->ret_type = strdup(m->ret_type ? m->ret_type : "void");
-      ms->variadic = 0;
+      ms->variadic = m->variadic;
       ms->next = fn_sigs;
       fn_sigs = ms;
     }

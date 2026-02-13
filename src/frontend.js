@@ -2720,6 +2720,18 @@ class Analyzer {
     }
   }
 
+  checkPrototypeMethodArity(expr, methodName, params, includeSelf) {
+    if (!expr || !Array.isArray(expr.args) || !Array.isArray(params)) return;
+    const argc = expr.args.length;
+    const fixed = params.filter((p) => !p.variadic).length;
+    const hasVariadic = params.some((p) => p.variadic);
+    const min = fixed + (includeSelf ? 1 : 0);
+    const max = hasVariadic ? Number.POSITIVE_INFINITY : params.length + (includeSelf ? 1 : 0);
+    if (argc < min || argc > max) {
+      this.addDiag(expr, "E1003", "ARITY_MISMATCH", `arity mismatch for '${methodName}'`);
+    }
+  }
+
   typeOfCall(expr, scope) {
     if (expr.args) {
       for (const arg of expr.args) this.typeOfExpr(arg, scope);
@@ -2770,10 +2782,7 @@ class Analyzer {
           this.unresolvedMember(member, member.name, "method", `prototype '${protoName}'`, "member", this.collectPrototypeMemberNames(protoName));
           return null;
         }
-        const expected = pm.params.length + 1;
-        if (expr.args.length !== expected) {
-          this.addDiag(expr, "E1003", "ARITY_MISMATCH", `arity mismatch for '${member.name}'`);
-        }
+        this.checkPrototypeMethodArity(expr, member.name, pm.params, true);
         expr._protoStatic = protoName;
         return pm.retType;
       }
@@ -2794,10 +2803,7 @@ class Analyzer {
               this.unresolvedMember(member, member.name, "method", `prototype '${protoName}'`, "member", this.collectPrototypeMemberNames(protoName));
               return null;
             }
-            const expected = pm.params.length + 1;
-            if (expr.args.length !== expected) {
-              this.addDiag(expr, "E1003", "ARITY_MISMATCH", `arity mismatch for '${member.name}'`);
-            }
+            this.checkPrototypeMethodArity(expr, member.name, pm.params, true);
             expr._protoStatic = protoName;
             return pm.retType;
           }
@@ -2836,9 +2842,7 @@ class Analyzer {
           this.unresolvedMember(member, member.name, "method", `prototype '${targetType.name}'`, "member", this.collectPrototypeMemberNames(targetType.name));
           return null;
         }
-        if (expr.args.length !== pm.params.length) {
-          this.addDiag(expr, "E1003", "ARITY_MISMATCH", `arity mismatch for '${member.name}'`);
-        }
+        this.checkPrototypeMethodArity(expr, member.name, pm.params, false);
         expr._protoInstance = targetType.name;
         return pm.retType;
       }

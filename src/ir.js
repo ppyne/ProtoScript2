@@ -1318,6 +1318,7 @@ class IRBuilder {
           this.emit(block, { op: "call_static", dst, callee: `${protoName}.clone`, args: [], variadic: false });
           return { value: dst, type: { kind: "NamedType", name: protoName }, block };
         }
+        const m = this.resolvePrototypeMethod(protoName, method);
         const lowered = lowerArgs(expr.args, block);
         const args = lowered.args;
         const dst = this.nextTemp();
@@ -1326,14 +1327,18 @@ class IRBuilder {
           dst,
           callee: `${protoName}.${method}`,
           args: args.map((a) => a.value),
-          variadic: false,
+          variadic: !!(m && m.params.some((p) => p.variadic)),
         });
-        const m = this.resolvePrototypeMethod(protoName, method);
         return { value: dst, type: m ? m.retType : { kind: "PrimitiveType", name: "unknown" }, block: lowered.block };
       }
       if (expr.callee.target.kind === "Identifier") {
         const ns = this.importNamespaces.get(expr.callee.target.name);
-        if (ns) {
+          if (ns) {
+          let variadic = false;
+          if (this.prototypes.has(ns)) {
+            const m = this.resolvePrototypeMethod(ns, method);
+            variadic = !!(m && m.params.some((p) => p.variadic));
+          }
           const lowered = lowerArgs(expr.args, block);
           const args = lowered.args;
           const dst = this.nextTemp();
@@ -1342,7 +1347,7 @@ class IRBuilder {
             dst,
             callee: `${ns}.${method}`,
             args: args.map((a) => a.value),
-            variadic: false,
+            variadic,
           });
           if (this.moduleReturns && this.moduleReturns.has(ns)) {
             const ret = this.moduleReturns.get(ns).get(method);
@@ -1422,15 +1427,15 @@ class IRBuilder {
         }
       }
       if (recv.type && recv.type.kind === "NamedType" && this.prototypes.has(recv.type.name)) {
+        const m = this.resolvePrototypeMethod(recv.type.name, method);
         const dst = this.nextTemp();
         this.emit(lowered.block, {
           op: "call_static",
           dst,
           callee: `${recv.type.name}.${method}`,
           args: [recv.value, ...args.map((a) => a.value)],
-          variadic: false,
+          variadic: !!(m && m.params.some((p) => p.variadic)),
         });
-        const m = this.resolvePrototypeMethod(recv.type.name, method);
         return { value: dst, type: m ? m.retType : { kind: "PrimitiveType", name: "unknown" }, block: lowered.block };
       }
       if (method === "toString") {

@@ -1882,6 +1882,41 @@ l.log("x=", "42", "done");
 - toutes les valeurs passées doivent être du même type `T`
 - aucune hétérogénéité n’est autorisée
 
+### Règle normative — arité des méthodes variadiques
+
+Pour toute signature se terminant par :
+
+```c
+list<T> ident...
+```
+
+les règles suivantes s’appliquent :
+
+1. L’arité minimale est égale au nombre de paramètres non-variadiques explicites.
+2. `self` est exclu du calcul d’arité utilisateur sur appel d’instance (`obj.m(...)`), et reste explicite sur appel statique (`Proto.m(self, ...)`).
+3. Si aucun argument n’est fourni pour la partie variadique :
+   - le paramètre reçoit une `view<T>` vide ;
+   - aucune erreur `E1003` `ARITY_MISMATCH` ne doit être levée.
+4. Si le nombre d’arguments est inférieur au nombre de paramètres non-variadiques, `E1003` `ARITY_MISMATCH` doit être produit.
+   Cette règle ne concerne pas les signatures purement variadiques.
+5. Ces règles sont identiques pour :
+   - les fonctions globales ;
+   - les méthodes de prototype.
+
+Exemple valide (aucun paramètre fixe) :
+
+```c
+function f(list<int> xs...) : void { }
+f(); // valide
+```
+
+Exemple en erreur :
+
+```c
+function f(int a, list<int> xs...) : void { }
+f(); // ERREUR : paramètre fixe "a" manquant -> E1003 ARITY_MISMATCH
+```
+
 ---
 
 ### Typage et accès

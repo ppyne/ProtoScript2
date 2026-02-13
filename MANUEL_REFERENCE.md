@@ -1012,6 +1012,33 @@ Note :
 
 Un appel variadique peut être vide. Dans ce cas, la liste capturée est vide (`view<T>` de longueur 0).
 
+### 9.3.1 Méthodes variadiques de prototype
+
+Les méthodes variadiques utilisent exactement le même mécanisme que les fonctions variadiques :
+
+- la syntaxe de déclaration reste `list<T> ...`
+- le type canonique interne capturé est `view<T>`
+- la vue capturée peut être vide
+- aucune allocation implicite n’est introduite
+
+Exemple :
+
+```c
+import Io;
+
+prototype P {
+    function count(list<int> xs...) : int {
+        return xs.length();
+    }
+}
+
+function main() : void {
+    P p = P.clone();
+    Io.printLine(p.count().toString());      // 0
+    Io.printLine(p.count(1, 2, 3).toString()); // 3
+}
+```
+
 ### 9.4 Ce qui n'existe pas
 
 - Pas de fonctions comme valeurs.
