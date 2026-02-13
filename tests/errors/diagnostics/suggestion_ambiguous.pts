@@ -1,0 +1,6 @@
+function main() : void {
+  int dark = 1;
+  int mark = 2;
+  int park = 3;
+  int x = bark;
+}

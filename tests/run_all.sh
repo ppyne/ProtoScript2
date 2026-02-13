@@ -37,6 +37,10 @@ echo "-- crosscheck (Node ↔ C, strict AST + static C)"
 "$ROOT_DIR/tests/run_node_c_crosscheck.sh" --strict-ast --strict-static-c
 echo
 
+echo "-- strict diagnostics (format + suggestions + JS/C parity)"
+"$ROOT_DIR/tests/run_diagnostics_strict.sh"
+echo
+
 echo "-- CLI tests (C)"
 "$ROOT_DIR/tests/run_cli_tests.sh"
 echo

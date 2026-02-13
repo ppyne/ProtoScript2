@@ -3,6 +3,7 @@
 const fs = require("fs");
 const path = require("path");
 const { optimizeIR } = require("./optimizer");
+const { createDiagnostic, formatDiagnostic, pickSuggestions } = require("./diagnostics");
 
 const KEYWORDS = new Set([
   "prototype",
@@ -54,11 +55,11 @@ class FrontendError extends Error {
 }
 
 function diag(file, line, col, code, category, message) {
-  return { file, line, col, code, category, message };
+  return createDiagnostic({ file, line, column: col, code, name: category, message });
 }
 
 function formatDiag(d) {
-  return `${d.file}:${d.line}:${d.col} ${d.code} ${d.category}: ${d.message}`;
+  return formatDiagnostic(d);
 }
 
 function parseTypeString(s) {
@@ -1520,7 +1521,120 @@ class Analyzer {
   }
 
   addDiag(node, code, category, message) {
-    this.diags.push(diag(this.file, node.line || 1, node.col || 1, code, category, message));
+    this.diags.push(
+      createDiagnostic({
+        file: this.file,
+        line: node.line || 1,
+        column: node.col || 1,
+        code,
+        name: category,
+        message,
+      })
+    );
+  }
+
+  addDiagStructured(node, code, category, message, expectedKind, actualKind, suggestions) {
+    this.diags.push(
+      createDiagnostic({
+        file: this.file,
+        line: node.line || 1,
+        column: node.col || 1,
+        code,
+        name: category,
+        message,
+        expectedKind,
+        actualKind,
+        suggestions,
+      })
+    );
+  }
+
+  collectScopeNames(scope) {
+    const out = new Set();
+    for (let cur = scope; cur; cur = cur.parent) {
+      for (const k of cur.syms.keys()) out.add(k);
+    }
+    return out;
+  }
+
+  collectPrototypeMemberNames(protoName) {
+    const out = new Set();
+    let p = this.prototypes.get(protoName);
+    while (p) {
+      for (const k of p.fields.keys()) out.add(k);
+      for (const k of p.methods.keys()) out.add(k);
+      p = p.parent ? this.prototypes.get(p.parent) : null;
+    }
+    return out;
+  }
+
+  collectModuleExportNames(moduleName) {
+    const out = new Set();
+    const registry = loadModuleRegistry();
+    const modEntry = registry ? registry.modules.get(moduleName) : null;
+    if (modEntry) {
+      for (const k of modEntry.functions.keys()) out.add(k);
+      for (const k of modEntry.constants.keys()) out.add(k);
+    }
+    return out;
+  }
+
+  collectValueCandidates(scope) {
+    const out = this.collectScopeNames(scope);
+    for (const k of this.functions.keys()) out.add(k);
+    for (const [gname, g] of this.groups.entries()) {
+      out.add(gname);
+      if (g && g.members) {
+        for (const m of g.members.keys()) out.add(m);
+      }
+    }
+    for (const [pname, p] of this.prototypes.entries()) {
+      out.add(pname);
+      for (const m of p.methods.keys()) out.add(m);
+      for (const f of p.fields.keys()) out.add(f);
+    }
+    for (const [alias, ns] of this.namespaces.entries()) {
+      out.add(alias);
+      for (const ex of this.collectModuleExportNames(ns.name)) out.add(ex);
+    }
+    for (const k of this.imported.keys()) out.add(k);
+    return [...out];
+  }
+
+  unresolvedExpected(node, name, expected, detail = null, candidates = null) {
+    const suffix = `(expected ${expected})`;
+    const message = detail ? `${detail} ${suffix}` : `unknown identifier '${name}' ${suffix}`;
+    const suggestions = Array.isArray(candidates) ? pickSuggestions(name, candidates, 2) : [];
+    this.addDiagStructured(node, "E2001", "UNRESOLVED_NAME", message, expected, null, suggestions);
+  }
+
+  unresolvedValueIdentifier(node, name, scope) {
+    const candidates = this.collectValueCandidates(scope);
+    if (this.groups.has(name)) {
+      this.unresolvedExpected(node, name, "value", `'${name}' is a group descriptor, not a value expression`, candidates);
+      return;
+    }
+    if (this.prototypes.has(name)) {
+      this.unresolvedExpected(node, name, "value", `'${name}' is a prototype descriptor, not a value expression`, candidates);
+      return;
+    }
+    if (this.namespaces.has(name)) {
+      this.unresolvedExpected(node, name, "value", `'${name}' is a module namespace, not a value expression`, candidates);
+      return;
+    }
+    this.unresolvedExpected(node, name, "value", null, candidates);
+  }
+
+  unresolvedMember(node, name, containerKind, containerName, expected, candidates) {
+    const message = `unknown ${containerKind} '${name}' in ${containerName} (expected ${expected})`;
+    const suggestions = pickSuggestions(name, candidates || [], 2);
+    this.addDiagStructured(node, "E2001", "UNRESOLVED_NAME", message, expected, containerKind, suggestions);
+  }
+
+  unresolvedFunction(node, name, candidates) {
+    const message = `unknown function '${name}' (expected function)`;
+    const suggestions = pickSuggestions(name, candidates || [], 2);
+    this.addDiagStructured(node, "E2001", "UNRESOLVED_NAME", message, "function", "identifier", suggestions);
   }
 
   analyze() {
@@ -1698,7 +1812,12 @@ class Analyzer {
     }
     for (const [name, p] of this.prototypes.entries()) {
       if (p.parent && !this.prototypes.has(p.parent)) {
-        this.addDiag(p.decl, "E2001", "UNRESOLVED_NAME", `unknown parent prototype '${p.parent}'`);
+        this.addDiag(
+          p.decl,
+          "E2001",
+          "UNRESOLVED_NAME",
+          `unknown parent prototype '${p.parent}' (expected prototype)`
+        );
       }
       const parent = this.prototypes.get(p.parent);
       if (parent) {
@@ -1974,7 +2093,7 @@ class Analyzer {
         }
         const m = entry.methods.get(it.name);
         if (!m) {
-          this.addDiag(it, "E2001", "UNRESOLVED_NAME", `unknown symbol '${it.name}' in module '${entry.protoName}'`);
+          this.unresolvedMember(it, it.name, "symbol", `module '${entry.protoName}'`, "member", [...entry.methods.keys(), "clone"]);
           continue;
         }
         const selfParam = { kind: "Param", type: { kind: "NamedType", name: entry.protoName }, name: "self", variadic: false };
@@ -2015,7 +2134,7 @@ class Analyzer {
           for (const it of imp.items) {
             const fn = modEntry.functions.get(it.name);
             if (!fn) {
-              this.addDiag(it, "E2001", "UNRESOLVED_NAME", `unknown symbol '${it.name}' in module '${mod}'`);
+              this.unresolvedMember(it, it.name, "symbol", `module '${mod}'`, "member", this.collectModuleExportNames(mod));
               continue;
             }
             if (!fn.valid) {
@@ -2039,7 +2158,16 @@ class Analyzer {
       const existing = loadedByName.get(mod);
       const modPath = existing ? existing.path : resolveByNamePath(mod);
       if (!modPath) {
-        this.addDiag(imp, "E2001", "UNRESOLVED_NAME", `unknown module '${mod}'`);
+        const moduleCandidates = registry ? [...registry.modules.keys()].sort() : [];
+        this.addDiagStructured(
+          imp,
+          "E2001",
+          "UNRESOLVED_NAME",
+          `unknown module '${mod}' (expected module)`,
+          "module",
+          "identifier",
+          pickSuggestions(mod, moduleCandidates, 2)
+        );
         return;
       }
       const entry = existing ? existing.entry : loadUserModuleFromPath(modPath, imp);
@@ -2327,7 +2455,7 @@ class Analyzer {
     if (expr.kind === "Identifier") {
       const s = scope.lookup(expr.name);
       if (!s) {
-        this.addDiag(expr, "E2001", "UNRESOLVED_NAME", `unknown identifier '${expr.name}'`);
+        this.unresolvedExpected(expr, expr.name, "assignable value", null, this.collectValueCandidates(scope));
         return null;
       }
       return s.type;
@@ -2337,7 +2465,7 @@ class Analyzer {
       if (targetType && targetType.kind === "NamedType" && this.prototypes.has(targetType.name)) {
         const ft = this.resolvePrototypeField(targetType.name, expr.name);
         if (!ft) {
-          this.addDiag(expr, "E2001", "UNRESOLVED_NAME", `unknown field '${expr.name}'`);
+          this.unresolvedMember(expr, expr.name, "field", `prototype '${targetType.name}'`, "member", this.collectPrototypeMemberNames(targetType.name));
           return null;
         }
         return ft;
@@ -2380,7 +2508,7 @@ class Analyzer {
         const s = scope.lookup(expr.name);
         if (!s) {
           if (expr.name === "Sys") return { kind: "BuiltinType", name: "Sys" };
-          this.addDiag(expr, "E2001", "UNRESOLVED_NAME", `unknown identifier '${expr.name}'`);
+          this.unresolvedValueIdentifier(expr, expr.name, scope);
           return null;
         }
         return s.type;
@@ -2454,8 +2582,10 @@ class Analyzer {
       case "MemberExpr":
         if (expr.target.kind === "Identifier") {
           const g = this.groups.get(expr.target.name);
-          if (g && g.members && g.members.has(expr.name)) {
-            return g.type;
+          if (g && g.members) {
+            if (g.members.has(expr.name)) return g.type;
+            this.unresolvedMember(expr, expr.name, "group member", `group '${expr.target.name}'`, "member", [...g.members.keys()]);
+            return null;
           }
         }
         if (expr.target.kind === "Identifier" && this.moduleConsts.has(expr.target.name)) {
@@ -2473,7 +2603,7 @@ class Analyzer {
           if (targetType && targetType.kind === "NamedType" && this.prototypes.has(targetType.name)) {
             const ft = this.resolvePrototypeField(targetType.name, expr.name);
             if (!ft) {
-              this.addDiag(expr, "E2001", "UNRESOLVED_NAME", `unknown field '${expr.name}'`);
+              this.unresolvedMember(expr, expr.name, "field", `prototype '${targetType.name}'`, "member", this.collectPrototypeMemberNames(targetType.name));
               return null;
             }
             return ft;
@@ -2597,12 +2727,17 @@ class Analyzer {
     if (expr.callee.kind === "Identifier") {
       const name = expr.callee.name;
       if (name === "Exception" || name === "RuntimeException") {
-        this.addDiag(expr, "E2001", "UNRESOLVED_NAME", `${name} is not callable; use ${name}.clone()`);
+        this.addDiag(
+          expr,
+          "E2001",
+          "UNRESOLVED_NAME",
+          `'${name}' is a prototype descriptor, not a callable value (expected function); use ${name}.clone()`
+        );
         return null;
       }
       const fn = this.functions.get(name);
       if (!fn) {
-        this.addDiag(expr.callee, "E2001", "UNRESOLVED_NAME", `unknown function '${name}'`);
+        this.unresolvedFunction(expr.callee, name, [...this.functions.keys()]);
         return null;
       }
       const variadic = fn.params.find((p) => p.variadic);
@@ -2632,7 +2767,7 @@ class Analyzer {
         }
         const pm = this.resolvePrototypeMethod(protoName, member.name);
         if (!pm) {
-          this.addDiag(member, "E2001", "UNRESOLVED_NAME", `unknown method '${member.name}' in prototype '${protoName}'`);
+          this.unresolvedMember(member, member.name, "method", `prototype '${protoName}'`, "member", this.collectPrototypeMemberNames(protoName));
           return null;
         }
         const expected = pm.params.length + 1;
@@ -2656,7 +2791,7 @@ class Analyzer {
             }
             const pm = this.resolvePrototypeMethod(protoName, member.name);
             if (!pm) {
-              this.addDiag(member, "E2001", "UNRESOLVED_NAME", `unknown method '${member.name}' in prototype '${protoName}'`);
+              this.unresolvedMember(member, member.name, "method", `prototype '${protoName}'`, "member", this.collectPrototypeMemberNames(protoName));
               return null;
             }
             const expected = pm.params.length + 1;
@@ -2670,7 +2805,7 @@ class Analyzer {
           const modEntry = registry ? registry.modules.get(ns.name) : null;
           const fn = modEntry ? modEntry.functions.get(member.name) : null;
           if (!fn) {
-            this.addDiag(member, "E2001", "UNRESOLVED_NAME", `unknown symbol '${member.name}' in module '${ns.name}'`);
+            this.unresolvedMember(member, member.name, "symbol", `module '${ns.name}'`, "member", this.collectModuleExportNames(ns.name));
             return null;
           }
           if (expr.args.length !== fn.params.length) {
@@ -2698,7 +2833,7 @@ class Analyzer {
       if (targetType.kind === "NamedType" && this.prototypes.has(targetType.name)) {
         const pm = this.resolvePrototypeMethod(targetType.name, member.name);
         if (!pm) {
-          this.addDiag(member, "E2001", "UNRESOLVED_NAME", `unknown method '${member.name}' in prototype '${targetType.name}'`);
+          this.unresolvedMember(member, member.name, "method", `prototype '${targetType.name}'`, "member", this.collectPrototypeMemberNames(targetType.name));
           return null;
         }
         if (expr.args.length !== pm.params.length) {

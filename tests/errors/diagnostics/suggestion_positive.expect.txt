@@ -1,0 +1,2 @@
+tests/errors/diagnostics/suggestion_positive.pts:3:11 E2001 UNRESOLVED_NAME: unknown identifier 'LcalToken' (expected value)
+Did you mean 'LocalToken'?

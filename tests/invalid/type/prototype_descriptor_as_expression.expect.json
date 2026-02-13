@@ -1,0 +1,12 @@
+{
+  "status": "reject-static",
+  "error_family": "E2xxx",
+  "error_code": "E2001",
+  "category": "UNRESOLVED_NAME",
+  "position": {
+    "file": "invalid/type/prototype_descriptor_as_expression.pts",
+    "line": 6,
+    "column": 13
+  },
+  "expected_output": "invalid/type/prototype_descriptor_as_expression.pts:6:13 E2001 UNRESOLVED_NAME: 'Point' is a prototype descriptor, not a value expression (expected value)"
+}

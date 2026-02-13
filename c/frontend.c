@@ -431,7 +431,12 @@ static void set_diag(PsDiag *d, const char *file, int line, int col, const char 
   d->line = line;
   d->col = col;
   d->code = code;
+  d->name = category;
   d->category = category;
+  d->expected_kind = NULL;
+  d->actual_kind = NULL;
+  d->suggestion_count = 0;
+  for (int i = 0; i < 3; i++) d->suggestions[i][0] = '\0';
   snprintf(d->message, sizeof(d->message), "%s", message);
 }
 
@@ -3035,6 +3040,101 @@ static ImportNamespace *find_namespace(Analyzer *a, const char *alias) {
   return NULL;
 }
 
+typedef struct {
+  const char **items;
+  int len;
+  int cap;
+} NameVec;
+
+static int name_vec_push(NameVec *v, const char *s) {
+  if (!v || !s || !s[0]) return 1;
+  for (int i = 0; i < v->len; i++) {
+    if (strcmp(v->items[i], s) == 0) return 1;
+  }
+  if (v->len == v->cap) {
+    int nc = (v->cap == 0) ? 32 : v->cap * 2;
+    const char **ni = (const char **)realloc(v->items, (size_t)nc * sizeof(const char *));
+    if (!ni) return 0;
+    v->items = ni;
+    v->cap = nc;
+  }
+  v->items[v->len++] = s;
+  return 1;
+}
+
+static void name_vec_free(NameVec *v) {
+  if (!v) return;
+  free(v->items);
+  v->items = NULL;
+  v->len = 0;
+  v->cap = 0;
+}
+
+static void diag_fill_suggestions(PsDiag *d, const char *query, NameVec *cands) {
+  if (!d || !query || !cands || cands->len <= 0) return;
+  char out[3][64];
+  int n = ps_diag_pick_suggestions(query, cands->items, cands->len, out, 3);
+  d->suggestion_count = n;
+  for (int i = 0; i < n; i++) snprintf(d->suggestions[i], sizeof(d->suggestions[i]), "%s", out[i]);
+}
+
+static void collect_scope_names(Scope *scope, NameVec *out) {
+  for (Scope *cur = scope; cur; cur = cur->parent) {
+    for (Sym *s = cur->syms; s; s = s->next) name_vec_push(out, s->name);
+  }
+}
+
+static void collect_prototype_member_names(Analyzer *a, const char *proto, NameVec *out) {
+  for (ProtoInfo *p = proto_find(a->protos, proto); p; p = p->parent ? proto_find(a->protos, p->parent) : NULL) {
+    for (ProtoField *f = p->fields; f; f = f->next) name_vec_push(out, f->name);
+    for (ProtoMethod *m = p->methods; m; m = m->next) name_vec_push(out, m->name);
+    if (!p->parent) break;
+  }
+}
+
+static void collect_module_export_names(Analyzer *a, const char *module_name, NameVec *out) {
+  RegMod *m = registry_find_mod(a->registry, module_name);
+  if (m) {
+    for (RegFn *f = m->fns; f; f = f->next) name_vec_push(out, f->name);
+    for (RegConst *c = m->consts; c; c = c->next) name_vec_push(out, c->name);
+  }
+  ProtoInfo *p = proto_find(a->protos, module_name);
+  if (p) {
+    name_vec_push(out, "clone");
+    for (ProtoMethod *pm = p->methods; pm; pm = pm->next) name_vec_push(out, pm->name);
+  }
+}
+
+static void collect_value_candidates(Analyzer *a, Scope *scope, NameVec *out) {
+  collect_scope_names(scope, out);
+  for (FnSig *f = a->fns; f; f = f->next) name_vec_push(out, f->name);
+  for (size_t i = 0; i < a->groups.len; i++) {
+    GroupInfo *g = a->groups.items[i];
+    if (!g) continue;
+    name_vec_push(out, g->name);
+    for (GroupMemberConst *m = g->members; m; m = m->next) name_vec_push(out, m->name);
+  }
+  for (ProtoInfo *p = a->protos; p; p = p->next) {
+    name_vec_push(out, p->name);
+    for (ProtoField *f = p->fields; f; f = f->next) name_vec_push(out, f->name);
+    for (ProtoMethod *m = p->methods; m; m = m->next) name_vec_push(out, m->name);
+  }
+  for (ImportNamespace *n = a->namespaces; n; n = n->next) {
+    name_vec_push(out, n->alias);
+    collect_module_export_names(a, n->module, out);
+  }
+}
+
+static void diag_unresolved_expected(Analyzer *a, AstNode *n, const char *name, const char *expected, const char *detail) {
+  char msg[320];
+  if (!name) name = "";
+  if (!expected) expected = "value";
+  if (detail && detail[0]) snprintf(msg, sizeof(msg), "%s (expected %s)", detail, expected);
+  else snprintf(msg, sizeof(msg), "unknown identifier '%s' (expected %s)", name, expected);
+  set_diag(a->diag, a->file, n ? n->line : 1, n ? n->col : 1, "E2001", "UNRESOLVED_NAME", msg);
+  a->diag->expected_kind = expected;
+}
+
 static int add_imported_fn(Analyzer *a, const char *local, const char *ret_type, int param_count) {
   FnSig *f = (FnSig *)calloc(1, sizeof(FnSig));
   if (!f) return 0;
@@ -3321,7 +3421,16 @@ static int collect_imports(Analyzer *a, AstNode *root) {
     } else if (!m) {
       char *abs = resolve_module_by_name(a->registry, root_dir, mod);
       if (!abs) {
-        set_diag(a->diag, a->file, imp->line, imp->col, "E2001", "UNRESOLVED_NAME", "unknown module");
+        char msg[320];
+        snprintf(msg, sizeof(msg), "unknown module '%s' (expected module)", mod);
+        set_diag(a->diag, a->file, imp->line, imp->col, "E2001", "UNRESOLVED_NAME", msg);
+        a->diag->expected_kind = "module";
+        if (a->registry) {
+          NameVec cands = {0};
+          for (RegMod *cand = a->registry->mods; cand; cand = cand->next) name_vec_push(&cands, cand->name);
+          diag_fill_suggestions(a->diag, mod, &cands);
+          name_vec_free(&cands);
+        }
         free(root_dir);
         return 0;
       }
@@ -3395,7 +3504,20 @@ static int collect_imports(Analyzer *a, AstNode *root) {
           }
           AstNode *method = proto_find_method_node(um->proto_node, name);
           if (!method) {
-            set_diag(a->diag, a->file, it->line, it->col, "E2001", "UNRESOLVED_NAME", "unknown symbol in module");
+            char msg[320];
+            snprintf(msg, sizeof(msg), "unknown symbol '%s' in module '%s' (expected member)", name, um->proto ? um->proto : mod);
+            set_diag(a->diag, a->file, it->line, it->col, "E2001", "UNRESOLVED_NAME", msg);
+            a->diag->expected_kind = "member";
+            NameVec cands = {0};
+            name_vec_push(&cands, "clone");
+            for (AstNode *mn = um->proto_node ? ast_child_kind(um->proto_node, "Methods") : NULL; mn; mn = NULL) {
+              for (size_t mji = 0; mji < mn->child_len; mji++) {
+                AstNode *method_node = mn->children[mji];
+                if (method_node && method_node->text) name_vec_push(&cands, method_node->text);
+              }
+            }
+            diag_fill_suggestions(a->diag, name, &cands);
+            name_vec_free(&cands);
             free(root_dir);
             return 0;
           }
@@ -3423,7 +3545,14 @@ static int collect_imports(Analyzer *a, AstNode *root) {
         } else {
           RegFn *rf = registry_find_fn(a->registry, mod, name);
           if (!rf) {
-            set_diag(a->diag, a->file, it->line, it->col, "E2001", "UNRESOLVED_NAME", "unknown symbol in module");
+            char msg[320];
+            snprintf(msg, sizeof(msg), "unknown symbol '%s' in module '%s' (expected member)", name, mod);
+            set_diag(a->diag, a->file, it->line, it->col, "E2001", "UNRESOLVED_NAME", msg);
+            a->diag->expected_kind = "member";
+            NameVec cands = {0};
+            collect_module_export_names(a, mod, &cands);
+            diag_fill_suggestions(a->diag, name, &cands);
+            name_vec_free(&cands);
             free(root_dir);
             return 0;
           }
@@ -3701,11 +3830,13 @@ static int collect_prototypes(Analyzer *a, AstNode *root) {
   int missing_parent = 0;
   int min_line = 0;
   int min_col = 0;
+  const char *missing_parent_name = NULL;
   for (ProtoInfo *p = a->protos; p; p = p->next) {
     if (p->parent && !proto_find(a->protos, p->parent)) {
       if (!missing_parent || p->line < min_line || (p->line == min_line && p->col < min_col)) {
         min_line = p->line;
         min_col = p->col;
+        missing_parent_name = p->parent;
       }
       missing_parent = 1;
       continue;
@@ -3736,7 +3867,11 @@ static int collect_prototypes(Analyzer *a, AstNode *root) {
     }
   }
   if (missing_parent) {
-    set_diag(a->diag, a->file, min_line, min_col, "E2001", "UNRESOLVED_NAME", "unknown parent prototype");
+    {
+      char msg[320];
+      snprintf(msg, sizeof(msg), "unknown parent prototype '%s' (expected prototype)", missing_parent_name ? missing_parent_name : "");
+      set_diag(a->diag, a->file, min_line, min_col, "E2001", "UNRESOLVED_NAME", msg);
+    }
     return 0;
   }
   return 1;
@@ -4549,14 +4684,25 @@ static char *infer_call_type(Analyzer *a, AstNode *e, Scope *scope, int *ok) {
     FnSig *f = find_fn(a, callee->text ? callee->text : "");
     if (callee->text && (strcmp(callee->text, "Exception") == 0 || strcmp(callee->text, "RuntimeException") == 0)) {
       const char *n = callee->text;
-      char msg[160];
-      snprintf(msg, sizeof(msg), "%s is not callable; use %s.clone()", n, n);
+      char msg[320];
+      snprintf(
+          msg, sizeof(msg), "'%s' is a prototype descriptor, not a callable value (expected function); use %s.clone()", n, n);
       set_diag(a->diag, a->file, e->line, e->col, "E2001", "UNRESOLVED_NAME", msg);
       *ok = 0;
       return NULL;
     }
     if (!f) {
-      set_diag(a->diag, a->file, e->line, e->col, "E2001", "UNRESOLVED_NAME", "unknown function");
+      const char *name = callee->text ? callee->text : "";
+      char msg[320];
+      snprintf(msg, sizeof(msg), "unknown function '%s' (expected function)", name);
+      set_diag(a->diag, a->file, e->line, e->col, "E2001", "UNRESOLVED_NAME", msg);
+      a->diag->expected_kind = "function";
+      {
+        NameVec cands = {0};
+        for (FnSig *it = a->fns; it; it = it->next) name_vec_push(&cands, it->name);
+        diag_fill_suggestions(a->diag, name, &cands);
+        name_vec_free(&cands);
+      }
       *ok = 0;
       return NULL;
     }
@@ -4594,7 +4740,16 @@ static char *infer_call_type(Analyzer *a, AstNode *e, Scope *scope, int *ok) {
         }
         ProtoMethod *pm = proto_find_method(a->protos, proto->name, mname);
         if (!pm) {
-          set_diag(a->diag, a->file, e->line, e->col, "E2001", "UNRESOLVED_NAME", "unknown prototype method");
+          char msg[320];
+          snprintf(msg, sizeof(msg), "unknown method '%s' in prototype '%s' (expected member)", mname, proto->name ? proto->name : "");
+          set_diag(a->diag, a->file, e->line, e->col, "E2001", "UNRESOLVED_NAME", msg);
+          a->diag->expected_kind = "member";
+          {
+            NameVec cands = {0};
+            collect_prototype_member_names(a, proto->name ? proto->name : "", &cands);
+            diag_fill_suggestions(a->diag, mname, &cands);
+            name_vec_free(&cands);
+          }
           *ok = 0;
           return NULL;
         }
@@ -4612,7 +4767,9 @@ static char *infer_call_type(Analyzer *a, AstNode *e, Scope *scope, int *ok) {
         if (ns->is_proto) {
           ProtoInfo *proto = proto_find(a->protos, ns->module);
           if (!proto) {
-            set_diag(a->diag, a->file, e->line, e->col, "E2001", "UNRESOLVED_NAME", "unknown prototype");
+            char msg[320];
+            snprintf(msg, sizeof(msg), "unknown prototype '%s' (expected prototype)", ns->module ? ns->module : "");
+            set_diag(a->diag, a->file, e->line, e->col, "E2001", "UNRESOLVED_NAME", msg);
             *ok = 0;
             return NULL;
           }
@@ -4628,7 +4785,16 @@ static char *infer_call_type(Analyzer *a, AstNode *e, Scope *scope, int *ok) {
           }
           ProtoMethod *pm = proto_find_method(a->protos, proto->name, mname);
           if (!pm) {
-            set_diag(a->diag, a->file, e->line, e->col, "E2001", "UNRESOLVED_NAME", "unknown prototype method");
+            char msg[320];
+            snprintf(msg, sizeof(msg), "unknown method '%s' in prototype '%s' (expected member)", mname, proto->name ? proto->name : "");
+            set_diag(a->diag, a->file, e->line, e->col, "E2001", "UNRESOLVED_NAME", msg);
+            a->diag->expected_kind = "member";
+            {
+              NameVec cands = {0};
+              collect_prototype_member_names(a, proto->name ? proto->name : "", &cands);
+              diag_fill_suggestions(a->diag, mname, &cands);
+              name_vec_free(&cands);
+            }
             *ok = 0;
             return NULL;
           }
@@ -4643,7 +4809,18 @@ static char *infer_call_type(Analyzer *a, AstNode *e, Scope *scope, int *ok) {
         }
         RegFn *rf = registry_find_fn(a->registry, ns->module, callee->text ? callee->text : "");
         if (!rf) {
-          set_diag(a->diag, a->file, e->line, e->col, "E2001", "UNRESOLVED_NAME", "unknown module symbol");
+          char msg[320];
+          snprintf(
+              msg, sizeof(msg), "unknown symbol '%s' in module '%s' (expected member)", callee->text ? callee->text : "",
+              ns->module ? ns->module : "");
+          set_diag(a->diag, a->file, e->line, e->col, "E2001", "UNRESOLVED_NAME", msg);
+          a->diag->expected_kind = "member";
+          {
+            NameVec cands = {0};
+            collect_module_export_names(a, ns->module ? ns->module : "", &cands);
+            diag_fill_suggestions(a->diag, callee->text ? callee->text : "", &cands);
+            name_vec_free(&cands);
+          }
           *ok = 0;
           return NULL;
         }
@@ -4664,7 +4841,16 @@ static char *infer_call_type(Analyzer *a, AstNode *e, Scope *scope, int *ok) {
         if (proto_find(a->protos, tt)) {
           ProtoMethod *pm = proto_find_method(a->protos, tt, callee->text);
           if (!pm) {
-            set_diag(a->diag, a->file, e->line, e->col, "E2001", "UNRESOLVED_NAME", "unknown prototype method");
+            char msg[320];
+            snprintf(msg, sizeof(msg), "unknown method '%s' in prototype '%s' (expected member)", callee->text, tt);
+            set_diag(a->diag, a->file, e->line, e->col, "E2001", "UNRESOLVED_NAME", msg);
+            a->diag->expected_kind = "member";
+            {
+              NameVec cands = {0};
+              collect_prototype_member_names(a, tt, &cands);
+              diag_fill_suggestions(a->diag, callee->text ? callee->text : "", &cands);
+              name_vec_free(&cands);
+            }
             *ok = 0;
             free(tt);
             return NULL;
@@ -4819,10 +5005,47 @@ static char *infer_expr_type(Analyzer *a, AstNode *e, Scope *scope, int *ok) {
     if (sym) {
       return strdup(sym->type ? sym->type : "unknown");
     }
-    if (e->text && group_find(&a->groups, e->text)) return strdup("group");
+    if (e->text && group_find(&a->groups, e->text)) {
+      char detail[320];
+      snprintf(detail, sizeof(detail), "'%s' is a group descriptor, not a value expression", e->text);
+      diag_unresolved_expected(a, e, e->text, "value", detail);
+      NameVec cands = {0};
+      collect_value_candidates(a, scope, &cands);
+      diag_fill_suggestions(a->diag, e->text, &cands);
+      name_vec_free(&cands);
+      *ok = 0;
+      return NULL;
+    }
+    if (e->text && proto_find(a->protos, e->text)) {
+      char detail[320];
+      snprintf(detail, sizeof(detail), "'%s' is a prototype descriptor, not a value expression", e->text);
+      diag_unresolved_expected(a, e, e->text, "value", detail);
+      NameVec cands = {0};
+      collect_value_candidates(a, scope, &cands);
+      diag_fill_suggestions(a->diag, e->text, &cands);
+      name_vec_free(&cands);
+      *ok = 0;
+      return NULL;
+    }
     if (e->text && strcmp(e->text, "Sys") == 0) return strdup("Sys");
-    if (e->text && find_namespace(a, e->text)) return strdup("module");
-    set_diag(a->diag, a->file, e->line, e->col, "E2001", "UNRESOLVED_NAME", "unknown identifier");
+    if (e->text && find_namespace(a, e->text)) {
+      char detail[320];
+      snprintf(detail, sizeof(detail), "'%s' is a module namespace, not a value expression", e->text);
+      diag_unresolved_expected(a, e, e->text, "value", detail);
+      NameVec cands = {0};
+      collect_value_candidates(a, scope, &cands);
+      diag_fill_suggestions(a->diag, e->text, &cands);
+      name_vec_free(&cands);
+      *ok = 0;
+      return NULL;
+    }
+    diag_unresolved_expected(a, e, e->text ? e->text : "", "value", NULL);
+    {
+      NameVec cands = {0};
+      collect_value_candidates(a, scope, &cands);
+      diag_fill_suggestions(a->diag, e->text ? e->text : "", &cands);
+      name_vec_free(&cands);
+    }
     *ok = 0;
     return NULL;
   }
@@ -4853,6 +5076,20 @@ static char *infer_expr_type(Analyzer *a, AstNode *e, Scope *scope, int *ok) {
         if (g) {
           GroupMemberConst *mc = group_member_find(g, e->text ? e->text : "");
           if (mc && g->type) return strdup(g->type);
+          {
+            char msg[320];
+            snprintf(
+                msg, sizeof(msg), "unknown group member '%s' in group '%s' (expected member)", e->text ? e->text : "",
+                target->text ? target->text : "");
+            set_diag(a->diag, a->file, e->line, e->col, "E2001", "UNRESOLVED_NAME", msg);
+            a->diag->expected_kind = "member";
+            NameVec cands = {0};
+            for (GroupMemberConst *gm = g->members; gm; gm = gm->next) name_vec_push(&cands, gm->name);
+            diag_fill_suggestions(a->diag, e->text ? e->text : "", &cands);
+            name_vec_free(&cands);
+          }
+          *ok = 0;
+          return NULL;
         }
         ImportNamespace *ns = find_namespace(a, target->text ? target->text : "");
         if (ns && !ns->is_proto) {
@@ -4879,6 +5116,19 @@ static char *infer_expr_type(Analyzer *a, AstNode *e, Scope *scope, int *ok) {
           free(tt);
           return ret;
         }
+        {
+          char msg[320];
+          snprintf(msg, sizeof(msg), "unknown field '%s' in prototype '%s' (expected member)", e->text ? e->text : "", tt);
+          set_diag(a->diag, a->file, e->line, e->col, "E2001", "UNRESOLVED_NAME", msg);
+          a->diag->expected_kind = "member";
+          NameVec cands = {0};
+          collect_prototype_member_names(a, tt, &cands);
+          diag_fill_suggestions(a->diag, e->text ? e->text : "", &cands);
+          name_vec_free(&cands);
+        }
+        free(tt);
+        *ok = 0;
+        return NULL;
       }
       free(tt);
     }

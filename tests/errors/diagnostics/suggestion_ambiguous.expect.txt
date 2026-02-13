@@ -1,0 +1,1 @@
+tests/errors/diagnostics/suggestion_ambiguous.pts:5:11 E2001 UNRESOLVED_NAME: unknown identifier 'bark' (expected value)

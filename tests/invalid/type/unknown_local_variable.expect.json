@@ -1,0 +1,12 @@
+{
+  "status": "reject-static",
+  "error_family": "E2xxx",
+  "error_code": "E2001",
+  "category": "UNRESOLVED_NAME",
+  "position": {
+    "file": "invalid/type/unknown_local_variable.pts",
+    "line": 2,
+    "column": 11
+  },
+  "expected_output": "invalid/type/unknown_local_variable.pts:2:11 E2001 UNRESOLVED_NAME: unknown identifier 'missingValue' (expected value)"
+}

@@ -30,23 +30,7 @@ static void usage(void) {
 }
 
 static void print_diag(FILE *out, const char *fallback_file, const PsDiag *d) {
-  char mapped[128];
-  const char *raw = (d && d->file) ? d->file : fallback_file;
-  const char *file = ps_diag_display_file(raw, mapped, sizeof(mapped));
-  int line = d ? d->line : 1;
-  int col = d ? d->col : 1;
-  const char *code = (d && d->code) ? d->code : NULL;
-  const char *category = (d && d->category) ? d->category : NULL;
-  const char *msg = (d && d->message[0]) ? d->message : "unknown error";
-  if (code && code[0] && category && category[0]) {
-    fprintf(out, "%s:%d:%d %s %s: %s\n", file ? file : "<unknown>", line, col, code, category, msg);
-  } else if (category && category[0]) {
-    fprintf(out, "%s:%d:%d %s: %s\n", file ? file : "<unknown>", line, col, category, msg);
-  } else if (code && code[0]) {
-    fprintf(out, "%s:%d:%d %s: %s\n", file ? file : "<unknown>", line, col, code, msg);
-  } else {
-    fprintf(out, "%s:%d:%d Error: %s\n", file ? file : "<unknown>", line, col, msg);
-  }
+  ps_diag_write(out, fallback_file, d);
 }
 
 static const char *exc_string(PS_Value *v) {
@@ -297,27 +281,21 @@ int main(int argc, char **argv) {
     PsDiag d;
     int r = ps_check_file_static(argv[cmd_index + 1], &d);
     if (r != 0) {
-      fprintf(stderr, "%s:%d:%d %s %s: %s\n", d.file ? d.file : argv[cmd_index + 1], d.line, d.col,
-              d.code ? d.code : "E0001",
-              d.category ? d.category : "FRONTEND_ERROR", d.message);
+      print_diag(stderr, argv[cmd_index + 1], &d);
       rc = (r == 2) ? 1 : 2;
     }
   } else if (strcmp(argv[cmd_index], "ast") == 0 && (cmd_index + 1) < argc) {
     PsDiag d;
     int r = ps_parse_file_ast(argv[cmd_index + 1], &d, stdout);
     if (r != 0) {
-      fprintf(stderr, "%s:%d:%d %s %s: %s\n", d.file ? d.file : argv[cmd_index + 1], d.line, d.col,
-              d.code ? d.code : "E0001",
-              d.category ? d.category : "FRONTEND_ERROR", d.message);
+      print_diag(stderr, argv[cmd_index + 1], &d);
       rc = (r == 2) ? 1 : 2;
     }
   } else if (strcmp(argv[cmd_index], "ir") == 0 && (cmd_index + 1) < argc) {
     PsDiag d;
     int r = ps_emit_ir_json(argv[cmd_index + 1], &d, stdout);
     if (r != 0) {
-      fprintf(stderr, "%s:%d:%d %s %s: %s\n", d.file ? d.file : argv[cmd_index + 1], d.line, d.col,
-              d.code ? d.code : "E0001",
-              d.category ? d.category : "FRONTEND_ERROR", d.message);
+      print_diag(stderr, argv[cmd_index + 1], &d);
       rc = (r == 2) ? 1 : 2;
     }
   } else if (strcmp(argv[cmd_index], "test") == 0) {

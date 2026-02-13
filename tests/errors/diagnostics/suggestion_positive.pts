@@ -1,0 +1,4 @@
+function main() : void {
+  int LocalToken = 1;
+  int x = LcalToken;
+}

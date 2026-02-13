@@ -1,0 +1,7 @@
+prototype Point {
+  int x;
+}
+
+function main() : void {
+  Point p = Point;
+}

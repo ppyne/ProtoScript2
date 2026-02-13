@@ -1,0 +1,7 @@
+int group Color {
+  Red = 1
+}
+
+function main() : void {
+  int a = Color.Purple;
+}

@@ -69,23 +69,7 @@ static int forward_to_reference(int argc, char **argv) {
 }
 
 static void print_diag(FILE *out, const char *fallback_file, const PsDiag *d) {
-  char mapped[128];
-  const char *raw = (d && d->file) ? d->file : fallback_file;
-  const char *file = ps_diag_display_file(raw, mapped, sizeof(mapped));
-  int line = d ? d->line : 1;
-  int col = d ? d->col : 1;
-  const char *code = (d && d->code) ? d->code : NULL;
-  const char *category = (d && d->category) ? d->category : NULL;
-  const char *msg = (d && d->message[0]) ? d->message : "unknown error";
-  if (code && code[0] && category && category[0]) {
-    fprintf(out, "%s:%d:%d %s %s: %s\n", file ? file : "<unknown>", line, col, code, category, msg);
-  } else if (category && category[0]) {
-    fprintf(out, "%s:%d:%d %s: %s\n", file ? file : "<unknown>", line, col, category, msg);
-  } else if (code && code[0]) {
-    fprintf(out, "%s:%d:%d %s: %s\n", file ? file : "<unknown>", line, col, code, msg);
-  } else {
-    fprintf(out, "%s:%d:%d Error: %s\n", file ? file : "<unknown>", line, col, msg);
-  }
+  ps_diag_write(out, fallback_file, d);
 }
 
 static int diag_equal(const PsDiag *a, const PsDiag *b) {
@@ -94,8 +78,12 @@ static int diag_equal(const PsDiag *a, const PsDiag *b) {
   if (a->line != b->line || a->col != b->col) return 0;
   if (strcmp(a->file ? a->file : "", b->file ? b->file : "") != 0) return 0;
   if (strcmp(a->code ? a->code : "", b->code ? b->code : "") != 0) return 0;
-  if (strcmp(a->category ? a->category : "", b->category ? b->category : "") != 0) return 0;
+  if (strcmp(a->name ? a->name : (a->category ? a->category : ""), b->name ? b->name : (b->category ? b->category : "")) != 0) return 0;
   if (strcmp(a->message, b->message) != 0) return 0;
+  if (a->suggestion_count != b->suggestion_count) return 0;
+  for (int i = 0; i < a->suggestion_count; i++) {
+    if (strcmp(a->suggestions[i], b->suggestions[i]) != 0) return 0;
+  }
   return 1;
 }
 

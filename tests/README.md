@@ -58,6 +58,7 @@ Runner dédié statique C vs oracle Node (`--check-c-static`): `tests/run_c_stat
 Runner dédié comparaison structurelle AST (Node vs C): `tests/run_ast_structural_crosscheck.sh`
 Runner dédié crosscheck IR Node/C (structure + invariants): `tests/run_ir_node_c_crosscheck.sh`
 Runner dédié CLI (C) : `tests/run_cli_tests.sh`
+Runner dédié diagnostics stricts (format exact + suggestions + parité JS/C) : `tests/run_diagnostics_strict.sh`
 Runner complet (build + conformance + crosscheck + CLI) : `tests/run_all.sh`
 
 ## Opt Safety

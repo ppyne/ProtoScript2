@@ -1,0 +1,12 @@
+{
+  "status": "reject-static",
+  "error_family": "E2xxx",
+  "error_code": "E2001",
+  "category": "UNRESOLVED_NAME",
+  "position": {
+    "file": "invalid/type/unknown_group_member.pts",
+    "line": 6,
+    "column": 16
+  },
+  "expected_output": "invalid/type/unknown_group_member.pts:6:16 E2001 UNRESOLVED_NAME: unknown group member 'Purple' in group 'Color' (expected member)"
+}

@@ -1,0 +1,12 @@
+{
+  "status": "reject-static",
+  "error_family": "E2xxx",
+  "error_code": "E2001",
+  "category": "UNRESOLVED_NAME",
+  "position": {
+    "file": "invalid/type/group_descriptor_as_expression.pts",
+    "line": 6,
+    "column": 11
+  },
+  "expected_output": "invalid/type/group_descriptor_as_expression.pts:6:11 E2001 UNRESOLVED_NAME: 'Color' is a group descriptor, not a value expression (expected value)"
+}

@@ -1,0 +1,2 @@
+tests/errors/diagnostics/suggestion_tie_deterministic.pts:4:11 E2001 UNRESOLVED_NAME: unknown identifier 'nark' (expected value)
+Did you mean 'lark' or 'mark'?

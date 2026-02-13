@@ -2721,27 +2721,104 @@ Les erreurs runtime sont représentées par des **exceptions**.
 
 ## 10.2 Messages d’erreur
 
-Les messages d’erreur doivent être **simples, précis et contextualisés**.
+Les diagnostics statiques et runtime font partie du **contrat de stabilité du langage**.
 
-Format normatif :
-
-```
-<file>:<line>:<column> <ErrorType>: <message>
-```
-
-Exemples :
+Format normatif obligatoire :
 
 ```
-script.pts:4:1 Uncaught TypeError: Call of non-object: obj.thing
-script.pts:6:11 Parse error: unexpected token "," expecting ";"
+<file>:<line>:<column> <ErrorCode> <ErrorName>: <message>
 ```
+
+Règles normatives :
+
+- une implémentation conforme **MUST** produire exactement ce format sur la ligne principale
+- `file` **MUST** être le chemin logique source du programme
+- `line` et `column` **MUST** pointer sur le premier caractère du lexème fautif
+- `ErrorCode` **MUST** être un code canonique stable (ex. `E2001`, `R1004`)
+- `ErrorName` **MUST** être la catégorie canonique stable associée au code
+- pour les erreurs liées aux identifiants, le lexème fautif **MUST** être cité (`'name'`)
+- le message **MUST** expliciter :
+  - ce qui est fautif
+  - ce qui est attendu (`expected ...`)
+- les lignes de suggestion sont **optionnelles** et **MUST** apparaître uniquement après la ligne principale
+- une suggestion **MUST NOT** modifier le code d’erreur
+
+Format de suggestion (si présente) :
+
+```
+Did you mean 'X'?
+Did you mean 'X' or 'Y'?
+```
+
+Une implémentation **MUST NOT** émettre d’autres formats de continuation.
+
+Exemples conformes :
+
+```
+script.pts:15:16 E2001 UNRESOLVED_NAME: unknown identifier 'Colr' (expected value)
+Did you mean 'Color'?
+script.pts:10:5 E2001 UNRESOLVED_NAME: unknown group member 'Purple' in group 'Color' (expected member)
+```
+
+### 10.2.1 Diagnostic Code Classification
+
+Les codes de diagnostic sont hiérarchiques et stables.
+
+Plages réservées (normatives) :
+
+| Domaine | Plage | Statut |
+|---|---|---|
+| Parse / lexing / arité | `E1xxx` | réservé |
+| Résolution de noms | `E2xxx` | réservé |
+| Typage | `E3xxx` | réservé |
+| Sémantique statique | `E4xxx` | réservé |
+| Modules / imports | `E5xxx` | réservé |
+| Vérifications statiques runtime futures | `E6xxx` | réservé |
+| Runtime | `R1xxx` | réservé |
 
 Règles :
 
-- le fichier, la ligne et la colonne sont toujours fournis
-- le message désigne explicitement :
-  - ce qui est fautif
-  - ce qui était attendu
+- un code **MUST** être unique
+- un code canonique publié **MUST NOT** être repurposé
+- l’association `ErrorCode -> ErrorName` **MUST** rester stable entre versions mineures
+- les codes font partie du contrat de compatibilité de ProtoScript2
+
+### 10.2.2 Objet Diagnostic (normatif)
+
+Les frontends doivent construire les diagnostics via un objet structuré avant formatage.
+
+Champs normatifs :
+
+- `file`
+- `line`
+- `column`
+- `code`
+- `name`
+- `message`
+- `expected_kind` (optionnel)
+- `actual_kind` (optionnel)
+- `suggestions[]` (optionnel)
+
+Règles :
+
+- le rendu texte (10.2) **MUST** être produit par un formateur centralisé
+- la logique sémantique **MUST** transmettre des données structurées (code, nom, position, contexte), pas uniquement une chaîne finale
+- `suggestions[]` **MUST** être déterministe pour un même input
+
+### 10.2.3 Suggestions `Did you mean ... ?` (normatif)
+
+Pour les erreurs de résolution de noms (`E2xxx`), une implémentation peut ajouter une suggestion déterministe.
+
+Règles :
+
+- la distance utilisée **MUST** être une distance d’édition (Levenshtein)
+- le seuil maximal **MUST** être `2`
+- une suggestion est autorisée uniquement si un meilleur candidat minimal est trouvé
+- si plusieurs candidats partagent la distance minimale :
+  - un format à deux suggestions est autorisé (`X` ou `Y`)
+  - en cas d’ambiguïté plus large, aucune suggestion ne doit être émise
+- l’ordre des suggestions **MUST** être déterministe
+- les suggestions **MUST NOT** modifier le code ou le nom du diagnostic principal
 
 ---
 
@@ -3217,11 +3294,16 @@ Familles minimales :
 - `E1xxx` : erreurs lexicales/syntaxiques **et arité invalide**
 - `E2xxx` : erreurs de nommage/résolution
 - `E3xxx` : erreurs de typage/compatibilité
-- `E4xxx` : erreurs de flux d’initialisation
+- `E4xxx` : erreurs sémantiques statiques
+- `E5xxx` : erreurs modules/imports
+- `E6xxx` : réservée pour vérifications statiques runtime futures
 
 Codes canoniques minimaux :
 
+- `E1001` : `PARSE_UNEXPECTED_TOKEN`
+- `E1002` : `PARSE_UNCLOSED_BLOCK`
 - `E1003` : `ARITY_MISMATCH`
+- `E2001` : `UNRESOLVED_NAME`
 - `E2002` : `IMPORT_PATH_NOT_FOUND`
 - `E2003` : `IMPORT_PATH_BAD_EXTENSION`
 - `E2004` : `IMPORT_PATH_NO_ROOT_PROTO`
@@ -3239,9 +3321,10 @@ Codes canoniques minimaux :
 Exigences minimales de diagnostic :
 
 - code canonique (ex. `E3007`)
-- catégorie
+- nom canonique (`ErrorName`)
 - position `file:line:column`
 - message descriptif
+- format strict conforme à 10.2
 
 ## 15.7 Compatibilité et non-régression (normatif)
 
@@ -3457,6 +3540,8 @@ Règles :
 
 - les codes canoniques normatifs (familles `E*` et `R*`) doivent être stables entre versions mineures de la spec
 - le texte du message peut évoluer, pas la signification du code
+- un code existant ne doit jamais être réassigné à une autre signification
+- les suggestions (`Did you mean ... ?`) n’altèrent pas le code ni la catégorie du diagnostic principal
 
 ## 18.5 Convention d’exécution (entrée `main` et codes de retour)
 
