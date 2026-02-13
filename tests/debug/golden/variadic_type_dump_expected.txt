@@ -1,5 +1,9 @@
-list<string>(len=1) [
+view<string>(len=1) [
   [0] string(len=5) "hello"
+]
+list<int>(len=0) [
+]
+view<string>(len=0) [
 ]
 list<int>(len=0) [
 ]

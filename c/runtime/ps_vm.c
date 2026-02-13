@@ -1598,20 +1598,24 @@ static int exec_function(PS_Context *ctx, PS_IR_Module *m, IRFunction *f, PS_Val
     bindings_set(&vars, f->params[i], args[i]);
   }
   if (f->variadic && f->variadic_index < f->param_count) {
-    PS_Value *list = ps_list_new(ctx);
-    if (!list) {
+    PS_Value *view = ps_value_alloc(PS_V_VIEW);
+    if (!view) {
       bindings_free(&vars);
       bindings_free(&temps);
       return 1;
     }
+    view->as.view_v.source = NULL;
+    view->as.view_v.borrowed_items = (argc > fixed) ? (args + fixed) : NULL;
+    view->as.view_v.offset = 0;
+    view->as.view_v.len = argc - fixed;
+    view->as.view_v.readonly = 1;
+    view->as.view_v.version = 0;
+    view->as.view_v.type_name = NULL;
     if (f->param_types && f->param_types[f->variadic_index]) {
-      ps_list_set_type_name_internal(ctx, list, f->param_types[f->variadic_index]);
+      view->as.view_v.type_name = strdup(f->param_types[f->variadic_index]);
     }
-    for (size_t i = fixed; i < argc; i++) {
-      ps_list_push_internal(ctx, list, args[i]);
-    }
-    bindings_set(&vars, f->params[f->variadic_index], list);
-    ps_value_release(list);
+    bindings_set(&vars, f->params[f->variadic_index], view);
+    ps_value_release(view);
   }
   size_t block_idx = 0;
   size_t ip = 0;
@@ -2110,16 +2114,19 @@ static int exec_function(PS_Context *ctx, PS_IR_Module *m, IRFunction *f, PS_Val
           goto raise;
         }
         PS_Value *base = src;
+        PS_Value **borrowed = NULL;
         size_t base_off = 0;
         int readonly = ins->readonly;
         if (src->tag == PS_V_VIEW) {
           base = src->as.view_v.source;
+          borrowed = src->as.view_v.borrowed_items;
           base_off = src->as.view_v.offset;
           if (src->as.view_v.readonly) readonly = 1;
         }
         PS_Value *v = ps_value_alloc(PS_V_VIEW);
         if (!v) goto raise;
-        v->as.view_v.source = ps_value_retain(base);
+        v->as.view_v.source = base ? ps_value_retain(base) : NULL;
+        v->as.view_v.borrowed_items = borrowed;
         v->as.view_v.offset = base_off + (size_t)off;
         v->as.view_v.len = (size_t)ln;
         v->as.view_v.readonly = readonly;
@@ -2130,10 +2137,12 @@ static int exec_function(PS_Context *ctx, PS_IR_Module *m, IRFunction *f, PS_Val
           if (base && base->tag == PS_V_LIST) {
             const char *list_t = ps_list_type_name_internal(base);
             inner = extract_generic_inner(list_t);
-          } else if (base && base->tag == PS_V_VIEW) {
-            inner = extract_generic_inner(base->as.view_v.type_name);
+          } else if (src->tag == PS_V_VIEW) {
+            inner = extract_generic_inner(src->as.view_v.type_name);
           } else if (base && base->tag == PS_V_STRING) {
             inner = strdup("glyph");
+          } else if (borrowed) {
+            inner = strdup("unknown");
           }
           if (!inner) inner = strdup("unknown");
           v->as.view_v.type_name = make_view_type_name(kind, inner);
@@ -2162,10 +2171,12 @@ static int exec_function(PS_Context *ctx, PS_IR_Module *m, IRFunction *f, PS_Val
           }
           size_t idx = t->as.view_v.offset + (size_t)i->as.int_v;
           PS_Value *src = t->as.view_v.source;
-          if (src->tag == PS_V_LIST) res = ps_list_get_internal(ctx, src, idx);
-          else if (src->tag == PS_V_STRING) {
+          if (src && src->tag == PS_V_LIST) res = ps_list_get_internal(ctx, src, idx);
+          else if (src && src->tag == PS_V_STRING) {
             uint32_t g = ps_utf8_glyph_at((const uint8_t *)src->as.string_v.ptr, src->as.string_v.len, idx);
             res = ps_make_glyph(ctx, g);
+          } else if (!src && t->as.view_v.borrowed_items) {
+            res = t->as.view_v.borrowed_items[idx];
           }
         }
         if (!res) goto raise;
@@ -2191,7 +2202,7 @@ static int exec_function(PS_Context *ctx, PS_IR_Module *m, IRFunction *f, PS_Val
           }
           size_t idx = t->as.view_v.offset + (size_t)i->as.int_v;
           PS_Value *src = t->as.view_v.source;
-          if (src->tag == PS_V_LIST) {
+          if (src && src->tag == PS_V_LIST) {
             if (!ps_list_set_internal(ctx, src, idx, v)) goto raise;
           } else {
             {
@@ -2260,10 +2271,12 @@ static int exec_function(PS_Context *ctx, PS_IR_Module *m, IRFunction *f, PS_Val
             }
             size_t vidx = src->as.view_v.offset + idx;
             PS_Value *base = src->as.view_v.source;
-            if (base->tag == PS_V_LIST) res = base->as.list_v.items[vidx];
-            else if (base->tag == PS_V_STRING) {
+            if (base && base->tag == PS_V_LIST) res = base->as.list_v.items[vidx];
+            else if (base && base->tag == PS_V_STRING) {
               uint32_t g = ps_utf8_glyph_at((const uint8_t *)base->as.string_v.ptr, base->as.string_v.len, vidx);
               res = ps_make_glyph(ctx, g);
+            } else if (!base && src->as.view_v.borrowed_items) {
+              res = src->as.view_v.borrowed_items[vidx];
             }
           }
         }

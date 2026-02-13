@@ -59,7 +59,8 @@
       "invalid/type/return_self_alias",
       "invalid/type/list_sort_type_error",
       "invalid/type/list_sort_missing_compareTo",
-      "invalid/type/list_sort_bad_compareTo_signature"
+      "invalid/type/list_sort_bad_compareTo_signature",
+      "invalid/type/variadic_mutation_forbidden"
     ],
     "invalid/runtime": [
       "invalid/runtime/int_overflow_add",
@@ -107,6 +108,8 @@
       "edge/method_variadic_empty",
       "edge/method_variadic_with_args",
       "edge/method_variadic_fixed_plus",
+      "edge/variadic_view_empty_length",
+      "edge/variadic_view_nonempty_length",
       "edge/switch_no_termination",
       "edge/map_key_present",
       "edge/map_iteration_in",

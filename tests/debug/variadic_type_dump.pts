@@ -11,4 +11,5 @@ prototype P {
 function main() : void {
   P p = P.clone();
   p.test("hello");
+  p.test();
 }

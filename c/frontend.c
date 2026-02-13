@@ -2964,6 +2964,19 @@ static char *canon_type(const char *in) {
   return out;
 }
 
+static char *canon_variadic_param_type(const char *in, int variadic) {
+  char *ct = canon_type(in);
+  if (!ct) return NULL;
+  if (!variadic) return ct;
+  size_t n = strlen(ct);
+  if (n >= 7 && strncmp(ct, "list<", 5) == 0 && ct[n - 1] == '>') {
+    char *out = str_printf("view<%.*s>", (int)(n - 6), ct + 5);
+    free(ct);
+    return out ? out : strdup("view<unknown>");
+  }
+  return ct;
+}
+
 static AstNode *ast_child_kind(AstNode *n, const char *kind) {
   if (!n) return NULL;
   for (size_t i = 0; i < n->child_len; i++) {
@@ -3826,8 +3839,9 @@ static int collect_prototypes(Analyzer *a, AstNode *root) {
             AstNode *pn = c->children[pi];
             if (strcmp(pn->kind, "Param") != 0) continue;
             AstNode *pt = ast_child_kind(pn, "Type");
-            nm->param_types[idx++] = canon_type(pt ? pt->text : "unknown");
-            if (ast_child_kind(pn, "Variadic")) nm->variadic = 1;
+            int is_variadic = ast_child_kind(pn, "Variadic") != NULL;
+            nm->param_types[idx++] = canon_variadic_param_type(pt ? pt->text : "unknown", is_variadic);
+            if (is_variadic) nm->variadic = 1;
             else nm->fixed_count += 1;
           }
         }
@@ -4945,6 +4959,23 @@ static char *infer_call_type(Analyzer *a, AstNode *e, Scope *scope, int *ok) {
           return NULL;
         }
         char *ret = method_ret_type(tt, callee->text);
+        if (!ret && strncmp(tt, "view<", 5) == 0) {
+          char msg[320];
+          snprintf(msg, sizeof(msg), "unknown method '%s' in type '%s' (expected member)", callee->text ? callee->text : "", tt);
+          set_diag(a->diag, a->file, e->line, e->col, "E2001", "UNRESOLVED_NAME", msg);
+          a->diag->expected_kind = "member";
+          {
+            NameVec cands = {0};
+            name_vec_push(&cands, "length");
+            name_vec_push(&cands, "isEmpty");
+            name_vec_push(&cands, "view");
+            diag_fill_suggestions(a->diag, callee->text ? callee->text : "", &cands);
+            name_vec_free(&cands);
+          }
+          free(tt);
+          *ok = 0;
+          return NULL;
+        }
         free(tt);
         if (ret) return ret;
       }
@@ -5782,7 +5813,8 @@ static int analyze_function(Analyzer *a, AstNode *fn) {
     AstNode *c = fn->children[i];
     if (strcmp(c->kind, "Param") != 0) continue;
     AstNode *tn = ast_child_kind(c, "Type");
-    char *tt = canon_type(tn ? tn->text : "unknown");
+    int is_variadic = ast_child_kind(c, "Variadic") != NULL;
+    char *tt = canon_variadic_param_type(tn ? tn->text : "unknown", is_variadic);
     if (!tt || !scope_define(&root, c->text ? c->text : "", tt, -1, 1)) {
       free(tt);
       free_syms(root.syms);
@@ -5813,7 +5845,8 @@ static int analyze_method(Analyzer *a, AstNode *fn, const char *self_type) {
     AstNode *c = fn->children[i];
     if (strcmp(c->kind, "Param") != 0) continue;
     AstNode *tn = ast_child_kind(c, "Type");
-    char *tt = canon_type(tn ? tn->text : "unknown");
+    int is_variadic = ast_child_kind(c, "Variadic") != NULL;
+    char *tt = canon_variadic_param_type(tn ? tn->text : "unknown", is_variadic);
     if (!tt || !scope_define(&root, c->text ? c->text : "", tt, -1, 1)) {
       free(tt);
       free_syms(root.syms);
@@ -9558,7 +9591,8 @@ int ps_emit_ir_json(const char *file, PsDiag *out_diag, FILE *out) {
       AstNode *p = fn->children[pi];
       if (strcmp(p->kind, "Param") != 0) continue;
       AstNode *pt = ast_child_kind(p, "Type");
-      char *ptn = ast_type_to_ir_name(pt);
+      AstNode *pv = ast_child_kind(p, "Variadic");
+      char *ptn = canon_variadic_param_type(pt ? pt->text : "unknown", pv != NULL);
       char *irn = ir_next_var(&ctx, p->text ? p->text : "p");
       if (!ptn || !irn || !ir_scope_define(&root_scope, p->text ? p->text : "", irn) || !ir_set_var_type(&ctx, irn, ptn)) {
         free(ptn);
@@ -9607,7 +9641,7 @@ int ps_emit_ir_json(const char *file, PsDiag *out_diag, FILE *out) {
       AstNode *pv = ast_child_kind(p, "Variadic");
       const char *mapped = ir_scope_lookup(&root_scope, p->text ? p->text : "");
       char *pn = json_escape(mapped ? mapped : (p->text ? p->text : ""));
-      char *ptn_raw = ast_type_to_ir_name(pt);
+      char *ptn_raw = canon_variadic_param_type(pt ? pt->text : "unknown", pv != NULL);
       char *ptn = json_escape(ptn_raw ? ptn_raw : "unknown");
       if (!first_p) fputs(",", out);
       first_p = 0;
@@ -9698,7 +9732,8 @@ int ps_emit_ir_json(const char *file, PsDiag *out_diag, FILE *out) {
         AstNode *p = m->children[pj];
         if (strcmp(p->kind, "Param") != 0) continue;
         AstNode *pt = ast_child_kind(p, "Type");
-        char *ptn = ast_type_to_ir_name(pt);
+        AstNode *pv = ast_child_kind(p, "Variadic");
+        char *ptn = canon_variadic_param_type(pt ? pt->text : "unknown", pv != NULL);
         char *irn = ir_next_var(&ctx, p->text ? p->text : "p");
         if (!ptn || !irn || !ir_scope_define(&root_scope, p->text ? p->text : "", irn) || !ir_set_var_type(&ctx, irn, ptn)) {
           free(ptn);
@@ -9755,7 +9790,7 @@ int ps_emit_ir_json(const char *file, PsDiag *out_diag, FILE *out) {
         AstNode *pv = ast_child_kind(p, "Variadic");
         const char *mapped = ir_scope_lookup(&root_scope, p->text ? p->text : "");
         char *pn = json_escape(mapped ? mapped : (p->text ? p->text : ""));
-        char *ptn_raw = ast_type_to_ir_name(pt);
+        char *ptn_raw = canon_variadic_param_type(pt ? pt->text : "unknown", pv != NULL);
         char *ptn = json_escape(ptn_raw ? ptn_raw : "unknown");
         fprintf(out, ",{\"name\":\"%s\",\"type\":{\"kind\":\"IRType\",\"name\":\"%s\"},\"variadic\":%s}",
                 pn ? pn : "", ptn ? ptn : "", pv ? "true" : "false");

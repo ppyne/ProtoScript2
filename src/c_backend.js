@@ -3604,23 +3604,24 @@ function emitInstr(i, fnInf, state) {
     case "call_static":
       if (i.variadic && VARIADIC_PARAM_INFO.has(i.callee)) {
         const info = VARIADIC_PARAM_INFO.get(i.callee);
-        const listType = info.type;
+        const viewType = info.type;
         const fixedCount = info.fixedCount;
-        const cont = parseContainer(listType);
+        const cont = parseContainer(viewType);
         const inner = cont?.inner || "int";
-        const listC = cTypeFromName(listType);
+        const viewC = cTypeFromName(viewType);
         const innerC = cTypeFromName(inner);
         const tmp = `__va_${VARARG_COUNTER++}`;
-        out.push(`{ ${listC} ${tmp};`);
+        out.push(`{ ${viewC} ${tmp};`);
         out.push(`${tmp}.len = ${i.args.length - fixedCount};`);
-        out.push(`${tmp}.cap = ${i.args.length - fixedCount};`);
-        out.push(`${tmp}.version = 0;`);
         if (i.args.length > fixedCount) {
-          out.push(`${tmp}.ptr = (${innerC}*)malloc(sizeof(*${tmp}.ptr) * ${i.args.length - fixedCount});`);
-          i.args.slice(fixedCount).forEach((a, idx) => out.push(`${tmp}.ptr[${idx}] = ${n(a)};`));
+          const tmpData = `${tmp}_data`;
+          out.push(`${innerC} ${tmpData}[] = { ${i.args.slice(fixedCount).map((a) => n(a)).join(", ")} };`);
+          out.push(`${tmp}.ptr = ${tmpData};`);
         } else {
           out.push(`${tmp}.ptr = NULL;`);
         }
+        out.push(`${tmp}.version_ptr = NULL;`);
+        out.push(`${tmp}.version = 0;`);
         const fixedArgs = i.args.slice(0, fixedCount).map((a) => n(a));
         const callArgs = [...fixedArgs, tmp].join(", ");
         if (t(i.dst) === "void") out.push(`${cIdent(i.callee)}(${callArgs});`);

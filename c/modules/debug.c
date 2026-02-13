@@ -775,6 +775,7 @@ static int debug_dump_view(PS_Context *ctx, DebugState *st, PS_Value *v, int dep
   size_t max = st->max_items;
   size_t shown = len < max ? len : max;
   PS_Value *src = v->as.view_v.source;
+  PS_Value **borrowed = v->as.view_v.borrowed_items;
   for (size_t i = 0; i < shown; i++) {
     debug_indent(st, indent + 2);
     if (!debug_printf(st, "[%zu] ", i)) return 0;
@@ -790,6 +791,10 @@ static int debug_dump_view(PS_Context *ctx, DebugState *st, PS_Value *v, int dep
       tmp.tag = PS_V_GLYPH;
       tmp.as.glyph_v = cp;
       if (!debug_dump_scalar(st, &tmp)) return 0;
+    } else if (!src && borrowed) {
+      size_t idx = v->as.view_v.offset + i;
+      PS_Value *item = borrowed[idx];
+      if (!debug_dump_value(ctx, st, item, depth + 1, indent + 2)) return 0;
     } else {
       if (!debug_write(st, "unknown(view)")) return 0;
     }

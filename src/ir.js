@@ -73,6 +73,14 @@ function lowerType(t) {
   return { kind: "IRType", name: typeToString(t) };
 }
 
+function canonicalVariadicParamType(param) {
+  if (!param || !param.variadic || !param.type) return param ? param.type : null;
+  if (param.type.kind === "GenericType" && param.type.name === "list" && Array.isArray(param.type.args) && param.type.args.length === 1) {
+    return { kind: "GenericType", name: "view", args: [param.type.args[0]] };
+  }
+  return param.type;
+}
+
 function isIntLike(t) {
   const n = typeToString(t);
   return n === "int" || n === "byte";
@@ -425,7 +433,7 @@ class IRBuilder {
           methods.set(m.name, m);
           methodsIr.push({
             name: m.name,
-            params: (m.params || []).map((p) => ({ name: p.name, type: lowerType(p.type), variadic: !!p.variadic })),
+            params: (m.params || []).map((p) => ({ name: p.name, type: lowerType(canonicalVariadicParamType(p)), variadic: !!p.variadic })),
             returnType: lowerType(m.retType),
           });
         }
@@ -469,8 +477,9 @@ class IRBuilder {
     params.push({ name: selfName, type: lowerType({ kind: "NamedType", name: protoName }), variadic: false });
     for (const p of method.params) {
       const irName = this.nextVar(p.name);
-      scope.define(p.name, p.type, irName);
-      params.push({ name: irName, type: lowerType(p.type), variadic: !!p.variadic });
+      const pType = canonicalVariadicParamType(p);
+      scope.define(p.name, pType, irName);
+      params.push({ name: irName, type: lowerType(pType), variadic: !!p.variadic });
     }
     this.lowerBlock(method.body, entry, irFn, scope);
     return irFn;
@@ -588,8 +597,9 @@ class IRBuilder {
     const scope = new Scope(null);
     for (const p of fn.params) {
       const irName = this.nextVar(p.name);
-      scope.define(p.name, p.type, irName);
-      irFn.params.push({ name: irName, type: lowerType(p.type), variadic: !!p.variadic });
+      const pType = canonicalVariadicParamType(p);
+      scope.define(p.name, pType, irName);
+      irFn.params.push({ name: irName, type: lowerType(pType), variadic: !!p.variadic });
     }
     this.lowerBlock(fn.body, entry, irFn, scope);
     return irFn;

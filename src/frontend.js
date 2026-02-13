@@ -1301,6 +1301,14 @@ function typeToString(t) {
   return "unknown";
 }
 
+function canonicalVariadicParamType(param) {
+  if (!param || !param.variadic || !param.type) return param ? param.type : null;
+  if (param.type.kind === "GenericType" && param.type.name === "list" && Array.isArray(param.type.args) && param.type.args.length === 1) {
+    return { kind: "GenericType", name: "view", args: [param.type.args[0]] };
+  }
+  return param.type;
+}
+
 const INT64_MIN = -9223372036854775808n;
 const INT64_MAX = 9223372036854775807n;
 
@@ -2188,7 +2196,7 @@ class Analyzer {
   analyzeFunction(fn) {
     const scope = new Scope(null);
     for (const p of fn.params) {
-      scope.define(p.name, p.type, true);
+      scope.define(p.name, canonicalVariadicParamType(p), true);
     }
     this.analyzeBlock(fn.body, scope, fn);
   }
@@ -2200,7 +2208,7 @@ class Analyzer {
     for (const m of entry.methods.values()) {
       const scope = new Scope(null);
       scope.define("self", { kind: "NamedType", name: protoName }, true, null, true);
-      for (const p of m.params) scope.define(p.name, p.type, true);
+      for (const p of m.params) scope.define(p.name, canonicalVariadicParamType(p), true);
       this.analyzeBlock(m.body, scope, m);
     }
   }
@@ -2916,6 +2924,8 @@ class Analyzer {
         }
       }
       if (t.startsWith("view<")) {
+        if (name === "length") return prim("int");
+        if (name === "isEmpty") return prim("bool");
         if (name === "view") {
           if (expr.args.length !== 2) {
             this.addDiag(expr, "E1003", "ARITY_MISMATCH", "arity mismatch for 'view'");
@@ -2923,6 +2933,8 @@ class Analyzer {
           const elem = targetType.args[0];
           return { kind: "GenericType", name: "view", args: [elem] };
         }
+        this.unresolvedMember(expr, name, "method", `type '${t}'`, "member", ["length", "isEmpty", "view"]);
+        return null;
       }
       if (t === "TextFile") {
         if (name === "read") return prim("string");

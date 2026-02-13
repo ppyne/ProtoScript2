@@ -1,0 +1,11 @@
+{
+  "status": "reject-static",
+  "error_family": "E2xxx",
+  "error_code": "E2001",
+  "category": "UNRESOLVED_NAME",
+  "position": {
+    "file": "invalid/type/variadic_mutation_forbidden.pts",
+    "line": 3,
+    "column": 16
+  }
+}

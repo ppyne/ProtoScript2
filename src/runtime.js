@@ -222,6 +222,12 @@ function typeNodeToRuntimeTypeName(t) {
   return "unknown";
 }
 
+function variadicViewTypeName(typeNode) {
+  const declared = typeNodeToRuntimeTypeName(typeNode);
+  if (declared.startsWith("list<")) return `view<${declared.slice(5, -1)}>`;
+  return declared.startsWith("view<") ? declared : "view<unknown>";
+}
+
 function defaultValueForTypeNode(protos, t) {
   if (!t || t.kind === "PrimitiveType") {
     const n = t ? t.name : "void";
@@ -2455,9 +2461,9 @@ function runProgram(ast, file, argv) {
     for (let i = 0; i < fn.params.length; i += 1) {
       const p = fn.params[i];
       if (p.variadic) {
-        const rest = args.slice(argIndex + i);
-        const variadicValues = makeList(rest);
-        variadicValues.__type = typeNodeToRuntimeTypeName(p.type);
+        const start = argIndex + i;
+        const variadicValues = makeView(file, fn, args, start, Math.max(0, args.length - start), true);
+        variadicValues.__type = variadicViewTypeName(p.type);
         scope.define(p.name, variadicValues);
         break;
       }

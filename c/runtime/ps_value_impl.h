@@ -70,6 +70,7 @@ typedef struct {
 
 typedef struct {
   PS_Value *source;
+  PS_Value **borrowed_items;
   size_t offset;
   size_t len;
   int readonly;

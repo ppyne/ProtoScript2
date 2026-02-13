@@ -1,0 +1,8 @@
+prototype Q {
+    function f(list<int> xs...) : void {
+        xs.push(4);
+    }
+}
+
+function main() : void {
+}
