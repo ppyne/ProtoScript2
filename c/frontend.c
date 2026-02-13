@@ -2043,6 +2043,12 @@ static int parse_prototype_decl(Parser *p) {
       }
       continue;
     }
+    if (p_at(p, TK_KW, "const")) {
+      Token *ct = p_t(p, 0);
+      set_diag(p->diag, p->file, ct->line, ct->col, "E1001", "PARSE_UNEXPECTED_TOKEN", "const is not valid on field declarations");
+      p_ast_pop(p);
+      return 0;
+    }
     size_t type_start = p->i;
     Token *tt = p_t(p, 0);
     if (!parse_type(p)) {
@@ -4815,6 +4821,7 @@ static char *infer_expr_type(Analyzer *a, AstNode *e, Scope *scope, int *ok) {
     if (sym) {
       return strdup(sym->type ? sym->type : "unknown");
     }
+    if (e->text && group_find(&a->groups, e->text)) return strdup("group");
     if (e->text && strcmp(e->text, "Sys") == 0) return strdup("Sys");
     if (e->text && find_namespace(a, e->text)) return strdup("module");
     set_diag(a->diag, a->file, e->line, e->col, "E2001", "UNRESOLVED_NAME", "unknown identifier");
@@ -6092,6 +6099,9 @@ static char *ir_guess_expr_type(AstNode *e, IrFnCtx *ctx) {
   if (strcmp(e->kind, "Identifier") == 0) {
     const char *mapped = ir_scope_lookup(ctx ? ctx->scope : NULL, e->text ? e->text : "");
     const char *t = ir_get_var_type(ctx, mapped ? mapped : (e->text ? e->text : ""));
+    if (mapped) return strdup(t ? t : "unknown");
+    if (t && strcmp(t, "unknown") != 0) return strdup(t);
+    if (ctx && ctx->groups && e->text && group_find(ctx->groups, e->text)) return strdup("group");
     return strdup(t ? t : "unknown");
   }
   if (strcmp(e->kind, "UnaryExpr") == 0 || strcmp(e->kind, "PostfixExpr") == 0 || strcmp(e->kind, "MemberExpr") == 0) {
@@ -6809,6 +6819,20 @@ static char *ir_lower_expr(AstNode *e, IrFnCtx *ctx) {
     if (!dst) return NULL;
     char *dst_esc = json_escape(dst);
     const char *mapped = ir_scope_lookup(ctx ? ctx->scope : NULL, e->text ? e->text : "");
+    if (!mapped && ctx && ctx->groups && e->text && group_find(ctx->groups, e->text)) {
+      char *d_esc = json_escape(dst);
+      char *n_esc = json_escape(e->text ? e->text : "");
+      char *ins = str_printf("{\"op\":\"const\",\"dst\":\"%s\",\"literalType\":\"group\",\"value\":\"%s\"}", d_esc ? d_esc : "",
+                             n_esc ? n_esc : "");
+      free(d_esc);
+      free(n_esc);
+      if (!ir_emit(ctx, ins)) {
+        free(dst);
+        return NULL;
+      }
+      free(dst_esc);
+      return dst;
+    }
     const char *use_name = mapped ? mapped : (e->text ? e->text : "");
     char *name_esc = json_escape(use_name);
     const char *vt = ir_get_var_type(ctx, use_name);
@@ -8980,9 +9004,45 @@ int ps_emit_ir_json(const char *file, PsDiag *out_diag, FILE *out) {
     first_proto = 0;
     fprintf(out, "      {\"name\":\"%s\"", n ? n : "");
     if (parent) fprintf(out, ",\"parent\":\"%s\"", parent);
+    if (p->sealed) fprintf(out, ",\"sealed\":true");
     fputs("}", out);
     free(n);
     free(parent);
+  }
+  fputs("\n    ],\n", out);
+  fputs("    \"groups\": [\n", out);
+  int first_group = 1;
+  for (size_t gi = 0; gi < root->child_len; gi++) {
+    AstNode *gd = root->children[gi];
+    if (strcmp(gd->kind, "GroupDecl") != 0) continue;
+    GroupInfo *g = group_find(&a.groups, gd->text ? gd->text : "");
+    if (!g || !g->name || !g->type) continue;
+    char *gname = json_escape(g->name);
+    char *gtype = json_escape(g->type);
+    if (!first_group) fputs(",\n", out);
+    first_group = 0;
+    fprintf(out, "      {\"name\":\"%s\",\"baseType\":{\"kind\":\"IRType\",\"name\":\"%s\"}", gname ? gname : "", gtype ? gtype : "");
+    fputs(",\"members\":[", out);
+    int first_member = 1;
+    for (size_t mi = 0; mi < gd->child_len; mi++) {
+      AstNode *gm = gd->children[mi];
+      if (strcmp(gm->kind, "GroupMember") != 0) continue;
+      const char *mname = gm->text ? gm->text : "";
+      GroupMemberConst *mc = group_member_find(g, mname);
+      if (!mc || !mc->name || !mc->literal_type || !mc->value) continue;
+      char *mn = json_escape(mc->name);
+      char *mlt = json_escape(mc->literal_type);
+      char *mval = json_escape(mc->value);
+      if (!first_member) fputs(",", out);
+      first_member = 0;
+      fprintf(out, "{\"name\":\"%s\",\"literalType\":\"%s\",\"value\":\"%s\"}", mn ? mn : "", mlt ? mlt : "", mval ? mval : "");
+      free(mn);
+      free(mlt);
+      free(mval);
+    }
+    fputs("]}", out);
+    free(gname);
+    free(gtype);
   }
   fputs("\n    ],\n", out);
   fputs("    \"functions\": [\n", out);

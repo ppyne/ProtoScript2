@@ -1,0 +1,65 @@
+#!/usr/bin/env node
+"use strict";
+
+const fs = require("fs");
+const os = require("os");
+const path = require("path");
+const childProcess = require("child_process");
+
+function usage() {
+  console.error("Usage:");
+  console.error("  ps2dump --expr \"<expression>\" [--depth N] [--maxItems N] [--maxString N] [--file <file.pts>]");
+  process.exit(2);
+}
+
+const args = process.argv.slice(2);
+let expr = null;
+let file = null;
+let depth = null;
+let maxItems = null;
+let maxString = null;
+
+for (let i = 0; i < args.length; i += 1) {
+  const a = args[i];
+  if (a === "--expr" && i + 1 < args.length) {
+    expr = args[++i];
+  } else if (a === "--file" && i + 1 < args.length) {
+    file = args[++i];
+  } else if (a === "--depth" && i + 1 < args.length) {
+    depth = args[++i];
+  } else if (a === "--maxItems" && i + 1 < args.length) {
+    maxItems = args[++i];
+  } else if (a === "--maxString" && i + 1 < args.length) {
+    maxString = args[++i];
+  } else {
+    usage();
+  }
+}
+
+if (!expr) usage();
+
+const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "ps2dump-"));
+const tmpFile = path.join(tmpDir, "dump.pts");
+
+let src = "import Debug;\\n";
+if (file) src += `import \"${file}\";\\n`;
+src += "function main() : void {\\n";
+src += `  Debug.dump(${expr});\\n`;
+src += "}\\n";
+
+fs.writeFileSync(tmpFile, src, "utf8");
+
+const env = { ...process.env };
+if (depth) env.PS_DEBUG_MAX_DEPTH = depth;
+if (maxItems) env.PS_DEBUG_MAX_ITEMS = maxItems;
+if (maxString) env.PS_DEBUG_MAX_STRING = maxString;
+
+const cli = path.join(__dirname, "protoscriptc");
+const res = childProcess.spawnSync(cli, ["--run", tmpFile], { stdio: "inherit", env });
+try {
+  fs.unlinkSync(tmpFile);
+  fs.rmdirSync(tmpDir);
+} catch {
+  // ignore
+}
+process.exit(res.status || 0);

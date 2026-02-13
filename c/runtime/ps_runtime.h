@@ -5,6 +5,8 @@
 #include "ps_errors.h"
 #include "ps_value_impl.h"
 
+struct PS_IR_Module;
+
 typedef struct {
   PS_Value **items;
   size_t len;
@@ -24,9 +26,12 @@ struct PS_Context {
   PS_Value *stdout_value;
   PS_Value *stderr_value;
   PS_Value *last_exception;
+  struct PS_IR_Module *current_module;
 };
 
 PS_Value *ps_value_alloc(PS_ValueTag tag);
 void ps_value_free(PS_Value *v);
+PS_Value *ps_value_retain(PS_Value *v);
+void ps_value_release(PS_Value *v);
 
 #endif // PS_RUNTIME_H

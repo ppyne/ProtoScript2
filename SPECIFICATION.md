@@ -232,14 +232,15 @@ Contraintes normatives :
 - un `group` ne définit pas un nouveau type
 - un `group` ne peut pas être instancié
 - un `group` ne peut pas être utilisé comme type
-- un `group` n’a **aucune** représentation runtime
+- le nom du `group` désigne un **descripteur nominal** accessible comme valeur (`Color`)
+- le descripteur n’est pas un type et ne définit pas d’opérations
 - les membres sont substitués comme constantes dans l’IR
 
 Contraintes sur les membres :
 
 - chaque membre est de la forme `Identifier = Expression`
 - chaque `Expression` doit être une **expression constante**, sans effet de bord
-- aucun `MethodDecl`, aucun modificateur, aucune annotation n’est autorisé dans un `group`
+- aucun `MethodDecl`, aucun modificateur ni annotation n’est autorisé dans un `group`
 
 Erreurs statiques associées :
 
@@ -973,6 +974,7 @@ Règles :
 - les méthodes ont des signatures statiquement typées
 - `self` désigne l’instance courante
 - la résolution des champs et méthodes est statique
+- `const` n’est **pas** autorisé sur les déclarations de champs
 
 ---
 
@@ -3366,13 +3368,14 @@ Règles :
 
 ## 17.7 `group` et substitution constante (normatif)
 
-### 17.7.1 Absence d’entité runtime
+### 17.7.1 Descripteur nominal (runtime)
 
 Un `group` ne doit générer :
 
 - aucune entité `Type`
-- aucune structure mémoire
-- aucun symbole runtime représentant le groupe lui‑même
+- aucune structure mémoire instanciable
+
+Le nom du `group` doit toutefois être résolu comme **descripteur nominal** (valeur runtime) dont la seule vocation est la description et le diagnostic (ex. `Debug.dump(Color)`). Ce descripteur est **partagé** et rattaché à l’IR (propriété du module), sans copie par clone ni par frame.
 
 ### 17.7.2 Substitution constante
 
@@ -3397,6 +3400,14 @@ G.A
 doit être remplacée dans l’IR par la valeur constante correspondante.
 
 Il ne doit exister aucune instruction IR de type “GroupAccess”.
+
+Toute occurrence de :
+
+```
+G
+```
+
+doit être abaissée en IR comme **constante de type `group`** (descripteur nominal), sans introduction d’un type nominal ni d’un objet instanciable.
 
 ### 17.7.3 Ordre d’évaluation
 

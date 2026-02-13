@@ -469,7 +469,7 @@ En JS/PHP, des accès à des noms dynamiques peuvent exister. Ici, la résolutio
 ### 5.6 Groupes de constantes (`T group`)
 
 Un `group` définit un **ensemble de constantes nommées** d’un **type scalaire fondamental**.
-Il ne crée **aucun type nominal** et **aucune entité runtime**.
+Il ne crée **aucun type nominal**. En revanche, la déclaration produit un **descripteur nominal** accessible par son nom (par exemple `Color`) et utilisable comme valeur (notamment pour `Debug.dump`).
 
 Forme :
 
@@ -486,6 +486,8 @@ Règles pratiques :
 - chaque membre est typé `T`.
 - l’expression doit être constante (réduite par le folding existant).
 - un membre de `group` n’est **jamais assignable**.
+- aucun modificateur n’est autorisé sur un `group`.
+- le nom du `group` (`Color`) désigne un **descripteur** du groupe ; ce descripteur n’est pas un type et n’a pas d’opérations.
 
 Exemple :
 

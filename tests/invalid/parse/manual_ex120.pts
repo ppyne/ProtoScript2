@@ -1,0 +1,6 @@
+prototype P {
+    const int a;
+}
+
+function main() : void {
+}

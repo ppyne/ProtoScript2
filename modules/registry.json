@@ -123,6 +123,12 @@
       ]
     },
     {
+      "name": "Debug",
+      "functions": [
+        { "name": "dump", "ret": "void", "params": ["any"] }
+      ]
+    },
+    {
       "name": "Io",
       "functions": [
         { "name": "openText", "ret": "TextFile", "params": ["string", "string"] },

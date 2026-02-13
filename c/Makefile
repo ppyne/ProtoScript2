@@ -28,6 +28,7 @@ SRC_PS = cli/ps.c frontend.c preprocess.c $(SRC_RUNTIME)
 MODULE_OBJS = \
   modules/time.o \
   modules/time_civil.o \
+  modules_debug.o \
   modules_io.o \
   modules_json.o \
   modules_math.o
@@ -56,6 +57,9 @@ modules/time.o: modules/time.c
 
 modules/time_civil.o: modules/time_civil.c
 	$(CC) $(CFLAGS) $(MCPP_INC) -Dps_module_init=ps_module_init_TimeCivil -c $< -o $@
+
+modules_debug.o: modules/debug.c
+	$(CC) $(CFLAGS) $(MCPP_INC) -Dps_module_init=ps_module_init_Debug -c $< -o $@
 
 modules_io.o: ../tests/modules_src/io.c
 	$(CC) $(CFLAGS) $(MCPP_INC) -Dps_module_init=ps_module_init_Io -c $< -o $@

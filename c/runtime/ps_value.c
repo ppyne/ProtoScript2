@@ -47,6 +47,7 @@ void ps_value_free(PS_Value *v) {
       ps_map_free(&v->as.map_v);
       break;
     case PS_V_VIEW:
+      if (v->as.view_v.type_name) free(v->as.view_v.type_name);
       if (v->as.view_v.source) ps_value_release(v->as.view_v.source);
       break;
     case PS_V_ITER:
@@ -68,6 +69,8 @@ void ps_value_free(PS_Value *v) {
       if (v->as.exc_v.code) ps_value_release(v->as.exc_v.code);
       if (v->as.exc_v.category) ps_value_release(v->as.exc_v.category);
       break;
+    case PS_V_GROUP:
+      break;
     default:
       break;
   }
@@ -75,14 +78,18 @@ void ps_value_free(PS_Value *v) {
 }
 
 static void ps_list_free(PS_List *l) {
-  if (!l || !l->items) return;
-  for (size_t i = 0; i < l->len; i++) {
-    if (l->items[i]) ps_value_release(l->items[i]);
+  if (!l) return;
+  if (l->items) {
+    for (size_t i = 0; i < l->len; i++) {
+      if (l->items[i]) ps_value_release(l->items[i]);
+    }
+    free(l->items);
   }
-  free(l->items);
   l->items = NULL;
   l->len = 0;
   l->cap = 0;
+  if (l->type_name) free(l->type_name);
+  l->type_name = NULL;
 }
 
 static void ps_object_free(PS_Object *o) {
@@ -103,6 +110,8 @@ static void ps_object_free(PS_Object *o) {
   o->used = NULL;
   o->cap = 0;
   o->len = 0;
+  if (o->proto_name) free(o->proto_name);
+  o->proto_name = NULL;
 }
 
 static void ps_map_free(PS_Map *m) {
@@ -127,4 +136,6 @@ static void ps_map_free(PS_Map *m) {
   m->len = 0;
   m->order_len = 0;
   m->order_cap = 0;
+  if (m->type_name) free(m->type_name);
+  m->type_name = NULL;
 }

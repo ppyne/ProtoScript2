@@ -1,0 +1,19 @@
+prototype Base {
+  int x;
+  function f(int a) : int { return a + 1; }
+}
+
+prototype Child : Base {
+  int y;
+  function f(int a) : int { return a + 2; }
+}
+
+function main() : void {
+  int i = 0;
+  while (i < 100000) {
+    Child c = Child.clone();
+    c.x = i;
+    c.y = i + 1;
+    i = i + 1;
+  }
+}

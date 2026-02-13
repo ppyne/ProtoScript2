@@ -20,6 +20,7 @@ static const char *value_type_name(PS_Value *v) {
     case PS_V_OBJECT: return "object";
     case PS_V_VIEW: return "view";
     case PS_V_EXCEPTION: return "Exception";
+    case PS_V_GROUP: return "group";
     default: return "value";
   }
 }
@@ -75,6 +76,7 @@ PS_Value *ps_object_new(PS_Context *ctx) {
   v->as.object_v.used = NULL;
   v->as.object_v.cap = 0;
   v->as.object_v.len = 0;
+  v->as.object_v.proto_name = NULL;
   return v;
 }
 
@@ -177,4 +179,23 @@ int ps_object_entry_internal(PS_Context *ctx, PS_Value *obj, size_t index, const
     ps_throw_diag(ctx, PS_ERR_RANGE, "index out of bounds", got, expected);
   }
   return 0;
+}
+
+const char *ps_object_proto_name_internal(PS_Value *obj) {
+  if (!obj || obj->tag != PS_V_OBJECT) return NULL;
+  return obj->as.object_v.proto_name;
+}
+
+int ps_object_set_proto_name_internal(PS_Context *ctx, PS_Value *obj, const char *name) {
+  (void)ctx;
+  if (!obj || obj->tag != PS_V_OBJECT) return 0;
+  if (obj->as.object_v.proto_name) {
+    free(obj->as.object_v.proto_name);
+    obj->as.object_v.proto_name = NULL;
+  }
+  if (name) {
+    obj->as.object_v.proto_name = strdup(name);
+    if (!obj->as.object_v.proto_name) return 0;
+  }
+  return 1;
 }

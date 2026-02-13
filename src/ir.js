@@ -231,8 +231,30 @@ class IRBuilder {
         if (!m || !m.constValue) continue;
         members.set(m.name, { literalType: m.constValue.literalType, value: m.constValue.value });
       }
-      this.groupConsts.set(d.name, members);
+      this.groupConsts.set(d.name, { members, baseType: typeToString(d.type) });
     }
+  }
+
+  buildGroups() {
+    const groups = [];
+    for (const d of this.ast.decls || []) {
+      if (d.kind !== "GroupDecl") continue;
+      const members = [];
+      for (const m of d.members || []) {
+        if (!m || !m.constValue) continue;
+        members.push({
+          name: m.name,
+          literalType: m.constValue.literalType,
+          value: String(m.constValue.value),
+        });
+      }
+      groups.push({
+        name: d.name,
+        baseType: { kind: "IRType", name: typeToString(d.type) },
+        members,
+      });
+    }
+    return groups;
   }
 
   inferFileTypeFromIoOpen(expr) {
@@ -284,7 +306,7 @@ class IRBuilder {
   }
 
   build() {
-    const mod = { kind: "Module", functions: [], prototypes: [] };
+    const mod = { kind: "Module", functions: [], prototypes: [], groups: [] };
     const builtin = [
       {
         name: "Exception",
@@ -390,7 +412,7 @@ class IRBuilder {
       const methods = new Map();
       this.prototypes.set(b.name, { name: b.name, parent: b.parent, fields: b.fields, methods });
       const fieldsIr = b.fields.map((f) => ({ name: f.name, type: lowerType(f.type) }));
-      mod.prototypes.push({ name: b.name, parent: b.parent, fields: fieldsIr });
+      mod.prototypes.push({ name: b.name, parent: b.parent, fields: fieldsIr, methods: [] });
       builtinNames.push(b.name);
     }
     for (const d of this.ast.decls) {
@@ -398,9 +420,17 @@ class IRBuilder {
         const fields = (d.fields || []).map((f) => ({ name: f.name, type: f.type }));
         const fieldsIr = (d.fields || []).map((f) => ({ name: f.name, type: lowerType(f.type) }));
         const methods = new Map();
-        for (const m of d.methods || []) methods.set(m.name, m);
-        this.prototypes.set(d.name, { name: d.name, parent: d.parent || null, fields, methods });
-        mod.prototypes.push({ name: d.name, parent: d.parent || null, fields: fieldsIr });
+        const methodsIr = [];
+        for (const m of d.methods || []) {
+          methods.set(m.name, m);
+          methodsIr.push({
+            name: m.name,
+            params: (m.params || []).map((p) => ({ name: p.name, type: lowerType(p.type), variadic: !!p.variadic })),
+            returnType: lowerType(m.retType),
+          });
+        }
+        this.prototypes.set(d.name, { name: d.name, parent: d.parent || null, fields, methods, sealed: !!d.sealed });
+        mod.prototypes.push({ name: d.name, parent: d.parent || null, fields: fieldsIr, methods: methodsIr, sealed: !!d.sealed });
       }
     }
     for (const d of this.ast.decls) {
@@ -419,6 +449,7 @@ class IRBuilder {
     for (const name of builtinNames) {
       mod.functions.push(this.lowerCloneFunction(name));
     }
+    mod.groups = this.buildGroups();
     return mod;
   }
 
@@ -1040,6 +1071,10 @@ class IRBuilder {
       case "Identifier": {
         const dst = this.nextTemp();
         const entry = scope.get(expr.name);
+        if (!entry && this.groupConsts.has(expr.name)) {
+          this.emit(block, { op: "const", dst, literalType: "group", value: expr.name });
+          return { value: dst, type: { kind: "NamedType", name: "group" }, block };
+        }
         const t = entry ? entry.type : { kind: "PrimitiveType", name: "unknown" };
         const irName = entry ? entry.irName : expr.name;
         this.emit(block, { op: "load_var", dst, name: irName, type: lowerType(t) });
@@ -1146,7 +1181,8 @@ class IRBuilder {
       }
       case "MemberExpr": {
         if (expr.target.kind === "Identifier" && this.groupConsts.has(expr.target.name)) {
-          const members = this.groupConsts.get(expr.target.name);
+          const entry = this.groupConsts.get(expr.target.name);
+          const members = entry ? entry.members : null;
           if (members && members.has(expr.name)) {
             const c = members.get(expr.name);
             const dst = this.nextTemp();

@@ -31,6 +31,7 @@ WEB_OBJS := \
   $(WEB_DIR)/modules_io.o \
   $(WEB_DIR)/modules_json.o \
   $(WEB_DIR)/modules_math.o \
+  $(WEB_DIR)/modules_debug.o \
   $(WEB_DIR)/modules_time.o \
   $(WEB_DIR)/modules_time_civil.o
 
@@ -67,6 +68,10 @@ $(WEB_DIR)/modules_json.o: $(ROOT)/tests/modules_src/json.c
 $(WEB_DIR)/modules_math.o: $(ROOT)/tests/modules_src/math.c
 	@mkdir -p $(WEB_DIR)
 	$(EMCC) $(WEB_CFLAGS) $(WEB_CPPFLAGS) -Dps_module_init=ps_module_init_Math -c $< -o $@
+
+$(WEB_DIR)/modules_debug.o: $(C_DIR)/modules/debug.c
+	@mkdir -p $(WEB_DIR)
+	$(EMCC) $(WEB_CFLAGS) $(WEB_CPPFLAGS) -Dps_module_init=ps_module_init_Debug -c $< -o $@
 
 $(WEB_DIR)/modules_time.o: $(C_DIR)/modules/time.c
 	@mkdir -p $(WEB_DIR)

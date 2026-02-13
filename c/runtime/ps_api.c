@@ -32,6 +32,8 @@ PS_TypeTag ps_typeof(PS_Value *v) {
       return PS_T_MAP;
     case PS_V_OBJECT:
       return PS_T_OBJECT;
+    case PS_V_GROUP:
+      return PS_T_GROUP;
     case PS_V_EXCEPTION:
       return PS_T_OBJECT;
     case PS_V_FILE:

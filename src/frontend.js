@@ -553,6 +553,12 @@ class Parser {
         methods.push(this.parseFunctionDecl());
         continue;
       }
+      if (this.at("kw", "const")) {
+        const tok = this.t();
+        throw new FrontendError(
+          diag(this.file, tok.line, tok.col, "E1001", "PARSE_UNEXPECTED_TOKEN", "const is not valid on field declarations")
+        );
+      }
       const t = this.parseType();
       const n = this.eat("id");
       this.eat("sym", ";");
@@ -854,7 +860,14 @@ class Parser {
       }
     }
     this.eat("sym", "}");
-    return { kind: "GroupDecl", type: groupType, name: name.value, members, line: start.line, col: start.col };
+    return {
+      kind: "GroupDecl",
+      type: groupType,
+      name: name.value,
+      members,
+      line: start.line,
+      col: start.col,
+    };
   }
 
   parseGroupMember() {

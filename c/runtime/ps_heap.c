@@ -1,6 +1,7 @@
 #include <stdlib.h>
 
 #include "ps_runtime.h"
+#include "ps_modules.h"
 
 PS_Context *ps_ctx_create(void) {
   PS_Context *ctx = (PS_Context *)calloc(1, sizeof(PS_Context));
@@ -17,6 +18,7 @@ PS_Context *ps_ctx_create(void) {
   ctx->stdout_value = NULL;
   ctx->stderr_value = NULL;
   ctx->last_exception = NULL;
+  ctx->current_module = NULL;
   return ctx;
 }
 
@@ -24,6 +26,18 @@ void ps_ctx_destroy(PS_Context *ctx) {
   if (!ctx) return;
   while (ctx->handles.len > 0) {
     ps_handle_pop(ctx);
+  }
+  if (ctx->modules) {
+    for (size_t i = 0; i < ctx->module_count; i++) {
+      if (ctx->modules[i].lib) {
+        ps_dynlib_close(ctx->modules[i].lib);
+        ctx->modules[i].lib = NULL;
+      }
+    }
+    free(ctx->modules);
+    ctx->modules = NULL;
+    ctx->module_count = 0;
+    ctx->module_cap = 0;
   }
   if (ctx->eof_value) ps_value_release(ctx->eof_value);
   if (ctx->stdin_value) ps_value_release(ctx->stdin_value);

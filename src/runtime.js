@@ -2,6 +2,7 @@
 
 const fs = require("fs");
 const path = require("path");
+const debugNode = require("../debug_node");
 const crypto = require("crypto");
 const childProcess = require("child_process");
 const os = require("os");
@@ -25,6 +26,7 @@ function buildPrototypeEnv(ast) {
   protos.set("Exception", {
     name: "Exception",
     parent: null,
+    sealed: false,
     fields: [
       { name: "file", type: { kind: "PrimitiveType", name: "string" } },
       { name: "line", type: { kind: "PrimitiveType", name: "int" } },
@@ -37,6 +39,7 @@ function buildPrototypeEnv(ast) {
   protos.set("RuntimeException", {
     name: "RuntimeException",
     parent: "Exception",
+    sealed: false,
     fields: [
       { name: "code", type: { kind: "PrimitiveType", name: "string" } },
       { name: "category", type: { kind: "PrimitiveType", name: "string" } },
@@ -46,6 +49,7 @@ function buildPrototypeEnv(ast) {
   protos.set("CivilDateTime", {
     name: "CivilDateTime",
     parent: null,
+    sealed: false,
     fields: [
       { name: "year", type: { kind: "PrimitiveType", name: "int" } },
       { name: "month", type: { kind: "PrimitiveType", name: "int" } },
@@ -60,6 +64,7 @@ function buildPrototypeEnv(ast) {
   protos.set("PathInfo", {
     name: "PathInfo",
     parent: null,
+    sealed: false,
     fields: [
       { name: "dirname", type: { kind: "PrimitiveType", name: "string" } },
       { name: "basename", type: { kind: "PrimitiveType", name: "string" } },
@@ -71,6 +76,7 @@ function buildPrototypeEnv(ast) {
   protos.set("PathEntry", {
     name: "PathEntry",
     parent: null,
+    sealed: false,
     fields: [
       { name: "path", type: { kind: "PrimitiveType", name: "string" } },
       { name: "name", type: { kind: "PrimitiveType", name: "string" } },
@@ -84,6 +90,7 @@ function buildPrototypeEnv(ast) {
   protos.set("ProcessEvent", {
     name: "ProcessEvent",
     parent: null,
+    sealed: false,
     fields: [
       { name: "stream", type: { kind: "PrimitiveType", name: "int" } },
       { name: "data", type: { kind: "GenericType", name: "list", args: [{ kind: "PrimitiveType", name: "byte" }] } },
@@ -93,6 +100,7 @@ function buildPrototypeEnv(ast) {
   protos.set("ProcessResult", {
     name: "ProcessResult",
     parent: null,
+    sealed: false,
     fields: [
       { name: "exitCode", type: { kind: "PrimitiveType", name: "int" } },
       { name: "events", type: { kind: "GenericType", name: "list", args: [{ kind: "NamedType", name: "ProcessEvent" }] } },
@@ -107,7 +115,7 @@ function buildPrototypeEnv(ast) {
     "InvalidISOFormatException",
   ];
   for (const name of timeExceptionNames) {
-    protos.set(name, { name, parent: "Exception", fields: [], methods: new Map() });
+    protos.set(name, { name, parent: "Exception", fields: [], methods: new Map(), sealed: false });
   }
   const ioExceptionNames = [
     "InvalidModeException",
@@ -136,10 +144,10 @@ function buildPrototypeEnv(ast) {
     "DirectoryNotEmptyException",
   ];
   for (const name of ioExceptionNames) {
-    protos.set(name, { name, parent: "RuntimeException", fields: [], methods: new Map() });
+    protos.set(name, { name, parent: "RuntimeException", fields: [], methods: new Map(), sealed: false });
   }
   for (const name of fsExceptionNames) {
-    protos.set(name, { name, parent: "RuntimeException", fields: [], methods: new Map() });
+    protos.set(name, { name, parent: "RuntimeException", fields: [], methods: new Map(), sealed: false });
   }
   for (const d of ast.decls || []) {
     if (d.kind !== "PrototypeDecl") continue;
@@ -147,7 +155,7 @@ function buildPrototypeEnv(ast) {
     for (const f of d.fields || []) fields.push({ name: f.name, type: f.type });
     const methods = new Map();
     for (const m of d.methods || []) methods.set(m.name, m);
-    protos.set(d.name, { name: d.name, parent: d.parent || null, fields, methods });
+    protos.set(d.name, { name: d.name, parent: d.parent || null, fields, methods, sealed: !!d.sealed });
   }
   return protos;
 }
@@ -693,6 +701,12 @@ class Scope {
     if (this.parent) return this.parent.get(name);
     return undefined;
   }
+
+  has(name) {
+    if (this.values.has(name)) return true;
+    if (this.parent) return this.parent.has(name);
+    return false;
+  }
 }
 
 function loadModuleRegistry() {
@@ -1173,6 +1187,14 @@ function buildModuleEnv(ast, file, hooks = null) {
         ioThrow("WriteFailureException", node, "write failed");
       }
     }
+    return null;
+  });
+
+  const debugMod = makeModule("Debug");
+  debugMod.functions.set("dump", (val) => {
+    const protoEnv = hooks && hooks.protoEnv ? hooks.protoEnv : buildPrototypeEnv({ decls: [] });
+    const groupEnv = hooks && hooks.groupEnv ? hooks.groupEnv : null;
+    debugNode.dump(val, { protoEnv, groups: groupEnv });
     return null;
   });
 
@@ -2323,20 +2345,48 @@ function constValueToRuntime(c) {
   if (c.literalType === "float") return Number(c.value);
   if (c.literalType === "bool") return c.value === true || c.value === "true";
   if (c.literalType === "string") return String(c.value);
+  if (c.literalType === "glyph") return new Glyph(Number(parseIntLiteral(String(c.value))));
   return c.value;
 }
 
 function buildGroupEnv(ast) {
+  const typeToString = (t) => {
+    if (!t) return "unknown";
+    if (typeof t === "string") return t;
+    if (t.kind === "PrimitiveType" || t.kind === "NamedType") return t.name;
+    if (t.kind === "GenericType") return `${t.name}<${(t.args || []).map(typeToString).join(",")}>`;
+    return "unknown";
+  };
   const groups = new Map();
   for (const d of ast.decls || []) {
     if (d.kind !== "GroupDecl") continue;
     const members = new Map();
+    const ordered = [];
     for (const m of d.members || []) {
       if (m && m.constValue) {
-        members.set(m.name, constValueToRuntime(m.constValue));
+        const runtimeValue = constValueToRuntime(m.constValue);
+        members.set(m.name, runtimeValue);
+        ordered.push({
+          name: m.name,
+          literalType: m.constValue.literalType,
+          value: String(m.constValue.value),
+          runtimeValue,
+        });
       }
     }
-    groups.set(d.name, members);
+    const group = {
+      name: d.name,
+      baseType: typeToString(d.type),
+      members: ordered,
+      memberMap: members,
+    };
+    group.descriptor = {
+      __group_desc: true,
+      name: d.name,
+      baseType: group.baseType,
+      members: ordered,
+    };
+    groups.set(d.name, group);
   }
   return groups;
 }
@@ -2382,8 +2432,9 @@ function runProgram(ast, file, argv) {
       throw e;
     }
   };
-  moduleEnv = buildModuleEnv(ast, file, { protoEnv, functions, callFunction });
-  moduleEnv.groups = buildGroupEnv(ast);
+  const groupEnv = buildGroupEnv(ast);
+  moduleEnv = buildModuleEnv(ast, file, { protoEnv, functions, callFunction, groupEnv });
+  moduleEnv.groups = groupEnv;
   for (const [alias, modName] of moduleEnv.namespaces.entries()) {
     const mod = moduleEnv.modules.get(modName);
     if (mod) globalScope.define(alias, mod.obj);
@@ -2656,6 +2707,11 @@ function evalExpr(expr, scope, functions, moduleEnv, protoEnv, file, callFunctio
       if (expr.literalType === "string") return String(expr.value);
       return expr.value;
     case "Identifier":
+      if (scope.has(expr.name)) return scope.get(expr.name);
+      if (moduleEnv && moduleEnv.groups && moduleEnv.groups.has(expr.name)) {
+        const g = moduleEnv.groups.get(expr.name);
+        return g && g.descriptor ? g.descriptor : { __group_desc: true, name: expr.name };
+      }
       return scope.get(expr.name);
     case "UnaryExpr": {
       if (expr.op === "++" || expr.op === "--") {
@@ -2729,7 +2785,13 @@ function evalExpr(expr, scope, functions, moduleEnv, protoEnv, file, callFunctio
     case "MemberExpr": {
       const target = evalExpr(expr.target, scope, functions, moduleEnv, protoEnv, file, callFunction);
       if (expr.target.kind === "Identifier" && moduleEnv && moduleEnv.groups && moduleEnv.groups.has(expr.target.name)) {
-        const members = moduleEnv.groups.get(expr.target.name);
+        const group = moduleEnv.groups.get(expr.target.name);
+        const members = group && group.memberMap ? group.memberMap : null;
+        if (members && members.has(expr.name)) return members.get(expr.name);
+      }
+      if (target && target.__group_desc && moduleEnv && moduleEnv.groups) {
+        const group = moduleEnv.groups.get(target.name);
+        const members = group && group.memberMap ? group.memberMap : null;
         if (members && members.has(expr.name)) return members.get(expr.name);
       }
       if (target && target.__module && moduleEnv) {
@@ -2794,6 +2856,7 @@ function evalExpr(expr, scope, functions, moduleEnv, protoEnv, file, callFunctio
 }
 
 function mapKey(v) {
+  if (v && v.__group_desc) return `group:${v.name || "unknown"}`;
   if (isGlyph(v)) return `g:${v.value}`;
   if (typeof v === "bigint") return `i:${v.toString()}`;
   return `${typeof v}:${String(v)}`;
@@ -2824,6 +2887,9 @@ function lvalueRef(expr, scope, functions, moduleEnv, protoEnv, file, callFuncti
       throw new RuntimeError(rdiag(file, expr, "R1010", "RUNTIME_TYPE_ERROR", "group members are not assignable"));
     }
     const target = evalExpr(expr.target, scope, functions, moduleEnv, protoEnv, file, callFunction);
+    if (target && target.__group_desc) {
+      throw new RuntimeError(rdiag(file, expr, "R1010", "RUNTIME_TYPE_ERROR", "group members are not assignable"));
+    }
     if (isExceptionValue(target)) {
       if (expr.name === "file") return { get: () => target.file, set: (v) => { target.file = v; } };
       if (expr.name === "line") return { get: () => target.line, set: (v) => { target.line = v; } };

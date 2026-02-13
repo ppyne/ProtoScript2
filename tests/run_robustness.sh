@@ -26,6 +26,10 @@ echo "-- determinism (C frontend, same process)"
 "$ROOT_DIR/tests/run_c_determinism.sh"
 echo
 
+echo "-- memory ownership audits (C, ASAN)"
+CFLAGS="$ASAN_CFLAGS" "$ROOT_DIR/tests/robustness/run_memory_audit.sh"
+echo
+
 echo "-- conformance (Node, modules enabled)"
 CONFORMANCE_MODULES=1 "$ROOT_DIR/tests/run_conformance.sh"
 echo
@@ -36,6 +40,12 @@ echo
 
 echo "-- CLI tests (C, ASAN)"
 "$ROOT_DIR/tests/run_cli_tests.sh"
+echo
+
+echo "-- repeated-run loop (C, ASAN)"
+for i in {1..50}; do
+  "$ROOT_DIR/c/ps" run "$ROOT_DIR/stress.pts" >/dev/null
+done
 echo
 
 echo "-- clean ASAN artifacts (restore normal build state)"

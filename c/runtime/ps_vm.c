@@ -12,6 +12,7 @@
 #include "ps_object.h"
 #include "ps_string.h"
 #include "ps_vm.h"
+#include "ps_vm_internal.h"
 #include "../diag.h"
 
 typedef struct {
@@ -169,6 +170,7 @@ static const char *value_type_name(PS_Value *v) {
     case PS_V_OBJECT: return "object";
     case PS_V_VIEW: return "view";
     case PS_V_EXCEPTION: return "Exception";
+    case PS_V_GROUP: return "group";
     default: return "value";
   }
 }
@@ -337,16 +339,13 @@ typedef struct {
   size_t block_count;
 } IRFunction;
 
-typedef struct {
-  char *name;
-  char *parent;
-} IRProto;
-
 struct PS_IR_Module {
   IRFunction *fns;
   size_t fn_count;
-  IRProto *protos;
+  PS_IR_Proto *protos;
   size_t proto_count;
+  PS_IR_Group *groups;
+  size_t group_count;
 };
 
 static int view_is_valid(PS_Value *v) {
@@ -613,6 +612,47 @@ static char *parse_type_name(PS_JsonValue *v) {
   return NULL;
 }
 
+static char *dup_trimmed_range(const char *start, size_t len) {
+  if (!start) return NULL;
+  size_t left = 0;
+  while (left < len && (start[left] == ' ' || start[left] == '\t' || start[left] == '\n' || start[left] == '\r')) left += 1;
+  size_t right = len;
+  while (right > left && (start[right - 1] == ' ' || start[right - 1] == '\t' || start[right - 1] == '\n' || start[right - 1] == '\r')) right -= 1;
+  size_t out_len = right > left ? right - left : 0;
+  char *out = (char *)calloc(out_len + 1, 1);
+  if (!out) return NULL;
+  if (out_len > 0) memcpy(out, start + left, out_len);
+  out[out_len] = '\0';
+  return out;
+}
+
+static char *extract_generic_inner(const char *type_name) {
+  if (!type_name) return NULL;
+  const char *lt = strchr(type_name, '<');
+  if (!lt) return NULL;
+  const char *p = lt + 1;
+  int depth = 0;
+  while (*p) {
+    if (*p == '<') depth += 1;
+    else if (*p == '>') {
+      if (depth == 0) break;
+      depth -= 1;
+    }
+    p += 1;
+  }
+  if (*p != '>') return NULL;
+  return dup_trimmed_range(lt + 1, (size_t)(p - (lt + 1)));
+}
+
+static char *make_view_type_name(const char *kind, const char *inner) {
+  if (!kind || !inner) return NULL;
+  size_t len = strlen(kind) + 2 + strlen(inner) + 1;
+  char *out = (char *)calloc(len, 1);
+  if (!out) return NULL;
+  snprintf(out, len, "%s<%s>", kind, inner);
+  return out;
+}
+
 static IRInstr parse_instr(PS_JsonValue *obj) {
   IRInstr ins;
   memset(&ins, 0, sizeof(ins));
@@ -756,7 +796,7 @@ PS_IR_Module *ps_ir_load_json(PS_Context *ctx, const char *json, size_t len) {
   PS_JsonValue *protos = module ? ps_json_obj_get(module, "prototypes") : NULL;
   if (protos && protos->type == PS_JSON_ARRAY) {
     m->proto_count = protos->as.array_v.len;
-    m->protos = (IRProto *)calloc(m->proto_count, sizeof(IRProto));
+    m->protos = (PS_IR_Proto *)calloc(m->proto_count, sizeof(PS_IR_Proto));
     if (!m->protos) {
       free(m);
       ps_json_free(root);
@@ -767,6 +807,95 @@ PS_IR_Module *ps_ir_load_json(PS_Context *ctx, const char *json, size_t len) {
       PS_JsonValue *p = protos->as.array_v.items[pi];
       m->protos[pi].name = dup_json_string(ps_json_obj_get(p, "name"));
       m->protos[pi].parent = dup_json_string(ps_json_obj_get(p, "parent"));
+      PS_JsonValue *ps = ps_json_obj_get(p, "sealed");
+      if (ps && ps->type == PS_JSON_BOOL) m->protos[pi].is_sealed = ps->as.bool_v ? 1 : 0;
+      PS_JsonValue *fields = ps_json_obj_get(p, "fields");
+      if (fields && fields->type == PS_JSON_ARRAY) {
+        m->protos[pi].field_count = fields->as.array_v.len;
+        m->protos[pi].fields = (void *)calloc(m->protos[pi].field_count, sizeof(*m->protos[pi].fields));
+        if (!m->protos[pi].fields && m->protos[pi].field_count > 0) {
+          ps_json_free(root);
+          ps_throw_diag(ctx, PS_ERR_OOM, "out of memory", "IR prototype fields allocation failed", "available memory");
+          ps_ir_free(m);
+          return NULL;
+        }
+        for (size_t fi = 0; fi < m->protos[pi].field_count; fi++) {
+          PS_JsonValue *f = fields->as.array_v.items[fi];
+          m->protos[pi].fields[fi].name = dup_json_string(ps_json_obj_get(f, "name"));
+          m->protos[pi].fields[fi].type = parse_type_name(ps_json_obj_get(f, "type"));
+        }
+      }
+      PS_JsonValue *methods = ps_json_obj_get(p, "methods");
+      if (methods && methods->type == PS_JSON_ARRAY) {
+        m->protos[pi].method_count = methods->as.array_v.len;
+        m->protos[pi].methods = (void *)calloc(m->protos[pi].method_count, sizeof(*m->protos[pi].methods));
+        if (!m->protos[pi].methods && m->protos[pi].method_count > 0) {
+          ps_json_free(root);
+          ps_throw_diag(ctx, PS_ERR_OOM, "out of memory", "IR prototype methods allocation failed", "available memory");
+          ps_ir_free(m);
+          return NULL;
+        }
+        for (size_t mi = 0; mi < m->protos[pi].method_count; mi++) {
+          PS_JsonValue *md = methods->as.array_v.items[mi];
+          m->protos[pi].methods[mi].name = dup_json_string(ps_json_obj_get(md, "name"));
+          m->protos[pi].methods[mi].ret_type = parse_type_name(ps_json_obj_get(md, "returnType"));
+          PS_JsonValue *params = ps_json_obj_get(md, "params");
+          if (params && params->type == PS_JSON_ARRAY) {
+            m->protos[pi].methods[mi].param_count = params->as.array_v.len;
+            m->protos[pi].methods[mi].params = (void *)calloc(m->protos[pi].methods[mi].param_count, sizeof(*m->protos[pi].methods[mi].params));
+            if (!m->protos[pi].methods[mi].params && m->protos[pi].methods[mi].param_count > 0) {
+              ps_json_free(root);
+              ps_throw_diag(ctx, PS_ERR_OOM, "out of memory", "IR prototype method params allocation failed", "available memory");
+              ps_ir_free(m);
+              return NULL;
+            }
+            for (size_t pj = 0; pj < m->protos[pi].methods[mi].param_count; pj++) {
+              PS_JsonValue *pv = params->as.array_v.items[pj];
+              m->protos[pi].methods[mi].params[pj].name = dup_json_string(ps_json_obj_get(pv, "name"));
+              m->protos[pi].methods[mi].params[pj].type = parse_type_name(ps_json_obj_get(pv, "type"));
+              PS_JsonValue *v = ps_json_obj_get(pv, "variadic");
+              if (v && v->type == PS_JSON_BOOL && v->as.bool_v) m->protos[pi].methods[mi].params[pj].variadic = 1;
+            }
+          }
+        }
+      }
+    }
+  }
+  PS_JsonValue *groups = module ? ps_json_obj_get(module, "groups") : NULL;
+  if (groups && groups->type == PS_JSON_ARRAY) {
+    m->group_count = groups->as.array_v.len;
+    if (m->group_count > 0) {
+      m->groups = (PS_IR_Group *)calloc(m->group_count, sizeof(PS_IR_Group));
+      if (!m->groups) {
+        ps_json_free(root);
+        ps_throw_diag(ctx, PS_ERR_OOM, "out of memory", "IR group allocation failed", "available memory");
+        ps_ir_free(m);
+        return NULL;
+      }
+      for (size_t gi = 0; gi < m->group_count; gi++) {
+        PS_JsonValue *g = groups->as.array_v.items[gi];
+        m->groups[gi].name = dup_json_string(ps_json_obj_get(g, "name"));
+        m->groups[gi].base_type = parse_type_name(ps_json_obj_get(g, "baseType"));
+        PS_JsonValue *members = ps_json_obj_get(g, "members");
+        if (members && members->type == PS_JSON_ARRAY) {
+          m->groups[gi].member_count = members->as.array_v.len;
+          if (m->groups[gi].member_count > 0) {
+            m->groups[gi].members = (PS_IR_GroupMember *)calloc(m->groups[gi].member_count, sizeof(PS_IR_GroupMember));
+            if (!m->groups[gi].members) {
+              ps_json_free(root);
+              ps_throw_diag(ctx, PS_ERR_OOM, "out of memory", "IR group member allocation failed", "available memory");
+              ps_ir_free(m);
+              return NULL;
+            }
+            for (size_t mi = 0; mi < m->groups[gi].member_count; mi++) {
+              PS_JsonValue *mv = members->as.array_v.items[mi];
+              m->groups[gi].members[mi].name = dup_json_string(ps_json_obj_get(mv, "name"));
+              m->groups[gi].members[mi].literal_type = dup_json_string(ps_json_obj_get(mv, "literalType"));
+              m->groups[gi].members[mi].value = dup_json_string(ps_json_obj_get(mv, "value"));
+            }
+          }
+        }
+      }
     }
   }
   m->fn_count = functions->as.array_v.len;
@@ -851,8 +980,44 @@ void ps_ir_free(PS_IR_Module *m) {
     for (size_t pi = 0; pi < m->proto_count; pi++) {
       free(m->protos[pi].name);
       free(m->protos[pi].parent);
+      if (m->protos[pi].fields) {
+        for (size_t fi = 0; fi < m->protos[pi].field_count; fi++) {
+          free(m->protos[pi].fields[fi].name);
+          free(m->protos[pi].fields[fi].type);
+        }
+        free(m->protos[pi].fields);
+      }
+      if (m->protos[pi].methods) {
+        for (size_t mi = 0; mi < m->protos[pi].method_count; mi++) {
+          free(m->protos[pi].methods[mi].name);
+          free(m->protos[pi].methods[mi].ret_type);
+          if (m->protos[pi].methods[mi].params) {
+            for (size_t pj = 0; pj < m->protos[pi].methods[mi].param_count; pj++) {
+              free(m->protos[pi].methods[mi].params[pj].name);
+              free(m->protos[pi].methods[mi].params[pj].type);
+            }
+            free(m->protos[pi].methods[mi].params);
+          }
+        }
+        free(m->protos[pi].methods);
+      }
     }
     free(m->protos);
+  }
+  if (m->groups) {
+    for (size_t gi = 0; gi < m->group_count; gi++) {
+      free(m->groups[gi].name);
+      free(m->groups[gi].base_type);
+      if (m->groups[gi].members) {
+        for (size_t mi = 0; mi < m->groups[gi].member_count; mi++) {
+          free(m->groups[gi].members[mi].name);
+          free(m->groups[gi].members[mi].literal_type);
+          free(m->groups[gi].members[mi].value);
+        }
+        free(m->groups[gi].members);
+      }
+    }
+    free(m->groups);
   }
   free(m);
 }
@@ -916,6 +1081,22 @@ static PS_Value *value_from_literal(PS_Context *ctx, const char *literalType, PS
   }
   if (strcmp(literalType, "string") == 0) {
     return ps_make_string_utf8(ctx, raw ? raw : "", raw ? strlen(raw) : 0);
+  }
+  if (strcmp(literalType, "group") == 0) {
+    const char *name = raw ? raw : "";
+    PS_IR_Module *m = ctx ? ctx->current_module : NULL;
+    const PS_IR_Group *g = m ? ps_ir_find_group(m, name) : NULL;
+    if (!g) {
+      ps_throw_diag(ctx, PS_ERR_INTERNAL, "invalid group literal", name, "known group name");
+      return NULL;
+    }
+    PS_Value *v = ps_value_alloc(PS_V_GROUP);
+    if (!v) {
+      ps_throw_diag(ctx, PS_ERR_OOM, "out of memory", "group descriptor allocation failed", "available memory");
+      return NULL;
+    }
+    v->as.group_v.group = g;
+    return v;
   }
   if (strcmp(literalType, "eof") == 0) {
     if (!ctx->eof_value) {
@@ -1197,7 +1378,7 @@ static void set_exception_location(PS_Context *ctx, PS_Value *v, const char *fil
   v->as.exc_v.column = col;
 }
 
-static IRProto *proto_find_meta(PS_IR_Module *m, const char *name) {
+static PS_IR_Proto *proto_find_meta(PS_IR_Module *m, const char *name) {
   if (!m || !name) return NULL;
   for (size_t i = 0; i < m->proto_count; i++) {
     if (m->protos[i].name && strcmp(m->protos[i].name, name) == 0) return &m->protos[i];
@@ -1205,8 +1386,51 @@ static IRProto *proto_find_meta(PS_IR_Module *m, const char *name) {
   return NULL;
 }
 
+const PS_IR_Proto *ps_ir_find_proto(const PS_IR_Module *m, const char *name) {
+  if (!m || !name) return NULL;
+  for (size_t i = 0; i < m->proto_count; i++) {
+    if (m->protos[i].name && strcmp(m->protos[i].name, name) == 0) return &m->protos[i];
+  }
+  return NULL;
+}
+
+const PS_IR_Group *ps_ir_find_group(const PS_IR_Module *m, const char *name) {
+  if (!m || !name) return NULL;
+  for (size_t i = 0; i < m->group_count; i++) {
+    if (m->groups[i].name && strcmp(m->groups[i].name, name) == 0) return &m->groups[i];
+  }
+  return NULL;
+}
+
+size_t ps_ir_group_count(const PS_IR_Module *m) {
+  if (!m) return 0;
+  return m->group_count;
+}
+
+const PS_IR_Group *ps_ir_group_at(const PS_IR_Module *m, size_t idx) {
+  if (!m || idx >= m->group_count) return NULL;
+  return &m->groups[idx];
+}
+
+size_t ps_ir_group_member_total(const PS_IR_Module *m) {
+  if (!m) return 0;
+  size_t total = 0;
+  for (size_t i = 0; i < m->group_count; i++) total += m->groups[i].member_count;
+  return total;
+}
+
+const void *ps_ir_group_table_ptr(const PS_IR_Module *m) {
+  if (!m) return NULL;
+  return (const void *)m->groups;
+}
+
+const void *ps_ir_group_member_table_ptr(const PS_IR_Module *m, size_t idx) {
+  if (!m || idx >= m->group_count) return NULL;
+  return (const void *)m->groups[idx].members;
+}
+
 static const char *proto_parent_name(PS_IR_Module *m, const char *name) {
-  IRProto *p = proto_find_meta(m, name);
+  PS_IR_Proto *p = proto_find_meta(m, name);
   return p ? p->parent : NULL;
 }
 
@@ -1283,7 +1507,8 @@ static int json_value_kind_runtime(PS_Context *ctx, PS_Value *v, const char **ki
 static int module_is_std(const char *name) {
   if (!name) return 0;
   return strcmp(name, "Io") == 0 || strcmp(name, "JSON") == 0 || strcmp(name, "Math") == 0 ||
-         strcmp(name, "Time") == 0 || strcmp(name, "TimeCivil") == 0 || strcmp(name, "Fs") == 0;
+         strcmp(name, "Time") == 0 || strcmp(name, "TimeCivil") == 0 || strcmp(name, "Fs") == 0 ||
+         strcmp(name, "Debug") == 0;
 }
 
 static int exec_call_static(PS_Context *ctx, PS_IR_Module *m, const char *callee, PS_Value **args, size_t argc, PS_Value **out) {
@@ -1524,6 +1749,7 @@ static int exec_function(PS_Context *ctx, PS_IR_Module *m, IRFunction *f, PS_Val
         } else {
           PS_Value *obj = ps_object_new(ctx);
           if (!obj) goto raise;
+          if (ins->proto) ps_object_set_proto_name_internal(ctx, obj, ins->proto);
           bindings_set(&temps, ins->dst, obj);
           ps_value_release(obj);
         }
@@ -1802,6 +2028,7 @@ static int exec_function(PS_Context *ctx, PS_IR_Module *m, IRFunction *f, PS_Val
       }
       if (strcmp(ins->op, "make_list") == 0) {
         PS_Value *list = ps_list_new(ctx);
+        if (ins->type) ps_list_set_type_name_internal(ctx, list, ins->type);
         for (size_t i = 0; i < ins->arg_count; i++) {
           PS_Value *it = get_value(&temps, &vars, ins->args[i]);
           ps_list_push_internal(ctx, list, it);
@@ -1812,6 +2039,7 @@ static int exec_function(PS_Context *ctx, PS_IR_Module *m, IRFunction *f, PS_Val
       }
       if (strcmp(ins->op, "make_map") == 0) {
         PS_Value *map = ps_map_new(ctx);
+        if (ins->type) ps_map_set_type_name_internal(ctx, map, ins->type);
         for (size_t i = 0; i < ins->pair_count; i++) {
           PS_Value *k = get_value(&temps, &vars, ins->pairs[i].key);
           PS_Value *v = get_value(&temps, &vars, ins->pairs[i].value);
@@ -1848,6 +2076,22 @@ static int exec_function(PS_Context *ctx, PS_IR_Module *m, IRFunction *f, PS_Val
         v->as.view_v.offset = base_off + (size_t)off;
         v->as.view_v.len = (size_t)ln;
         v->as.view_v.readonly = readonly;
+        v->as.view_v.type_name = NULL;
+        if (ins->kind) {
+          const char *kind = ins->kind;
+          char *inner = NULL;
+          if (base && base->tag == PS_V_LIST) {
+            const char *list_t = ps_list_type_name_internal(base);
+            inner = extract_generic_inner(list_t);
+          } else if (base && base->tag == PS_V_VIEW) {
+            inner = extract_generic_inner(base->as.view_v.type_name);
+          } else if (base && base->tag == PS_V_STRING) {
+            inner = strdup("glyph");
+          }
+          if (!inner) inner = strdup("unknown");
+          v->as.view_v.type_name = make_view_type_name(kind, inner);
+          free(inner);
+        }
         if (base && base->tag == PS_V_LIST) v->as.view_v.version = base->as.list_v.version;
         else v->as.view_v.version = 0;
         bindings_set(&temps, ins->dst, v);
@@ -3192,19 +3436,26 @@ int ps_vm_run_main(PS_Context *ctx, PS_IR_Module *m, PS_Value **args, size_t arg
     ps_value_release(ctx->last_exception);
     ctx->last_exception = NULL;
   }
+  ctx->current_module = m;
   IRFunction *main_fn = find_fn(m, "main");
   if (!main_fn) {
     ps_throw_diag(ctx, PS_ERR_INTERNAL, "missing entry point", "main not found", "function main");
+    ctx->current_module = NULL;
     return 1;
   }
   if (main_fn->param_count > 1) {
     char got[64];
     snprintf(got, sizeof(got), "%zu", main_fn->param_count);
     ps_throw_diag(ctx, PS_ERR_TYPE, "invalid main signature", got, "0 or 1 parameter");
+    ctx->current_module = NULL;
     return 1;
   }
   if (main_fn->param_count == 1) {
-    return exec_function(ctx, m, main_fn, args, argc, out);
+    int rc = exec_function(ctx, m, main_fn, args, argc, out);
+    ctx->current_module = NULL;
+    return rc;
   }
-  return exec_function(ctx, m, main_fn, NULL, 0, out);
+  int rc = exec_function(ctx, m, main_fn, NULL, 0, out);
+  ctx->current_module = NULL;
+  return rc;
 }

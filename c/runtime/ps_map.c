@@ -19,6 +19,7 @@ static const char *value_type_name(PS_Value *v) {
     case PS_V_OBJECT: return "object";
     case PS_V_VIEW: return "view";
     case PS_V_EXCEPTION: return "Exception";
+    case PS_V_GROUP: return "group";
     default: return "value";
   }
 }
@@ -174,6 +175,7 @@ PS_Value *ps_map_new(PS_Context *ctx) {
   v->as.map_v.order = NULL;
   v->as.map_v.order_len = 0;
   v->as.map_v.order_cap = 0;
+  v->as.map_v.type_name = NULL;
   return v;
 }
 
@@ -326,4 +328,23 @@ PS_Status ps_map_entry(PS_Context *ctx, PS_Value *map, size_t index, PS_Value **
   if (out_value) *out_value = ps_map_get(ctx, map, k);
   if (ps_last_error_code(ctx) != PS_ERR_NONE) return PS_ERR;
   return PS_OK;
+}
+
+const char *ps_map_type_name_internal(PS_Value *map) {
+  if (!map || map->tag != PS_V_MAP) return NULL;
+  return map->as.map_v.type_name;
+}
+
+int ps_map_set_type_name_internal(PS_Context *ctx, PS_Value *map, const char *name) {
+  (void)ctx;
+  if (!map || map->tag != PS_V_MAP) return 0;
+  if (map->as.map_v.type_name) {
+    free(map->as.map_v.type_name);
+    map->as.map_v.type_name = NULL;
+  }
+  if (name) {
+    map->as.map_v.type_name = strdup(name);
+    if (!map->as.map_v.type_name) return 0;
+  }
+  return 1;
 }

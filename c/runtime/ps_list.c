@@ -1,4 +1,5 @@
 #include <stdlib.h>
+#include <string.h>
 
 #include "ps_list.h"
 
@@ -21,6 +22,7 @@ PS_Value *ps_list_new(PS_Context *ctx) {
   v->as.list_v.len = 0;
   v->as.list_v.cap = 0;
   v->as.list_v.version = 0;
+  v->as.list_v.type_name = NULL;
   return v;
 }
 
@@ -75,5 +77,24 @@ int ps_list_push_internal(PS_Context *ctx, PS_Value *list, PS_Value *value) {
 }
   list->as.list_v.items[list->as.list_v.len++] = ps_value_retain(value);
   list->as.list_v.version += 1;
+  return 1;
+}
+
+const char *ps_list_type_name_internal(PS_Value *list) {
+  if (!list || list->tag != PS_V_LIST) return NULL;
+  return list->as.list_v.type_name;
+}
+
+int ps_list_set_type_name_internal(PS_Context *ctx, PS_Value *list, const char *name) {
+  (void)ctx;
+  if (!list || list->tag != PS_V_LIST) return 0;
+  if (list->as.list_v.type_name) {
+    free(list->as.list_v.type_name);
+    list->as.list_v.type_name = NULL;
+  }
+  if (name) {
+    list->as.list_v.type_name = strdup(name);
+    if (!list->as.list_v.type_name) return 0;
+  }
   return 1;
 }

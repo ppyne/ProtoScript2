@@ -6,6 +6,8 @@
 
 #include "ps/ps_api.h"
 
+typedef struct PS_IR_Group PS_IR_Group;
+
 typedef struct PS_Value PS_Value;
 
 typedef enum {
@@ -23,6 +25,7 @@ typedef enum {
   PS_V_ITER,
   PS_V_FILE,
   PS_V_EXCEPTION,
+  PS_V_GROUP,
   PS_V_VOID
 } PS_ValueTag;
 
@@ -41,6 +44,7 @@ typedef struct {
   size_t len;
   size_t cap;
   uint64_t version;
+  char *type_name;
 } PS_List;
 
 typedef struct {
@@ -49,6 +53,7 @@ typedef struct {
   uint8_t *used;
   size_t cap;
   size_t len;
+  char *proto_name;
 } PS_Object;
 
 typedef struct {
@@ -60,6 +65,7 @@ typedef struct {
   PS_Value **order;
   size_t order_len;
   size_t order_cap;
+  char *type_name;
 } PS_Map;
 
 typedef struct {
@@ -68,6 +74,7 @@ typedef struct {
   size_t len;
   int readonly;
   uint64_t version;
+  char *type_name;
 } PS_View;
 
 typedef struct {
@@ -89,6 +96,10 @@ typedef struct {
   PS_Value *code;
   PS_Value *category;
 } PS_Exception;
+
+typedef struct {
+  const PS_IR_Group *group;
+} PS_GroupDescriptor;
 
 typedef struct {
   FILE *fp;
@@ -115,6 +126,7 @@ struct PS_Value {
     PS_Iter iter_v;
     PS_File file_v;
     PS_Exception exc_v;
+    PS_GroupDescriptor group_v;
   } as;
 };
 

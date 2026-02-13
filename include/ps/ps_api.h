@@ -29,6 +29,7 @@ typedef enum {
   PS_T_MAP,
   PS_T_OBJECT,
   PS_T_FILE,
+  PS_T_GROUP,
   PS_T_VOID
 } PS_TypeTag;
 

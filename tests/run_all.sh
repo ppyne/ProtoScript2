@@ -41,6 +41,10 @@ echo "-- CLI tests (C)"
 "$ROOT_DIR/tests/run_cli_tests.sh"
 echo
 
+echo "-- Debug module tests"
+"$ROOT_DIR/tests/debug/run_debug_tests.sh"
+echo
+
 if [[ "$RUN_ROBUST" == "1" ]]; then
   echo "-- robustness (ASAN + determinism)"
   "$ROOT_DIR/tests/run_robustness.sh"
