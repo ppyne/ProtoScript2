@@ -418,14 +418,17 @@ class IRBuilder {
     for (const b of builtin) {
       if (this.prototypes.has(b.name)) continue;
       const methods = new Map();
-      this.prototypes.set(b.name, { name: b.name, parent: b.parent, fields: b.fields, methods });
+      this.prototypes.set(
+        b.name,
+        { name: b.name, parent: b.parent, fields: b.fields.map((f) => ({ ...f, init: null, isConst: false })), methods }
+      );
       const fieldsIr = b.fields.map((f) => ({ name: f.name, type: lowerType(f.type) }));
       mod.prototypes.push({ name: b.name, parent: b.parent, fields: fieldsIr, methods: [] });
       builtinNames.push(b.name);
     }
     for (const d of this.ast.decls) {
       if (d.kind === "PrototypeDecl") {
-        const fields = (d.fields || []).map((f) => ({ name: f.name, type: f.type }));
+        const fields = (d.fields || []).map((f) => ({ name: f.name, type: f.type, init: f.init || null, isConst: !!f.isConst }));
         const fieldsIr = (d.fields || []).map((f) => ({ name: f.name, type: lowerType(f.type) }));
         const methods = new Map();
         const methodsIr = [];
@@ -495,16 +498,25 @@ class IRBuilder {
       blocks: [entry],
     };
     const dst = this.nextTemp();
-    this.emit(entry, { op: "make_object", dst, proto: protoName });
+    let cur = entry;
+    this.emit(cur, { op: "make_object", dst, proto: protoName });
     const fields = this.collectPrototypeFields(protoName);
+    const initScope = new Scope(null);
     const core = new Set(["file", "line", "column", "message", "cause", "code", "category"]);
     const isException = this.isExceptionProto(protoName);
     for (const f of fields) {
       if (isException && core.has(f.name)) continue;
-      const v = this.emitDefaultValue(entry, f.type);
-      this.emit(entry, { op: "member_set", target: dst, name: f.name, src: v.value });
+      const v = f.init
+        ? this.lowerExpr(f.init, cur, irFn, initScope)
+        : (() => {
+            const d = this.emitDefaultValue(cur, f.type);
+            return { ...d, block: cur };
+          })();
+      const targetBlock = v.block || cur;
+      this.emit(targetBlock, { op: "member_set", target: dst, name: f.name, src: v.value });
+      cur = targetBlock;
     }
-    this.emit(entry, { op: "ret", value: dst });
+    this.emit(cur, { op: "ret", value: dst });
     return irFn;
   }
 

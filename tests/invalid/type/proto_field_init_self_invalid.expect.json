@@ -1,0 +1,11 @@
+{
+  "status": "reject-static",
+  "error_family": "E3xxx",
+  "error_code": "E3150",
+  "category": "INVALID_FIELD_INITIALIZER",
+  "position": {
+    "file": "invalid/type/proto_field_init_self_invalid.pts",
+    "line": 2,
+    "column": 17
+  }
+}

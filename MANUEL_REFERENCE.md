@@ -1208,6 +1208,26 @@ Règles normatives d’override :
 
 - le nom doit être identique
 
+### 10.4.1 Initialisation explicite des champs
+
+Un champ de prototype peut être initialisé directement dans la déclaration :
+
+```c
+prototype P {
+    int i = 5;
+    string s = "hello";
+    list<int> values = [0, 1, 2];
+}
+```
+
+Règles :
+
+- l’initialiseur est vérifié statiquement (type strictement assignable)
+- l’initialisation est exécutée à chaque `clone()`, dans l’ordre parent puis enfant
+- sans initialiseur, la valeur par défaut (section 15.3 de la spec) est utilisée
+- `self` est interdit dans l’initialiseur d’un champ (`E3150`)
+- un champ `const` de prototype doit avoir un initialiseur explicite (`E3151`) et ne peut plus être réassigné (`E3130`)
+
 - la liste des paramètres doit être identique
 
 - le type de retour doit être identique

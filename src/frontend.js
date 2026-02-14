@@ -554,16 +554,20 @@ class Parser {
         methods.push(this.parseFunctionDecl());
         continue;
       }
+      let isConst = false;
       if (this.at("kw", "const")) {
-        const tok = this.t();
-        throw new FrontendError(
-          diag(this.file, tok.line, tok.col, "E1001", "PARSE_UNEXPECTED_TOKEN", "const is not valid on field declarations")
-        );
+        this.eat("kw", "const");
+        isConst = true;
       }
       const t = this.parseType();
       const n = this.eat("id");
+      let init = null;
+      if (this.at("sym", "=")) {
+        this.eat("sym", "=");
+        init = this.parseExpr();
+      }
       this.eat("sym", ";");
-      fields.push({ kind: "FieldDecl", type: t, name: n.value, line: n.line, col: n.col });
+      fields.push({ kind: "FieldDecl", type: t, name: n.value, init, isConst, line: n.line, col: n.col });
     }
     this.eat("sym", "}");
     return { kind: "PrototypeDecl", name, parent, fields, methods, sealed, line: start.line, col: start.col };
@@ -1657,6 +1661,7 @@ class Analyzer {
       }
     }
     this.collectGroups();
+    this.analyzePrototypeFieldInitializers();
     for (const d of this.ast.decls) {
       if (d.kind === "FunctionDecl") this.analyzeFunction(d);
       if (d.kind === "PrototypeDecl") this.analyzePrototype(d);
@@ -1806,7 +1811,7 @@ class Analyzer {
           this.addDiag(f, "E2001", "UNRESOLVED_NAME", `duplicate field '${f.name}' in prototype '${d.name}'`);
           continue;
         }
-        fields.set(f.name, f.type);
+        fields.set(f.name, { type: f.type, isConst: !!f.isConst, init: f.init || null, decl: f });
       }
       const methods = new Map();
       for (const m of d.methods || []) {
@@ -1901,14 +1906,76 @@ class Analyzer {
     return !!(g && g.members && g.members.has(expr.name));
   }
 
-  resolvePrototypeField(protoName, fieldName) {
+  containsSelfReference(expr) {
+    if (!expr || typeof expr !== "object") return false;
+    if (expr.kind === "Identifier" && expr.name === "self") return true;
+    for (const k of Object.keys(expr)) {
+      const v = expr[k];
+      if (Array.isArray(v)) {
+        for (const it of v) {
+          if (it && typeof it === "object" && this.containsSelfReference(it)) return true;
+        }
+      } else if (v && typeof v === "object" && this.containsSelfReference(v)) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  analyzePrototypeFieldInitializers() {
+    for (const d of this.ast.decls) {
+      if (d.kind !== "PrototypeDecl") continue;
+      for (const f of d.fields || []) {
+        if (f.isConst && !isScalarTypeNode(f.type)) {
+          this.addDiag(f, "E3001", "TYPE_MISMATCH_ASSIGNMENT", "const requires a scalar fundamental type");
+        }
+        if (f.isConst && !f.init) {
+          this.addDiag(f, "E3151", "CONST_FIELD_MISSING_INITIALIZER", "const field requires an explicit initializer");
+          continue;
+        }
+        if (!f.init) continue;
+        if (this.containsSelfReference(f.init)) {
+          this.addDiag(f.init, "E3150", "INVALID_FIELD_INITIALIZER", "field initializer cannot reference 'self'");
+          continue;
+        }
+        const initType = this.typeOfExpr(f.init, new Scope(null));
+        const targetTypeName = typeToString(f.type);
+        const allowByteLiteral = targetTypeName === "byte" && isByteLiteralExpr(f.init);
+        const allowByteList = targetTypeName === "list<byte>" && f.init.kind === "ListLiteral" && isByteListLiteral(f.init);
+        const emptyMapInit = f.init.kind === "MapLiteral" && f.init.pairs.length === 0 && targetTypeName.startsWith("map<");
+        const emptyListInit = f.init.kind === "ListLiteral" && f.init.items.length === 0 && targetTypeName.startsWith("list<");
+        if (
+          initType &&
+          !sameType(f.type, initType) &&
+          !this.isSubtype(initType, f.type) &&
+          !allowByteLiteral &&
+          !allowByteList &&
+          !emptyMapInit &&
+          !emptyListInit
+        ) {
+          this.addDiag(f, "E3001", "TYPE_MISMATCH_ASSIGNMENT", `cannot assign ${typeToString(initType)} to ${targetTypeName}`);
+        }
+      }
+    }
+  }
+
+  resolvePrototypeFieldInfo(protoName, fieldName) {
     let p = this.prototypes.get(protoName);
     while (p) {
-      if (p.fields.has(fieldName)) return p.fields.get(fieldName);
+      if (p.fields.has(fieldName)) {
+        const raw = p.fields.get(fieldName);
+        if (raw && raw.type) return raw;
+        return { type: raw, isConst: false, init: null, decl: null };
+      }
       if (!p.parent) break;
       p = this.prototypes.get(p.parent);
     }
     return null;
+  }
+
+  resolvePrototypeField(protoName, fieldName) {
+    const info = this.resolvePrototypeFieldInfo(protoName, fieldName);
+    return info ? info.type : null;
   }
 
   resolvePrototypeMethod(protoName, methodName) {
@@ -2295,6 +2362,16 @@ class Analyzer {
             break;
           }
         }
+        if (stmt.target && stmt.target.kind === "MemberExpr") {
+          const targetType = this.typeOfExpr(stmt.target.target, scope);
+          if (targetType && targetType.kind === "NamedType" && this.prototypes.has(targetType.name)) {
+            const fi = this.resolvePrototypeFieldInfo(targetType.name, stmt.target.name);
+            if (fi && fi.isConst) {
+              this.addDiag(stmt, "E3130", "CONST_REASSIGNMENT", "cannot assign to const");
+              break;
+            }
+          }
+        }
         if (stmt.target && stmt.target.kind === "IndexExpr") {
           const targetType = this.typeOfExpr(stmt.target.target, scope);
           const ts = typeToString(targetType);
@@ -2531,6 +2608,13 @@ class Analyzer {
               this.addDiag(expr, "E3130", "CONST_REASSIGNMENT", "cannot modify const");
             }
           }
+          if (expr.expr && expr.expr.kind === "MemberExpr") {
+            const targetType = this.typeOfExpr(expr.expr.target, scope);
+            if (targetType && targetType.kind === "NamedType" && this.prototypes.has(targetType.name)) {
+              const fi = this.resolvePrototypeFieldInfo(targetType.name, expr.expr.name);
+              if (fi && fi.isConst) this.addDiag(expr, "E3130", "CONST_REASSIGNMENT", "cannot modify const");
+            }
+          }
           if (this.isGroupMemberTarget(expr.expr)) {
             this.addDiag(expr, "E3122", "GROUP_MUTATION", "group members are not assignable");
           }
@@ -2624,6 +2708,13 @@ class Analyzer {
             const s = scope.lookup(expr.expr.name);
             if (s && s.isConst) {
               this.addDiag(expr, "E3130", "CONST_REASSIGNMENT", "cannot modify const");
+            }
+          }
+          if (expr.expr && expr.expr.kind === "MemberExpr") {
+            const targetType = this.typeOfExpr(expr.expr.target, scope);
+            if (targetType && targetType.kind === "NamedType" && this.prototypes.has(targetType.name)) {
+              const fi = this.resolvePrototypeFieldInfo(targetType.name, expr.expr.name);
+              if (fi && fi.isConst) this.addDiag(expr, "E3130", "CONST_REASSIGNMENT", "cannot modify const");
             }
           }
           if (this.isGroupMemberTarget(expr.expr)) {

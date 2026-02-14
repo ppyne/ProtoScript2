@@ -1,0 +1,5 @@
+prototype P {
+    int x = "hello";
+}
+
+function main() : void {}

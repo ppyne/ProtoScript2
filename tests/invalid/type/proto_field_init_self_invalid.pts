@@ -1,0 +1,5 @@
+prototype P {
+    int x = self.x;
+}
+
+function main() : void {}

@@ -1,0 +1,13 @@
+import Io;
+
+prototype CounterSeed {
+    list<int> values = [1, 2, 3];
+}
+
+function main() : void {
+    CounterSeed a = CounterSeed.clone();
+    CounterSeed b = CounterSeed.clone();
+    a.values.push(4);
+    Io.printLine(a.values.length().toString());
+    Io.printLine(b.values.length().toString());
+}

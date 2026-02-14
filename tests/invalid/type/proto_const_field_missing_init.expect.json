@@ -1,0 +1,11 @@
+{
+  "status": "reject-static",
+  "error_family": "E3xxx",
+  "error_code": "E3151",
+  "category": "CONST_FIELD_MISSING_INITIALIZER",
+  "position": {
+    "file": "invalid/type/proto_const_field_missing_init.pts",
+    "line": 2,
+    "column": 15
+  }
+}

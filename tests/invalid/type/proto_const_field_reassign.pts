@@ -1,0 +1,8 @@
+prototype P {
+    const int year = 2026;
+}
+
+function main() : void {
+    P p = P.clone();
+    p.year = 2027;
+}

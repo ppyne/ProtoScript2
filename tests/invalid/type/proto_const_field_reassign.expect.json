@@ -1,0 +1,11 @@
+{
+  "status": "reject-static",
+  "error_family": "E3xxx",
+  "error_code": "E3130",
+  "category": "CONST_REASSIGNMENT",
+  "position": {
+    "file": "invalid/type/proto_const_field_reassign.pts",
+    "line": 7,
+    "column": 5
+  }
+}

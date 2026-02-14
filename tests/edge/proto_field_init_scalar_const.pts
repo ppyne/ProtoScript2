@@ -1,0 +1,12 @@
+import Io;
+
+prototype P {
+    int i = 5;
+    string s = "hello";
+}
+
+function main() : void {
+    P p = P.clone();
+    Io.printLine(p.i.toString());
+    Io.printLine(p.s);
+}

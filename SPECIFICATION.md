@@ -1021,6 +1021,31 @@ Un module natif ProtoScript en C peut restreindre l’accès à certains prototy
 
 Cette restriction relève du mécanisme de module et n’altère pas la règle générale du langage concernant l’instanciation des prototypes.
 
+## 4.3.2 Initialisation explicite des champs (normatif)
+
+Un champ de prototype peut déclarer un initialiseur explicite :
+
+```c
+Type name = Expr;
+```
+
+Règles :
+
+- un champ peut être déclaré `const` sous la forme `const Type name = Expr;`
+- `const` sur champ est autorisé uniquement pour les types scalaires fondamentaux
+- un champ `const` doit obligatoirement avoir un initialiseur explicite
+- l’expression d’initialisation est vérifiée statiquement et doit être assignable au type du champ
+- l’expression d’initialisation est évaluée au clonage (`clone()`), dans l’ordre parent → enfant puis ordre de déclaration
+- sans initialiseur explicite, la valeur par défaut de 15.3 s’applique
+- un initialiseur de champ ne peut pas référencer `self`
+- après instanciation, un champ `const` ne peut pas être réassigné
+
+Erreurs statiques associées :
+
+- `E3150` — `INVALID_FIELD_INITIALIZER`
+- `E3151` — `CONST_FIELD_MISSING_INITIALIZER`
+- `E3130` — `CONST_REASSIGNMENT`
+
 ---
 
 ## 4.4 Héritage par délégation
@@ -3297,6 +3322,11 @@ Ces valeurs s’appliquent uniformément :
 - aux objets clonés,
 - aux valeurs retournées par allocation implicite.
 
+Priorité d’initialisation des champs de prototype :
+
+- si un champ possède un initialiseur explicite (section 4.3.2), cet initialiseur prévaut
+- sinon, la valeur par défaut de cette section s’applique
+
 ## 15.4 Compatibilité des types
 
 Règles :
@@ -3352,6 +3382,8 @@ Codes canoniques minimaux :
 - `E3122` : `GROUP_MUTATION`
 - `E3130` : `CONST_REASSIGNMENT`
 - `E3140` : `SEALED_INHERITANCE`
+- `E3150` : `INVALID_FIELD_INITIALIZER`
+- `E3151` : `CONST_FIELD_MISSING_INITIALIZER`
 
 Exigences minimales de diagnostic :
 
@@ -3907,7 +3939,7 @@ TopDecl          = PrototypeDecl | FunctionDecl | GroupDecl | VarDecl ";" ;
 
 PrototypeDecl    = [ "sealed" ] "prototype" Identifier [ ":" TypeName ] "{" { ProtoMember } "}" ;
 ProtoMember      = FieldDecl | MethodDecl ;
-FieldDecl        = Type Identifier ";" ;
+FieldDecl        = [ "const" ] Type Identifier [ "=" Expr ] ";" ;
 MethodDecl       = FunctionDecl ;
 
 GroupDecl        = ScalarType "group" Identifier "{" GroupMemberList "}" ;

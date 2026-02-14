@@ -2048,11 +2048,10 @@ static int parse_prototype_decl(Parser *p) {
       }
       continue;
     }
+    int is_const = 0;
     if (p_at(p, TK_KW, "const")) {
-      Token *ct = p_t(p, 0);
-      set_diag(p->diag, p->file, ct->line, ct->col, "E1001", "PARSE_UNEXPECTED_TOKEN", "const is not valid on field declarations");
-      p_ast_pop(p);
-      return 0;
+      p_eat(p, TK_KW, "const");
+      is_const = 1;
     }
     size_t type_start = p->i;
     Token *tt = p_t(p, 0);
@@ -2066,20 +2065,47 @@ static int parse_prototype_decl(Parser *p) {
       p_ast_pop(p);
       return 0;
     }
+    AstNode *init_expr = NULL;
+    if (p_at(p, TK_SYM, "=")) {
+      p_eat(p, TK_SYM, "=");
+      if (!parse_expr(p, &init_expr)) {
+        p_ast_pop(p);
+        return 0;
+      }
+    }
     if (!p_eat(p, TK_SYM, ";")) {
+      ast_free(init_expr);
       p_ast_pop(p);
       return 0;
     }
-    AstNode *field = ast_new("FieldDecl", fname->text, tt->line, tt->col);
+    AstNode *field = ast_new("FieldDecl", fname->text, fname->line, fname->col);
     if (!field) {
+      ast_free(init_expr);
       p_ast_pop(p);
       return 0;
     }
+    if (is_const) field->flags |= AST_FLAG_CONST;
     char *type_txt = token_span_text(p, type_start, type_end);
     AstNode *tn = ast_new("Type", type_txt ? type_txt : "", tt->line, tt->col);
     free(type_txt);
-    if (!tn || !ast_add_child(field, tn) || !ast_add_child(proto, field)) {
+    if (!tn || !ast_add_child(field, tn)) {
       ast_free(tn);
+      ast_free(init_expr);
+      ast_free(field);
+      p_ast_pop(p);
+      return 0;
+    }
+    if (init_expr) {
+      AstNode *init_node = ast_new("FieldInit", "", init_expr->line, init_expr->col);
+      if (!init_node || !ast_add_child(init_node, init_expr) || !ast_add_child(field, init_node)) {
+        ast_free(init_expr);
+        ast_free(init_node);
+        ast_free(field);
+        p_ast_pop(p);
+        return 0;
+      }
+    }
+    if (!ast_add_child(proto, field)) {
       ast_free(field);
       p_ast_pop(p);
       return 0;
@@ -2469,6 +2495,10 @@ typedef struct {
 typedef struct ProtoField {
   char *name;
   char *type;
+  int is_const;
+  AstNode *init_expr;
+  int line;
+  int col;
   struct ProtoField *next;
 } ProtoField;
 
@@ -3799,10 +3829,16 @@ static int collect_prototypes(Analyzer *a, AstNode *root) {
         }
         AstNode *tn = ast_child_kind(c, "Type");
         char *ft = canon_type(tn ? tn->text : "unknown");
+        AstNode *init_node = ast_child_kind(c, "FieldInit");
+        AstNode *init_expr = (init_node && init_node->child_len > 0) ? init_node->children[0] : NULL;
         ProtoField *nf = (ProtoField *)calloc(1, sizeof(ProtoField));
         if (!nf) return 0;
         nf->name = strdup(fname);
         nf->type = ft ? ft : strdup("unknown");
+        nf->is_const = (c->flags & AST_FLAG_CONST) != 0;
+        nf->init_expr = init_expr;
+        nf->line = c->line;
+        nf->col = c->col;
         nf->next = NULL;
         if (!p->fields) {
           p->fields = nf;
@@ -5113,6 +5149,25 @@ static char *infer_expr_type(Analyzer *a, AstNode *e, Scope *scope, int *ok) {
             return NULL;
           }
         }
+        if (target && strcmp(target->kind, "MemberExpr") == 0 && target->child_len > 0) {
+          int okm = 1;
+          char *recv_t = infer_expr_type(a, target->children[0], scope, &okm);
+          if (!okm) {
+            free(recv_t);
+            *ok = 0;
+            return NULL;
+          }
+          if (recv_t && proto_find(a->protos, recv_t)) {
+            ProtoField *pf = proto_find_field(a->protos, recv_t, target->text ? target->text : "");
+            if (pf && pf->is_const) {
+              set_diag(a->diag, a->file, e->line, e->col, "E3130", "CONST_REASSIGNMENT", "cannot modify const");
+              free(recv_t);
+              *ok = 0;
+              return NULL;
+            }
+          }
+          free(recv_t);
+        }
         if (is_group_member_target(a, target)) {
           set_diag(a->diag, a->file, e->line, e->col, "E3122", "GROUP_MUTATION", "group members are not assignable");
           *ok = 0;
@@ -5352,6 +5407,68 @@ static int is_group_member_target(Analyzer *a, AstNode *expr) {
   return g && group_member_find(g, expr->text ? expr->text : "");
 }
 
+static int expr_contains_self_ref(AstNode *e) {
+  if (!e) return 0;
+  if (strcmp(e->kind, "Identifier") == 0 && e->text && strcmp(e->text, "self") == 0) return 1;
+  for (size_t i = 0; i < e->child_len; i++) {
+    if (expr_contains_self_ref(e->children[i])) return 1;
+  }
+  return 0;
+}
+
+static int analyze_prototype_field_initializers(Analyzer *a) {
+  if (!a) return 1;
+  for (ProtoInfo *p = a->protos; p; p = p->next) {
+    for (ProtoField *f = p->fields; f; f = f->next) {
+      if (f->is_const && !is_scalar_type_name(f->type)) {
+        set_diag(a->diag, a->file, f->line, f->col, "E3001", "TYPE_MISMATCH_ASSIGNMENT", "const requires a scalar fundamental type");
+        return 0;
+      }
+      if (f->is_const && !f->init_expr) {
+        set_diag(a->diag, a->file, f->line, f->col, "E3151", "CONST_FIELD_MISSING_INITIALIZER",
+                 "const field requires an explicit initializer");
+        return 0;
+      }
+      if (!f->init_expr) continue;
+      if (expr_contains_self_ref(f->init_expr)) {
+        set_diag(a->diag, a->file, f->init_expr->line, f->init_expr->col, "E3150", "INVALID_FIELD_INITIALIZER",
+                 "field initializer cannot reference 'self'");
+        return 0;
+      }
+      Scope s;
+      memset(&s, 0, sizeof(s));
+      int ok = 1;
+      char *rhs = infer_expr_type(a, f->init_expr, &s, &ok);
+      if (!ok) {
+        free(rhs);
+        free_syms(s.syms);
+        return 0;
+      }
+      const char *lhs = f->type ? f->type : "unknown";
+      if (rhs && strcmp(lhs, rhs) != 0 && strcmp(rhs, "unknown") != 0) {
+        int allow_sub = proto_is_subtype(a->protos, rhs, lhs);
+        int empty_map_init =
+            (f->init_expr && strcmp(f->init_expr->kind, "MapLiteral") == 0 && f->init_expr->child_len == 0 && strncmp(lhs, "map<", 4) == 0);
+        int empty_list_init =
+            (f->init_expr && strcmp(f->init_expr->kind, "ListLiteral") == 0 && f->init_expr->child_len == 0 && strncmp(lhs, "list<", 5) == 0);
+        int allow_byte_lit = (strcmp(lhs, "byte") == 0 && is_byte_literal_expr(f->init_expr));
+        int allow_byte_list = (strcmp(lhs, "list<byte>") == 0 && is_byte_list_literal(f->init_expr));
+        if (!allow_sub && !empty_map_init && !empty_list_init && !allow_byte_lit && !allow_byte_list) {
+          char msg[160];
+          snprintf(msg, sizeof(msg), "cannot assign %s to %s", rhs, lhs);
+          set_diag(a->diag, a->file, f->line, f->col, "E3001", "TYPE_MISMATCH_ASSIGNMENT", msg);
+          free(rhs);
+          free_syms(s.syms);
+          return 0;
+        }
+      }
+      free(rhs);
+      free_syms(s.syms);
+    }
+  }
+  return 1;
+}
+
 static int analyze_stmt(Analyzer *a, AstNode *st, Scope *scope);
 
 static int analyze_block(Analyzer *a, AstNode *blk, Scope *parent) {
@@ -5487,6 +5604,23 @@ static int analyze_stmt(Analyzer *a, AstNode *st, Scope *scope) {
         set_diag(a->diag, a->file, st->line, st->col, "E3130", "CONST_REASSIGNMENT", "cannot assign to const");
         return 0;
       }
+    }
+    if (st->children[0] && strcmp(st->children[0]->kind, "MemberExpr") == 0 && st->children[0]->child_len > 0) {
+      int tokm = 1;
+      char *recv_t = infer_expr_type(a, st->children[0]->children[0], scope, &tokm);
+      if (!tokm) {
+        free(recv_t);
+        return 0;
+      }
+      if (recv_t && proto_find(a->protos, recv_t)) {
+        ProtoField *pf = proto_find_field(a->protos, recv_t, st->children[0]->text ? st->children[0]->text : "");
+        if (pf && pf->is_const) {
+          set_diag(a->diag, a->file, st->line, st->col, "E3130", "CONST_REASSIGNMENT", "cannot assign to const");
+          free(recv_t);
+          return 0;
+        }
+      }
+      free(recv_t);
     }
     if (st->children[0] && strcmp(st->children[0]->kind, "IndexExpr") == 0 && st->children[0]->child_len > 0) {
       int tok = 1;
@@ -9322,6 +9456,18 @@ int ps_emit_ir_json(const char *file, PsDiag *out_diag, FILE *out) {
     free_groups(&a.groups);
     return 1;
   }
+  if (!analyze_prototype_field_initializers(&a)) {
+    ast_free(root);
+    free_fns(a.fns);
+    free_imports(a.imports);
+    free_namespaces(a.namespaces);
+    free_user_modules(a.user_modules);
+    free_registry(a.registry);
+    free_protos(a.protos);
+    free_groups(&a.groups);
+    free_groups(&a.groups);
+    return 1;
+  }
 
   fputs("{\n", out);
   fputs("  \"ir_version\": \"1.0.0\",\n", out);
@@ -9865,6 +10011,10 @@ int ps_emit_ir_json(const char *file, PsDiag *out_diag, FILE *out) {
     free(d_esc);
     free(p_esc);
     ProtoFieldVec fv = proto_collect_fields(a.protos, proto_name);
+    IrScope init_scope;
+    ir_scope_init(&init_scope, NULL);
+    IrScope *prev_scope = ctx.scope;
+    ctx.scope = &init_scope;
     for (size_t fi = 0; fi < fv.len; fi++) {
       ProtoField *f = fv.items[fi];
       int is_exc = proto_is_subtype(a.protos, proto_name, "Exception");
@@ -9875,7 +10025,9 @@ int ps_emit_ir_json(const char *file, PsDiag *out_diag, FILE *out) {
           continue;
         }
       }
-      char *val = ir_emit_default_value(&ctx, f && f->type ? f->type : "unknown", proto_name);
+      char *val = NULL;
+      if (f && f->init_expr) val = ir_lower_expr(f->init_expr, &ctx);
+      else val = ir_emit_default_value(&ctx, f && f->type ? f->type : "unknown", proto_name);
       if (!val) continue;
       char *t_esc = json_escape(dst);
       char *n_esc = json_escape(f ? f->name : "");
@@ -9887,6 +10039,8 @@ int ps_emit_ir_json(const char *file, PsDiag *out_diag, FILE *out) {
       free(v_esc);
       free(val);
     }
+    ctx.scope = prev_scope;
+    ir_scope_free(&init_scope);
     free(fv.items);
     char *dst_esc = json_escape(dst);
     ir_emit(&ctx, str_printf("{\"op\":\"ret\",\"value\":\"%s\",\"type\":{\"kind\":\"IRType\",\"name\":\"%s\"}}", dst_esc ? dst_esc : "",
@@ -9971,6 +10125,10 @@ int ps_emit_ir_json(const char *file, PsDiag *out_diag, FILE *out) {
     free(d_esc);
     free(p_esc);
     ProtoFieldVec fv = proto_collect_fields(a.protos, proto_name);
+    IrScope init_scope;
+    ir_scope_init(&init_scope, NULL);
+    IrScope *prev_scope = ctx.scope;
+    ctx.scope = &init_scope;
     for (size_t fi = 0; fi < fv.len; fi++) {
       ProtoField *f = fv.items[fi];
       int is_exc = proto_is_subtype(a.protos, proto_name, "Exception");
@@ -9981,7 +10139,9 @@ int ps_emit_ir_json(const char *file, PsDiag *out_diag, FILE *out) {
           continue;
         }
       }
-      char *val = ir_emit_default_value(&ctx, f && f->type ? f->type : "unknown", proto_name);
+      char *val = NULL;
+      if (f && f->init_expr) val = ir_lower_expr(f->init_expr, &ctx);
+      else val = ir_emit_default_value(&ctx, f && f->type ? f->type : "unknown", proto_name);
       if (!val) continue;
       char *t_esc = json_escape(dst);
       char *n_esc = json_escape(f ? f->name : "");
@@ -9993,6 +10153,8 @@ int ps_emit_ir_json(const char *file, PsDiag *out_diag, FILE *out) {
       free(v_esc);
       free(val);
     }
+    ctx.scope = prev_scope;
+    ir_scope_free(&init_scope);
     free(fv.items);
     char *dst_esc = json_escape(dst);
     ir_emit(&ctx, str_printf("{\"op\":\"ret\",\"value\":\"%s\",\"type\":{\"kind\":\"IRType\",\"name\":\"%s\"}}", dst_esc ? dst_esc : "",
@@ -10081,6 +10243,18 @@ int ps_check_file_static(const char *file, PsDiag *out_diag) {
     return 1;
   }
   if (!collect_groups(&a, root)) {
+    ast_free(root);
+    free_fns(a.fns);
+    free_imports(a.imports);
+    free_namespaces(a.namespaces);
+    free_user_modules(a.user_modules);
+    free_registry(a.registry);
+    free_protos(a.protos);
+    free_groups(&a.groups);
+    free_groups(&a.groups);
+    return 1;
+  }
+  if (!analyze_prototype_field_initializers(&a)) {
     ast_free(root);
     free_fns(a.fns);
     free_imports(a.imports);

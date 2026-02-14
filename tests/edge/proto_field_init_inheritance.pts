@@ -1,0 +1,15 @@
+import Io;
+
+prototype Base {
+    int a = 1;
+}
+
+prototype Child : Base {
+    int b = 2;
+}
+
+function main() : void {
+    Child c = Child.clone();
+    Io.printLine(c.a.toString());
+    Io.printLine(c.b.toString());
+}

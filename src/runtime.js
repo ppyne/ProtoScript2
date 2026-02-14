@@ -171,7 +171,7 @@ function buildPrototypeEnv(ast) {
   for (const d of ast.decls || []) {
     if (d.kind !== "PrototypeDecl") continue;
     const fields = [];
-    for (const f of d.fields || []) fields.push({ name: f.name, type: f.type });
+    for (const f of d.fields || []) fields.push({ name: f.name, type: f.type, init: f.init || null, isConst: !!f.isConst });
     const methods = new Map();
     for (const m of d.methods || []) methods.set(m.name, m);
     protos.set(d.name, { name: d.name, parent: d.parent || null, fields, methods, sealed: !!d.sealed });
@@ -261,23 +261,41 @@ function defaultValueForTypeNode(protos, t) {
   return null;
 }
 
-function clonePrototype(protos, name) {
+function clonePrototype(protos, name, hooks = null) {
   const fields = collectPrototypeFields(protos, name);
   const core = new Set(["file", "line", "column", "message", "cause", "code", "category"]);
+  const evalInit = (f) => {
+    if (!f || !f.init || !hooks || !hooks.functions || !hooks.protoEnv || !hooks.callFunction) {
+      return defaultValueForTypeNode(protos, f ? f.type : null);
+    }
+    const initScope = new Scope(null);
+    return evalExpr(
+      f.init,
+      initScope,
+      hooks.functions,
+      hooks.moduleEnv || null,
+      hooks.protoEnv,
+      hooks.file || "<init>",
+      hooks.callFunction
+    );
+  };
   if (isExceptionProto(protos, name)) {
     const ex = makeExceptionValue({ type: name });
     ex.__object = true;
     ex.__proto = name;
     ex.__fields = Object.create(null);
+    ex.__constFields = new Set();
     for (const f of fields) {
       if (core.has(f.name)) continue;
-      ex.__fields[f.name] = defaultValueForTypeNode(protos, f.type);
+      ex.__fields[f.name] = evalInit(f);
+      if (f.isConst) ex.__constFields.add(f.name);
     }
     return ex;
   }
-  const obj = { __object: true, __proto: name, __fields: Object.create(null) };
+  const obj = { __object: true, __proto: name, __fields: Object.create(null), __constFields: new Set() };
   for (const f of fields) {
-    obj.__fields[f.name] = defaultValueForTypeNode(protos, f.type);
+    obj.__fields[f.name] = evalInit(f);
+    if (f.isConst) obj.__constFields.add(f.name);
   }
   return obj;
 }
@@ -2947,6 +2965,9 @@ function lvalueRef(expr, scope, functions, moduleEnv, protoEnv, file, callFuncti
         return {
           get: () => target.__fields[expr.name],
           set: (v) => {
+            if (target.__constFields && target.__constFields.has(expr.name)) {
+              throw new RuntimeError(rdiag(file, expr, "R1010", "RUNTIME_TYPE_ERROR", "cannot assign to const"));
+            }
             target.__fields[expr.name] = v;
           },
         };
@@ -2962,6 +2983,9 @@ function lvalueRef(expr, scope, functions, moduleEnv, protoEnv, file, callFuncti
     return {
       get: () => target.__fields[expr.name],
       set: (v) => {
+        if (target.__constFields && target.__constFields.has(expr.name)) {
+          throw new RuntimeError(rdiag(file, expr, "R1010", "RUNTIME_TYPE_ERROR", "cannot assign to const"));
+        }
         target.__fields[expr.name] = v;
       },
     };
@@ -3184,7 +3208,7 @@ function evalCall(expr, scope, functions, moduleEnv, protoEnv, file, callFunctio
           if (!protoEnv || !protoEnv.has(info.proto)) {
             throw new RuntimeError(rdiag(file, info.node, "R1010", "RUNTIME_TYPE_ERROR", "unknown prototype"));
           }
-          return clonePrototype(protoEnv, info.proto);
+          return clonePrototype(protoEnv, info.proto, { scope, functions, moduleEnv, protoEnv, file, callFunction });
         }
         const fn = functions.get(`${info.proto}.${info.name}`);
         if (!fn) {
@@ -3223,7 +3247,7 @@ function evalCall(expr, scope, functions, moduleEnv, protoEnv, file, callFunctio
       if (!protoEnv.has(pname)) {
         throw new RuntimeError(rdiag(file, m, "R1010", "RUNTIME_TYPE_ERROR", "unknown prototype"));
       }
-      return clonePrototype(protoEnv, pname);
+      return clonePrototype(protoEnv, pname, { scope, functions, moduleEnv, protoEnv, file, callFunction });
     }
     if (protoEnv && expr._protoStatic) {
       const info = resolveProtoMethodRuntime(protoEnv, expr._protoStatic, m.name);

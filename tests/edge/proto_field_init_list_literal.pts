@@ -1,0 +1,11 @@
+import Io;
+
+prototype P {
+    list<int> values = [0, 1, 2, 3];
+}
+
+function main() : void {
+    P p = P.clone();
+    Io.printLine(p.values.length().toString());
+    Io.printLine(p.values[2].toString());
+}

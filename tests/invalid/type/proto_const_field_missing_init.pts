@@ -1,0 +1,5 @@
+prototype P {
+    const int year;
+}
+
+function main() : void {}

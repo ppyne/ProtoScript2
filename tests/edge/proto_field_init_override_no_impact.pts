@@ -1,0 +1,16 @@
+import Io;
+
+prototype Base {
+    int x = 9;
+    function value() : int { return self.x; }
+}
+
+prototype Child : Base {
+    function value() : int { return self.x + 1; }
+}
+
+function main() : void {
+    Child c = Child.clone();
+    Io.printLine(c.x.toString());
+    Io.printLine(c.value().toString());
+}

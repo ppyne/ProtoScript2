@@ -1,0 +1,8 @@
+prototype P {
+    int i = 5;
+    string s = "hello";
+}
+
+function main() : void {
+    P p = P.clone();
+}
