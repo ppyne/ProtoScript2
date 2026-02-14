@@ -1,0 +1,47 @@
+0 verbose cli /Users/avialle/dev/emsdk/node/22.16.0_64bit/bin/node /Users/avialle/dev/emsdk/node/22.16.0_64bit/bin/npm
+1 info using npm@10.9.2
+2 info using node@v22.16.0
+3 silly config load:file:/Users/avialle/dev/emsdk/node/22.16.0_64bit/lib/node_modules/npm/npmrc
+4 silly config load:file:/Users/avialle/dev/ProtoScript2/tools/vscode/protoscript2/.npmrc
+5 silly config load:file:/Users/avialle/.npmrc
+6 silly config load:file:/Users/avialle/dev/emsdk/node/22.16.0_64bit/etc/npmrc
+7 verbose title npm ci
+8 verbose argv "ci"
+9 verbose logfile logs-max:10 dir:/Users/avialle/dev/ProtoScript2/tools/vscode/protoscript2/.npm-cache/_logs/2026-02-14T10_39_03_443Z-
+10 verbose logfile /Users/avialle/dev/ProtoScript2/tools/vscode/protoscript2/.npm-cache/_logs/2026-02-14T10_39_03_443Z-debug-0.log
+11 silly logfile done cleaning log files
+12 http fetch GET https://registry.npmjs.org/npm attempt 1 failed with ENOTFOUND
+13 silly packumentCache heap:4345298944 maxSize:1086324736 maxEntrySize:543162368
+14 silly idealTree buildDeps
+15 silly fetch manifest @vscode/vsce@3.6.2
+16 silly packumentCache full:https://registry.npmjs.org/@vscode%2fvsce cache-miss
+17 http fetch GET https://registry.npmjs.org/@vscode%2fvsce attempt 1 failed with ENOTFOUND
+18 http fetch GET https://registry.npmjs.org/npm attempt 2 failed with ENOTFOUND
+19 http fetch GET https://registry.npmjs.org/@vscode%2fvsce attempt 2 failed with ENOTFOUND
+20 http fetch GET https://registry.npmjs.org/npm attempt 3 failed with ENOTFOUND
+21 http fetch GET https://registry.npmjs.org/@vscode%2fvsce attempt 3 failed with ENOTFOUND
+22 silly placeDep ROOT @vscode/vsce@ OK for: protoscript2@0.1.0 want: 3.6.2
+23 verbose type system
+24 verbose stack FetchError: request to https://registry.npmjs.org/@vscode%2fvsce failed, reason: getaddrinfo ENOTFOUND registry.npmjs.org
+24 verbose stack     at ClientRequest.<anonymous> (/Users/avialle/dev/emsdk/node/22.16.0_64bit/lib/node_modules/npm/node_modules/minipass-fetch/lib/index.js:130:14)
+24 verbose stack     at ClientRequest.emit (node:events:518:28)
+24 verbose stack     at emitErrorEvent (node:_http_client:104:11)
+24 verbose stack     at _destroy (node:_http_client:898:9)
+24 verbose stack     at onSocketNT (node:_http_client:918:5)
+24 verbose stack     at process.processTicksAndRejections (node:internal/process/task_queues:91:21)
+25 error code ENOTFOUND
+26 error syscall getaddrinfo
+27 error errno ENOTFOUND
+28 error network request to https://registry.npmjs.org/@vscode%2fvsce failed, reason: getaddrinfo ENOTFOUND registry.npmjs.org
+29 error network This is a problem related to network connectivity.
+29 error network In most cases you are behind a proxy or have bad network settings.
+29 error network
+29 error network If you are behind a proxy, please make sure that the
+29 error network 'proxy' config is set properly.  See: 'npm help config'
+30 verbose cwd /Users/avialle/dev/ProtoScript2/tools/vscode/protoscript2
+31 verbose os Darwin 23.5.0
+32 verbose node v22.16.0
+33 verbose npm  v10.9.2
+34 verbose exit 1
+35 verbose code 1
+36 error A complete log of this run can be found in: /Users/avialle/dev/ProtoScript2/tools/vscode/protoscript2/.npm-cache/_logs/2026-02-14T10_39_03_443Z-debug-0.log

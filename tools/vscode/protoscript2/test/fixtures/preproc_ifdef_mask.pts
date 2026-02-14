@@ -1,0 +1,8 @@
+#ifdef ENABLED
+function hidden() : void {
+}
+#endif
+
+function main() : void {
+  hidden();
+}

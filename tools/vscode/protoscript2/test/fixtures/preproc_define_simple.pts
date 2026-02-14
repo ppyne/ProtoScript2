@@ -1,0 +1,11 @@
+#define TYPE A
+prototype A {
+  int x;
+  function foo() : void {
+  }
+}
+
+function main() : void {
+  TYPE a;
+  a.foo();
+}

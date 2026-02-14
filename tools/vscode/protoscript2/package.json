@@ -12,15 +12,34 @@
   "engines": {
     "vscode": "^1.80.0"
   },
-  "categories": ["Programming Languages"],
-  "activationEvents": ["onLanguage:protoscript2"],
+  "categories": [
+    "Programming Languages"
+  ],
+  "activationEvents": [
+    "onLanguage:protoscript2"
+  ],
   "main": "./dist/extension.js",
+  "files": [
+    "dist/**",
+    "language-configuration.json",
+    "syntaxes/**",
+    "snippets/**",
+    "package.json",
+    "README.md",
+    "LICENSE",
+    "icon.png"
+  ],
   "contributes": {
     "languages": [
       {
         "id": "protoscript2",
-        "aliases": ["ProtoScript2", "protoscript2"],
-        "extensions": [".pts"],
+        "aliases": [
+          "ProtoScript2",
+          "protoscript2"
+        ],
+        "extensions": [
+          ".pts"
+        ],
         "configuration": "./language-configuration.json"
       }
     ],
@@ -39,8 +58,15 @@
     ]
   },
   "scripts": {
-    "build": "tsc -p ./tsconfig.json",
-    "vscode:prepublish": "npm run build"
+    "build:mcpp-wasm": "make -C ../../mcpp-wasm",
+    "build:ts": "tsc -p ./tsconfig.json",
+    "build:bundle": "node ./scripts/build-bundle.js",
+    "build": "npm run build:bundle",
+    "build:all": "npm run build:mcpp-wasm && npm run build:bundle",
+    "vscode:prepublish": "npm run build:all",
+    "package:vsix": "vsce package --no-yarn",
+    "clean": "rm -rf dist *.vsix",
+    "test": "npm run build:mcpp-wasm && npm run build && node ./test/run-lsp-fixtures.js"
   },
   "dependencies": {
     "vscode-languageclient": "^9.0.1",
@@ -50,6 +76,7 @@
   "devDependencies": {
     "@types/node": "^20.11.0",
     "@types/vscode": "^1.80.0",
+    "@vscode/vsce": "3.6.2",
     "typescript": "^5.4.0"
   }
 }

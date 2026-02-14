@@ -3318,10 +3318,673 @@ function parseOnly(file, src) {
   return { tokens, ast };
 }
 
+function psTypeName(typeNode) {
+  if (!typeNode) return null;
+  try {
+    const s = typeToString(typeNode);
+    return typeof s === "string" ? s : null;
+  } catch {
+    return null;
+  }
+}
+
+function psBuildLineOffsets(text) {
+  const offsets = [0];
+  for (let i = 0; i < text.length; i += 1) {
+    if (text.charCodeAt(i) === 10) offsets.push(i + 1);
+  }
+  return offsets;
+}
+
+function psLcToOffset(lineOffsets, line, col) {
+  const lineIdx = Math.max(0, line - 1);
+  if (lineIdx >= lineOffsets.length) return lineOffsets[lineOffsets.length - 1] || 0;
+  return lineOffsets[lineIdx] + Math.max(0, col - 1);
+}
+
+function psFindTokenIndex(tokens, line, col) {
+  for (let i = 0; i < tokens.length; i += 1) {
+    if (tokens[i].line === line && tokens[i].col === col) return i;
+  }
+  return -1;
+}
+
+function psFindOpeningBraceIndex(tokens, startIdx) {
+  for (let i = startIdx; i < tokens.length; i += 1) {
+    const t = tokens[i];
+    if (t.type === "sym" && t.value === "{") return i;
+  }
+  return -1;
+}
+
+function psFindMatchingBraceIndex(tokens, openIdx) {
+  let depth = 0;
+  for (let i = openIdx; i < tokens.length; i += 1) {
+    const t = tokens[i];
+    if (t.type === "sym" && t.value === "{") depth += 1;
+    else if (t.type === "sym" && t.value === "}") {
+      depth -= 1;
+      if (depth === 0) return i;
+    }
+  }
+  return -1;
+}
+
+function psCollectLocalsFromNode(node, out) {
+  if (!node || typeof node !== "object") return;
+  if (node.kind === "VarDecl") {
+    out.push(node);
+    return;
+  }
+  if (node.kind === "Block" && Array.isArray(node.stmts)) {
+    for (const stmt of node.stmts) psCollectLocalsFromNode(stmt, out);
+    return;
+  }
+  if (node.kind === "IfStmt") {
+    psCollectLocalsFromNode(node.thenBranch, out);
+    psCollectLocalsFromNode(node.elseBranch, out);
+    return;
+  }
+  if (node.kind === "WhileStmt" || node.kind === "DoWhileStmt") {
+    psCollectLocalsFromNode(node.body, out);
+    return;
+  }
+  if (node.kind === "ForStmt") {
+    psCollectLocalsFromNode(node.init, out);
+    psCollectLocalsFromNode(node.body, out);
+    return;
+  }
+  if (node.kind === "SwitchStmt") {
+    if (Array.isArray(node.cases)) {
+      for (const clause of node.cases) {
+        if (Array.isArray(clause && clause.stmts)) {
+          for (const stmt of clause.stmts) psCollectLocalsFromNode(stmt, out);
+        }
+      }
+    }
+    if (node.defaultCase && Array.isArray(node.defaultCase.stmts)) {
+      for (const stmt of node.defaultCase.stmts) psCollectLocalsFromNode(stmt, out);
+    }
+    return;
+  }
+  if (node.kind === "TryStmt") {
+    psCollectLocalsFromNode(node.tryBlock, out);
+    if (Array.isArray(node.catches)) {
+      for (const c of node.catches) psCollectLocalsFromNode(c && c.block, out);
+    }
+    psCollectLocalsFromNode(node.finallyBlock, out);
+  }
+}
+
+function psTokenStartOffset(lineOffsets, token) {
+  return psLcToOffset(lineOffsets, token.line, token.col);
+}
+
+function psTokenEndOffset(lineOffsets, token) {
+  const start = psTokenStartOffset(lineOffsets, token);
+  if (token.type === "id" || token.type === "kw" || token.type === "num" || token.type === "str") {
+    return start + String(token.value || "").length;
+  }
+  if (token.type === "sym") return start + String(token.value || "").length;
+  return start + 1;
+}
+
+function psFindTokenAtOrBeforeOffset(tokens, lineOffsets, offset) {
+  let at = -1;
+  for (let i = 0; i < tokens.length; i += 1) {
+    const start = psTokenStartOffset(lineOffsets, tokens[i]);
+    const end = psTokenEndOffset(lineOffsets, tokens[i]);
+    if (offset >= start && offset < end) return i;
+    if (start <= offset) at = i;
+    else break;
+  }
+  return at;
+}
+
+function psResolvePrototypeField(model, protoName, fieldName) {
+  let cur = model.prototypes.get(protoName);
+  while (cur) {
+    for (const f of cur.fields) {
+      if (f.name === fieldName) return f;
+    }
+    cur = cur.parent ? model.prototypes.get(cur.parent) : null;
+  }
+  return null;
+}
+
+function psResolvePrototypeMethod(model, protoName, methodName) {
+  let cur = model.prototypes.get(protoName);
+  while (cur) {
+    for (const m of cur.methods) {
+      if (m.name === methodName) return m;
+    }
+    cur = cur.parent ? model.prototypes.get(cur.parent) : null;
+  }
+  return null;
+}
+
+function psGetEnclosingFunction(model, offset) {
+  let best = null;
+  for (const fn of model.functions) {
+    if (offset < fn.startOffset || offset > fn.endOffset) continue;
+    if (!best || fn.endOffset - fn.startOffset < best.endOffset - best.startOffset) best = fn;
+  }
+  return best;
+}
+
+function psResolveIdentifierType(model, offset, identifier, fnCtx) {
+  if (fnCtx) {
+    let localType = null;
+    for (const local of fnCtx.locals) {
+      if (local.name === identifier && local.declOffset <= offset) localType = local.typeName;
+    }
+    if (localType) return localType;
+    if (fnCtx.params.has(identifier)) return fnCtx.params.get(identifier).typeName;
+    if (fnCtx.prototypeName) {
+      const f = psResolvePrototypeField(model, fnCtx.prototypeName, identifier);
+      if (f) return f.typeName;
+    }
+  }
+  if (model.prototypes.has(identifier)) return identifier;
+  return null;
+}
+
+function psResolveIdentifierDecl(model, offset, identifier, fnCtx) {
+  if (fnCtx) {
+    let localDecl = null;
+    for (const local of fnCtx.locals) {
+      if (local.name === identifier && local.declOffset <= offset) localDecl = local.decl;
+    }
+    if (localDecl) return localDecl;
+    if (fnCtx.params.has(identifier)) return fnCtx.params.get(identifier).decl;
+    if (fnCtx.prototypeName) {
+      const f = psResolvePrototypeField(model, fnCtx.prototypeName, identifier);
+      if (f) return f.decl;
+    }
+  }
+  const gf = model.globalFunctions.get(identifier);
+  if (gf) return gf.decl;
+  const p = model.prototypes.get(identifier);
+  if (p) return p.decl;
+  return null;
+}
+
+function psGetMemberCompletions(model, line, character) {
+  const cursorOffset = psLcToOffset(model.lineOffsets, line + 1, character + 1);
+  if (cursorOffset <= 0) return [];
+  const dotIdx = psFindTokenAtOrBeforeOffset(model.tokens, model.lineOffsets, cursorOffset - 1);
+  if (dotIdx < 0) return [];
+  const dot = model.tokens[dotIdx];
+  if (!(dot.type === "sym" && dot.value === ".")) return [];
+  if (dotIdx === 0) return [];
+  const left = model.tokens[dotIdx - 1];
+  const isIdentifier = left.type === "id";
+  const isSelf = left.type === "kw" && left.value === "self";
+  if (!isIdentifier && !isSelf) return [];
+
+  const fnCtx = psGetEnclosingFunction(model, cursorOffset);
+  let resolvedType = null;
+  if (isSelf) resolvedType = fnCtx && fnCtx.prototypeName ? fnCtx.prototypeName : null;
+  else resolvedType = psResolveIdentifierType(model, cursorOffset, left.value, fnCtx);
+  if (!resolvedType) return [];
+
+  const completions = [];
+  let cur = model.prototypes.get(resolvedType);
+  const seen = new Set();
+  while (cur) {
+    for (const field of cur.fields) {
+      if (seen.has(`f:${field.name}`)) continue;
+      seen.add(`f:${field.name}`);
+      completions.push({
+        label: field.name,
+        kind: "field",
+        detail: `${resolvedType}.${field.name}: ${field.typeName}`,
+      });
+    }
+    for (const method of cur.methods) {
+      if (seen.has(`m:${method.name}`)) continue;
+      seen.add(`m:${method.name}`);
+      completions.push({
+        label: method.name,
+        kind: "method",
+        detail: `${resolvedType}.${method.name}(${method.params.map((p) => p.label).join(", ")}): ${method.retType}`,
+      });
+    }
+    cur = cur.parent ? model.prototypes.get(cur.parent) : null;
+  }
+  return completions;
+}
+
+function psGetHover(model, line, character) {
+  const offset = psLcToOffset(model.lineOffsets, line + 1, character + 1);
+  const idx = psFindTokenAtOrBeforeOffset(model.tokens, model.lineOffsets, offset);
+  if (idx < 0) return null;
+  const tok = model.tokens[idx];
+  if (!(tok.type === "id" || (tok.type === "kw" && tok.value === "self"))) return null;
+
+  const fnCtx = psGetEnclosingFunction(model, offset);
+  if (tok.type === "kw" && tok.value === "self") {
+    if (!fnCtx || !fnCtx.prototypeName) return null;
+    return { contents: `self: ${fnCtx.prototypeName}` };
+  }
+
+  if (idx >= 2) {
+    const dot = model.tokens[idx - 1];
+    const left = model.tokens[idx - 2];
+    if (dot.type === "sym" && dot.value === "." && (left.type === "id" || (left.type === "kw" && left.value === "self"))) {
+      let leftType = null;
+      if (left.type === "kw") leftType = fnCtx && fnCtx.prototypeName ? fnCtx.prototypeName : null;
+      else leftType = psResolveIdentifierType(model, offset, left.value, fnCtx);
+      if (leftType) {
+        const f = psResolvePrototypeField(model, leftType, tok.value);
+        if (f) return { contents: `${leftType}.${f.name}: ${f.typeName}` };
+        const m = psResolvePrototypeMethod(model, leftType, tok.value);
+        if (m) return { contents: `${leftType}.${m.name}(${m.params.map((p) => p.label).join(", ")}): ${m.retType}` };
+      }
+    }
+  }
+
+  const decl = psResolveIdentifierDecl(model, offset, tok.value, fnCtx);
+  if (!decl) return null;
+  if (decl.kind === "Param") {
+    return { contents: `param ${decl.name}: ${psTypeName(decl.type) || "unknown"}` };
+  }
+  if (decl.kind === "VarDecl") {
+    return { contents: `local ${decl.name}: ${psTypeName(decl.declaredType) || "unknown"}` };
+  }
+  if (decl.kind === "FunctionDecl") {
+    const params = Array.isArray(decl.params) ? decl.params.map((p) => `${psTypeName(p.type) || "unknown"} ${p.name}`).join(", ") : "";
+    return { contents: `function ${decl.name}(${params}): ${psTypeName(decl.retType) || "void"}` };
+  }
+  if (decl.kind === "PrototypeDecl") {
+    return { contents: `prototype ${decl.name}` };
+  }
+  if (decl.kind === "FieldDecl") {
+    return { contents: `field ${decl.name}: ${psTypeName(decl.type) || "unknown"}` };
+  }
+  return null;
+}
+
+function psGetDefinition(model, line, character) {
+  const offset = psLcToOffset(model.lineOffsets, line + 1, character + 1);
+  const idx = psFindTokenAtOrBeforeOffset(model.tokens, model.lineOffsets, offset);
+  if (idx < 0) return null;
+  const tok = model.tokens[idx];
+  if (!(tok.type === "id" || (tok.type === "kw" && tok.value === "self"))) return null;
+  const fnCtx = psGetEnclosingFunction(model, offset);
+
+  if (tok.type === "kw" && tok.value === "self") {
+    if (!fnCtx || !fnCtx.prototypeName) return null;
+    const proto = model.prototypes.get(fnCtx.prototypeName);
+    if (!proto || !proto.decl) return null;
+    return { line: Math.max(0, (proto.decl.line || 1) - 1), character: Math.max(0, (proto.decl.col || 1) - 1) };
+  }
+
+  if (idx >= 2) {
+    const dot = model.tokens[idx - 1];
+    const left = model.tokens[idx - 2];
+    if (dot.type === "sym" && dot.value === "." && (left.type === "id" || (left.type === "kw" && left.value === "self"))) {
+      let leftType = null;
+      if (left.type === "kw") leftType = fnCtx && fnCtx.prototypeName ? fnCtx.prototypeName : null;
+      else leftType = psResolveIdentifierType(model, offset, left.value, fnCtx);
+      if (leftType) {
+        const f = psResolvePrototypeField(model, leftType, tok.value);
+        if (f && f.decl) return { line: Math.max(0, (f.decl.line || 1) - 1), character: Math.max(0, (f.decl.col || 1) - 1) };
+        const m = psResolvePrototypeMethod(model, leftType, tok.value);
+        if (m && m.decl) return { line: Math.max(0, (m.decl.line || 1) - 1), character: Math.max(0, (m.decl.col || 1) - 1) };
+      }
+    }
+  }
+
+  const decl = psResolveIdentifierDecl(model, offset, tok.value, fnCtx);
+  if (!decl) return null;
+  return { line: Math.max(0, (decl.line || 1) - 1), character: Math.max(0, (decl.col || 1) - 1) };
+}
+
+function psGetSignature(model, line, character) {
+  const offset = psLcToOffset(model.lineOffsets, line + 1, character + 1);
+  const idx = psFindTokenAtOrBeforeOffset(model.tokens, model.lineOffsets, offset);
+  if (idx < 0) return null;
+
+  let depth = 0;
+  let openIdx = -1;
+  for (let i = idx; i >= 0; i -= 1) {
+    const t = model.tokens[i];
+    if (t.type !== "sym") continue;
+    if (t.value === ")") depth += 1;
+    else if (t.value === "(") {
+      if (depth === 0) {
+        openIdx = i;
+        break;
+      }
+      depth -= 1;
+    }
+  }
+  if (openIdx < 1) return null;
+
+  let activeParameter = 0;
+  let argDepth = 0;
+  for (let i = openIdx + 1; i <= idx; i += 1) {
+    const t = model.tokens[i];
+    if (!t || t.type !== "sym") continue;
+    if (t.value === "(") argDepth += 1;
+    else if (t.value === ")") {
+      if (argDepth > 0) argDepth -= 1;
+    } else if (t.value === "," && argDepth === 0) {
+      activeParameter += 1;
+    }
+  }
+
+  const before = model.tokens[openIdx - 1];
+  const fnCtx = psGetEnclosingFunction(model, offset);
+  if (!before) return null;
+
+  if (before.type === "id") {
+    if (openIdx >= 3) {
+      const dot = model.tokens[openIdx - 2];
+      const left = model.tokens[openIdx - 3];
+      if (dot && dot.type === "sym" && dot.value === "." && left && (left.type === "id" || (left.type === "kw" && left.value === "self"))) {
+        let leftType = null;
+        if (left.type === "kw") leftType = fnCtx && fnCtx.prototypeName ? fnCtx.prototypeName : null;
+        else leftType = psResolveIdentifierType(model, offset, left.value, fnCtx);
+        if (!leftType) return null;
+        const m = psResolvePrototypeMethod(model, leftType, before.value);
+        if (!m) return null;
+        return {
+          label: `${leftType}.${m.name}(${m.params.map((p) => p.label).join(", ")}): ${m.retType}`,
+          parameters: m.params.map((p) => p.label),
+          activeParameter,
+        };
+      }
+    }
+
+    const gf = model.globalFunctions.get(before.value);
+    if (!gf) return null;
+    return {
+      label: `${gf.name}(${gf.params.map((p) => p.label).join(", ")}): ${gf.retType}`,
+      parameters: gf.params.map((p) => p.label),
+      activeParameter,
+    };
+  }
+  return null;
+}
+
+function psBuildIdentityLineMap(text) {
+  const lines = text.split(/\n/);
+  const preToOrigLine = [0];
+  const origToPreLine = [0];
+  for (let i = 1; i <= lines.length; i += 1) {
+    preToOrigLine[i] = i;
+    origToPreLine[i] = i;
+  }
+  return { preToOrigLine, origToPreLine };
+}
+
+function psBuildOrigToPre(preToOrigLine) {
+  const origToPreLine = [0];
+  for (let pre = 1; pre < preToOrigLine.length; pre += 1) {
+    const orig = preToOrigLine[pre];
+    if (!orig || orig <= 0) continue;
+    if (!origToPreLine[orig]) origToPreLine[orig] = pre;
+  }
+  return origToPreLine;
+}
+
+let psMcppWasm = null;
+
+function psLoadMcppWasm(options = {}) {
+  if (options && options.mcppModule) {
+    const mod = options.mcppModule;
+    if (typeof mod.preprocess !== "function") {
+      throw new FrontendError(diag("<preprocess>", 1, 1, "E0003", "PREPROCESS_ERROR", "invalid mcpp module API"));
+    }
+    return mod;
+  }
+  if (psMcppWasm) return psMcppWasm;
+  const wrapperPath = path.resolve(__dirname, "../tools/mcpp-wasm/out/mcpp_node.js");
+  if (!fs.existsSync(wrapperPath)) {
+    throw new FrontendError(
+      diag("<preprocess>", 1, 1, "E0003", "PREPROCESS_ERROR", `missing mcpp wasm wrapper: ${wrapperPath}`)
+    );
+  }
+  psMcppWasm = require(wrapperPath);
+  if (!psMcppWasm || typeof psMcppWasm.preprocess !== "function") {
+    throw new FrontendError(diag("<preprocess>", 1, 1, "E0003", "PREPROCESS_ERROR", "invalid mcpp wasm wrapper API"));
+  }
+  return psMcppWasm;
+}
+
+function psPreprocessSource(file, src, options = {}) {
+  const usePreprocessor = options.usePreprocessor !== false;
+  if (!usePreprocessor) {
+    const map = psBuildIdentityLineMap(src);
+    return { code: src, preToOrigLine: map.preToOrigLine, origToPreLine: map.origToPreLine };
+  }
+
+  const mcpp = psLoadMcppWasm(options);
+  try {
+    const result = mcpp.preprocess(src, { file: file || "<input>" });
+    const code = typeof result?.code === "string" ? result.code : "";
+    const preToOrigLine = Array.isArray(result?.mapping?.preToOrigLine) ? result.mapping.preToOrigLine : psBuildIdentityLineMap(code).preToOrigLine;
+    const origToPreLine = Array.isArray(result?.mapping?.origToPreLine)
+      ? result.mapping.origToPreLine
+      : psBuildOrigToPre(preToOrigLine);
+    return { code, preToOrigLine, origToPreLine };
+  } catch (err) {
+    const msg = err && err.message ? err.message : String(err);
+    throw new FrontendError(diag(file || "<input>", 1, 1, "E0003", "PREPROCESS_ERROR", msg));
+  }
+}
+
+function psMapOrigToPre(lineZero, lineMap) {
+  const orig = lineZero + 1;
+  const pre = lineMap.origToPreLine[orig];
+  if (!pre || pre <= 0) return null;
+  return pre - 1;
+}
+
+function psMapPreToOrig(lineZero, lineMap) {
+  const pre = lineZero + 1;
+  const orig = lineMap.preToOrigLine[pre];
+  if (!orig || orig <= 0) return null;
+  return orig - 1;
+}
+
+function buildSemanticModel(file, src, options = {}) {
+  const preprocessed = psPreprocessSource(file, src, options);
+  const parsed = parseAndAnalyze(file, preprocessed.code);
+  const tokens = Array.isArray(parsed.tokens) ? parsed.tokens : [];
+  const ast = parsed.ast || { decls: [] };
+  const lineOffsets = psBuildLineOffsets(preprocessed.code);
+
+  const prototypes = new Map();
+  const globalFunctions = new Map();
+  const functions = [];
+
+  const decls = Array.isArray(ast.decls) ? ast.decls : [];
+  for (const decl of decls) {
+    if (decl && decl.kind === "PrototypeDecl" && typeof decl.name === "string") {
+      const info = {
+        name: decl.name,
+        parent: decl.parent || null,
+        decl,
+        fields: [],
+        methods: [],
+      };
+      if (Array.isArray(decl.fields)) {
+        for (const field of decl.fields) {
+          if (!field || typeof field.name !== "string") continue;
+          info.fields.push({
+            name: field.name,
+            typeName: psTypeName(field.type) || "unknown",
+            decl: field,
+          });
+        }
+      }
+      if (Array.isArray(decl.methods)) {
+        for (const method of decl.methods) {
+          if (!method || typeof method.name !== "string") continue;
+          const params = Array.isArray(method.params)
+            ? method.params
+                .filter((p) => p && typeof p.name === "string")
+                .map((p) => ({
+                  name: p.name,
+                  typeName: psTypeName(p.type) || "unknown",
+                  label: `${psTypeName(p.type) || "unknown"} ${p.name}`,
+                  decl: p,
+                }))
+            : [];
+          info.methods.push({
+            name: method.name,
+            params,
+            retType: psTypeName(method.retType) || "void",
+            decl: method,
+          });
+        }
+      }
+      prototypes.set(decl.name, info);
+
+      if (Array.isArray(decl.methods)) {
+        for (const method of decl.methods) {
+          if (!method || method.kind !== "FunctionDecl") continue;
+          const startIdx = psFindTokenIndex(tokens, method.line, method.col);
+          if (startIdx < 0) continue;
+          const openIdx = psFindOpeningBraceIndex(tokens, startIdx);
+          if (openIdx < 0) continue;
+          const closeIdx = psFindMatchingBraceIndex(tokens, openIdx);
+          if (closeIdx < 0) continue;
+          const fnCtx = {
+            name: method.name,
+            prototypeName: decl.name,
+            startOffset: psLcToOffset(lineOffsets, tokens[openIdx].line, tokens[openIdx].col),
+            endOffset: psLcToOffset(lineOffsets, tokens[closeIdx].line, tokens[closeIdx].col + 1),
+            params: new Map(),
+            locals: [],
+          };
+          if (Array.isArray(method.params)) {
+            for (const param of method.params) {
+              if (!param || typeof param.name !== "string") continue;
+              fnCtx.params.set(param.name, { typeName: psTypeName(param.type) || "unknown", decl: param });
+            }
+          }
+          const vars = [];
+          psCollectLocalsFromNode(method.body, vars);
+          for (const v of vars) {
+            if (!v || typeof v.name !== "string") continue;
+            const typeName = psTypeName(v.declaredType);
+            if (!typeName) continue;
+            fnCtx.locals.push({
+              name: v.name,
+              typeName,
+              declOffset: psLcToOffset(lineOffsets, v.line || 1, v.col || 1),
+              decl: v,
+            });
+          }
+          fnCtx.locals.sort((a, b) => a.declOffset - b.declOffset);
+          functions.push(fnCtx);
+        }
+      }
+      continue;
+    }
+
+    if (decl && decl.kind === "FunctionDecl" && typeof decl.name === "string") {
+      const params = Array.isArray(decl.params)
+        ? decl.params
+            .filter((p) => p && typeof p.name === "string")
+            .map((p) => ({
+              name: p.name,
+              typeName: psTypeName(p.type) || "unknown",
+              label: `${psTypeName(p.type) || "unknown"} ${p.name}`,
+              decl: p,
+            }))
+        : [];
+      globalFunctions.set(decl.name, {
+        name: decl.name,
+        params,
+        retType: psTypeName(decl.retType) || "void",
+        decl,
+      });
+
+      const startIdx = psFindTokenIndex(tokens, decl.line, decl.col);
+      if (startIdx >= 0) {
+        const openIdx = psFindOpeningBraceIndex(tokens, startIdx);
+        const closeIdx = openIdx >= 0 ? psFindMatchingBraceIndex(tokens, openIdx) : -1;
+        if (openIdx >= 0 && closeIdx >= 0) {
+          const fnCtx = {
+            name: decl.name,
+            prototypeName: null,
+            startOffset: psLcToOffset(lineOffsets, tokens[openIdx].line, tokens[openIdx].col),
+            endOffset: psLcToOffset(lineOffsets, tokens[closeIdx].line, tokens[closeIdx].col + 1),
+            params: new Map(),
+            locals: [],
+          };
+          for (const p of params) fnCtx.params.set(p.name, { typeName: p.typeName, decl: p.decl });
+          const vars = [];
+          psCollectLocalsFromNode(decl.body, vars);
+          for (const v of vars) {
+            if (!v || typeof v.name !== "string") continue;
+            const typeName = psTypeName(v.declaredType);
+            if (!typeName) continue;
+            fnCtx.locals.push({
+              name: v.name,
+              typeName,
+              declOffset: psLcToOffset(lineOffsets, v.line || 1, v.col || 1),
+              decl: v,
+            });
+          }
+          fnCtx.locals.sort((a, b) => a.declOffset - b.declOffset);
+          functions.push(fnCtx);
+        }
+      }
+    }
+  }
+
+  const internal = { lineOffsets, tokens, prototypes, globalFunctions, functions, options };
+  const lineMap = { preToOrigLine: preprocessed.preToOrigLine, origToPreLine: preprocessed.origToPreLine };
+  const diagnostics = Array.isArray(parsed.diags)
+    ? parsed.diags.map((d) => {
+        const mapped = psMapPreToOrig(Math.max(0, (d.line || 1) - 1), lineMap);
+        if (mapped === null) return d;
+        return { ...d, line: mapped + 1, column: d.column || 1, col: d.column || 1 };
+      })
+    : [];
+
+  return {
+    diagnostics,
+    queries: {
+      completionsAt(line, character) {
+        const mappedLine = psMapOrigToPre(line, lineMap);
+        if (mappedLine === null) return [];
+        return psGetMemberCompletions(internal, mappedLine, character);
+      },
+      hoverAt(line, character) {
+        const mappedLine = psMapOrigToPre(line, lineMap);
+        if (mappedLine === null) return null;
+        return psGetHover(internal, mappedLine, character);
+      },
+      definitionAt(line, character) {
+        const mappedLine = psMapOrigToPre(line, lineMap);
+        if (mappedLine === null) return null;
+        const def = psGetDefinition(internal, mappedLine, character);
+        if (!def) return null;
+        const outLine = psMapPreToOrig(def.line, lineMap);
+        if (outLine === null) return null;
+        return { line: outLine, character: def.character };
+      },
+      signatureAt(line, character) {
+        const mappedLine = psMapOrigToPre(line, lineMap);
+        if (mappedLine === null) return null;
+        return psGetSignature(internal, mappedLine, character);
+      },
+    },
+  };
+}
+
 module.exports = {
   check,
   parseAndAnalyze,
   parseOnly,
+  buildSemanticModel,
   formatDiag,
   FrontendError,
 };

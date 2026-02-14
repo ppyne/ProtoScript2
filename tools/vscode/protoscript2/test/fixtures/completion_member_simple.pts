@@ -1,0 +1,10 @@
+prototype A {
+  int x;
+  function foo() : void {
+  }
+}
+
+function main() : void {
+  A a;
+  a.foo();
+}

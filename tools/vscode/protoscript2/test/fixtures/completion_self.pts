@@ -1,0 +1,6 @@
+prototype A {
+  int x;
+  function foo() : void {
+    self.foo();
+  }
+}

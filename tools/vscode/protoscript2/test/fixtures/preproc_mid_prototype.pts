@@ -1,0 +1,13 @@
+prototype A {
+  int x;
+#ifdef EXTRA
+  int y;
+#endif
+  function foo() : void {
+  }
+}
+
+function main() : void {
+  A a;
+  a.foo();
+}

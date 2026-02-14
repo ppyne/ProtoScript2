@@ -1,41 +1,53 @@
 # ProtoScript2 VS Code Extension
 
-This extension provides editor support for the ProtoScript2 language, including a lightweight Language Server for smarter completions.
+Extension VS Code officielle pour ProtoScript2, basée sur le frontend officiel du langage et un serveur LSP léger.
 
-## Features
+## Ce qui est embarqué
 
-- Syntax highlighting (TextMate grammar)
-- Completions for keywords, types, and preprocessor directives
-- Member completions after `obj.` for built-in types and documented modules
-- Member completions for `prototype` fields and methods
-- Signature help (argument hints) for functions and methods
-- Snippets for common language constructs
+- Frontend ProtoScript2 officiel (même base d'analyse que le projet)
+- Préprocesseur `mcpp` compilé en WASM et embarqué dans l'extension
+- LSP autonome (diagnostics, complétion, aide de signature)
 
-## Limitations
+## Autonomie
 
-- No compiler integration
-- The LSP uses lightweight parsing and documentation scanning (no compiler required)
+Aucune dépendance système n'est requise pour l'usage de l'extension:
 
-## Local Installation
+- pas de `mcpp` installé sur la machine
+- pas de dépendance au repository source pour l'exécution
+- pas d'outillage externe nécessaire à l'utilisateur final
 
-Prerequisites:
+## Artefact prêt à installer
 
-- Node.js (includes `npm`)
-- VS Code CLI (`code` in your PATH)
+Le package VSIX officiel est versionné dans ce repository:
 
-VS Code does not install extensions directly from a folder path. The `code --install-extension` command expects either a published extension ID or a `.vsix` package.
+- `protoscript2-0.1.0.vsix`
 
-### Package and install a `.vsix`
+Vous pouvez installer directement ce fichier sans rebuild.
+
+## Installation locale du VSIX
+
+Prérequis:
+
+- VS Code installé
+- CLI `code` disponible dans le `PATH`
+
+Depuis ce dossier:
 
 ```bash
 cd tools/vscode/protoscript2
-npm install
-npm run build
-npm install -g @vscode/vsce
-vsce package
 code --install-extension protoscript2-0.1.0.vsix
 ```
 
-## File Extensions
+## Développement (optionnel)
+
+Ces commandes sont utiles uniquement pour reconstruire l'extension:
+
+```bash
+cd tools/vscode/protoscript2
+npm run build:all
+npm test
+```
+
+## Extension de fichier
 
 - `.pts`

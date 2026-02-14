@@ -7,6 +7,10 @@ WEB_DIR := $(ROOT)/web
 C_DIR := $(ROOT)/c
 MCPP_DIR := $(ROOT)/third_party/mcpp
 MCPP_WEB_LIB := $(MCPP_DIR)/lib-wasm/libmcpp.a
+MCPP_WASM_DIR := $(ROOT)/tools/mcpp-wasm
+VSCODE_DIR := $(ROOT)/tools/vscode/protoscript2
+VSCODE_VERSION := $(shell node -p "require('$(VSCODE_DIR)/package.json').version")
+VSCODE_VSIX := $(VSCODE_DIR)/protoscript2-$(VSCODE_VERSION).vsix
 
 WEB_OUT := $(WEB_DIR)/protoscript.js
 WEB_SRCS := \
@@ -42,9 +46,9 @@ WEB_LDFLAGS := -s WASM=1 -s MODULARIZE=1 -s EXPORT_NAME=ProtoScript -s EXIT_RUNT
   -s EXPORTED_RUNTIME_METHODS="['FS','callMain']" \
   --preload-file $(ROOT)/modules/registry.json@/modules/registry.json
 
-.PHONY: all c clean web web-clean test mcpp-web
+.PHONY: all c clean web web-clean test mcpp-web vscode-wasm vscode-build vscode-package vscode-install-local clean-vscode
 
-all: c
+all: c vscode-package
 
 c:
 	$(MAKE) -C c
@@ -90,3 +94,22 @@ web-clean:
 
 test:
 	tests/run_all.sh
+
+vscode-wasm:
+	$(MAKE) -C $(MCPP_WASM_DIR)
+
+vscode-build: vscode-wasm
+	cd $(VSCODE_DIR) && npm ci
+	cd $(VSCODE_DIR) && npm run build:all
+	cd $(VSCODE_DIR) && npm test
+
+vscode-package: vscode-build
+	cd $(VSCODE_DIR) && npm run package:vsix
+	@echo "VSIX ready: $(VSCODE_VSIX)"
+
+vscode-install-local: vscode-package
+	code --install-extension $(VSCODE_VSIX) --force
+
+clean-vscode:
+	$(MAKE) -C $(MCPP_WASM_DIR) clean
+	cd $(VSCODE_DIR) && npm run clean || true
