@@ -1,0 +1,11 @@
+prototype Core {
+    internal int state = 0;
+}
+
+prototype Other {
+    function f(Core c) : void {
+        c.state = 1;
+    }
+}
+
+function main() : void {}

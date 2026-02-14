@@ -105,6 +105,16 @@
       "invalid/runtime/manual_ex060",
       "invalid/runtime/manual_ex063"
     ],
+    "invalid/visibility_internal": [
+      "invalid/visibility_internal/internal_access_from_global_same_file",
+      "invalid/visibility_internal/internal_access_from_unrelated_prototype_same_file",
+      "invalid/visibility_internal/internal_keyword_outside_prototype"
+    ],
+    "valid/visibility_internal": [
+      "valid/visibility_internal/internal_access_same_prototype_method",
+      "valid/visibility_internal/internal_access_child_method",
+      "valid/visibility_internal/internal_call_internal_method_via_public"
+    ],
     "edge": [
       "edge/overflow_int_add",
       "edge/oob_list_index",

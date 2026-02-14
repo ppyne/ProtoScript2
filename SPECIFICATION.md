@@ -1046,6 +1046,39 @@ Erreurs statiques associées :
 - `E3151` — `CONST_FIELD_MISSING_INITIALIZER`
 - `E3130` — `CONST_REASSIGNMENT`
 
+## 4.3.3 Visibilite `internal` (normatif)
+
+ProtoScript V2 définit un modèle de visibilité à deux niveaux :
+
+- `public` (par defaut)
+- `internal`
+
+Règles normatives :
+
+1. La visibilité `internal` est une frontière lexicale attachée au prototype de définition.
+2. Un membre `internal` est accessible uniquement depuis :
+   - les méthodes du prototype de définition ;
+   - les méthodes de ses prototypes enfants.
+3. La regle d'accès est determinée à la compilation par l'appartenance lexicale de l'expression d'accès à une méthode d'un prototype `Q`. L'accès a un membre `internal` défini dans `P` est autorisé si `Q == P` ou `Q` est un enfant de `P`.
+4. Un acces `internal` est interdit depuis toute fonction globale, même située dans le même fichier/module que le prototype.
+5. Un acces `internal` est interdit depuis un autre prototype non-enfant, même situé dans le même fichier/module.
+6. La possession d'une instance ne confère aucun droit d'accès supplémentaire.
+7. Tout accès hors de cette frontière est interdit.
+8. La vérification de visibilité est strictement statique.
+9. La visibilité n'affecte pas le layout mémoire, l'ordre des champs, `clone()`, ni la substitution parent/enfant.
+10. `internal` ne modifie pas la résolution statique des méthodes.
+11. Il est interdit de redéfinir une methode `public` en `internal` dans un prototype enfant.
+12. Le mot-cle `internal` est autorisé uniquement sur les membres de prototype (champs/méthodes) et interdit ailleurs (fonctions globales, `group`, blocs).
+
+Erreurs statiques associées :
+
+- `E3200` — `INVALID_VISIBILITY_LOCATION`
+- `E3201` — `VISIBILITY_VIOLATION`
+
+Diagnostic minimal valide :
+
+`error[E3201]: member 'state' is internal to prototype 'Core'`
+
 ---
 
 ## 4.4 Héritage par délégation
@@ -3384,6 +3417,8 @@ Codes canoniques minimaux :
 - `E3140` : `SEALED_INHERITANCE`
 - `E3150` : `INVALID_FIELD_INITIALIZER`
 - `E3151` : `CONST_FIELD_MISSING_INITIALIZER`
+- `E3200` : `INVALID_VISIBILITY_LOCATION`
+- `E3201` : `VISIBILITY_VIOLATION`
 
 Exigences minimales de diagnostic :
 
@@ -3906,7 +3941,7 @@ Catégories :
 
 ## A.4 Mots-clés réservés
 
-`prototype`, `sealed`, `function`, `var`, `const`, `group`, `int`, `float`, `bool`, `byte`, `glyph`, `string`, `list`, `map`, `slice`, `view`, `void`, `if`, `else`, `for`, `of`, `in`, `while`, `do`, `switch`, `case`, `default`, `break`, `continue`, `return`, `try`, `catch`, `finally`, `throw`, `true`, `false`, `self`
+`prototype`, `sealed`, `function`, `var`, `const`, `internal`, `group`, `int`, `float`, `bool`, `byte`, `glyph`, `string`, `list`, `map`, `slice`, `view`, `void`, `if`, `else`, `for`, `of`, `in`, `while`, `do`, `switch`, `case`, `default`, `break`, `continue`, `return`, `try`, `catch`, `finally`, `throw`, `true`, `false`, `self`
 
 ## A.5 Littéraux
 
@@ -3939,8 +3974,9 @@ TopDecl          = PrototypeDecl | FunctionDecl | GroupDecl | VarDecl ";" ;
 
 PrototypeDecl    = [ "sealed" ] "prototype" Identifier [ ":" TypeName ] "{" { ProtoMember } "}" ;
 ProtoMember      = FieldDecl | MethodDecl ;
-FieldDecl        = [ "const" ] Type Identifier [ "=" Expr ] ";" ;
-MethodDecl       = FunctionDecl ;
+Visibility       = "internal" ;
+FieldDecl        = [ Visibility ] [ "const" ] Type Identifier [ "=" Expr ] ";" ;
+MethodDecl       = [ Visibility ] FunctionDecl ;
 
 GroupDecl        = ScalarType "group" Identifier "{" GroupMemberList "}" ;
 

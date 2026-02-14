@@ -1,0 +1,19 @@
+import Io;
+
+prototype Core {
+    internal int state = 0;
+
+    internal function bump() : void {
+        self.state = self.state + 1;
+    }
+
+    function publicBump() : int {
+        self.bump();
+        return self.state;
+    }
+}
+
+function main() : void {
+    Core c = Core.clone();
+    Io.printLine(c.publicBump().toString());
+}

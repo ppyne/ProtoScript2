@@ -1,0 +1,17 @@
+import Io;
+
+prototype Core {
+    internal int state = 4;
+}
+
+prototype Child : Core {
+    function use() : int {
+        self.state = self.state + 3;
+        return self.state;
+    }
+}
+
+function main() : void {
+    Child c = Child.clone();
+    Io.printLine(c.use().toString());
+}

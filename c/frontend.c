@@ -128,6 +128,7 @@ typedef struct AstNode {
 
 #define AST_FLAG_CONST  (1 << 0)
 #define AST_FLAG_SEALED (1 << 1)
+#define AST_FLAG_INTERNAL (1 << 2)
 
 typedef struct {
   const char *file;
@@ -328,7 +329,7 @@ static char *token_span_text(Parser *p, size_t start, size_t end) {
 
 static int is_keyword(const char *s) {
   static const char *kws[] = {
-      "prototype", "sealed",   "function", "var",    "const",   "group",  "int",   "float",
+      "prototype", "sealed",   "function", "var",    "const",   "internal", "group",  "int",   "float",
       "bool",      "byte",     "glyph",    "string", "list",    "map",    "slice", "view",
       "void",      "if",       "else",     "for",    "of",      "in",     "while", "do",
       "switch",    "case",     "default",  "break",  "continue","return", "try",   "catch",
@@ -1427,6 +1428,12 @@ static int parse_for_stmt(Parser *p) {
 
 static int parse_stmt(Parser *p) {
   if (p_at(p, TK_SYM, "{")) return parse_block(p);
+  if (p_at(p, TK_KW, "internal")) {
+    Token *t = p_t(p, 0);
+    set_diag(p->diag, p->file, t->line, t->col, "E3200", "INVALID_VISIBILITY_LOCATION",
+             "keyword 'internal' is only allowed in prototype members");
+    return 0;
+  }
   if (p_at(p, TK_KW, "var") || p_at(p, TK_KW, "const") || looks_like_type_start(p)) {
     AstNode *decl = NULL;
     size_t mark = p->i;
@@ -1974,6 +1981,12 @@ static int parse_group_decl(Parser *p) {
   if (!p_at(p, TK_SYM, "}")) {
     while (1) {
       Token *mn = p_t(p, 0);
+      if (p_at(p, TK_KW, "internal")) {
+        set_diag(p->diag, p->file, mn->line, mn->col, "E3200", "INVALID_VISIBILITY_LOCATION",
+                 "keyword 'internal' is forbidden in group declarations");
+        p_ast_pop(p);
+        return 0;
+      }
       if (!p_eat(p, TK_ID, NULL)) {
         p_ast_pop(p);
         return 0;
@@ -2041,12 +2054,28 @@ static int parse_prototype_decl(Parser *p) {
       p_ast_pop(p);
       return 0;
     }
+    int is_internal = 0;
+    if (p_at(p, TK_KW, "internal")) {
+      p_eat(p, TK_KW, "internal");
+      is_internal = 1;
+    }
     if (p_at(p, TK_KW, "function")) {
       if (!parse_function_decl(p)) {
         p_ast_pop(p);
         return 0;
       }
+      if (is_internal && proto->child_len > 0) {
+        AstNode *last = proto->children[proto->child_len - 1];
+        if (last && strcmp(last->kind, "FunctionDecl") == 0) last->flags |= AST_FLAG_INTERNAL;
+      }
       continue;
+    }
+    if (is_internal && !p_at(p, TK_KW, "const") && !looks_like_type_start(p)) {
+      Token *t = p_t(p, 0);
+      set_diag(p->diag, p->file, t->line, t->col, "E3200", "INVALID_VISIBILITY_LOCATION",
+               "keyword 'internal' is only allowed on prototype fields or methods");
+      p_ast_pop(p);
+      return 0;
     }
     int is_const = 0;
     if (p_at(p, TK_KW, "const")) {
@@ -2085,6 +2114,7 @@ static int parse_prototype_decl(Parser *p) {
       return 0;
     }
     if (is_const) field->flags |= AST_FLAG_CONST;
+    if (is_internal) field->flags |= AST_FLAG_INTERNAL;
     char *type_txt = token_span_text(p, type_start, type_end);
     AstNode *tn = ast_new("Type", type_txt ? type_txt : "", tt->line, tt->col);
     free(type_txt);
@@ -2226,6 +2256,21 @@ static int parse_program(Parser *p) {
     if (p_at(p, TK_KW, "function")) {
       if (!parse_function_decl(p)) return 0;
       continue;
+    }
+    if (p_at(p, TK_KW, "internal")) {
+      Token *t = p_t(p, 0);
+      p_eat(p, TK_KW, "internal");
+      if (p_at(p, TK_KW, "function")) {
+        if (!parse_function_decl(p)) return 0;
+        if (p->ast_root && p->ast_root->child_len > 0) {
+          AstNode *last = p->ast_root->children[p->ast_root->child_len - 1];
+          if (last && strcmp(last->kind, "FunctionDecl") == 0) last->flags |= AST_FLAG_INTERNAL;
+        }
+        continue;
+      }
+      set_diag(p->diag, p->file, t->line, t->col, "E3200", "INVALID_VISIBILITY_LOCATION",
+               "keyword 'internal' is only allowed in prototype members");
+      return 0;
     }
     Token *t = p_t(p, 0);
     parse_unexpected(p, t, "top-level declaration (import, prototype, function)");
@@ -2490,15 +2535,20 @@ typedef struct {
   struct ProtoInfo *protos;
   GroupInfoVec groups;
   UserModule *user_modules;
+  const char *current_module_path;
+  const char *current_proto;
 } Analyzer;
 
 typedef struct ProtoField {
   char *name;
   char *type;
   int is_const;
+  int is_internal;
   AstNode *init_expr;
   int line;
   int col;
+  const char *owner_proto;
+  const char *module_path;
   struct ProtoField *next;
 } ProtoField;
 
@@ -2509,12 +2559,18 @@ typedef struct ProtoMethod {
   int param_count;
   int fixed_count;
   int variadic;
+  int is_internal;
+  int line;
+  int col;
+  const char *owner_proto;
+  const char *module_path;
   struct ProtoMethod *next;
 } ProtoMethod;
 
 typedef struct ProtoInfo {
   char *name;
   char *parent;
+  char *module_path;
   int line;
   int col;
   int builtin;
@@ -2634,6 +2690,7 @@ static void free_protos(ProtoInfo *p) {
     }
     free(p->name);
     free(p->parent);
+    free(p->module_path);
     free(p);
     p = pn;
   }
@@ -2700,24 +2757,40 @@ static GroupMemberConst *group_member_find(GroupInfo *g, const char *name) {
   return NULL;
 }
 
-static ProtoField *proto_find_field(ProtoInfo *list, const char *proto, const char *field) {
+static ProtoField *proto_find_field_ex(ProtoInfo *list, const char *proto, const char *field, ProtoInfo **owner_out) {
   for (ProtoInfo *p = proto_find(list, proto); p; p = p->parent ? proto_find(list, p->parent) : NULL) {
     for (ProtoField *f = p->fields; f; f = f->next) {
-      if (f->name && field && strcmp(f->name, field) == 0) return f;
+      if (f->name && field && strcmp(f->name, field) == 0) {
+        if (owner_out) *owner_out = p;
+        return f;
+      }
     }
     if (!p->parent) break;
   }
+  if (owner_out) *owner_out = NULL;
+  return NULL;
+}
+
+static ProtoField *proto_find_field(ProtoInfo *list, const char *proto, const char *field) {
+  return proto_find_field_ex(list, proto, field, NULL);
+}
+
+static ProtoMethod *proto_find_method_ex(ProtoInfo *list, const char *proto, const char *method, ProtoInfo **owner_out) {
+  for (ProtoInfo *p = proto_find(list, proto); p; p = p->parent ? proto_find(list, p->parent) : NULL) {
+    for (ProtoMethod *m = p->methods; m; m = m->next) {
+      if (m->name && method && strcmp(m->name, method) == 0) {
+        if (owner_out) *owner_out = p;
+        return m;
+      }
+    }
+    if (!p->parent) break;
+  }
+  if (owner_out) *owner_out = NULL;
   return NULL;
 }
 
 static ProtoMethod *proto_find_method(ProtoInfo *list, const char *proto, const char *method) {
-  for (ProtoInfo *p = proto_find(list, proto); p; p = p->parent ? proto_find(list, p->parent) : NULL) {
-    for (ProtoMethod *m = p->methods; m; m = m->next) {
-      if (m->name && method && strcmp(m->name, method) == 0) return m;
-    }
-    if (!p->parent) break;
-  }
-  return NULL;
+  return proto_find_method_ex(list, proto, method, NULL);
 }
 
 static int proto_is_subtype(ProtoInfo *list, const char *child, const char *parent) {
@@ -2728,6 +2801,28 @@ static int proto_is_subtype(ProtoInfo *list, const char *child, const char *pare
     if (strcmp(p->parent, parent) == 0) return 1;
     p = proto_find(list, p->parent);
   }
+  return 0;
+}
+
+static int can_access_internal(Analyzer *a, const char *owner_proto, const char *owner_module_path) {
+  (void)owner_module_path;
+  if (!a || !a->current_proto || !owner_proto) return 0;
+  if (strcmp(a->current_proto, owner_proto) == 0) return 1;
+  return proto_is_subtype(a->protos, a->current_proto, owner_proto);
+}
+
+static int check_visibility_or_diag(Analyzer *a, AstNode *node, const char *member_name, int is_internal, const char *owner_proto,
+                                    const char *owner_module_path) {
+  (void)owner_module_path;
+  if (!is_internal) return 1;
+  if (can_access_internal(a, owner_proto, owner_module_path)) return 1;
+  const char *caller_proto = (a && a->current_proto) ? a->current_proto : "<global>";
+  const char *owner = owner_proto ? owner_proto : "<unknown>";
+  char msg[512];
+  snprintf(msg, sizeof(msg),
+           "member '%s' is internal to prototype '%s' (access from prototype '%s')",
+           member_name ? member_name : "", owner, caller_proto);
+  set_diag(a->diag, a->file, node ? node->line : 1, node ? node->col : 1, "E3201", "VISIBILITY_VIOLATION", msg);
   return 0;
 }
 
@@ -3272,6 +3367,13 @@ static UserModule *find_user_module_by_name(UserModule *list, const char *name) 
   return NULL;
 }
 
+static UserModule *find_user_module_by_proto_node(UserModule *list, AstNode *proto_node) {
+  for (UserModule *u = list; u; u = u->next) {
+    if (u->proto_node == proto_node) return u;
+  }
+  return NULL;
+}
+
 static AstNode *find_root_prototype(AstNode *root, AstNode *imp, PsDiag *diag, const char *file) {
   AstNode *proto = NULL;
   int proto_count = 0;
@@ -3566,6 +3668,15 @@ static int collect_imports(Analyzer *a, AstNode *root) {
             free(root_dir);
             return 0;
           }
+          if ((method->flags & AST_FLAG_INTERNAL) != 0) {
+            char msg[512];
+            snprintf(msg, sizeof(msg),
+                     "member '%s' is internal to prototype '%s' (access from prototype '<global>')",
+                     name, um->proto ? um->proto : "");
+            set_diag(a->diag, a->file, it->line, it->col, "E3201", "VISIBILITY_VIOLATION", msg);
+            free(root_dir);
+            return 0;
+          }
           char *ret = proto_method_ret_type(method);
           int pc = proto_method_param_count(method) + 1;
           int variadic = 0;
@@ -3811,6 +3922,8 @@ static int collect_prototypes(Analyzer *a, AstNode *root) {
     p->name = strdup(name);
     p->line = pd->line;
     p->col = pd->col;
+    UserModule *owner_mod = find_user_module_by_proto_node(a->user_modules, pd);
+    p->module_path = strdup(owner_mod && owner_mod->path ? owner_mod->path : a->file);
     p->sealed = (pd->flags & AST_FLAG_SEALED) != 0;
     AstNode *parent = ast_child_kind(pd, "Parent");
     if (parent && parent->text) p->parent = strdup(parent->text);
@@ -3836,9 +3949,12 @@ static int collect_prototypes(Analyzer *a, AstNode *root) {
         nf->name = strdup(fname);
         nf->type = ft ? ft : strdup("unknown");
         nf->is_const = (c->flags & AST_FLAG_CONST) != 0;
+        nf->is_internal = (c->flags & AST_FLAG_INTERNAL) != 0;
         nf->init_expr = init_expr;
         nf->line = c->line;
         nf->col = c->col;
+        nf->owner_proto = p->name;
+        nf->module_path = p->module_path;
         nf->next = NULL;
         if (!p->fields) {
           p->fields = nf;
@@ -3867,6 +3983,11 @@ static int collect_prototypes(Analyzer *a, AstNode *root) {
         nm->param_count = pc;
         nm->fixed_count = 0;
         nm->variadic = 0;
+        nm->is_internal = (c->flags & AST_FLAG_INTERNAL) != 0;
+        nm->line = c->line;
+        nm->col = c->col;
+        nm->owner_proto = p->name;
+        nm->module_path = p->module_path;
         if (pc > 0) {
           nm->param_types = (char **)calloc((size_t)pc, sizeof(char *));
           if (!nm->param_types) return 0;
@@ -3925,6 +4046,12 @@ static int collect_prototypes(Analyzer *a, AstNode *root) {
       }
       for (ProtoMethod *m = p->methods; m; m = m->next) {
         ProtoMethod *pm = proto_find_method(a->protos, p->parent, m->name);
+        if (pm && !pm->is_internal && m->is_internal) {
+          char msg[320];
+          snprintf(msg, sizeof(msg), "cannot override public method '%s' with internal visibility", m->name ? m->name : "");
+          set_diag(a->diag, a->file, m->line, m->col, "E3201", "VISIBILITY_VIOLATION", msg);
+          return 0;
+        }
         if (pm && !proto_same_signature(pm, m)) {
           set_diag(a->diag, a->file, p->line, p->col, "E3001", "TYPE_MISMATCH_ASSIGNMENT", "override signature mismatch");
           return 0;
@@ -4804,7 +4931,8 @@ static char *infer_call_type(Analyzer *a, AstNode *e, Scope *scope, int *ok) {
           }
           return strdup(proto->name ? proto->name : "unknown");
         }
-        ProtoMethod *pm = proto_find_method(a->protos, proto->name, mname);
+        ProtoInfo *owner = NULL;
+        ProtoMethod *pm = proto_find_method_ex(a->protos, proto->name, mname, &owner);
         if (!pm) {
           char msg[320];
           snprintf(msg, sizeof(msg), "unknown method '%s' in prototype '%s' (expected member)", mname, proto->name ? proto->name : "");
@@ -4816,6 +4944,11 @@ static char *infer_call_type(Analyzer *a, AstNode *e, Scope *scope, int *ok) {
             diag_fill_suggestions(a->diag, mname, &cands);
             name_vec_free(&cands);
           }
+          *ok = 0;
+          return NULL;
+        }
+        if (!check_visibility_or_diag(a, callee, mname, pm->is_internal, owner ? owner->name : pm->owner_proto,
+                                      owner ? owner->module_path : pm->module_path)) {
           *ok = 0;
           return NULL;
         }
@@ -4850,7 +4983,8 @@ static char *infer_call_type(Analyzer *a, AstNode *e, Scope *scope, int *ok) {
             }
             return strdup(proto->name ? proto->name : "unknown");
           }
-          ProtoMethod *pm = proto_find_method(a->protos, proto->name, mname);
+          ProtoInfo *owner = NULL;
+          ProtoMethod *pm = proto_find_method_ex(a->protos, proto->name, mname, &owner);
           if (!pm) {
             char msg[320];
             snprintf(msg, sizeof(msg), "unknown method '%s' in prototype '%s' (expected member)", mname, proto->name ? proto->name : "");
@@ -4862,6 +4996,11 @@ static char *infer_call_type(Analyzer *a, AstNode *e, Scope *scope, int *ok) {
               diag_fill_suggestions(a->diag, mname, &cands);
               name_vec_free(&cands);
             }
+            *ok = 0;
+            return NULL;
+          }
+          if (!check_visibility_or_diag(a, callee, mname, pm->is_internal, owner ? owner->name : pm->owner_proto,
+                                        owner ? owner->module_path : pm->module_path)) {
             *ok = 0;
             return NULL;
           }
@@ -4907,7 +5046,8 @@ static char *infer_call_type(Analyzer *a, AstNode *e, Scope *scope, int *ok) {
       char *tt = infer_expr_type(a, target, scope, ok);
       if (tt) {
         if (proto_find(a->protos, tt)) {
-          ProtoMethod *pm = proto_find_method(a->protos, tt, callee->text);
+          ProtoInfo *owner = NULL;
+          ProtoMethod *pm = proto_find_method_ex(a->protos, tt, callee->text, &owner);
           if (!pm) {
             char msg[320];
             snprintf(msg, sizeof(msg), "unknown method '%s' in prototype '%s' (expected member)", callee->text, tt);
@@ -4919,6 +5059,12 @@ static char *infer_call_type(Analyzer *a, AstNode *e, Scope *scope, int *ok) {
               diag_fill_suggestions(a->diag, callee->text ? callee->text : "", &cands);
               name_vec_free(&cands);
             }
+            *ok = 0;
+            free(tt);
+            return NULL;
+          }
+          if (!check_visibility_or_diag(a, callee, callee->text ? callee->text : "", pm->is_internal,
+                                        owner ? owner->name : pm->owner_proto, owner ? owner->module_path : pm->module_path)) {
             *ok = 0;
             free(tt);
             return NULL;
@@ -5158,7 +5304,14 @@ static char *infer_expr_type(Analyzer *a, AstNode *e, Scope *scope, int *ok) {
             return NULL;
           }
           if (recv_t && proto_find(a->protos, recv_t)) {
-            ProtoField *pf = proto_find_field(a->protos, recv_t, target->text ? target->text : "");
+            ProtoInfo *owner = NULL;
+            ProtoField *pf = proto_find_field_ex(a->protos, recv_t, target->text ? target->text : "", &owner);
+            if (pf && !check_visibility_or_diag(a, target, target->text ? target->text : "", pf->is_internal,
+                                                owner ? owner->name : pf->owner_proto, owner ? owner->module_path : pf->module_path)) {
+              free(recv_t);
+              *ok = 0;
+              return NULL;
+            }
             if (pf && pf->is_const) {
               set_diag(a->diag, a->file, e->line, e->col, "E3130", "CONST_REASSIGNMENT", "cannot modify const");
               free(recv_t);
@@ -5216,8 +5369,15 @@ static char *infer_expr_type(Analyzer *a, AstNode *e, Scope *scope, int *ok) {
         return NULL;
       }
       if (tt && proto_find(a->protos, tt)) {
-        ProtoField *pf = proto_find_field(a->protos, tt, e->text ? e->text : "");
+        ProtoInfo *owner = NULL;
+        ProtoField *pf = proto_find_field_ex(a->protos, tt, e->text ? e->text : "", &owner);
         if (pf && pf->type) {
+          if (!check_visibility_or_diag(a, e, e->text ? e->text : "", pf->is_internal,
+                                        owner ? owner->name : pf->owner_proto, owner ? owner->module_path : pf->module_path)) {
+            free(tt);
+            *ok = 0;
+            return NULL;
+          }
           char *ret = strdup(pf->type);
           free(tt);
           return ret;
@@ -5387,8 +5547,15 @@ static char *infer_assignable_type(Analyzer *a, AstNode *lhs, Scope *scope, int 
       return NULL;
     }
     if (tt && proto_find(a->protos, tt)) {
-      ProtoField *pf = proto_find_field(a->protos, tt, lhs->text ? lhs->text : "");
+      ProtoInfo *owner = NULL;
+      ProtoField *pf = proto_find_field_ex(a->protos, tt, lhs->text ? lhs->text : "", &owner);
       if (pf && pf->type) {
+        if (!check_visibility_or_diag(a, lhs, lhs->text ? lhs->text : "", pf->is_internal,
+                                      owner ? owner->name : pf->owner_proto, owner ? owner->module_path : pf->module_path)) {
+          free(tt);
+          *ok = 0;
+          return NULL;
+        }
         char *ret = strdup(pf->type);
         free(tt);
         return ret;
@@ -5419,6 +5586,10 @@ static int expr_contains_self_ref(AstNode *e) {
 static int analyze_prototype_field_initializers(Analyzer *a) {
   if (!a) return 1;
   for (ProtoInfo *p = a->protos; p; p = p->next) {
+    const char *prev_module = a->current_module_path;
+    const char *prev_proto = a->current_proto;
+    a->current_module_path = p->module_path ? p->module_path : a->file;
+    a->current_proto = p->name;
     for (ProtoField *f = p->fields; f; f = f->next) {
       if (f->is_const && !is_scalar_type_name(f->type)) {
         set_diag(a->diag, a->file, f->line, f->col, "E3001", "TYPE_MISMATCH_ASSIGNMENT", "const requires a scalar fundamental type");
@@ -5465,6 +5636,8 @@ static int analyze_prototype_field_initializers(Analyzer *a) {
       free(rhs);
       free_syms(s.syms);
     }
+    a->current_module_path = prev_module;
+    a->current_proto = prev_proto;
   }
   return 1;
 }
@@ -5940,6 +6113,10 @@ static int analyze_stmt(Analyzer *a, AstNode *st, Scope *scope) {
 }
 
 static int analyze_function(Analyzer *a, AstNode *fn) {
+  const char *prev_module = a->current_module_path;
+  const char *prev_proto = a->current_proto;
+  a->current_module_path = a->file;
+  a->current_proto = NULL;
   Scope root;
   memset(&root, 0, sizeof(root));
   root.parent = NULL;
@@ -5959,10 +6136,17 @@ static int analyze_function(Analyzer *a, AstNode *fn) {
   AstNode *blk = ast_child_kind(fn, "Block");
   int ok = blk ? analyze_block(a, blk, &root) : 1;
   free_syms(root.syms);
+  a->current_module_path = prev_module;
+  a->current_proto = prev_proto;
   return ok;
 }
 
 static int analyze_method(Analyzer *a, AstNode *fn, const char *self_type) {
+  const char *prev_module = a->current_module_path;
+  const char *prev_proto = a->current_proto;
+  ProtoInfo *p = proto_find(a->protos, self_type ? self_type : "");
+  a->current_module_path = (p && p->module_path) ? p->module_path : a->file;
+  a->current_proto = self_type;
   Scope root;
   memset(&root, 0, sizeof(root));
   root.parent = NULL;
@@ -5991,6 +6175,8 @@ static int analyze_method(Analyzer *a, AstNode *fn, const char *self_type) {
   AstNode *blk = ast_child_kind(fn, "Block");
   int ok = blk ? analyze_block(a, blk, &root) : 1;
   free_syms(root.syms);
+  a->current_module_path = prev_module;
+  a->current_proto = prev_proto;
   return ok;
 }
 
@@ -10270,6 +10456,20 @@ int ps_check_file_static(const char *file, PsDiag *out_diag) {
   for (size_t i = 0; i < root->child_len; i++) {
     AstNode *fn = root->children[i];
     if (strcmp(fn->kind, "FunctionDecl") == 0) {
+      if ((fn->flags & AST_FLAG_INTERNAL) != 0) {
+        set_diag(out_diag, file, fn->line, fn->col, "E3200", "INVALID_VISIBILITY_LOCATION",
+                 "keyword 'internal' is only allowed in prototype members");
+        ast_free(root);
+        free_fns(a.fns);
+        free_imports(a.imports);
+        free_namespaces(a.namespaces);
+        free_user_modules(a.user_modules);
+        free_registry(a.registry);
+        free_protos(a.protos);
+        free_groups(&a.groups);
+        free_groups(&a.groups);
+        return 1;
+      }
       if (!add_fn(&a, fn)) {
         ast_free(root);
         free_fns(a.fns);

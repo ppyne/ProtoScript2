@@ -1,0 +1,8 @@
+prototype Core {
+    internal int state = 0;
+}
+
+function main() : void {
+    Core c = Core.clone();
+    c.state = 1;
+}

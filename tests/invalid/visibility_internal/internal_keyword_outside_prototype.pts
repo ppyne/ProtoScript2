@@ -1,0 +1,4 @@
+internal function helper() : void {
+}
+
+function main() : void {}

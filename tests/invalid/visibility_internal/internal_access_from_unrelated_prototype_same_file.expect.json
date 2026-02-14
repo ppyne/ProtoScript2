@@ -1,0 +1,11 @@
+{
+  "status": "reject-static",
+  "error_family": "E3xxx",
+  "error_code": "E3201",
+  "category": "VISIBILITY_VIOLATION",
+  "position": {
+    "file": "invalid/visibility_internal/internal_access_from_unrelated_prototype_same_file.pts",
+    "line": 7,
+    "column": 10
+  }
+}

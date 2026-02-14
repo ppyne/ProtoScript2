@@ -11,6 +11,7 @@ const KEYWORDS = new Set([
   "function",
   "var",
   "const",
+  "internal",
   "group",
   "int",
   "float",
@@ -518,6 +519,18 @@ class Parser {
       else if (this.at("kw", "sealed") || this.at("kw", "prototype")) decls.push(this.parsePrototypeDecl());
       else if (this.looksLikeGroupDecl()) decls.push(this.parseGroupDecl());
       else if (this.at("kw", "function")) decls.push(this.parseFunctionDecl());
+      else if (this.at("kw", "internal")) {
+        const tok = this.eat("kw", "internal");
+        if (this.at("kw", "function")) {
+          const fn = this.parseFunctionDecl();
+          fn.visibility = "internal";
+          decls.push(fn);
+          continue;
+        }
+        throw new FrontendError(
+          diag(this.file, tok.line, tok.col, "E3200", "INVALID_VISIBILITY_LOCATION", "keyword 'internal' is only allowed in prototype members")
+        );
+      }
       else {
         const tok = this.t();
         throw new FrontendError(
@@ -550,8 +563,27 @@ class Parser {
     const fields = [];
     const methods = [];
     while (!this.at("sym", "}")) {
+      let visibility = "public";
+      if (this.at("kw", "internal")) {
+        this.eat("kw", "internal");
+        visibility = "internal";
+      }
+      if (
+        visibility === "internal" &&
+        !this.at("kw", "function") &&
+        !this.at("kw", "const") &&
+        !this.at("id") &&
+        !(this.at("kw") && ["int", "float", "bool", "byte", "glyph", "string", "list", "map", "slice", "view"].includes(this.t().value))
+      ) {
+        const tok = this.t();
+        throw new FrontendError(
+          diag(this.file, tok.line, tok.col, "E3200", "INVALID_VISIBILITY_LOCATION", "keyword 'internal' is only allowed on prototype fields or methods")
+        );
+      }
       if (this.at("kw", "function")) {
-        methods.push(this.parseFunctionDecl());
+        const m = this.parseFunctionDecl();
+        m.visibility = visibility;
+        methods.push(m);
         continue;
       }
       let isConst = false;
@@ -567,10 +599,10 @@ class Parser {
         init = this.parseExpr();
       }
       this.eat("sym", ";");
-      fields.push({ kind: "FieldDecl", type: t, name: n.value, init, isConst, line: n.line, col: n.col });
+      fields.push({ kind: "FieldDecl", type: t, name: n.value, init, isConst, visibility, line: n.line, col: n.col });
     }
     this.eat("sym", "}");
-    return { kind: "PrototypeDecl", name, parent, fields, methods, sealed, line: start.line, col: start.col };
+    return { kind: "PrototypeDecl", name, parent, fields, methods, sealed, moduleFile: this.file, line: start.line, col: start.col };
   }
 
   parseModulePath() {
@@ -729,6 +761,12 @@ class Parser {
     if (this.at("kw", "break")) return this.parseSimpleStmt("BreakStmt", "break");
     if (this.at("kw", "continue")) return this.parseSimpleStmt("ContinueStmt", "continue");
     if (this.at("kw", "throw")) return this.parseThrowStmt();
+    if (this.at("kw", "internal")) {
+      const tok = this.t();
+      throw new FrontendError(
+        diag(this.file, tok.line, tok.col, "E3200", "INVALID_VISIBILITY_LOCATION", "keyword 'internal' is only allowed in prototype members")
+      );
+    }
     if (this.looksLikeAssignStmt()) return this.parseAssignStmt(true);
     return this.parseExprStmt();
   }
@@ -876,6 +914,12 @@ class Parser {
   }
 
   parseGroupMember() {
+    if (this.at("kw", "internal")) {
+      const tok = this.t();
+      throw new FrontendError(
+        diag(this.file, tok.line, tok.col, "E3200", "INVALID_VISIBILITY_LOCATION", "keyword 'internal' is forbidden in group declarations")
+      );
+    }
     const name = this.eat("id");
     this.eat("sym", "=");
     const expr = this.parseExpr();
@@ -1530,6 +1574,45 @@ class Analyzer {
     this.namespaces = new Map(); // alias -> { kind: "native"|"proto", name }
     this.moduleConsts = new Map(); // alias -> Map(name -> { type, value })
     this.diags = [];
+    this.currentModuleFile = file;
+    this.currentProto = null;
+  }
+
+  withContext(moduleFile, protoName, fn) {
+    const prevModule = this.currentModuleFile;
+    const prevProto = this.currentProto;
+    this.currentModuleFile = moduleFile || this.file;
+    this.currentProto = protoName || null;
+    try {
+      return fn();
+    } finally {
+      this.currentModuleFile = prevModule;
+      this.currentProto = prevProto;
+    }
+  }
+
+  canAccessInternal(ownerProto) {
+    if (!this.currentProto || !ownerProto) return false;
+    if (this.currentProto === ownerProto) return true;
+    return this.isSubtype({ kind: "NamedType", name: this.currentProto }, { kind: "NamedType", name: ownerProto });
+  }
+
+  reportVisibilityViolation(node, memberName, ownerProto) {
+    const owner = ownerProto || "<unknown>";
+    const caller = this.currentProto || "<global>";
+    this.addDiag(
+      node,
+      "E3201",
+      "VISIBILITY_VIOLATION",
+      `member '${memberName}' is internal to prototype '${owner}' (access from prototype '${caller}')`
+    );
+  }
+
+  checkMemberVisibility(node, memberInfo, memberName) {
+    if (!memberInfo || memberInfo.visibility !== "internal") return true;
+    if (this.canAccessInternal(memberInfo.ownerProto)) return true;
+    this.reportVisibilityViolation(node, memberName, memberInfo.ownerProto);
+    return false;
   }
 
   addDiag(node, code, category, message) {
@@ -1653,6 +1736,9 @@ class Analyzer {
     this.loadImports();
     this.collectPrototypes();
     for (const d of this.ast.decls) {
+      if (d.kind === "FunctionDecl" && d.visibility === "internal") {
+        this.addDiag(d, "E3200", "INVALID_VISIBILITY_LOCATION", "keyword 'internal' is only allowed in prototype members");
+      }
       if (d.kind === "FunctionDecl") this.functions.set(d.name, d);
     }
     for (const [name, p] of this.prototypes.entries()) {
@@ -1678,14 +1764,14 @@ class Analyzer {
       fields.set("column", { kind: "PrimitiveType", name: "int" });
       fields.set("message", { kind: "PrimitiveType", name: "string" });
       fields.set("cause", { kind: "NamedType", name: "Exception" });
-      this.prototypes.set("Exception", { decl, parent: null, fields, methods: new Map() });
+      this.prototypes.set("Exception", { decl, parent: null, fields, methods: new Map(), moduleFile: null });
     }
     if (!this.prototypes.has("RuntimeException")) {
       const decl = { line: 1, col: 1 };
       const fields = new Map();
       fields.set("code", { kind: "PrimitiveType", name: "string" });
       fields.set("category", { kind: "PrimitiveType", name: "string" });
-      this.prototypes.set("RuntimeException", { decl, parent: "Exception", fields, methods: new Map() });
+      this.prototypes.set("RuntimeException", { decl, parent: "Exception", fields, methods: new Map(), moduleFile: null });
     }
     if (!this.prototypes.has("CivilDateTime")) {
       const decl = { line: 1, col: 1 };
@@ -1697,7 +1783,7 @@ class Analyzer {
       fields.set("minute", { kind: "PrimitiveType", name: "int" });
       fields.set("second", { kind: "PrimitiveType", name: "int" });
       fields.set("millisecond", { kind: "PrimitiveType", name: "int" });
-      this.prototypes.set("CivilDateTime", { decl, parent: null, fields, methods: new Map() });
+      this.prototypes.set("CivilDateTime", { decl, parent: null, fields, methods: new Map(), moduleFile: null });
     }
     if (!this.prototypes.has("PathInfo")) {
       const decl = { line: 1, col: 1 };
@@ -1706,7 +1792,7 @@ class Analyzer {
       fields.set("basename", { kind: "PrimitiveType", name: "string" });
       fields.set("filename", { kind: "PrimitiveType", name: "string" });
       fields.set("extension", { kind: "PrimitiveType", name: "string" });
-      this.prototypes.set("PathInfo", { decl, parent: null, fields, methods: new Map() });
+      this.prototypes.set("PathInfo", { decl, parent: null, fields, methods: new Map(), moduleFile: null });
     }
     if (!this.prototypes.has("PathEntry")) {
       const decl = { line: 1, col: 1 };
@@ -1717,21 +1803,21 @@ class Analyzer {
       fields.set("isDir", { kind: "PrimitiveType", name: "bool" });
       fields.set("isFile", { kind: "PrimitiveType", name: "bool" });
       fields.set("isSymlink", { kind: "PrimitiveType", name: "bool" });
-      this.prototypes.set("PathEntry", { decl, parent: null, fields, methods: new Map() });
+      this.prototypes.set("PathEntry", { decl, parent: null, fields, methods: new Map(), moduleFile: null });
     }
     if (!this.prototypes.has("ProcessEvent")) {
       const decl = { line: 1, col: 1 };
       const fields = new Map();
       fields.set("stream", { kind: "PrimitiveType", name: "int" });
       fields.set("data", { kind: "GenericType", name: "list", args: [{ kind: "PrimitiveType", name: "byte" }] });
-      this.prototypes.set("ProcessEvent", { decl, parent: null, fields, methods: new Map() });
+      this.prototypes.set("ProcessEvent", { decl, parent: null, fields, methods: new Map(), moduleFile: null });
     }
     if (!this.prototypes.has("ProcessResult")) {
       const decl = { line: 1, col: 1 };
       const fields = new Map();
       fields.set("exitCode", { kind: "PrimitiveType", name: "int" });
       fields.set("events", { kind: "GenericType", name: "list", args: [{ kind: "NamedType", name: "ProcessEvent" }] });
-      this.prototypes.set("ProcessResult", { decl, parent: null, fields, methods: new Map() });
+      this.prototypes.set("ProcessResult", { decl, parent: null, fields, methods: new Map(), moduleFile: null });
     }
     const timeExceptions = [
       "DSTAmbiguousTimeException",
@@ -1769,19 +1855,19 @@ class Analyzer {
     for (const name of timeExceptions) {
       if (!this.prototypes.has(name)) {
         const decl = { line: 1, col: 1 };
-        this.prototypes.set(name, { decl, parent: "Exception", fields: new Map(), methods: new Map() });
+        this.prototypes.set(name, { decl, parent: "Exception", fields: new Map(), methods: new Map(), moduleFile: null });
       }
     }
     for (const name of ioExceptions) {
       if (!this.prototypes.has(name)) {
         const decl = { line: 1, col: 1 };
-        this.prototypes.set(name, { decl, parent: "RuntimeException", fields: new Map(), methods: new Map() });
+        this.prototypes.set(name, { decl, parent: "RuntimeException", fields: new Map(), methods: new Map(), moduleFile: null });
       }
     }
     for (const name of fsExceptions) {
       if (!this.prototypes.has(name)) {
         const decl = { line: 1, col: 1 };
-        this.prototypes.set(name, { decl, parent: "RuntimeException", fields: new Map(), methods: new Map() });
+        this.prototypes.set(name, { decl, parent: "RuntimeException", fields: new Map(), methods: new Map(), moduleFile: null });
       }
     }
     for (const d of this.ast.decls) {
@@ -1811,7 +1897,15 @@ class Analyzer {
           this.addDiag(f, "E2001", "UNRESOLVED_NAME", `duplicate field '${f.name}' in prototype '${d.name}'`);
           continue;
         }
-        fields.set(f.name, { type: f.type, isConst: !!f.isConst, init: f.init || null, decl: f });
+        fields.set(f.name, {
+          type: f.type,
+          isConst: !!f.isConst,
+          init: f.init || null,
+          visibility: f.visibility || "public",
+          ownerProto: d.name,
+          moduleFile: d.moduleFile || this.file,
+          decl: f,
+        });
       }
       const methods = new Map();
       for (const m of d.methods || []) {
@@ -1819,9 +1913,19 @@ class Analyzer {
           this.addDiag(m, "E2001", "UNRESOLVED_NAME", `duplicate method '${m.name}' in prototype '${d.name}'`);
           continue;
         }
+        m.visibility = m.visibility || "public";
+        m._ownerProto = d.name;
+        m._moduleFile = d.moduleFile || this.file;
         methods.set(m.name, m);
       }
-      this.prototypes.set(d.name, { decl: d, parent: d.parent || null, fields, methods, sealed: !!d.sealed });
+      this.prototypes.set(d.name, {
+        decl: d,
+        parent: d.parent || null,
+        fields,
+        methods,
+        sealed: !!d.sealed,
+        moduleFile: d.moduleFile || this.file,
+      });
     }
     for (const [name, p] of this.prototypes.entries()) {
       if (p.parent && !this.prototypes.has(p.parent)) {
@@ -1845,6 +1949,9 @@ class Analyzer {
         for (const [mname, m] of p.methods.entries()) {
           const pm = this.resolvePrototypeMethod(p.parent, mname);
           if (!pm) continue;
+          if ((pm.visibility || "public") === "public" && (m.visibility || "public") === "internal") {
+            this.addDiag(m, "E3201", "VISIBILITY_VIOLATION", `cannot override public method '${mname}' with internal visibility`);
+          }
           if (!this.sameSignature(pm, m)) {
             this.addDiag(m, "E3001", "TYPE_MISMATCH_ASSIGNMENT", `override signature mismatch for '${mname}'`);
           }
@@ -1938,7 +2045,7 @@ class Analyzer {
           this.addDiag(f.init, "E3150", "INVALID_FIELD_INITIALIZER", "field initializer cannot reference 'self'");
           continue;
         }
-        const initType = this.typeOfExpr(f.init, new Scope(null));
+        const initType = this.withContext(d.moduleFile || this.file, d.name, () => this.typeOfExpr(f.init, new Scope(null)));
         const targetTypeName = typeToString(f.type);
         const allowByteLiteral = targetTypeName === "byte" && isByteLiteralExpr(f.init);
         const allowByteList = targetTypeName === "list<byte>" && f.init.kind === "ListLiteral" && isByteListLiteral(f.init);
@@ -1965,7 +2072,7 @@ class Analyzer {
       if (p.fields.has(fieldName)) {
         const raw = p.fields.get(fieldName);
         if (raw && raw.type) return raw;
-        return { type: raw, isConst: false, init: null, decl: null };
+        return { type: raw, isConst: false, init: null, visibility: "public", ownerProto: protoName, moduleFile: null, decl: null };
       }
       if (!p.parent) break;
       p = this.prototypes.get(p.parent);
@@ -2140,6 +2247,7 @@ class Analyzer {
       }
       const methods = new Map();
       for (const m of protoDecl.methods || []) methods.set(m.name, m);
+      protoDecl.moduleFile = absPath;
       const entry = { protoName: protoDecl.name, protoDecl, methods, ast, added: false };
       loadedByPath.set(absPath, entry);
       for (const subImp of ast.imports || []) resolveImport(subImp, absPath);
@@ -2171,6 +2279,10 @@ class Analyzer {
           this.unresolvedMember(it, it.name, "symbol", `module '${entry.protoName}'`, "member", [...entry.methods.keys(), "clone"]);
           continue;
         }
+        if ((m.visibility || "public") === "internal") {
+          this.reportVisibilityViolation(it, it.name, m._ownerProto || entry.protoName);
+          continue;
+        }
         const selfParam = { kind: "Param", type: { kind: "NamedType", name: entry.protoName }, name: "self", variadic: false };
         const params = [selfParam, ...m.params.map((p) => ({ ...p }))];
         const fn = {
@@ -2180,6 +2292,7 @@ class Analyzer {
           retType: m.retType,
           body: { kind: "Block", stmts: [] },
         };
+        fn._moduleFile = this.file;
         this.imported.set(local, { module: entry.protoName, name: it.name, sig: fn, kind: "proto" });
         this.functions.set(local, fn);
       }
@@ -2261,11 +2374,15 @@ class Analyzer {
   }
 
   analyzeFunction(fn) {
-    const scope = new Scope(null);
-    for (const p of fn.params) {
-      scope.define(p.name, canonicalVariadicParamType(p), true);
-    }
-    this.analyzeBlock(fn.body, scope, fn);
+    const moduleFile = fn._moduleFile || this.file;
+    const ownerProto = fn._ownerProto || null;
+    this.withContext(moduleFile, ownerProto, () => {
+      const scope = new Scope(null);
+      for (const p of fn.params) {
+        scope.define(p.name, canonicalVariadicParamType(p), true);
+      }
+      this.analyzeBlock(fn.body, scope, fn);
+    });
   }
 
   analyzePrototype(protoDecl) {
@@ -2276,7 +2393,7 @@ class Analyzer {
       const scope = new Scope(null);
       scope.define("self", { kind: "NamedType", name: protoName }, true, null, true);
       for (const p of m.params) scope.define(p.name, canonicalVariadicParamType(p), true);
-      this.analyzeBlock(m.body, scope, m);
+      this.withContext(entry.moduleFile || this.file, protoName, () => this.analyzeBlock(m.body, scope, m));
     }
   }
 
@@ -2548,12 +2665,13 @@ class Analyzer {
     if (expr.kind === "MemberExpr") {
       const targetType = this.typeOfExpr(expr.target, scope);
       if (targetType && targetType.kind === "NamedType" && this.prototypes.has(targetType.name)) {
-        const ft = this.resolvePrototypeField(targetType.name, expr.name);
-        if (!ft) {
+        const fi = this.resolvePrototypeFieldInfo(targetType.name, expr.name);
+        if (!fi) {
           this.unresolvedMember(expr, expr.name, "field", `prototype '${targetType.name}'`, "member", this.collectPrototypeMemberNames(targetType.name));
           return null;
         }
-        return ft;
+        if (!this.checkMemberVisibility(expr, fi, expr.name)) return null;
+        return fi.type;
       }
     }
     if (expr.kind === "IndexExpr") {
@@ -2612,6 +2730,7 @@ class Analyzer {
             const targetType = this.typeOfExpr(expr.expr.target, scope);
             if (targetType && targetType.kind === "NamedType" && this.prototypes.has(targetType.name)) {
               const fi = this.resolvePrototypeFieldInfo(targetType.name, expr.expr.name);
+              if (fi && !this.checkMemberVisibility(expr, fi, expr.expr.name)) return t;
               if (fi && fi.isConst) this.addDiag(expr, "E3130", "CONST_REASSIGNMENT", "cannot modify const");
             }
           }
@@ -2693,12 +2812,13 @@ class Analyzer {
         {
           const targetType = this.typeOfExpr(expr.target, scope);
           if (targetType && targetType.kind === "NamedType" && this.prototypes.has(targetType.name)) {
-            const ft = this.resolvePrototypeField(targetType.name, expr.name);
-            if (!ft) {
+            const fi = this.resolvePrototypeFieldInfo(targetType.name, expr.name);
+            if (!fi) {
               this.unresolvedMember(expr, expr.name, "field", `prototype '${targetType.name}'`, "member", this.collectPrototypeMemberNames(targetType.name));
               return null;
             }
-            return ft;
+            if (!this.checkMemberVisibility(expr, fi, expr.name)) return null;
+            return fi.type;
           }
         }
         return null;
@@ -2714,6 +2834,7 @@ class Analyzer {
             const targetType = this.typeOfExpr(expr.expr.target, scope);
             if (targetType && targetType.kind === "NamedType" && this.prototypes.has(targetType.name)) {
               const fi = this.resolvePrototypeFieldInfo(targetType.name, expr.expr.name);
+              if (fi && !this.checkMemberVisibility(expr, fi, expr.expr.name)) return this.typeOfExpr(expr.expr, scope);
               if (fi && fi.isConst) this.addDiag(expr, "E3130", "CONST_REASSIGNMENT", "cannot modify const");
             }
           }
@@ -2881,6 +3002,13 @@ class Analyzer {
           this.unresolvedMember(member, member.name, "method", `prototype '${protoName}'`, "member", this.collectPrototypeMemberNames(protoName));
           return null;
         }
+        if (!this.checkMemberVisibility(member, {
+          visibility: pm.visibility || "public",
+          ownerProto: pm._ownerProto || protoName,
+          moduleFile: pm._moduleFile || (this.prototypes.get(protoName)?.moduleFile || null),
+        }, member.name)) {
+          return null;
+        }
         this.checkPrototypeMethodArity(expr, member.name, pm.params, true);
         expr._protoStatic = protoName;
         return pm.retType;
@@ -2900,6 +3028,13 @@ class Analyzer {
             const pm = this.resolvePrototypeMethod(protoName, member.name);
             if (!pm) {
               this.unresolvedMember(member, member.name, "method", `prototype '${protoName}'`, "member", this.collectPrototypeMemberNames(protoName));
+              return null;
+            }
+            if (!this.checkMemberVisibility(member, {
+              visibility: pm.visibility || "public",
+              ownerProto: pm._ownerProto || protoName,
+              moduleFile: pm._moduleFile || (this.prototypes.get(protoName)?.moduleFile || null),
+            }, member.name)) {
               return null;
             }
             this.checkPrototypeMethodArity(expr, member.name, pm.params, true);
@@ -2939,6 +3074,13 @@ class Analyzer {
         const pm = this.resolvePrototypeMethod(targetType.name, member.name);
         if (!pm) {
           this.unresolvedMember(member, member.name, "method", `prototype '${targetType.name}'`, "member", this.collectPrototypeMemberNames(targetType.name));
+          return null;
+        }
+        if (!this.checkMemberVisibility(member, {
+          visibility: pm.visibility || "public",
+          ownerProto: pm._ownerProto || targetType.name,
+          moduleFile: pm._moduleFile || (this.prototypes.get(targetType.name)?.moduleFile || null),
+        }, member.name)) {
           return null;
         }
         this.checkPrototypeMethodArity(expr, member.name, pm.params, false);

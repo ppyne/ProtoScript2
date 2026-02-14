@@ -1200,6 +1200,52 @@ prototype Child : Base {} // Erreur : E3140 SEALED_INHERITANCE
 
 ---
 
+### 10.3.2 Visibilite des membres (`public` / `internal`)
+
+ProtoScript V2 expose deux niveaux uniquement :
+
+- `public` par défaut (n'est pas un token autorisé)
+- `internal`
+
+`internal` est autorisé uniquement sur les membres de prototype (champs et méthodes).
+
+Regles :
+
+- accès autorisé uniquement depuis une méthode du prototype propriétaire
+- accès autorisé uniquement depuis une méthode d'un prototype enfant
+- accès interdit hors de cette frontière (`E3201 VISIBILITY_VIOLATION`)
+- `internal` est interdit hors membres de prototype (`E3200 INVALID_VISIBILITY_LOCATION`)
+
+Exemple valide :
+
+```c
+prototype Core {
+    internal int state;
+    internal function bump() : void {
+        self.state = self.state + 1;
+    }
+
+    function publicBump() : void {
+        self.bump();
+    }
+}
+
+prototype Child : Core {
+    function use() : void {
+        self.state = self.state + 1; // autorisé (enfant)
+    }
+}
+
+function main() : void {
+    Core c = Core.clone();
+    c.publicBump();           // autorisé (appel public)
+    // c.state = 1;           // interdit
+    // Io.printLine(c.state); // interdit
+}
+```
+
+---
+
 ### 10.4 Override de méthodes
 
 Une méthode peut être redéfinie dans un prototype enfant **à condition de conserver une signature strictement compatible**.

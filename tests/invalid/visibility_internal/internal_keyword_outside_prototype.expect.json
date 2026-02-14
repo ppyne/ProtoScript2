@@ -1,0 +1,11 @@
+{
+  "status": "reject-static",
+  "error_family": "E3xxx",
+  "error_code": "E3200",
+  "category": "INVALID_VISIBILITY_LOCATION",
+  "position": {
+    "file": "invalid/visibility_internal/internal_keyword_outside_prototype.pts",
+    "line": 1,
+    "column": 10
+  }
+}
