@@ -1,0 +1,13 @@
+// Test goal: validate split progression when separator can match empty.
+// Importance: ensures deterministic non-looping split behavior.
+import RegExp;
+import Io;
+
+function main() : void {
+    RegExp r = RegExp.compile("^", "m");
+    list<string> parts = r.split("a\nb\nc", 0, 10);
+    Io.printLine(parts.length());
+    for (int i = 0; i < parts.length(); i++) {
+        Io.printLine("[".concat(parts[i]).concat("]"));
+    }
+}

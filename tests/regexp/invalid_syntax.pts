@@ -1,0 +1,13 @@
+// Test goal: verify invalid range syntax is rejected at runtime compile.
+// Importance: enforces deterministic RegExpSyntax error handling.
+import RegExp;
+import Io;
+
+function main() : void {
+    try {
+        RegExp.compile("[z-a]", "");
+        Io.printLine("no_error");
+    } catch (RuntimeException e) {
+        Io.printLine("RegExpSyntax");
+    }
+}

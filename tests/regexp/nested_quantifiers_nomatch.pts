@@ -1,0 +1,13 @@
+// Test goal: reject non-matching nested quantifier case without hanging.
+// Importance: catches catastrophic backtracking regressions on valid patterns.
+import RegExp;
+import Io;
+
+function main() : void {
+    RegExp r = RegExp.compile("(a+)+b", "");
+    string s = "";
+    for (int i = 0; i < 20; i++) {
+        s = s.concat("a");
+    }
+    Io.printLine(r.test(s, 0));
+}

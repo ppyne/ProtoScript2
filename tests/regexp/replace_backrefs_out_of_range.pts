@@ -1,0 +1,9 @@
+// Test goal: verify out-of-range replacement backreference behavior.
+// Importance: prevents crashes and enforces deterministic replacement output.
+import RegExp;
+import Io;
+
+function main() : void {
+    RegExp r = RegExp.compile("(a)", "");
+    Io.printLine(r.replaceAll("a", "$9", 0, -1));
+}

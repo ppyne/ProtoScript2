@@ -1,0 +1,13 @@
+// Test goal: verify i/m/s flag effects on matching behavior.
+// Importance: ensures runtime honors flag contract consistently.
+import RegExp;
+import Io;
+
+function main() : void {
+    RegExp r1 = RegExp.compile("a", "i");
+    RegExp r2 = RegExp.compile("^b", "m");
+    RegExp r3 = RegExp.compile(".", "s");
+    Io.printLine(r1.test("A", 0));
+    Io.printLine(r2.test("x\nb", 2));
+    Io.printLine(r3.test("\n", 0));
+}

@@ -1,0 +1,10 @@
+// Test goal: validate UTF-8 matching and glyph index boundaries.
+// Importance: catches byte-vs-glyph indexing regressions in match spans.
+import RegExp;
+import Io;
+
+function main() : void {
+    RegExp r = RegExp.compile("é", "");
+    RegExpMatch m = r.find("xéy", 0);
+    Io.printLine(m.start.toString().concat("|").concat(m.end.toString()).concat("|").concat(m.groups[0]));
+}

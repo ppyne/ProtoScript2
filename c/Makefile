@@ -28,6 +28,7 @@ SRC_PS = cli/ps.c frontend.c preprocess.c $(SRC_RUNTIME)
 MODULE_OBJS = \
   modules/time.o \
   modules/time_civil.o \
+  modules_regexp.o \
   modules_debug.o \
   modules_io.o \
   modules_json.o \
@@ -69,3 +70,6 @@ modules_json.o: ../tests/modules_src/json.c
 
 modules_math.o: ../tests/modules_src/math.c
 	$(CC) $(CFLAGS) $(MCPP_INC) -Dps_module_init=ps_module_init_Math -c $< -o $@
+
+modules_regexp.o: modules/regexp.c
+	$(CC) $(CFLAGS) $(MCPP_INC) -Dps_module_init=ps_module_init_RegExp -c $< -o $@

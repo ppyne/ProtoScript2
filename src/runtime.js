@@ -107,6 +107,35 @@ function buildPrototypeEnv(ast) {
     ],
     methods: new Map(),
   });
+  protos.set("RegExpMatch", {
+    name: "RegExpMatch",
+    parent: null,
+    sealed: false,
+    fields: [
+      { name: "ok", type: { kind: "PrimitiveType", name: "bool" } },
+      { name: "start", type: { kind: "PrimitiveType", name: "int" } },
+      { name: "end", type: { kind: "PrimitiveType", name: "int" } },
+      { name: "groups", type: { kind: "GenericType", name: "list", args: [{ kind: "PrimitiveType", name: "string" }] } },
+    ],
+    methods: new Map(),
+  });
+  protos.set("RegExp", {
+    name: "RegExp",
+    parent: null,
+    sealed: false,
+    fields: [],
+    methods: new Map([
+      ["compile", { name: "compile", params: [{ type: { kind: "PrimitiveType", name: "string" } }, { type: { kind: "PrimitiveType", name: "string" } }], retType: { kind: "NamedType", name: "RegExp" } }],
+      ["test", { name: "test", params: [{ type: { kind: "PrimitiveType", name: "string" } }, { type: { kind: "PrimitiveType", name: "int" } }], retType: { kind: "PrimitiveType", name: "bool" } }],
+      ["find", { name: "find", params: [{ type: { kind: "PrimitiveType", name: "string" } }, { type: { kind: "PrimitiveType", name: "int" } }], retType: { kind: "NamedType", name: "RegExpMatch" } }],
+      ["findAll", { name: "findAll", params: [{ type: { kind: "PrimitiveType", name: "string" } }, { type: { kind: "PrimitiveType", name: "int" } }, { type: { kind: "PrimitiveType", name: "int" } }], retType: { kind: "GenericType", name: "list", args: [{ kind: "NamedType", name: "RegExpMatch" }] } }],
+      ["replaceFirst", { name: "replaceFirst", params: [{ type: { kind: "PrimitiveType", name: "string" } }, { type: { kind: "PrimitiveType", name: "string" } }, { type: { kind: "PrimitiveType", name: "int" } }], retType: { kind: "PrimitiveType", name: "string" } }],
+      ["replaceAll", { name: "replaceAll", params: [{ type: { kind: "PrimitiveType", name: "string" } }, { type: { kind: "PrimitiveType", name: "string" } }, { type: { kind: "PrimitiveType", name: "int" } }, { type: { kind: "PrimitiveType", name: "int" } }], retType: { kind: "PrimitiveType", name: "string" } }],
+      ["split", { name: "split", params: [{ type: { kind: "PrimitiveType", name: "string" } }, { type: { kind: "PrimitiveType", name: "int" } }, { type: { kind: "PrimitiveType", name: "int" } }], retType: { kind: "GenericType", name: "list", args: [{ kind: "PrimitiveType", name: "string" }] } }],
+      ["pattern", { name: "pattern", params: [], retType: { kind: "PrimitiveType", name: "string" } }],
+      ["flags", { name: "flags", params: [], retType: { kind: "PrimitiveType", name: "string" } }],
+    ]),
+  });
   protos.set("JSONValue", {
     name: "JSONValue",
     parent: null,
@@ -2370,6 +2399,229 @@ function buildModuleEnv(ast, file, hooks = null) {
     delete process.env[name];
     return null;
   });
+
+  const rxMod = makeModule("RegExp");
+  const rxThrow = (kind, node, msg) => {
+    throw new RuntimeError(rdiag(file, node, "R1010", "RUNTIME_MODULE_ERROR", `${kind}: ${msg}`));
+  };
+  const rxProtoEnv = () => (hooks && hooks.protoEnv ? hooks.protoEnv : buildPrototypeEnv({ decls: [] }));
+  const rxMake = (pattern, flags, re) => {
+    const obj = clonePrototype(rxProtoEnv(), "RegExp");
+    obj.__fields._pattern = pattern;
+    obj.__fields._flags = flags;
+    obj.__fields._re = re;
+    return obj;
+  };
+  const rxMatch = (ok, start, end, groups) => {
+    const obj = clonePrototype(rxProtoEnv(), "RegExpMatch");
+    obj.__fields.ok = !!ok;
+    obj.__fields.start = BigInt(start);
+    obj.__fields.end = BigInt(end);
+    obj.__fields.groups = makeList(groups || []);
+    return obj;
+  };
+  const rxEnsure = (r, node) => {
+    if (!isObjectInstance(r) || r.__proto !== "RegExp" || !r.__fields || !(r.__fields._re instanceof RegExp)) {
+      rxThrow("RegExpRange", node, "invalid RegExp handle");
+    }
+    return r;
+  };
+  const rxGlyphToCu = (s, g) => Array.from(s).slice(0, Number(g)).join("").length;
+  const rxCuToGlyph = (s, cu) => Array.from(s.slice(0, cu)).length;
+  const rxCheckRange = (s, start, node) => {
+    const gl = Array.from(s).length;
+    if (typeof start !== "bigint") rxThrow("RegExpRange", node, "start out of range");
+    const n = Number(start);
+    if (!Number.isInteger(n) || n < 0 || n > gl) rxThrow("RegExpRange", node, "start out of range");
+    return n;
+  };
+  const rxCheckMax = (max, node, kind) => {
+    if (typeof max !== "bigint") rxThrow("RegExpRange", node, `${kind} out of range`);
+    const n = Number(max);
+    if (!Number.isInteger(n)) rxThrow("RegExpRange", node, `${kind} out of range`);
+    return n;
+  };
+  const rxForbidden = (p) =>
+    /(?:\(\?=|\(\?!|\(\?<=|\(\?<!|\\[1-9])/.test(p);
+  const rxExpand = (replacement, groups) => {
+    let out = "";
+    for (let i = 0; i < replacement.length; i += 1) {
+      const c = replacement[i];
+      if (c !== "$") {
+        out += c;
+        continue;
+      }
+      const n1 = replacement[i + 1];
+      if (n1 === "$") {
+        out += "$";
+        i += 1;
+        continue;
+      }
+      if (!/[0-9]/.test(n1 || "")) {
+        out += "$";
+        continue;
+      }
+      let idx = Number(n1);
+      if (/[0-9]/.test(replacement[i + 2] || "")) {
+        idx = idx * 10 + Number(replacement[i + 2]);
+        i += 1;
+      }
+      i += 1;
+      out += groups[idx] ?? "";
+    }
+    return out;
+  };
+  const rxFind = (r, input, start, node) => {
+    if (typeof input !== "string") rxThrow("RegExpRange", node, "input must be string");
+    const sg = rxCheckRange(input, start, node);
+    const startCu = rxGlyphToCu(input, sg);
+    const sub = input.slice(startCu);
+    const m = r.__fields._re.exec(sub);
+    if (!m) return rxMatch(false, 0, 0, []);
+    const mStartCu = startCu + m.index;
+    const mEndCu = mStartCu + m[0].length;
+    const gs = m.map((x) => (x === undefined ? "" : x));
+    return rxMatch(true, rxCuToGlyph(input, mStartCu), rxCuToGlyph(input, mEndCu), gs);
+  };
+  rxMod.functions.set("compile", (pattern, flags, node) => {
+    if (typeof pattern !== "string" || typeof flags !== "string") rxThrow("RegExpRange", node, "invalid arguments");
+    if (rxForbidden(pattern)) rxThrow("RegExpSyntax", node, "forbidden metasyntax (backreference/lookaround)");
+    const uniq = new Set(flags.split(""));
+    let outFlags = "";
+    if (uniq.has("i")) outFlags += "i";
+    if (uniq.has("m")) outFlags += "m";
+    if (uniq.has("s")) outFlags += "s";
+    for (const f of uniq) {
+      if (f !== "i" && f !== "m" && f !== "s") rxThrow("RegExpSyntax", node, "unsupported flag");
+    }
+    let re = null;
+    try {
+      re = new RegExp(pattern, outFlags);
+    } catch (e) {
+      rxThrow("RegExpSyntax", node, e && e.message ? String(e.message) : "invalid pattern");
+    }
+    return rxMake(pattern, outFlags, re);
+  });
+  rxMod.functions.set("test", (r, input, start, node) => {
+    const rr = rxEnsure(r, node);
+    return !!rxFind(rr, input, start, node).__fields.ok;
+  });
+  rxMod.functions.set("find", (r, input, start, node) => rxFind(rxEnsure(r, node), input, start, node));
+  rxMod.functions.set("findAll", (r, input, start, max, node) => {
+    const rr = rxEnsure(r, node);
+    const m = rxCheckMax(max, node, "max");
+    if (m < -1) rxThrow("RegExpRange", node, "max out of range");
+    if (m === 0) return makeList([]);
+    const out = makeList([]);
+    let cur = rxCheckRange(input, start, node);
+    while (cur <= Array.from(input).length) {
+      const one = rxFind(rr, input, BigInt(cur), node);
+      if (!one.__fields.ok) break;
+      out.push(one);
+      bumpList(out);
+      if (m > 0 && out.length >= m) break;
+      const a = Number(one.__fields.start);
+      const b = Number(one.__fields.end);
+      cur = b <= a ? b + 1 : b;
+    }
+    return out;
+  });
+  rxMod.functions.set("replaceFirst", (r, input, replacement, start, node) => {
+    const rr = rxEnsure(r, node);
+    if (typeof input !== "string" || typeof replacement !== "string") rxThrow("RegExpRange", node, "invalid arguments");
+    const one = rxFind(rr, input, start, node);
+    if (!one.__fields.ok) return input;
+    const gs = one.__fields.groups;
+    const s = Number(one.__fields.start);
+    const e = Number(one.__fields.end);
+    const sCu = rxGlyphToCu(input, s);
+    const eCu = rxGlyphToCu(input, e);
+    return input.slice(0, sCu) + rxExpand(replacement, gs) + input.slice(eCu);
+  });
+  rxMod.functions.set("replaceAll", (r, input, replacement, start, max, node) => {
+    const rr = rxEnsure(r, node);
+    if (typeof input !== "string" || typeof replacement !== "string") rxThrow("RegExpRange", node, "invalid arguments");
+    const m = rxCheckMax(max, node, "max");
+    if (m < -1) rxThrow("RegExpRange", node, "max out of range");
+    if (m === 0) return input;
+    let out = "";
+    let cur = rxCheckRange(input, start, node);
+    let prevCu = 0;
+    let done = 0;
+    prevCu = rxGlyphToCu(input, cur);
+    out += input.slice(0, prevCu);
+    while (cur <= Array.from(input).length) {
+      const one = rxFind(rr, input, BigInt(cur), node);
+      if (!one.__fields.ok) break;
+      const s = Number(one.__fields.start);
+      const e = Number(one.__fields.end);
+      const sCu = rxGlyphToCu(input, s);
+      const eCu = rxGlyphToCu(input, e);
+      out += input.slice(prevCu, sCu);
+      out += rxExpand(replacement, one.__fields.groups);
+      done += 1;
+      if (m > 0 && done >= m) {
+        prevCu = eCu;
+        break;
+      }
+      if (e <= s) {
+        const next = e + 1;
+        const nextCu = rxGlyphToCu(input, next);
+        out += input.slice(eCu, nextCu);
+        cur = next;
+        prevCu = nextCu;
+      } else {
+        cur = e;
+        prevCu = eCu;
+      }
+    }
+    out += input.slice(prevCu);
+    return out;
+  });
+  rxMod.functions.set("split", (r, input, start, maxParts, node) => {
+    const rr = rxEnsure(r, node);
+    if (typeof input !== "string") rxThrow("RegExpRange", node, "invalid arguments");
+    const mp = rxCheckMax(maxParts, node, "maxParts");
+    if (mp < 0) rxThrow("RegExpRange", node, "maxParts out of range");
+    if (mp === 0) return makeList([]);
+    const out = makeList([]);
+    let cur = rxCheckRange(input, start, node);
+    let curCu = rxGlyphToCu(input, cur);
+    if (mp === 1) {
+      out.push(input.slice(curCu));
+      bumpList(out);
+      return out;
+    }
+    while (cur <= Array.from(input).length && out.length + 1 < mp) {
+      const one = rxFind(rr, input, BigInt(cur), node);
+      if (!one.__fields.ok) break;
+      const s = Number(one.__fields.start);
+      const e = Number(one.__fields.end);
+      const sCu = rxGlyphToCu(input, s);
+      const eCu = rxGlyphToCu(input, e);
+      out.push(input.slice(curCu, sCu));
+      bumpList(out);
+      if (e <= s) {
+        cur = e + 1;
+        curCu = rxGlyphToCu(input, cur);
+      } else {
+        cur = e;
+        curCu = eCu;
+      }
+    }
+    out.push(input.slice(curCu));
+    bumpList(out);
+    return out;
+  });
+  rxMod.functions.set("pattern", (r, node) => {
+    const rr = rxEnsure(r, node);
+    return rr.__fields._pattern;
+  });
+  rxMod.functions.set("flags", (r, node) => {
+    const rr = rxEnsure(r, node);
+    return rr.__fields._flags;
+  });
+
   loadModuleRegistry(); // ensures registry exists if needed
 
   const imports = ast.imports || [];
@@ -3253,14 +3505,24 @@ function evalCall(expr, scope, functions, moduleEnv, protoEnv, file, callFunctio
       const info = resolveProtoMethodRuntime(protoEnv, expr._protoStatic, m.name);
       if (!info) throw new RuntimeError(rdiag(file, m, "R1010", "RUNTIME_TYPE_ERROR", "unknown prototype method"));
       const fn = functions.get(`${info.proto}.${m.name}`);
-      if (!fn) throw new RuntimeError(rdiag(file, m, "R1010", "RUNTIME_TYPE_ERROR", "missing method"));
+      if (!fn) {
+        const mod = moduleEnv.modules.get(info.proto);
+        const impl = mod && !mod.error ? mod.functions.get(m.name) : null;
+        if (impl) return impl(...args, m);
+        throw new RuntimeError(rdiag(file, m, "R1010", "RUNTIME_TYPE_ERROR", "missing method"));
+      }
       return callFunction(fn, args);
     }
     if (protoEnv && expr._protoInstance) {
       const info = resolveProtoMethodRuntime(protoEnv, expr._protoInstance, m.name);
       if (!info) throw new RuntimeError(rdiag(file, m, "R1010", "RUNTIME_TYPE_ERROR", "unknown prototype method"));
       const fn = functions.get(`${info.proto}.${m.name}`);
-      if (!fn) throw new RuntimeError(rdiag(file, m, "R1010", "RUNTIME_TYPE_ERROR", "missing method"));
+      if (!fn) {
+        const mod = moduleEnv.modules.get(info.proto);
+        const impl = mod && !mod.error ? mod.functions.get(m.name) : null;
+        if (impl) return impl(target, ...args, m);
+        throw new RuntimeError(rdiag(file, m, "R1010", "RUNTIME_TYPE_ERROR", "missing method"));
+      }
       return callFunction(fn, [target, ...args]);
     }
 

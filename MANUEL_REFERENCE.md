@@ -1425,7 +1425,7 @@ Ce positionnement vise la clarté sémantique, la sûreté et l’efficacité de
 *(Self / Io / JavaScript / ProtoScript V2)*
 
 | Critère                       | **Self**               | **Io**               | **JavaScript**             | **ProtoScript V2**              |
-| ----------------------------- | ---------------------- | -------------------- | -------------------------- | ------------------------------- |
+| --------------- | -------- | ------ | ------------ | ---------- |
 | Modèle objet                  | Prototype-based pur    | Prototype-based pur  | Prototype-based hybride    | Prototype-based statique        |
 | Classes                       | Absentes               | Absentes             | Introduites syntaxiquement | Absentes                        |
 | Création d’objets             | Clonage                | Clonage              | Constructeurs / prototypes | Clonage explicite               |
@@ -2575,7 +2575,282 @@ function main() : void {
 ```
 Ref: EX-102
 
-Le comportement complet est normatif et défini dans :
+### 14.4.8 Module standard : RegExp
+
+Le module `RegExp` fournit un moteur regex natif pour la recherche, la capture, le remplacement et le split.
+
+Objectifs d'usage :
+
+- API typée (`RegExp`, `RegExpMatch`)
+- indices en glyphes
+- UTF-8 strict
+- comportement déterministe
+
+Restrictions V1 (importantes) :
+
+- pas de backreferences dans le motif (`\\1`, etc.)
+- pas de lookaround (`(?=...)`, `(?!...)`, `(?<=...)`, `(?<!...)`)
+
+Fonctions / méthodes principales :
+
+- `RegExp.compile(pattern, flags) -> RegExp`
+- `r.test(input, start) -> bool`
+- `r.find(input, start) -> RegExpMatch`
+- `r.findAll(input, start, max) -> list<RegExpMatch>`
+- `r.replaceFirst(input, replacement, start) -> string`
+- `r.replaceAll(input, replacement, start, max) -> string`
+- `r.split(input, start, maxParts) -> list<string>`
+- `r.pattern() -> string`
+- `r.flags() -> string`
+
+`RegExpMatch` expose (lecture seule) :
+
+- `ok : bool`
+- `start : int`
+- `end : int`
+- `groups : list<string>` (`groups[0]` = match complet)
+
+Remplacement (`replaceFirst` / `replaceAll`) :
+
+- `$0` = match complet
+- `$1..$99` = groupes capturants
+- `$$` = `$` littéral
+
+Exemple :
+
+```c
+import RegExp;
+import Io;
+
+function main() : void {
+    RegExp r = RegExp.compile("(\\w+)-(\\w+)", "");
+    Io.printLine(r.replaceAll("alpha-beta gamma-delta", "$2:$1", 0, -1));
+    // beta:alpha delta:gamma
+}
+```
+
+Erreurs runtime (catégories dans le message) :
+
+- `RegExpSyntax`
+- `RegExpLimit`
+- `RegExpRange`
+
+#### Quelques exemples
+
+##### Validation d’une adresse email
+
+Si on veut une validation simple et raisonnable sans couvrir 100% du RFC 5322 (ce qui serait irréaliste).
+
+```
+import RegExp;
+import Io; function  main() : void {
+  RegExp email = RegExp.compile( "^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}$", "" );
+
+  Io.printLine(email.test("john.doe@example.com", 0)); // true
+  Io.printLine(email.test("bad@@example", 0));         // false
+}
+```
+
+Version pratique, plus robuste, recommandée, qui couvre: local part classique, points internes (pas au début/fin), pas de double point, domaine structuré et TLD ≥ 2 lettres.
+
+```
+import RegExp;
+import Io;
+
+function main() : void {
+  RegExp email = RegExp.compile(
+    "^[A-Za-z0-9_%+-]+(\\.[A-Za-z0-9_%+-]+)*@[A-Za-z0-9-]+(\\.[A-Za-z0-9-]+)+$",
+    ""
+  );
+
+  Io.printLine(email.test("john.doe@example.com", 0)); // true
+  Io.printLine(email.test("john..doe@example.com", 0)); // false
+  Io.printLine(email.test(".john@example.com", 0)); // false
+}
+```
+
+Ce que ça accepte :
+
+```
+john.doe@example.com
+user_123@test-domain.fr
+first.last+tag@gmail.com
+a@b.co
+```
+
+Ce que ça refuse (volontairement) :
+
+```
+.john@example.com
+john.@example.com
+john..doe@example.com
+john@localhost
+john@example
+```
+
+Si on veut aller encore un cran au-dessus, on peut empêcher les labels domaine qui commencent ou finissent par `-` :
+
+```
+RegExp email = RegExp.compile([
+    "^[A-Za-z0-9_%+-]+(\\.[A-Za-z0-9_%+-]+)*@",
+    "[A-Za-z0-9]([A-Za-z0-9-]*[A-Za-z0-9])?",
+    "(\\.[A-Za-z0-9]([A-Za-z0-9-]*[A-Za-z0-9])?)+$"].concat(),
+    ""
+);
+```
+
+---
+
+##### Validation d’un numéro de téléphone
+
+Format international simple.
+
+```
+RegExp phone = RegExp.compile("^\\+?[0-9]{8,15}$", "");
+
+Io.printLine(phone.test("+33612345678", 0)); // true
+Io.printLine(phone.test("0612345678", 0));   // true
+Io.printLine(phone.test("12-34-56", 0));     // false
+```
+
+---
+
+##### Extraction de dates
+
+Format `DD/MM/YYYY`
+
+```
+RegExp date = RegExp.compile("(\\d{2})/(\\d{2})/(\\d{4})", "");
+
+RegExpMatch m = date.find("Date: 31/12/2026", 0);
+if (m.ok) {
+    Io.printLine(m.groups[1]); // 31
+    Io.printLine(m.groups[2]); // 12
+    Io.printLine(m.groups[3]); // 2026
+}
+```
+
+---
+
+##### Réorganisation de date
+
+```
+Io.printLine(
+    date.replaceAll("31/12/2026", "$3-$2-$1", 0, -1)
+);
+// 2026-12-31
+```
+
+---
+
+##### Suppression des balises HTML simples
+
+```
+RegExp tags = RegExp.compile("<[^>]+>", "");
+
+string cleaned = tags.replaceAll("<p>Hello <b>world</b></p>", "", 0, -1);
+
+Io.printLine(cleaned); // Hello world
+```
+
+---
+
+##### Validation d’un mot de passe simple
+
+Au moins :
+
+- 8 caractères
+
+- lettres et chiffres
+
+```
+RegExp password = RegExp.compile("^[A-Za-z0-9]{8,}$", "");
+
+Io.printLine(password.test("abc12345", 0)); // true
+Io.printLine(password.test("short1", 0));   // false
+```
+
+Note :  
+Sans lookahead, on ne peut pas forcer “au moins un chiffre et une lettre” en une seule regex.  
+C’est volontaire et cohérent avec le choix d'implémentation retenue par ProtoScript2.
+
+---
+
+##### Extraction de tous les nombres dans un texte
+
+```
+RegExp numbers = RegExp.compile("\\d+", "");
+
+list<RegExpMatch> matches = numbers.findAll("Prix: 10€, taxe: 2€, total: 12€", 0, -1);
+for (int i = 0; i < matches.length(); i++)
+    Io.printLine(matches[i].groups[0]);
+```
+
+Sortie :
+
+`10
+2
+12` 
+
+---
+
+##### Validation d’une structure simple
+
+Structure qui ressamble à une adresse IPv4.
+
+```
+RegExp ipv4 = RegExp.compile( "^([0-9]{1,3}\\.){3}[0-9]{1,3}$", "" );
+
+Io.printLine(ipv4.test("192.168.1.1", 0));  // true
+Io.printLine(ipv4.test("999.999.999.999",0)); // true (structure OK)
+```
+
+Note pédagogique :
+
+Ici la regex valide la structure, pas la validité numérique (0–255).  
+La validation complète doit être faite en code.
+
+---
+
+##### Découpage CSV simple
+
+```
+RegExp comma = RegExp.compile(",", "");
+
+list<string> parts = comma.split("alpha,beta,gamma", 0, -1);
+for (int i = 0; i < parts.length(); i++)
+    Io.printLine(parts[i]);
+```
+
+---
+
+##### Nettoyage des espaces multiples
+
+```
+RegExp spaces = RegExp.compile("\\s+", "");
+
+Io.printLine(
+  spaces.replaceAll("Hello    world   !", " ", 0, -1)
+);
+// Hello world !
+```
+
+---
+
+##### Vérification d’un identifiant valide
+
+```
+RegExp identifier = RegExp.compile( "^[A-Za-z_][A-Za-z0-9_]*$", "" );
+
+Io.printLine(identifier.test("valid_name_1", 0)); // true
+Io.printLine(identifier.test("1invalid", 0));     // false
+```
+
+---
+
+### 14.4.9 Spécifications et normes
+
+Les comportements complets sont normatifs et définis dans :
 
 - `docs/module_io_specification.md`
 - `docs/module_math_specification.md`
@@ -2583,6 +2858,7 @@ Le comportement complet est normatif et défini dans :
 - `docs/module_fs_specification.md`
 - `docs/module_sys_specification.md`
 - `docs/module_sys_execute_specification.md`
+- `docs/module_regexp_specification.md`
 
 ### 14.5 Ce que les modules ne peuvent pas faire
 

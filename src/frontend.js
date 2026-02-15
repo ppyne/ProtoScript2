@@ -117,6 +117,8 @@ function isValidRegistryType(s, allowVoid) {
     "PathEntry",
     "Dir",
     "Walker",
+    "RegExp",
+    "RegExpMatch",
   ];
   if (prim.includes(t)) return true;
   if (t.startsWith("list<") || t.startsWith("slice<") || t.startsWith("view<")) {
@@ -1756,6 +1758,17 @@ class Analyzer {
   }
 
   collectPrototypes() {
+    const makeBuiltinMethod = (ownerProto, name, params, retType) => ({
+      kind: "FunctionDecl",
+      name,
+      params: params.map((p, i) => ({ kind: "Param", name: `p${i}`, type: parseTypeString(p), variadic: false })),
+      retType: parseTypeString(retType),
+      body: { kind: "Block", stmts: [] },
+      visibility: "public",
+      _ownerProto: ownerProto,
+      _moduleFile: null,
+    });
+
     if (!this.prototypes.has("Exception")) {
       const decl = { line: 1, col: 1 };
       const fields = new Map();
@@ -1819,6 +1832,29 @@ class Analyzer {
       fields.set("events", { kind: "GenericType", name: "list", args: [{ kind: "NamedType", name: "ProcessEvent" }] });
       this.prototypes.set("ProcessResult", { decl, parent: null, fields, methods: new Map(), moduleFile: null });
     }
+    if (!this.prototypes.has("RegExpMatch")) {
+      const decl = { line: 1, col: 1 };
+      const fields = new Map();
+      fields.set("ok", { kind: "PrimitiveType", name: "bool" });
+      fields.set("start", { kind: "PrimitiveType", name: "int" });
+      fields.set("end", { kind: "PrimitiveType", name: "int" });
+      fields.set("groups", { kind: "GenericType", name: "list", args: [{ kind: "PrimitiveType", name: "string" }] });
+      this.prototypes.set("RegExpMatch", { decl, parent: null, fields, methods: new Map(), moduleFile: null });
+    }
+    if (!this.prototypes.has("RegExp")) {
+      const decl = { line: 1, col: 1 };
+      const methods = new Map();
+      methods.set("compile", makeBuiltinMethod("RegExp", "compile", ["string", "string"], "RegExp"));
+      methods.set("test", makeBuiltinMethod("RegExp", "test", ["string", "int"], "bool"));
+      methods.set("find", makeBuiltinMethod("RegExp", "find", ["string", "int"], "RegExpMatch"));
+      methods.set("findAll", makeBuiltinMethod("RegExp", "findAll", ["string", "int", "int"], "list<RegExpMatch>"));
+      methods.set("replaceFirst", makeBuiltinMethod("RegExp", "replaceFirst", ["string", "string", "int"], "string"));
+      methods.set("replaceAll", makeBuiltinMethod("RegExp", "replaceAll", ["string", "string", "int", "int"], "string"));
+      methods.set("split", makeBuiltinMethod("RegExp", "split", ["string", "int", "int"], "list<string>"));
+      methods.set("pattern", makeBuiltinMethod("RegExp", "pattern", [], "string"));
+      methods.set("flags", makeBuiltinMethod("RegExp", "flags", [], "string"));
+      this.prototypes.set("RegExp", { decl, parent: null, fields: new Map(), methods, moduleFile: null });
+    }
     const timeExceptions = [
       "DSTAmbiguousTimeException",
       "DSTNonExistentTimeException",
@@ -1878,6 +1914,8 @@ class Analyzer {
         d.name === "CivilDateTime" ||
         d.name === "PathInfo" ||
         d.name === "PathEntry" ||
+        d.name === "RegExp" ||
+        d.name === "RegExpMatch" ||
         d.name === "Dir" ||
         d.name === "Walker" ||
         timeExceptions.includes(d.name) ||
@@ -3009,7 +3047,8 @@ class Analyzer {
         }, member.name)) {
           return null;
         }
-        this.checkPrototypeMethodArity(expr, member.name, pm.params, true);
+        const includeSelf = !(protoName === "RegExp" && member.name === "compile");
+        this.checkPrototypeMethodArity(expr, member.name, pm.params, includeSelf);
         expr._protoStatic = protoName;
         return pm.retType;
       }

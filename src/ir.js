@@ -386,6 +386,21 @@ class IRBuilder {
           { name: "events", type: { kind: "GenericType", name: "list", args: [{ kind: "NamedType", name: "ProcessEvent" }] } },
         ],
       },
+      {
+        name: "RegExpMatch",
+        parent: null,
+        fields: [
+          { name: "ok", type: { kind: "PrimitiveType", name: "bool" } },
+          { name: "start", type: { kind: "PrimitiveType", name: "int" } },
+          { name: "end", type: { kind: "PrimitiveType", name: "int" } },
+          { name: "groups", type: { kind: "GenericType", name: "list", args: [{ kind: "PrimitiveType", name: "string" }] } },
+        ],
+      },
+      {
+        name: "RegExp",
+        parent: null,
+        fields: [],
+      },
       { name: "DSTAmbiguousTimeException", parent: "Exception", fields: [] },
       { name: "DSTNonExistentTimeException", parent: "Exception", fields: [] },
       { name: "InvalidTimeZoneException", parent: "Exception", fields: [] },

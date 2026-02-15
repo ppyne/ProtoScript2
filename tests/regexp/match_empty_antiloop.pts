@@ -1,0 +1,12 @@
+// Test goal: verify findAll progresses on zero-length-capable matches.
+// Importance: protects against infinite loops in repeated matching.
+import RegExp;
+import Io;
+
+function main() : void {
+    RegExp r = RegExp.compile("x*", "");
+    list<RegExpMatch> matches = r.findAll("xyz", 0, -1);
+    for (int i = 0; i < matches.length(); i++) {
+        Io.printLine(matches[i].start.toString().concat(":").concat(matches[i].end.toString()));
+    }
+}

@@ -1545,7 +1545,7 @@ static int module_is_std(const char *name) {
   if (!name) return 0;
   return strcmp(name, "Io") == 0 || strcmp(name, "JSON") == 0 || strcmp(name, "Math") == 0 ||
          strcmp(name, "Time") == 0 || strcmp(name, "TimeCivil") == 0 || strcmp(name, "Fs") == 0 ||
-         strcmp(name, "Debug") == 0;
+         strcmp(name, "Debug") == 0 || strcmp(name, "RegExp") == 0;
 }
 
 static int exec_call_static(PS_Context *ctx, PS_IR_Module *m, const char *callee, PS_Value **args, size_t argc, PS_Value **out) {
@@ -2688,6 +2688,12 @@ static int exec_function(PS_Context *ctx, PS_IR_Module *m, IRFunction *f, PS_Val
             snprintf(got, sizeof(got), "%s", ins->method ? ins->method : "<unknown>");
             ps_throw_diag(ctx, PS_ERR_TYPE, "unknown method", got, "valid file method");
           }
+          goto raise;
+        }
+        if (recv->tag == PS_V_OBJECT) {
+          char got[96];
+          snprintf(got, sizeof(got), "%s", ins->method ? ins->method : "<unknown>");
+          ps_throw_diag(ctx, PS_ERR_TYPE, "unknown method", got, "valid object/prototype method");
           goto raise;
         }
         if (recv->tag == PS_V_INT) {

@@ -1,0 +1,9 @@
+// Test goal: verify replacement with capture backreferences.
+// Importance: ensures stable group remapping in replacement templates.
+import RegExp;
+import Io;
+
+function main() : void {
+    RegExp r = RegExp.compile("(\\w+)-(\\w+)", "");
+    Io.printLine(r.replaceAll("alpha-beta gamma-delta", "$2:$1", 0, -1));
+}

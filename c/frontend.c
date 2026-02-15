@@ -4714,6 +4714,16 @@ static int check_method_arity(Analyzer *a, AstNode *e, const char *recv_t, const
     } else if (strcmp(method, "containsKey") == 0 || strcmp(method, "remove") == 0) {
       min = max = 1;
     }
+  } else if (strcmp(recv_t, "RegExp") == 0) {
+    if (strcmp(method, "test") == 0 || strcmp(method, "find") == 0) {
+      min = max = 2;
+    } else if (strcmp(method, "findAll") == 0 || strcmp(method, "replaceFirst") == 0 || strcmp(method, "split") == 0) {
+      min = max = 3;
+    } else if (strcmp(method, "replaceAll") == 0) {
+      min = max = 4;
+    } else if (strcmp(method, "pattern") == 0 || strcmp(method, "flags") == 0) {
+      min = max = 0;
+    }
   }
 
   if (min == -1) return 1;
@@ -4773,6 +4783,7 @@ static char *method_ret_type(const char *recv_t, const char *m) {
     if (strcmp(m, "toString") == 0) return strdup("string");
     if (strcmp(m, "toInt") == 0) return strdup("int");
     if (strcmp(m, "toFloat") == 0) return strdup("float");
+    if (strcmp(m, "concat") == 0) return strdup("string");
     if (strcmp(m, "substring") == 0) return strdup("string");
     if (strcmp(m, "indexOf") == 0) return strdup("int");
     if (strcmp(m, "startsWith") == 0 || strcmp(m, "endsWith") == 0) return strdup("bool");
@@ -4865,6 +4876,13 @@ static char *method_ret_type(const char *recv_t, const char *m) {
     if (strcmp(m, "asString") == 0) return strdup("string");
     if (strcmp(m, "asArray") == 0) return strdup("list<JSONValue>");
     if (strcmp(m, "asObject") == 0) return strdup("map<string,JSONValue>");
+  } else if (strcmp(recv_t, "RegExp") == 0) {
+    if (strcmp(m, "test") == 0) return strdup("bool");
+    if (strcmp(m, "find") == 0) return strdup("RegExpMatch");
+    if (strcmp(m, "findAll") == 0) return strdup("list<RegExpMatch>");
+    if (strcmp(m, "replaceFirst") == 0 || strcmp(m, "replaceAll") == 0) return strdup("string");
+    if (strcmp(m, "split") == 0) return strdup("list<string>");
+    if (strcmp(m, "pattern") == 0 || strcmp(m, "flags") == 0) return strdup("string");
   }
   return NULL;
 }
@@ -6835,6 +6853,7 @@ static char *ir_guess_expr_type(AstNode *e, IrFnCtx *ctx) {
           if (strcmp(m, "toString") == 0) return strdup("string");
           if (strcmp(m, "toInt") == 0) return strdup("int");
           if (strcmp(m, "toFloat") == 0) return strdup("float");
+          if (strcmp(m, "concat") == 0) return strdup("string");
           if (strcmp(m, "substring") == 0) return strdup("string");
           if (strcmp(m, "indexOf") == 0) return strdup("int");
           if (strcmp(m, "startsWith") == 0 || strcmp(m, "endsWith") == 0) return strdup("bool");
@@ -7198,6 +7217,49 @@ static char *ir_lower_call(AstNode *e, IrFnCtx *ctx) {
         for (size_t i = 0; i < argc; i++) free(args[i]);
         free(args);
         return dst;
+      }
+      if (recv_type && strcmp(recv_type, "RegExp") == 0) {
+        const char *m = callee->text ? callee->text : "";
+        int is_rx_method =
+            strcmp(m, "test") == 0 || strcmp(m, "find") == 0 || strcmp(m, "findAll") == 0 ||
+            strcmp(m, "replaceFirst") == 0 || strcmp(m, "replaceAll") == 0 ||
+            strcmp(m, "split") == 0 || strcmp(m, "pattern") == 0 || strcmp(m, "flags") == 0;
+        if (is_rx_method) {
+          char *args_json = strdup("");
+          char *recv_arg = json_escape(recv);
+          char *prev = args_json;
+          args_json = str_printf("%s\"%s\"", prev ? prev : "", recv_arg ? recv_arg : "");
+          free(prev);
+          free(recv_arg);
+          for (size_t i = 0; i < argc; i++) {
+            char *arg_esc = json_escape(args[i]);
+            char *prev2 = args_json;
+            args_json = str_printf("%s,\"%s\"", prev2 ? prev2 : "", arg_esc ? arg_esc : "");
+            free(prev2);
+            free(arg_esc);
+          }
+          char *callee_full = str_printf("RegExp.%s", m);
+          char *callee_esc = json_escape(callee_full ? callee_full : "");
+          char *ins = str_printf(
+              "{\"op\":\"call_static\",\"dst\":\"%s\",\"callee\":\"%s\",\"args\":[%s],\"variadic\":false}",
+              dst_esc ? dst_esc : "", callee_esc ? callee_esc : "", args_json ? args_json : "");
+          free(callee_full);
+          free(callee_esc);
+          free(args_json);
+          ir_set_loc(ctx, callee);
+          if (!ir_emit(ctx, ins)) {
+            free(dst);
+            dst = NULL;
+          }
+          free(recv_esc);
+          free(dst_esc);
+          free(method_esc);
+          free(recv);
+          free(recv_type);
+          for (size_t i = 0; i < argc; i++) free(args[i]);
+          free(args);
+          return dst;
+        }
       }
       if (strcmp(callee->text ? callee->text : "", "toString") == 0) {
         char *ins = str_printf("{\"op\":\"call_builtin_tostring\",\"dst\":\"%s\",\"value\":\"%s\"}", dst_esc ? dst_esc : "",

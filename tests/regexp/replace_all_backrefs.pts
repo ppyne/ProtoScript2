@@ -1,0 +1,8 @@
+import Io;
+import RegExp;
+
+function main() : void {
+    RegExp r = RegExp.compile("(\\w+)-(\\w+)", "");
+    string out = r.replaceAll("alpha-beta gamma-delta", "$2:$1", 0, -1);
+    Io.print(out);
+}
