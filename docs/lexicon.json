@@ -1,0 +1,6740 @@
+[
+  {
+    "symbol": "-",
+    "category": "operator",
+    "status": "CORE",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "src/frontend.js:450"
+    ],
+    "doc": "Lexer operator/symbol token.",
+    "notes": ""
+  },
+  {
+    "symbol": "--",
+    "category": "operator",
+    "status": "CORE",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "src/frontend.js:424"
+    ],
+    "doc": "Lexer operator/symbol token.",
+    "notes": ""
+  },
+  {
+    "symbol": "-=",
+    "category": "operator",
+    "status": "CORE",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "src/frontend.js:426"
+    ],
+    "doc": "Lexer operator/symbol token.",
+    "notes": ""
+  },
+  {
+    "symbol": ",",
+    "category": "operator",
+    "status": "CORE",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "src/frontend.js:78"
+    ],
+    "doc": "Lexer operator/symbol token.",
+    "notes": ""
+  },
+  {
+    "symbol": ";",
+    "category": "operator",
+    "status": "CORE",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "src/frontend.js:444"
+    ],
+    "doc": "Lexer operator/symbol token.",
+    "notes": ""
+  },
+  {
+    "symbol": ":",
+    "category": "operator",
+    "status": "CORE",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "src/frontend.js:446"
+    ],
+    "doc": "Lexer operator/symbol token.",
+    "notes": ""
+  },
+  {
+    "symbol": "!",
+    "category": "operator",
+    "status": "CORE",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "src/frontend.js:458"
+    ],
+    "doc": "Lexer operator/symbol token.",
+    "notes": ""
+  },
+  {
+    "symbol": "!=",
+    "category": "operator",
+    "status": "CORE",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "src/frontend.js:416"
+    ],
+    "doc": "Lexer operator/symbol token.",
+    "notes": ""
+  },
+  {
+    "symbol": "?",
+    "category": "operator",
+    "status": "CORE",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "src/frontend.js:448"
+    ],
+    "doc": "Lexer operator/symbol token.",
+    "notes": ""
+  },
+  {
+    "symbol": ".",
+    "category": "operator",
+    "status": "CORE",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "src/frontend.js:289"
+    ],
+    "doc": "Lexer operator/symbol token.",
+    "notes": ""
+  },
+  {
+    "symbol": "...",
+    "category": "operator",
+    "status": "CORE",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "src/frontend.js:405"
+    ],
+    "doc": "Lexer operator/symbol token.",
+    "notes": ""
+  },
+  {
+    "symbol": "(",
+    "category": "operator",
+    "status": "CORE",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "src/frontend.js:440"
+    ],
+    "doc": "Lexer operator/symbol token.",
+    "notes": ""
+  },
+  {
+    "symbol": ")",
+    "category": "operator",
+    "status": "CORE",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "src/frontend.js:441"
+    ],
+    "doc": "Lexer operator/symbol token.",
+    "notes": ""
+  },
+  {
+    "symbol": "[",
+    "category": "operator",
+    "status": "CORE",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "src/frontend.js:442"
+    ],
+    "doc": "Lexer operator/symbol token.",
+    "notes": ""
+  },
+  {
+    "symbol": "]",
+    "category": "operator",
+    "status": "CORE",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "src/frontend.js:443"
+    ],
+    "doc": "Lexer operator/symbol token.",
+    "notes": ""
+  },
+  {
+    "symbol": "{",
+    "category": "operator",
+    "status": "CORE",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "src/frontend.js:438"
+    ],
+    "doc": "Lexer operator/symbol token.",
+    "notes": ""
+  },
+  {
+    "symbol": "}",
+    "category": "operator",
+    "status": "CORE",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "src/frontend.js:439"
+    ],
+    "doc": "Lexer operator/symbol token.",
+    "notes": ""
+  },
+  {
+    "symbol": "*",
+    "category": "operator",
+    "status": "CORE",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "src/frontend.js:257"
+    ],
+    "doc": "Lexer operator/symbol token.",
+    "notes": ""
+  },
+  {
+    "symbol": "*=",
+    "category": "operator",
+    "status": "CORE",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "src/frontend.js:427"
+    ],
+    "doc": "Lexer operator/symbol token.",
+    "notes": ""
+  },
+  {
+    "symbol": "/",
+    "category": "operator",
+    "status": "CORE",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "src/frontend.js:253"
+    ],
+    "doc": "Lexer operator/symbol token.",
+    "notes": ""
+  },
+  {
+    "symbol": "/=",
+    "category": "operator",
+    "status": "CORE",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "src/frontend.js:428"
+    ],
+    "doc": "Lexer operator/symbol token.",
+    "notes": ""
+  },
+  {
+    "symbol": "&",
+    "category": "operator",
+    "status": "CORE",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "src/frontend.js:454"
+    ],
+    "doc": "Lexer operator/symbol token.",
+    "notes": ""
+  },
+  {
+    "symbol": "&&",
+    "category": "operator",
+    "status": "CORE",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "src/frontend.js:419"
+    ],
+    "doc": "Lexer operator/symbol token.",
+    "notes": ""
+  },
+  {
+    "symbol": "%",
+    "category": "operator",
+    "status": "CORE",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "src/frontend.js:453"
+    ],
+    "doc": "Lexer operator/symbol token.",
+    "notes": ""
+  },
+  {
+    "symbol": "^",
+    "category": "operator",
+    "status": "CORE",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "src/frontend.js:456"
+    ],
+    "doc": "Lexer operator/symbol token.",
+    "notes": ""
+  },
+  {
+    "symbol": "+",
+    "category": "operator",
+    "status": "CORE",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "src/frontend.js:449"
+    ],
+    "doc": "Lexer operator/symbol token.",
+    "notes": ""
+  },
+  {
+    "symbol": "++",
+    "category": "operator",
+    "status": "CORE",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "src/frontend.js:423"
+    ],
+    "doc": "Lexer operator/symbol token.",
+    "notes": ""
+  },
+  {
+    "symbol": "+=",
+    "category": "operator",
+    "status": "CORE",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "src/frontend.js:425"
+    ],
+    "doc": "Lexer operator/symbol token.",
+    "notes": ""
+  },
+  {
+    "symbol": "<",
+    "category": "operator",
+    "status": "CORE",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "src/frontend.js:72"
+    ],
+    "doc": "Lexer operator/symbol token.",
+    "notes": ""
+  },
+  {
+    "symbol": "<<",
+    "category": "operator",
+    "status": "CORE",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "src/frontend.js:421"
+    ],
+    "doc": "Lexer operator/symbol token.",
+    "notes": ""
+  },
+  {
+    "symbol": "<=",
+    "category": "operator",
+    "status": "CORE",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "src/frontend.js:417"
+    ],
+    "doc": "Lexer operator/symbol token.",
+    "notes": ""
+  },
+  {
+    "symbol": "=",
+    "category": "operator",
+    "status": "CORE",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "src/frontend.js:459"
+    ],
+    "doc": "Lexer operator/symbol token.",
+    "notes": ""
+  },
+  {
+    "symbol": "==",
+    "category": "operator",
+    "status": "CORE",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "src/frontend.js:415"
+    ],
+    "doc": "Lexer operator/symbol token.",
+    "notes": ""
+  },
+  {
+    "symbol": ">",
+    "category": "operator",
+    "status": "CORE",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "src/frontend.js:95"
+    ],
+    "doc": "Lexer operator/symbol token.",
+    "notes": ""
+  },
+  {
+    "symbol": ">=",
+    "category": "operator",
+    "status": "CORE",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "src/frontend.js:418"
+    ],
+    "doc": "Lexer operator/symbol token.",
+    "notes": ""
+  },
+  {
+    "symbol": ">>",
+    "category": "operator",
+    "status": "CORE",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "src/frontend.js:422"
+    ],
+    "doc": "Lexer operator/symbol token.",
+    "notes": ""
+  },
+  {
+    "symbol": "|",
+    "category": "operator",
+    "status": "CORE",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "src/frontend.js:455"
+    ],
+    "doc": "Lexer operator/symbol token.",
+    "notes": ""
+  },
+  {
+    "symbol": "||",
+    "category": "operator",
+    "status": "CORE",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "src/frontend.js:420"
+    ],
+    "doc": "Lexer operator/symbol token.",
+    "notes": ""
+  },
+  {
+    "symbol": "~",
+    "category": "operator",
+    "status": "CORE",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "src/frontend.js:457"
+    ],
+    "doc": "Lexer operator/symbol token.",
+    "notes": ""
+  },
+  {
+    "symbol": "as",
+    "category": "keyword",
+    "status": "CORE",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "src/frontend.js:48"
+    ],
+    "doc": "Reserved keyword.",
+    "notes": ""
+  },
+  {
+    "symbol": "assign_expr",
+    "category": "construct",
+    "status": "CORE",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "src/frontend.js:1",
+      "c/frontend.c:2236"
+    ],
+    "doc": "Core syntax construct (assign_expr).",
+    "notes": ""
+  },
+  {
+    "symbol": "BinaryFile.close()",
+    "category": "method",
+    "status": "STDLIB",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "c/frontend.c:3913",
+      "src/runtime.js:3641"
+    ],
+    "doc": "Built-in method close on BinaryFile.",
+    "notes": ""
+  },
+  {
+    "symbol": "BinaryFile.name()",
+    "category": "method",
+    "status": "STDLIB",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "c/frontend.c:2956",
+      "src/runtime.js:82"
+    ],
+    "doc": "Built-in method name on BinaryFile.",
+    "notes": ""
+  },
+  {
+    "symbol": "BinaryFile.read()",
+    "category": "method",
+    "status": "STDLIB",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "c/frontend.c:4758",
+      "src/runtime.js:4168"
+    ],
+    "doc": "Built-in method read on BinaryFile.",
+    "notes": ""
+  },
+  {
+    "symbol": "BinaryFile.seek()",
+    "category": "method",
+    "status": "STDLIB",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "c/frontend.c:4758",
+      "src/runtime.js:4246"
+    ],
+    "doc": "Built-in method seek on BinaryFile.",
+    "notes": ""
+  },
+  {
+    "symbol": "BinaryFile.size()",
+    "category": "method",
+    "status": "STDLIB",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "c/frontend.c:4756",
+      "src/runtime.js:1505"
+    ],
+    "doc": "Built-in method size on BinaryFile.",
+    "notes": ""
+  },
+  {
+    "symbol": "BinaryFile.tell()",
+    "category": "method",
+    "status": "STDLIB",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "c/frontend.c:4756",
+      "src/runtime.js:4230"
+    ],
+    "doc": "Built-in method tell on BinaryFile.",
+    "notes": ""
+  },
+  {
+    "symbol": "BinaryFile.write()",
+    "category": "method",
+    "status": "STDLIB",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "c/frontend.c:4758",
+      "src/runtime.js:4193"
+    ],
+    "doc": "Built-in method write on BinaryFile.",
+    "notes": ""
+  },
+  {
+    "symbol": "bool",
+    "category": "keyword",
+    "status": "CORE",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "src/frontend.js:18"
+    ],
+    "doc": "Reserved keyword.",
+    "notes": ""
+  },
+  {
+    "symbol": "bool",
+    "category": "type",
+    "status": "CORE",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "src/frontend.js:18",
+      "c/frontend.c:333"
+    ],
+    "doc": "Core type symbol.",
+    "notes": ""
+  },
+  {
+    "symbol": "break",
+    "category": "keyword",
+    "status": "CORE",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "src/frontend.js:37"
+    ],
+    "doc": "Reserved keyword.",
+    "notes": ""
+  },
+  {
+    "symbol": "break_stmt",
+    "category": "construct",
+    "status": "CORE",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "src/frontend.js:745",
+      "c/frontend.c:2236"
+    ],
+    "doc": "Core syntax construct (break_stmt).",
+    "notes": ""
+  },
+  {
+    "symbol": "byte",
+    "category": "keyword",
+    "status": "CORE",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "src/frontend.js:19"
+    ],
+    "doc": "Reserved keyword.",
+    "notes": ""
+  },
+  {
+    "symbol": "byte",
+    "category": "type",
+    "status": "CORE",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "src/frontend.js:19",
+      "c/frontend.c:333"
+    ],
+    "doc": "Core type symbol.",
+    "notes": ""
+  },
+  {
+    "symbol": "byte.toFloat()",
+    "category": "method",
+    "status": "CORE",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "c/frontend.c:4745",
+      "src/runtime.js:3838"
+    ],
+    "doc": "Built-in method toFloat on byte.",
+    "notes": ""
+  },
+  {
+    "symbol": "byte.toInt()",
+    "category": "method",
+    "status": "CORE",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "c/frontend.c:4745",
+      "src/runtime.js:3818"
+    ],
+    "doc": "Built-in method toInt on byte.",
+    "notes": ""
+  },
+  {
+    "symbol": "byte.toString()",
+    "category": "method",
+    "status": "CORE",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "c/frontend.c:4744",
+      "src/runtime.js:1158"
+    ],
+    "doc": "Built-in method toString on byte.",
+    "notes": ""
+  },
+  {
+    "symbol": "call_expr",
+    "category": "construct",
+    "status": "CORE",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "src/frontend.js:1075",
+      "c/frontend.c:2236"
+    ],
+    "doc": "Core syntax construct (call_expr).",
+    "notes": ""
+  },
+  {
+    "symbol": "case",
+    "category": "keyword",
+    "status": "CORE",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "src/frontend.js:35"
+    ],
+    "doc": "Reserved keyword.",
+    "notes": ""
+  },
+  {
+    "symbol": "cast_expr",
+    "category": "construct",
+    "status": "CORE",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "src/frontend.js:1165",
+      "c/frontend.c:2236"
+    ],
+    "doc": "Core syntax construct (cast_expr).",
+    "notes": ""
+  },
+  {
+    "symbol": "catch",
+    "category": "keyword",
+    "status": "CORE",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "src/frontend.js:41"
+    ],
+    "doc": "Reserved keyword.",
+    "notes": ""
+  },
+  {
+    "symbol": "catch_clause",
+    "category": "construct",
+    "status": "CORE",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "src/frontend.js:761",
+      "c/frontend.c:2236"
+    ],
+    "doc": "Core syntax construct (catch_clause).",
+    "notes": ""
+  },
+  {
+    "symbol": "CivilDateTime",
+    "category": "exception",
+    "status": "STDLIB",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "c/frontend.c:3872"
+    ],
+    "doc": "Exception or built-in prototype CivilDateTime.",
+    "notes": ""
+  },
+  {
+    "symbol": "conditional_expr",
+    "category": "construct",
+    "status": "CORE",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "src/frontend.js:1083",
+      "c/frontend.c:2236"
+    ],
+    "doc": "Core syntax construct (conditional_expr).",
+    "notes": ""
+  },
+  {
+    "symbol": "const",
+    "category": "keyword",
+    "status": "CORE",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "src/frontend.js:13"
+    ],
+    "doc": "Reserved keyword.",
+    "notes": ""
+  },
+  {
+    "symbol": "const_decl",
+    "category": "construct",
+    "status": "CORE",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "src/frontend.js:753",
+      "c/frontend.c:2236"
+    ],
+    "doc": "Core syntax construct (const_decl).",
+    "notes": ""
+  },
+  {
+    "symbol": "continue",
+    "category": "keyword",
+    "status": "CORE",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "src/frontend.js:38"
+    ],
+    "doc": "Reserved keyword.",
+    "notes": ""
+  },
+  {
+    "symbol": "continue_stmt",
+    "category": "construct",
+    "status": "CORE",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "src/frontend.js:745",
+      "c/frontend.c:2236"
+    ],
+    "doc": "Core syntax construct (continue_stmt).",
+    "notes": ""
+  },
+  {
+    "symbol": "Debug",
+    "category": "module",
+    "status": "STDLIB",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "modules/registry.json:126",
+      "src/frontend.js:140",
+      "c/frontend.c:2920"
+    ],
+    "doc": "Module Debug from registry.",
+    "notes": ""
+  },
+  {
+    "symbol": "Debug.dump",
+    "category": "function",
+    "status": "STDLIB",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "modules/registry.json:128",
+      "src/frontend.js:140",
+      "c/frontend.c:3061"
+    ],
+    "doc": "Function dump in module Debug.",
+    "notes": ""
+  },
+  {
+    "symbol": "default",
+    "category": "keyword",
+    "status": "CORE",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "src/frontend.js:36"
+    ],
+    "doc": "Reserved keyword.",
+    "notes": ""
+  },
+  {
+    "symbol": "Dir",
+    "category": "exception",
+    "status": "STDLIB",
+    "frontends": {
+      "c": true,
+      "node": false
+    },
+    "locations": [
+      "c/frontend.c:3907"
+    ],
+    "doc": "Exception or built-in prototype Dir.",
+    "notes": ""
+  },
+  {
+    "symbol": "Dir.close()",
+    "category": "method",
+    "status": "STDLIB",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "c/frontend.c:3913",
+      "src/runtime.js:3641"
+    ],
+    "doc": "Built-in method close on Dir.",
+    "notes": ""
+  },
+  {
+    "symbol": "Dir.hasNext()",
+    "category": "method",
+    "status": "STDLIB",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "c/frontend.c:3911",
+      "src/runtime.js:3620"
+    ],
+    "doc": "Built-in method hasNext on Dir.",
+    "notes": ""
+  },
+  {
+    "symbol": "Dir.next()",
+    "category": "method",
+    "status": "STDLIB",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "c/frontend.c:3912",
+      "src/runtime.js:3621"
+    ],
+    "doc": "Built-in method next on Dir.",
+    "notes": ""
+  },
+  {
+    "symbol": "Dir.reset()",
+    "category": "method",
+    "status": "STDLIB",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "c/frontend.c:3914",
+      "src/runtime.js:3627"
+    ],
+    "doc": "Built-in method reset on Dir.",
+    "notes": ""
+  },
+  {
+    "symbol": "DirectoryNotEmptyException",
+    "category": "exception",
+    "status": "RUNTIME_ONLY",
+    "frontends": {
+      "c": false,
+      "node": true
+    },
+    "locations": [
+      "src/runtime.js:192"
+    ],
+    "doc": "Runtime-only symbol DirectoryNotEmptyException.",
+    "notes": ""
+  },
+  {
+    "symbol": "do",
+    "category": "keyword",
+    "status": "CORE",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "src/frontend.js:33"
+    ],
+    "doc": "Reserved keyword.",
+    "notes": ""
+  },
+  {
+    "symbol": "do_while_stmt",
+    "category": "construct",
+    "status": "CORE",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "src/frontend.js:758",
+      "c/frontend.c:2236"
+    ],
+    "doc": "Core syntax construct (do_while_stmt).",
+    "notes": ""
+  },
+  {
+    "symbol": "DSTAmbiguousTimeException",
+    "category": "exception",
+    "status": "STDLIB",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "c/frontend.c:3937"
+    ],
+    "doc": "Exception or built-in prototype DSTAmbiguousTimeException.",
+    "notes": ""
+  },
+  {
+    "symbol": "DSTNonExistentTimeException",
+    "category": "exception",
+    "status": "STDLIB",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "c/frontend.c:3938"
+    ],
+    "doc": "Exception or built-in prototype DSTNonExistentTimeException.",
+    "notes": ""
+  },
+  {
+    "symbol": "E0001",
+    "category": "error_code",
+    "status": "CORE",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "src/frontend.js:1",
+      "c/frontend.c:2404"
+    ],
+    "doc": "Diagnostic code E0001.",
+    "notes": ""
+  },
+  {
+    "symbol": "E0002",
+    "category": "error_code",
+    "status": "CORE",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "src/frontend.js:1",
+      "c/frontend.c:10029"
+    ],
+    "doc": "Diagnostic code E0002.",
+    "notes": ""
+  },
+  {
+    "symbol": "E0003",
+    "category": "error_code",
+    "status": "CORE",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "src/frontend.js:3778",
+      "c/frontend.c:2421"
+    ],
+    "doc": "Diagnostic code E0003.",
+    "notes": ""
+  },
+  {
+    "symbol": "E1001",
+    "category": "error_code",
+    "status": "CORE",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "src/frontend.js:337",
+      "c/frontend.c:398"
+    ],
+    "doc": "Diagnostic code E1001.",
+    "notes": ""
+  },
+  {
+    "symbol": "E1002",
+    "category": "error_code",
+    "status": "CORE",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "src/frontend.js:272",
+      "c/frontend.c:544"
+    ],
+    "doc": "Diagnostic code E1002.",
+    "notes": ""
+  },
+  {
+    "symbol": "E1003",
+    "category": "error_code",
+    "status": "CORE",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "src/frontend.js:2909",
+      "c/frontend.c:4820"
+    ],
+    "doc": "Diagnostic code E1003.",
+    "notes": ""
+  },
+  {
+    "symbol": "E2001",
+    "category": "error_code",
+    "status": "CORE",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "src/frontend.js:1705",
+      "c/frontend.c:3274"
+    ],
+    "doc": "Diagnostic code E2001.",
+    "notes": ""
+  },
+  {
+    "symbol": "E2002",
+    "category": "error_code",
+    "status": "CORE",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "src/frontend.js:2215",
+      "c/frontend.c:3522"
+    ],
+    "doc": "Diagnostic code E2002.",
+    "notes": ""
+  },
+  {
+    "symbol": "E2003",
+    "category": "error_code",
+    "status": "CORE",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "src/frontend.js:2210",
+      "c/frontend.c:3515"
+    ],
+    "doc": "Diagnostic code E2003.",
+    "notes": ""
+  },
+  {
+    "symbol": "E2004",
+    "category": "error_code",
+    "status": "CORE",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "src/frontend.js:2253",
+      "c/frontend.c:3383"
+    ],
+    "doc": "Diagnostic code E2004.",
+    "notes": ""
+  },
+  {
+    "symbol": "E3001",
+    "category": "error_code",
+    "status": "CORE",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "src/frontend.js:1984",
+      "c/frontend.c:4123"
+    ],
+    "doc": "Diagnostic code E3001.",
+    "notes": ""
+  },
+  {
+    "symbol": "E3003",
+    "category": "error_code",
+    "status": "CORE",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "src/frontend.js:2634",
+      "c/frontend.c:5782"
+    ],
+    "doc": "Diagnostic code E3003.",
+    "notes": ""
+  },
+  {
+    "symbol": "E3004",
+    "category": "error_code",
+    "status": "CORE",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "src/frontend.js:2534",
+      "c/frontend.c:5921"
+    ],
+    "doc": "Diagnostic code E3004.",
+    "notes": ""
+  },
+  {
+    "symbol": "E3005",
+    "category": "error_code",
+    "status": "CORE",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "src/frontend.js:3304",
+      "c/frontend.c:5642"
+    ],
+    "doc": "Diagnostic code E3005.",
+    "notes": ""
+  },
+  {
+    "symbol": "E3006",
+    "category": "error_code",
+    "status": "CORE",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "src/frontend.js:2465",
+      "c/frontend.c:5870"
+    ],
+    "doc": "Diagnostic code E3006.",
+    "notes": ""
+  },
+  {
+    "symbol": "E3007",
+    "category": "error_code",
+    "status": "CORE",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "src/frontend.js:2659",
+      "c/frontend.c:6083"
+    ],
+    "doc": "Diagnostic code E3007.",
+    "notes": ""
+  },
+  {
+    "symbol": "E3120",
+    "category": "error_code",
+    "status": "CORE",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "src/frontend.js:2010",
+      "c/frontend.c:4676"
+    ],
+    "doc": "Diagnostic code E3120.",
+    "notes": ""
+  },
+  {
+    "symbol": "E3121",
+    "category": "error_code",
+    "status": "CORE",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "src/frontend.js:2033",
+      "c/frontend.c:4700"
+    ],
+    "doc": "Diagnostic code E3121.",
+    "notes": ""
+  },
+  {
+    "symbol": "E3122",
+    "category": "error_code",
+    "status": "CORE",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "src/frontend.js:2510",
+      "c/frontend.c:5440"
+    ],
+    "doc": "Diagnostic code E3122.",
+    "notes": ""
+  },
+  {
+    "symbol": "E3130",
+    "category": "error_code",
+    "status": "CORE",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "src/frontend.js:2451",
+      "c/frontend.c:5408"
+    ],
+    "doc": "Diagnostic code E3130.",
+    "notes": ""
+  },
+  {
+    "symbol": "E3140",
+    "category": "error_code",
+    "status": "CORE",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "src/frontend.js:1980",
+      "c/frontend.c:4116"
+    ],
+    "doc": "Diagnostic code E3140.",
+    "notes": ""
+  },
+  {
+    "symbol": "E3150",
+    "category": "error_code",
+    "status": "CORE",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "src/frontend.js:2083",
+      "c/frontend.c:5720"
+    ],
+    "doc": "Diagnostic code E3150.",
+    "notes": ""
+  },
+  {
+    "symbol": "E3151",
+    "category": "error_code",
+    "status": "CORE",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "src/frontend.js:2078",
+      "c/frontend.c:5714"
+    ],
+    "doc": "Diagnostic code E3151.",
+    "notes": ""
+  },
+  {
+    "symbol": "E3200",
+    "category": "error_code",
+    "status": "CORE",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "src/frontend.js:533",
+      "c/frontend.c:1433"
+    ],
+    "doc": "Diagnostic code E3200.",
+    "notes": ""
+  },
+  {
+    "symbol": "E3201",
+    "category": "error_code",
+    "status": "CORE",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "src/frontend.js:1607",
+      "c/frontend.c:2825"
+    ],
+    "doc": "Diagnostic code E3201.",
+    "notes": ""
+  },
+  {
+    "symbol": "else",
+    "category": "keyword",
+    "status": "CORE",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "src/frontend.js:28"
+    ],
+    "doc": "Reserved keyword.",
+    "notes": ""
+  },
+  {
+    "symbol": "EnvironmentAccessException",
+    "category": "exception",
+    "status": "RUNTIME_ONLY",
+    "frontends": {
+      "c": false,
+      "node": true
+    },
+    "locations": [
+      "src/runtime.js:180"
+    ],
+    "doc": "Runtime-only symbol EnvironmentAccessException.",
+    "notes": ""
+  },
+  {
+    "symbol": "Exception",
+    "category": "exception",
+    "status": "CORE",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "c/frontend.c:3855"
+    ],
+    "doc": "Exception or built-in prototype Exception.",
+    "notes": ""
+  },
+  {
+    "symbol": "false",
+    "category": "keyword",
+    "status": "CORE",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "src/frontend.js:45"
+    ],
+    "doc": "Reserved keyword.",
+    "notes": ""
+  },
+  {
+    "symbol": "FileClosedException",
+    "category": "exception",
+    "status": "STDLIB",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "c/frontend.c:3956"
+    ],
+    "doc": "Exception or built-in prototype FileClosedException.",
+    "notes": ""
+  },
+  {
+    "symbol": "FileNotFoundException",
+    "category": "exception",
+    "status": "STDLIB",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "c/frontend.c:3953"
+    ],
+    "doc": "Exception or built-in prototype FileNotFoundException.",
+    "notes": ""
+  },
+  {
+    "symbol": "FileOpenException",
+    "category": "exception",
+    "status": "STDLIB",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "c/frontend.c:3952"
+    ],
+    "doc": "Exception or built-in prototype FileOpenException.",
+    "notes": ""
+  },
+  {
+    "symbol": "finally",
+    "category": "keyword",
+    "status": "CORE",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "src/frontend.js:42"
+    ],
+    "doc": "Reserved keyword.",
+    "notes": ""
+  },
+  {
+    "symbol": "finally_clause",
+    "category": "construct",
+    "status": "CORE",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "src/frontend.js:761",
+      "c/frontend.c:2236"
+    ],
+    "doc": "Core syntax construct (finally_clause).",
+    "notes": ""
+  },
+  {
+    "symbol": "float",
+    "category": "keyword",
+    "status": "CORE",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "src/frontend.js:17"
+    ],
+    "doc": "Reserved keyword.",
+    "notes": ""
+  },
+  {
+    "symbol": "float",
+    "category": "type",
+    "status": "CORE",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "src/frontend.js:17",
+      "c/frontend.c:332"
+    ],
+    "doc": "Core type symbol.",
+    "notes": ""
+  },
+  {
+    "symbol": "float.abs()",
+    "category": "method",
+    "status": "CORE",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "c/frontend.c:4763",
+      "src/runtime.js:1078"
+    ],
+    "doc": "Built-in method abs on float.",
+    "notes": ""
+  },
+  {
+    "symbol": "float.isFinite()",
+    "category": "method",
+    "status": "CORE",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "c/frontend.c:4773",
+      "src/runtime.js:3855"
+    ],
+    "doc": "Built-in method isFinite on float.",
+    "notes": ""
+  },
+  {
+    "symbol": "float.isInfinite()",
+    "category": "method",
+    "status": "CORE",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "c/frontend.c:4772",
+      "src/runtime.js:3854"
+    ],
+    "doc": "Built-in method isInfinite on float.",
+    "notes": ""
+  },
+  {
+    "symbol": "float.isNaN()",
+    "category": "method",
+    "status": "CORE",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "c/frontend.c:4772",
+      "src/runtime.js:3853"
+    ],
+    "doc": "Built-in method isNaN on float.",
+    "notes": ""
+  },
+  {
+    "symbol": "float.toBytes()",
+    "category": "method",
+    "status": "CORE",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "c/frontend.c:4763",
+      "src/runtime.js:3843"
+    ],
+    "doc": "Built-in method toBytes on float.",
+    "notes": ""
+  },
+  {
+    "symbol": "float.toInt()",
+    "category": "method",
+    "status": "CORE",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "c/frontend.c:4745",
+      "src/runtime.js:3818"
+    ],
+    "doc": "Built-in method toInt on float.",
+    "notes": ""
+  },
+  {
+    "symbol": "float.toString()",
+    "category": "method",
+    "status": "CORE",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "c/frontend.c:4744",
+      "src/runtime.js:1158"
+    ],
+    "doc": "Built-in method toString on float.",
+    "notes": ""
+  },
+  {
+    "symbol": "for",
+    "category": "keyword",
+    "status": "CORE",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "src/frontend.js:29"
+    ],
+    "doc": "Reserved keyword.",
+    "notes": ""
+  },
+  {
+    "symbol": "for_stmt",
+    "category": "construct",
+    "status": "CORE",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "src/frontend.js:759",
+      "c/frontend.c:2236"
+    ],
+    "doc": "Core syntax construct (for_stmt).",
+    "notes": ""
+  },
+  {
+    "symbol": "Fs",
+    "category": "module",
+    "status": "STDLIB",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "modules/registry.json:148",
+      "src/frontend.js:140",
+      "c/frontend.c:2920"
+    ],
+    "doc": "Module Fs from registry.",
+    "notes": ""
+  },
+  {
+    "symbol": "Fs.cd",
+    "category": "function",
+    "status": "STDLIB",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "modules/registry.json:165",
+      "src/frontend.js:140",
+      "c/frontend.c:3061"
+    ],
+    "doc": "Function cd in module Fs.",
+    "notes": ""
+  },
+  {
+    "symbol": "Fs.chmod",
+    "category": "function",
+    "status": "STDLIB",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "modules/registry.json:163",
+      "src/frontend.js:140",
+      "c/frontend.c:3061"
+    ],
+    "doc": "Function chmod in module Fs.",
+    "notes": ""
+  },
+  {
+    "symbol": "Fs.cp",
+    "category": "function",
+    "status": "STDLIB",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "modules/registry.json:161",
+      "src/frontend.js:140",
+      "c/frontend.c:3061"
+    ],
+    "doc": "Function cp in module Fs.",
+    "notes": ""
+  },
+  {
+    "symbol": "Fs.cwd",
+    "category": "function",
+    "status": "STDLIB",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "modules/registry.json:164",
+      "src/frontend.js:140",
+      "c/frontend.c:3061"
+    ],
+    "doc": "Function cwd in module Fs.",
+    "notes": ""
+  },
+  {
+    "symbol": "Fs.exists",
+    "category": "function",
+    "status": "STDLIB",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "modules/registry.json:150",
+      "src/frontend.js:140",
+      "c/frontend.c:3061"
+    ],
+    "doc": "Function exists in module Fs.",
+    "notes": ""
+  },
+  {
+    "symbol": "Fs.isDir",
+    "category": "function",
+    "status": "STDLIB",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "modules/registry.json:152",
+      "src/frontend.js:140",
+      "c/frontend.c:3061"
+    ],
+    "doc": "Function isDir in module Fs.",
+    "notes": ""
+  },
+  {
+    "symbol": "Fs.isExecutable",
+    "category": "function",
+    "status": "STDLIB",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "modules/registry.json:156",
+      "src/frontend.js:140",
+      "c/frontend.c:3061"
+    ],
+    "doc": "Function isExecutable in module Fs.",
+    "notes": ""
+  },
+  {
+    "symbol": "Fs.isFile",
+    "category": "function",
+    "status": "STDLIB",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "modules/registry.json:151",
+      "src/frontend.js:140",
+      "c/frontend.c:3061"
+    ],
+    "doc": "Function isFile in module Fs.",
+    "notes": ""
+  },
+  {
+    "symbol": "Fs.isReadable",
+    "category": "function",
+    "status": "STDLIB",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "modules/registry.json:154",
+      "src/frontend.js:140",
+      "c/frontend.c:3061"
+    ],
+    "doc": "Function isReadable in module Fs.",
+    "notes": ""
+  },
+  {
+    "symbol": "Fs.isSymlink",
+    "category": "function",
+    "status": "STDLIB",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "modules/registry.json:153",
+      "src/frontend.js:140",
+      "c/frontend.c:3061"
+    ],
+    "doc": "Function isSymlink in module Fs.",
+    "notes": ""
+  },
+  {
+    "symbol": "Fs.isWritable",
+    "category": "function",
+    "status": "STDLIB",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "modules/registry.json:155",
+      "src/frontend.js:140",
+      "c/frontend.c:3061"
+    ],
+    "doc": "Function isWritable in module Fs.",
+    "notes": ""
+  },
+  {
+    "symbol": "Fs.mkdir",
+    "category": "function",
+    "status": "STDLIB",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "modules/registry.json:158",
+      "src/frontend.js:140",
+      "c/frontend.c:3061"
+    ],
+    "doc": "Function mkdir in module Fs.",
+    "notes": ""
+  },
+  {
+    "symbol": "Fs.mv",
+    "category": "function",
+    "status": "STDLIB",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "modules/registry.json:162",
+      "src/frontend.js:140",
+      "c/frontend.c:3061"
+    ],
+    "doc": "Function mv in module Fs.",
+    "notes": ""
+  },
+  {
+    "symbol": "Fs.openDir",
+    "category": "function",
+    "status": "STDLIB",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "modules/registry.json:167",
+      "src/frontend.js:140",
+      "c/frontend.c:3061"
+    ],
+    "doc": "Function openDir in module Fs.",
+    "notes": ""
+  },
+  {
+    "symbol": "Fs.pathInfo",
+    "category": "function",
+    "status": "STDLIB",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "modules/registry.json:166",
+      "src/frontend.js:140",
+      "c/frontend.c:3061"
+    ],
+    "doc": "Function pathInfo in module Fs.",
+    "notes": ""
+  },
+  {
+    "symbol": "Fs.rm",
+    "category": "function",
+    "status": "STDLIB",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "modules/registry.json:160",
+      "src/frontend.js:140",
+      "c/frontend.c:3061"
+    ],
+    "doc": "Function rm in module Fs.",
+    "notes": ""
+  },
+  {
+    "symbol": "Fs.rmdir",
+    "category": "function",
+    "status": "STDLIB",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "modules/registry.json:159",
+      "src/frontend.js:140",
+      "c/frontend.c:3061"
+    ],
+    "doc": "Function rmdir in module Fs.",
+    "notes": ""
+  },
+  {
+    "symbol": "Fs.size",
+    "category": "function",
+    "status": "STDLIB",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "modules/registry.json:157",
+      "src/frontend.js:140",
+      "c/frontend.c:3061"
+    ],
+    "doc": "Function size in module Fs.",
+    "notes": ""
+  },
+  {
+    "symbol": "Fs.walk",
+    "category": "function",
+    "status": "STDLIB",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "modules/registry.json:168",
+      "src/frontend.js:140",
+      "c/frontend.c:3061"
+    ],
+    "doc": "Function walk in module Fs.",
+    "notes": ""
+  },
+  {
+    "symbol": "function",
+    "category": "keyword",
+    "status": "CORE",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "src/frontend.js:11"
+    ],
+    "doc": "Reserved keyword.",
+    "notes": ""
+  },
+  {
+    "symbol": "function_decl",
+    "category": "construct",
+    "status": "CORE",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "src/frontend.js:523",
+      "c/frontend.c:2236"
+    ],
+    "doc": "Core syntax construct (function_decl).",
+    "notes": ""
+  },
+  {
+    "symbol": "glyph",
+    "category": "keyword",
+    "status": "CORE",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "src/frontend.js:20"
+    ],
+    "doc": "Reserved keyword.",
+    "notes": ""
+  },
+  {
+    "symbol": "glyph",
+    "category": "type",
+    "status": "CORE",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "src/frontend.js:20",
+      "c/frontend.c:333"
+    ],
+    "doc": "Core type symbol.",
+    "notes": ""
+  },
+  {
+    "symbol": "glyph.isDigit()",
+    "category": "method",
+    "status": "CORE",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "c/frontend.c:4778",
+      "src/runtime.js:3804"
+    ],
+    "doc": "Built-in method isDigit on glyph.",
+    "notes": ""
+  },
+  {
+    "symbol": "glyph.isLetter()",
+    "category": "method",
+    "status": "CORE",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "c/frontend.c:4778",
+      "src/runtime.js:3803"
+    ],
+    "doc": "Built-in method isLetter on glyph.",
+    "notes": ""
+  },
+  {
+    "symbol": "glyph.isLower()",
+    "category": "method",
+    "status": "CORE",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "c/frontend.c:4779",
+      "src/runtime.js:3807"
+    ],
+    "doc": "Built-in method isLower on glyph.",
+    "notes": ""
+  },
+  {
+    "symbol": "glyph.isUpper()",
+    "category": "method",
+    "status": "CORE",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "c/frontend.c:4779",
+      "src/runtime.js:3806"
+    ],
+    "doc": "Built-in method isUpper on glyph.",
+    "notes": ""
+  },
+  {
+    "symbol": "glyph.isWhitespace()",
+    "category": "method",
+    "status": "CORE",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "c/frontend.c:4778",
+      "src/runtime.js:3805"
+    ],
+    "doc": "Built-in method isWhitespace on glyph.",
+    "notes": ""
+  },
+  {
+    "symbol": "glyph.toInt()",
+    "category": "method",
+    "status": "CORE",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "c/frontend.c:4745",
+      "src/runtime.js:3818"
+    ],
+    "doc": "Built-in method toInt on glyph.",
+    "notes": ""
+  },
+  {
+    "symbol": "glyph.toLower()",
+    "category": "method",
+    "status": "CORE",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "c/frontend.c:4746",
+      "src/runtime.js:3813"
+    ],
+    "doc": "Built-in method toLower on glyph.",
+    "notes": ""
+  },
+  {
+    "symbol": "glyph.toString()",
+    "category": "method",
+    "status": "CORE",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "c/frontend.c:4744",
+      "src/runtime.js:1158"
+    ],
+    "doc": "Built-in method toString on glyph.",
+    "notes": ""
+  },
+  {
+    "symbol": "glyph.toUpper()",
+    "category": "method",
+    "status": "CORE",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "c/frontend.c:4745",
+      "src/runtime.js:3808"
+    ],
+    "doc": "Built-in method toUpper on glyph.",
+    "notes": ""
+  },
+  {
+    "symbol": "glyph.toUtf8Bytes()",
+    "category": "method",
+    "status": "CORE",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "c/frontend.c:4746",
+      "src/runtime.js:3819"
+    ],
+    "doc": "Built-in method toUtf8Bytes on glyph.",
+    "notes": ""
+  },
+  {
+    "symbol": "group",
+    "category": "keyword",
+    "status": "CORE",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "src/frontend.js:15"
+    ],
+    "doc": "Reserved keyword.",
+    "notes": ""
+  },
+  {
+    "symbol": "group_decl",
+    "category": "construct",
+    "status": "CORE",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "src/frontend.js:522",
+      "c/frontend.c:2236"
+    ],
+    "doc": "Core syntax construct (group_decl).",
+    "notes": ""
+  },
+  {
+    "symbol": "if",
+    "category": "keyword",
+    "status": "CORE",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "src/frontend.js:27"
+    ],
+    "doc": "Reserved keyword.",
+    "notes": ""
+  },
+  {
+    "symbol": "if_stmt",
+    "category": "construct",
+    "status": "CORE",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "src/frontend.js:756",
+      "c/frontend.c:2236"
+    ],
+    "doc": "Core syntax construct (if_stmt).",
+    "notes": ""
+  },
+  {
+    "symbol": "import",
+    "category": "keyword",
+    "status": "CORE",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "src/frontend.js:47"
+    ],
+    "doc": "Reserved keyword.",
+    "notes": ""
+  },
+  {
+    "symbol": "import_decl",
+    "category": "construct",
+    "status": "CORE",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "src/frontend.js:520",
+      "c/frontend.c:2236"
+    ],
+    "doc": "Core syntax construct (import_decl).",
+    "notes": ""
+  },
+  {
+    "symbol": "in",
+    "category": "keyword",
+    "status": "CORE",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "src/frontend.js:31"
+    ],
+    "doc": "Reserved keyword.",
+    "notes": ""
+  },
+  {
+    "symbol": "index_expr",
+    "category": "construct",
+    "status": "CORE",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "src/frontend.js:1075",
+      "c/frontend.c:2236"
+    ],
+    "doc": "Core syntax construct (index_expr).",
+    "notes": ""
+  },
+  {
+    "symbol": "int",
+    "category": "keyword",
+    "status": "CORE",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "src/frontend.js:16"
+    ],
+    "doc": "Reserved keyword.",
+    "notes": ""
+  },
+  {
+    "symbol": "int",
+    "category": "type",
+    "status": "CORE",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "src/frontend.js:16",
+      "c/frontend.c:19"
+    ],
+    "doc": "Core type symbol.",
+    "notes": ""
+  },
+  {
+    "symbol": "int.abs()",
+    "category": "method",
+    "status": "CORE",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "c/frontend.c:4763",
+      "src/runtime.js:1078"
+    ],
+    "doc": "Built-in method abs on int.",
+    "notes": ""
+  },
+  {
+    "symbol": "int.sign()",
+    "category": "method",
+    "status": "CORE",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "c/frontend.c:4763",
+      "src/runtime.js:1085"
+    ],
+    "doc": "Built-in method sign on int.",
+    "notes": ""
+  },
+  {
+    "symbol": "int.toByte()",
+    "category": "method",
+    "status": "CORE",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "c/frontend.c:4762",
+      "src/runtime.js:3825"
+    ],
+    "doc": "Built-in method toByte on int.",
+    "notes": ""
+  },
+  {
+    "symbol": "int.toBytes()",
+    "category": "method",
+    "status": "CORE",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "c/frontend.c:4763",
+      "src/runtime.js:3843"
+    ],
+    "doc": "Built-in method toBytes on int.",
+    "notes": ""
+  },
+  {
+    "symbol": "int.toFloat()",
+    "category": "method",
+    "status": "CORE",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "c/frontend.c:4745",
+      "src/runtime.js:3838"
+    ],
+    "doc": "Built-in method toFloat on int.",
+    "notes": ""
+  },
+  {
+    "symbol": "int.toString()",
+    "category": "method",
+    "status": "CORE",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "c/frontend.c:4744",
+      "src/runtime.js:1158"
+    ],
+    "doc": "Built-in method toString on int.",
+    "notes": ""
+  },
+  {
+    "symbol": "internal",
+    "category": "keyword",
+    "status": "CORE",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "src/frontend.js:14"
+    ],
+    "doc": "Reserved keyword.",
+    "notes": ""
+  },
+  {
+    "symbol": "InvalidArgumentException",
+    "category": "exception",
+    "status": "STDLIB",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "c/frontend.c:3957"
+    ],
+    "doc": "Exception or built-in prototype InvalidArgumentException.",
+    "notes": ""
+  },
+  {
+    "symbol": "InvalidDateException",
+    "category": "exception",
+    "status": "STDLIB",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "c/frontend.c:3940"
+    ],
+    "doc": "Exception or built-in prototype InvalidDateException.",
+    "notes": ""
+  },
+  {
+    "symbol": "InvalidEnvironmentNameException",
+    "category": "exception",
+    "status": "RUNTIME_ONLY",
+    "frontends": {
+      "c": false,
+      "node": true
+    },
+    "locations": [
+      "src/runtime.js:181"
+    ],
+    "doc": "Runtime-only symbol InvalidEnvironmentNameException.",
+    "notes": ""
+  },
+  {
+    "symbol": "InvalidExecutableException",
+    "category": "exception",
+    "status": "RUNTIME_ONLY",
+    "frontends": {
+      "c": false,
+      "node": true
+    },
+    "locations": [
+      "src/runtime.js:179"
+    ],
+    "doc": "Runtime-only symbol InvalidExecutableException.",
+    "notes": ""
+  },
+  {
+    "symbol": "InvalidGlyphPositionException",
+    "category": "exception",
+    "status": "STDLIB",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "c/frontend.c:3958"
+    ],
+    "doc": "Exception or built-in prototype InvalidGlyphPositionException.",
+    "notes": ""
+  },
+  {
+    "symbol": "InvalidISOFormatException",
+    "category": "exception",
+    "status": "STDLIB",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "c/frontend.c:3941"
+    ],
+    "doc": "Exception or built-in prototype InvalidISOFormatException.",
+    "notes": ""
+  },
+  {
+    "symbol": "InvalidModeException",
+    "category": "exception",
+    "status": "STDLIB",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "c/frontend.c:3951"
+    ],
+    "doc": "Exception or built-in prototype InvalidModeException.",
+    "notes": ""
+  },
+  {
+    "symbol": "InvalidPathException",
+    "category": "exception",
+    "status": "STDLIB",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "c/frontend.c:3955"
+    ],
+    "doc": "Exception or built-in prototype InvalidPathException.",
+    "notes": ""
+  },
+  {
+    "symbol": "InvalidTimeZoneException",
+    "category": "exception",
+    "status": "STDLIB",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "c/frontend.c:3939"
+    ],
+    "doc": "Exception or built-in prototype InvalidTimeZoneException.",
+    "notes": ""
+  },
+  {
+    "symbol": "Io",
+    "category": "module",
+    "status": "STDLIB",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "modules/registry.json:132",
+      "src/frontend.js:140",
+      "c/frontend.c:2920"
+    ],
+    "doc": "Module Io from registry.",
+    "notes": ""
+  },
+  {
+    "symbol": "Io.EOL",
+    "category": "constant",
+    "status": "STDLIB",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "modules/registry.json:141",
+      "src/frontend.js:191",
+      "c/frontend.c:3070"
+    ],
+    "doc": "Constant EOL in module Io.",
+    "notes": ""
+  },
+  {
+    "symbol": "Io.openBinary",
+    "category": "function",
+    "status": "STDLIB",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "modules/registry.json:135",
+      "src/frontend.js:140",
+      "c/frontend.c:3061"
+    ],
+    "doc": "Function openBinary in module Io.",
+    "notes": ""
+  },
+  {
+    "symbol": "Io.openText",
+    "category": "function",
+    "status": "STDLIB",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "modules/registry.json:134",
+      "src/frontend.js:140",
+      "c/frontend.c:3061"
+    ],
+    "doc": "Function openText in module Io.",
+    "notes": ""
+  },
+  {
+    "symbol": "Io.print",
+    "category": "function",
+    "status": "STDLIB",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "modules/registry.json:137",
+      "src/frontend.js:140",
+      "c/frontend.c:3061"
+    ],
+    "doc": "Function print in module Io.",
+    "notes": ""
+  },
+  {
+    "symbol": "Io.printLine",
+    "category": "function",
+    "status": "STDLIB",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "modules/registry.json:138",
+      "src/frontend.js:140",
+      "c/frontend.c:3061"
+    ],
+    "doc": "Function printLine in module Io.",
+    "notes": ""
+  },
+  {
+    "symbol": "Io.stderr",
+    "category": "constant",
+    "status": "STDLIB",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "modules/registry.json:144",
+      "src/frontend.js:191",
+      "c/frontend.c:3070"
+    ],
+    "doc": "Constant stderr in module Io.",
+    "notes": ""
+  },
+  {
+    "symbol": "Io.stdin",
+    "category": "constant",
+    "status": "STDLIB",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "modules/registry.json:142",
+      "src/frontend.js:191",
+      "c/frontend.c:3070"
+    ],
+    "doc": "Constant stdin in module Io.",
+    "notes": ""
+  },
+  {
+    "symbol": "Io.stdout",
+    "category": "constant",
+    "status": "STDLIB",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "modules/registry.json:143",
+      "src/frontend.js:191",
+      "c/frontend.c:3070"
+    ],
+    "doc": "Constant stdout in module Io.",
+    "notes": ""
+  },
+  {
+    "symbol": "Io.tempPath",
+    "category": "function",
+    "status": "STDLIB",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "modules/registry.json:136",
+      "src/frontend.js:140",
+      "c/frontend.c:3061"
+    ],
+    "doc": "Function tempPath in module Io.",
+    "notes": ""
+  },
+  {
+    "symbol": "IOException",
+    "category": "exception",
+    "status": "STDLIB",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "c/frontend.c:3963"
+    ],
+    "doc": "Exception or built-in prototype IOException.",
+    "notes": ""
+  },
+  {
+    "symbol": "JSON",
+    "category": "module",
+    "status": "STDLIB",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "modules/registry.json:180",
+      "src/frontend.js:140",
+      "c/frontend.c:2920"
+    ],
+    "doc": "Module JSON from registry.",
+    "notes": ""
+  },
+  {
+    "symbol": "JSON.array",
+    "category": "function",
+    "status": "STDLIB",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "modules/registry.json:189",
+      "src/frontend.js:140",
+      "c/frontend.c:3061"
+    ],
+    "doc": "Function array in module JSON.",
+    "notes": ""
+  },
+  {
+    "symbol": "JSON.bool",
+    "category": "function",
+    "status": "STDLIB",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "modules/registry.json:186",
+      "src/frontend.js:140",
+      "c/frontend.c:3061"
+    ],
+    "doc": "Function bool in module JSON.",
+    "notes": ""
+  },
+  {
+    "symbol": "JSON.decode",
+    "category": "function",
+    "status": "STDLIB",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "modules/registry.json:183",
+      "src/frontend.js:140",
+      "c/frontend.c:3061"
+    ],
+    "doc": "Function decode in module JSON.",
+    "notes": ""
+  },
+  {
+    "symbol": "JSON.encode",
+    "category": "function",
+    "status": "STDLIB",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "modules/registry.json:182",
+      "src/frontend.js:140",
+      "c/frontend.c:3061"
+    ],
+    "doc": "Function encode in module JSON.",
+    "notes": ""
+  },
+  {
+    "symbol": "JSON.isValid",
+    "category": "function",
+    "status": "STDLIB",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "modules/registry.json:184",
+      "src/frontend.js:140",
+      "c/frontend.c:3061"
+    ],
+    "doc": "Function isValid in module JSON.",
+    "notes": ""
+  },
+  {
+    "symbol": "JSON.null",
+    "category": "function",
+    "status": "STDLIB",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "modules/registry.json:185",
+      "src/frontend.js:140",
+      "c/frontend.c:3061"
+    ],
+    "doc": "Function null in module JSON.",
+    "notes": ""
+  },
+  {
+    "symbol": "JSON.number",
+    "category": "function",
+    "status": "STDLIB",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "modules/registry.json:187",
+      "src/frontend.js:140",
+      "c/frontend.c:3061"
+    ],
+    "doc": "Function number in module JSON.",
+    "notes": ""
+  },
+  {
+    "symbol": "JSON.object",
+    "category": "function",
+    "status": "STDLIB",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "modules/registry.json:190",
+      "src/frontend.js:140",
+      "c/frontend.c:3061"
+    ],
+    "doc": "Function object in module JSON.",
+    "notes": ""
+  },
+  {
+    "symbol": "JSON.string",
+    "category": "function",
+    "status": "STDLIB",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "modules/registry.json:188",
+      "src/frontend.js:140",
+      "c/frontend.c:3061"
+    ],
+    "doc": "Function string in module JSON.",
+    "notes": ""
+  },
+  {
+    "symbol": "JSONValue.asArray()",
+    "category": "method",
+    "status": "STDLIB",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "c/frontend.c:4974",
+      "src/runtime.js:154"
+    ],
+    "doc": "Built-in method asArray on JSONValue.",
+    "notes": ""
+  },
+  {
+    "symbol": "JSONValue.asBool()",
+    "category": "method",
+    "status": "STDLIB",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "c/frontend.c:4971",
+      "src/runtime.js:151"
+    ],
+    "doc": "Built-in method asBool on JSONValue.",
+    "notes": ""
+  },
+  {
+    "symbol": "JSONValue.asNumber()",
+    "category": "method",
+    "status": "STDLIB",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "c/frontend.c:4972",
+      "src/runtime.js:152"
+    ],
+    "doc": "Built-in method asNumber on JSONValue.",
+    "notes": ""
+  },
+  {
+    "symbol": "JSONValue.asObject()",
+    "category": "method",
+    "status": "STDLIB",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "c/frontend.c:4975",
+      "src/runtime.js:155"
+    ],
+    "doc": "Built-in method asObject on JSONValue.",
+    "notes": ""
+  },
+  {
+    "symbol": "JSONValue.asString()",
+    "category": "method",
+    "status": "STDLIB",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "c/frontend.c:4973",
+      "src/runtime.js:153"
+    ],
+    "doc": "Built-in method asString on JSONValue.",
+    "notes": ""
+  },
+  {
+    "symbol": "JSONValue.isArray()",
+    "category": "method",
+    "status": "STDLIB",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "c/frontend.c:4969",
+      "src/runtime.js:149"
+    ],
+    "doc": "Built-in method isArray on JSONValue.",
+    "notes": ""
+  },
+  {
+    "symbol": "JSONValue.isBool()",
+    "category": "method",
+    "status": "STDLIB",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "c/frontend.c:4968",
+      "src/runtime.js:146"
+    ],
+    "doc": "Built-in method isBool on JSONValue.",
+    "notes": ""
+  },
+  {
+    "symbol": "JSONValue.isNull()",
+    "category": "method",
+    "status": "STDLIB",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "c/frontend.c:4968",
+      "src/runtime.js:145"
+    ],
+    "doc": "Built-in method isNull on JSONValue.",
+    "notes": ""
+  },
+  {
+    "symbol": "JSONValue.isNumber()",
+    "category": "method",
+    "status": "STDLIB",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "c/frontend.c:4968",
+      "src/runtime.js:147"
+    ],
+    "doc": "Built-in method isNumber on JSONValue.",
+    "notes": ""
+  },
+  {
+    "symbol": "JSONValue.isObject()",
+    "category": "method",
+    "status": "STDLIB",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "c/frontend.c:4969",
+      "src/runtime.js:150"
+    ],
+    "doc": "Built-in method isObject on JSONValue.",
+    "notes": ""
+  },
+  {
+    "symbol": "JSONValue.isString()",
+    "category": "method",
+    "status": "STDLIB",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "c/frontend.c:4969",
+      "src/runtime.js:148"
+    ],
+    "doc": "Built-in method isString on JSONValue.",
+    "notes": ""
+  },
+  {
+    "symbol": "list",
+    "category": "keyword",
+    "status": "CORE",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "src/frontend.js:22"
+    ],
+    "doc": "Reserved keyword.",
+    "notes": ""
+  },
+  {
+    "symbol": "list",
+    "category": "type",
+    "status": "CORE",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "src/frontend.js:22",
+      "c/frontend.c:333"
+    ],
+    "doc": "Core type symbol.",
+    "notes": ""
+  },
+  {
+    "symbol": "list_literal",
+    "category": "construct",
+    "status": "CORE",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "src/frontend.js:1189",
+      "c/frontend.c:2236"
+    ],
+    "doc": "Core syntax construct (list_literal).",
+    "notes": ""
+  },
+  {
+    "symbol": "list<T>.concat()",
+    "category": "method",
+    "status": "CORE",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "c/frontend.c:4749",
+      "src/runtime.js:3964"
+    ],
+    "doc": "Built-in method concat on list<T>.",
+    "notes": ""
+  },
+  {
+    "symbol": "list<T>.contains()",
+    "category": "method",
+    "status": "CORE",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "c/frontend.c:4787",
+      "src/runtime.js:4046"
+    ],
+    "doc": "Built-in method contains on list<T>.",
+    "notes": ""
+  },
+  {
+    "symbol": "list<T>.isEmpty()",
+    "category": "method",
+    "status": "CORE",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "c/frontend.c:4744",
+      "src/runtime.js:3909"
+    ],
+    "doc": "Built-in method isEmpty on list<T>.",
+    "notes": ""
+  },
+  {
+    "symbol": "list<T>.join()",
+    "category": "method",
+    "status": "CORE",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "c/frontend.c:4787",
+      "src/runtime.js:4134"
+    ],
+    "doc": "Built-in method join on list<T>.",
+    "notes": ""
+  },
+  {
+    "symbol": "list<T>.length()",
+    "category": "method",
+    "status": "CORE",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "c/frontend.c:4744",
+      "src/runtime.js:3898"
+    ],
+    "doc": "Built-in method length on list<T>.",
+    "notes": ""
+  },
+  {
+    "symbol": "list<T>.pop()",
+    "category": "method",
+    "status": "CORE",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "c/frontend.c:4784",
+      "src/runtime.js:4283"
+    ],
+    "doc": "Built-in method pop on list<T>.",
+    "notes": ""
+  },
+  {
+    "symbol": "list<T>.push()",
+    "category": "method",
+    "status": "CORE",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "c/frontend.c:4787",
+      "src/runtime.js:4040"
+    ],
+    "doc": "Built-in method push on list<T>.",
+    "notes": ""
+  },
+  {
+    "symbol": "list<T>.reverse()",
+    "category": "method",
+    "status": "CORE",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "c/frontend.c:4785",
+      "src/runtime.js:4053"
+    ],
+    "doc": "Built-in method reverse on list<T>.",
+    "notes": ""
+  },
+  {
+    "symbol": "list<T>.slice()",
+    "category": "method",
+    "status": "CORE",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "c/frontend.c:333",
+      "src/runtime.js:288"
+    ],
+    "doc": "Built-in method slice on list<T>.",
+    "notes": ""
+  },
+  {
+    "symbol": "list<T>.sort()",
+    "category": "method",
+    "status": "CORE",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "c/frontend.c:4785",
+      "src/runtime.js:4062"
+    ],
+    "doc": "Built-in method sort on list<T>.",
+    "notes": ""
+  },
+  {
+    "symbol": "list<T>.toUtf8String()",
+    "category": "method",
+    "status": "CORE",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "c/frontend.c:4785",
+      "src/runtime.js:4022"
+    ],
+    "doc": "Built-in method toUtf8String on list<T>.",
+    "notes": ""
+  },
+  {
+    "symbol": "list<T>.view()",
+    "category": "method",
+    "status": "CORE",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "c/frontend.c:333",
+      "src/runtime.js:288"
+    ],
+    "doc": "Built-in method view on list<T>.",
+    "notes": ""
+  },
+  {
+    "symbol": "map",
+    "category": "keyword",
+    "status": "CORE",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "src/frontend.js:23"
+    ],
+    "doc": "Reserved keyword.",
+    "notes": ""
+  },
+  {
+    "symbol": "map",
+    "category": "type",
+    "status": "CORE",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "src/frontend.js:23",
+      "c/frontend.c:29"
+    ],
+    "doc": "Core type symbol.",
+    "notes": ""
+  },
+  {
+    "symbol": "map_literal",
+    "category": "construct",
+    "status": "CORE",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "src/frontend.js:1189",
+      "c/frontend.c:2236"
+    ],
+    "doc": "Core syntax construct (map_literal).",
+    "notes": ""
+  },
+  {
+    "symbol": "map<K,V>.containsKey()",
+    "category": "method",
+    "status": "CORE",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "c/frontend.c:4794",
+      "src/runtime.js:3921"
+    ],
+    "doc": "Built-in method containsKey on map<K,V>.",
+    "notes": ""
+  },
+  {
+    "symbol": "map<K,V>.isEmpty()",
+    "category": "method",
+    "status": "CORE",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "c/frontend.c:4744",
+      "src/runtime.js:3909"
+    ],
+    "doc": "Built-in method isEmpty on map<K,V>.",
+    "notes": ""
+  },
+  {
+    "symbol": "map<K,V>.keys()",
+    "category": "method",
+    "status": "CORE",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "c/frontend.c:4791",
+      "src/runtime.js:3945"
+    ],
+    "doc": "Built-in method keys on map<K,V>.",
+    "notes": ""
+  },
+  {
+    "symbol": "map<K,V>.length()",
+    "category": "method",
+    "status": "CORE",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "c/frontend.c:4744",
+      "src/runtime.js:3898"
+    ],
+    "doc": "Built-in method length on map<K,V>.",
+    "notes": ""
+  },
+  {
+    "symbol": "map<K,V>.remove()",
+    "category": "method",
+    "status": "CORE",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "c/frontend.c:4794",
+      "src/runtime.js:3933"
+    ],
+    "doc": "Built-in method remove on map<K,V>.",
+    "notes": ""
+  },
+  {
+    "symbol": "map<K,V>.values()",
+    "category": "method",
+    "status": "CORE",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "c/frontend.c:4792",
+      "src/runtime.js:3949"
+    ],
+    "doc": "Built-in method values on map<K,V>.",
+    "notes": ""
+  },
+  {
+    "symbol": "Math",
+    "category": "module",
+    "status": "STDLIB",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "modules/registry.json:69",
+      "src/frontend.js:140",
+      "c/frontend.c:2920"
+    ],
+    "doc": "Module Math from registry.",
+    "notes": ""
+  },
+  {
+    "symbol": "Math.abs",
+    "category": "function",
+    "status": "STDLIB",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "modules/registry.json:71",
+      "src/frontend.js:140",
+      "c/frontend.c:3061"
+    ],
+    "doc": "Function abs in module Math.",
+    "notes": ""
+  },
+  {
+    "symbol": "Math.acos",
+    "category": "function",
+    "status": "STDLIB",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "modules/registry.json:83",
+      "src/frontend.js:140",
+      "c/frontend.c:3061"
+    ],
+    "doc": "Function acos in module Math.",
+    "notes": ""
+  },
+  {
+    "symbol": "Math.acosh",
+    "category": "function",
+    "status": "STDLIB",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "modules/registry.json:90",
+      "src/frontend.js:140",
+      "c/frontend.c:3061"
+    ],
+    "doc": "Function acosh in module Math.",
+    "notes": ""
+  },
+  {
+    "symbol": "Math.asin",
+    "category": "function",
+    "status": "STDLIB",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "modules/registry.json:82",
+      "src/frontend.js:140",
+      "c/frontend.c:3061"
+    ],
+    "doc": "Function asin in module Math.",
+    "notes": ""
+  },
+  {
+    "symbol": "Math.asinh",
+    "category": "function",
+    "status": "STDLIB",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "modules/registry.json:89",
+      "src/frontend.js:140",
+      "c/frontend.c:3061"
+    ],
+    "doc": "Function asinh in module Math.",
+    "notes": ""
+  },
+  {
+    "symbol": "Math.atan",
+    "category": "function",
+    "status": "STDLIB",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "modules/registry.json:84",
+      "src/frontend.js:140",
+      "c/frontend.c:3061"
+    ],
+    "doc": "Function atan in module Math.",
+    "notes": ""
+  },
+  {
+    "symbol": "Math.atan2",
+    "category": "function",
+    "status": "STDLIB",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "modules/registry.json:85",
+      "src/frontend.js:140",
+      "c/frontend.c:3061"
+    ],
+    "doc": "Function atan2 in module Math.",
+    "notes": ""
+  },
+  {
+    "symbol": "Math.atanh",
+    "category": "function",
+    "status": "STDLIB",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "modules/registry.json:91",
+      "src/frontend.js:140",
+      "c/frontend.c:3061"
+    ],
+    "doc": "Function atanh in module Math.",
+    "notes": ""
+  },
+  {
+    "symbol": "Math.cbrt",
+    "category": "function",
+    "status": "STDLIB",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "modules/registry.json:98",
+      "src/frontend.js:140",
+      "c/frontend.c:3061"
+    ],
+    "doc": "Function cbrt in module Math.",
+    "notes": ""
+  },
+  {
+    "symbol": "Math.ceil",
+    "category": "function",
+    "status": "STDLIB",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "modules/registry.json:75",
+      "src/frontend.js:140",
+      "c/frontend.c:3061"
+    ],
+    "doc": "Function ceil in module Math.",
+    "notes": ""
+  },
+  {
+    "symbol": "Math.clz32",
+    "category": "function",
+    "status": "STDLIB",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "modules/registry.json:103",
+      "src/frontend.js:140",
+      "c/frontend.c:3061"
+    ],
+    "doc": "Function clz32 in module Math.",
+    "notes": ""
+  },
+  {
+    "symbol": "Math.cos",
+    "category": "function",
+    "status": "STDLIB",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "modules/registry.json:80",
+      "src/frontend.js:140",
+      "c/frontend.c:3061"
+    ],
+    "doc": "Function cos in module Math.",
+    "notes": ""
+  },
+  {
+    "symbol": "Math.cosh",
+    "category": "function",
+    "status": "STDLIB",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "modules/registry.json:87",
+      "src/frontend.js:140",
+      "c/frontend.c:3061"
+    ],
+    "doc": "Function cosh in module Math.",
+    "notes": ""
+  },
+  {
+    "symbol": "Math.E",
+    "category": "constant",
+    "status": "STDLIB",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "modules/registry.json:109",
+      "src/frontend.js:191",
+      "c/frontend.c:3070"
+    ],
+    "doc": "Constant E in module Math.",
+    "notes": ""
+  },
+  {
+    "symbol": "Math.exp",
+    "category": "function",
+    "status": "STDLIB",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "modules/registry.json:92",
+      "src/frontend.js:140",
+      "c/frontend.c:3061"
+    ],
+    "doc": "Function exp in module Math.",
+    "notes": ""
+  },
+  {
+    "symbol": "Math.expm1",
+    "category": "function",
+    "status": "STDLIB",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "modules/registry.json:93",
+      "src/frontend.js:140",
+      "c/frontend.c:3061"
+    ],
+    "doc": "Function expm1 in module Math.",
+    "notes": ""
+  },
+  {
+    "symbol": "Math.FLOAT_DIG",
+    "category": "constant",
+    "status": "STDLIB",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "modules/registry.json:119",
+      "src/frontend.js:191",
+      "c/frontend.c:3070"
+    ],
+    "doc": "Constant FLOAT_DIG in module Math.",
+    "notes": ""
+  },
+  {
+    "symbol": "Math.FLOAT_EPSILON",
+    "category": "constant",
+    "status": "STDLIB",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "modules/registry.json:120",
+      "src/frontend.js:191",
+      "c/frontend.c:3070"
+    ],
+    "doc": "Constant FLOAT_EPSILON in module Math.",
+    "notes": ""
+  },
+  {
+    "symbol": "Math.FLOAT_MAX",
+    "category": "constant",
+    "status": "STDLIB",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "modules/registry.json:122",
+      "src/frontend.js:191",
+      "c/frontend.c:3070"
+    ],
+    "doc": "Constant FLOAT_MAX in module Math.",
+    "notes": ""
+  },
+  {
+    "symbol": "Math.FLOAT_MIN",
+    "category": "constant",
+    "status": "STDLIB",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "modules/registry.json:121",
+      "src/frontend.js:191",
+      "c/frontend.c:3070"
+    ],
+    "doc": "Constant FLOAT_MIN in module Math.",
+    "notes": ""
+  },
+  {
+    "symbol": "Math.floor",
+    "category": "function",
+    "status": "STDLIB",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "modules/registry.json:74",
+      "src/frontend.js:140",
+      "c/frontend.c:3061"
+    ],
+    "doc": "Function floor in module Math.",
+    "notes": ""
+  },
+  {
+    "symbol": "Math.fround",
+    "category": "function",
+    "status": "STDLIB",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "modules/registry.json:102",
+      "src/frontend.js:140",
+      "c/frontend.c:3061"
+    ],
+    "doc": "Function fround in module Math.",
+    "notes": ""
+  },
+  {
+    "symbol": "Math.hypot",
+    "category": "function",
+    "status": "STDLIB",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "modules/registry.json:99",
+      "src/frontend.js:140",
+      "c/frontend.c:3061"
+    ],
+    "doc": "Function hypot in module Math.",
+    "notes": ""
+  },
+  {
+    "symbol": "Math.imul",
+    "category": "function",
+    "status": "STDLIB",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "modules/registry.json:104",
+      "src/frontend.js:140",
+      "c/frontend.c:3061"
+    ],
+    "doc": "Function imul in module Math.",
+    "notes": ""
+  },
+  {
+    "symbol": "Math.INT_MAX",
+    "category": "constant",
+    "status": "STDLIB",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "modules/registry.json:116",
+      "src/frontend.js:191",
+      "c/frontend.c:3070"
+    ],
+    "doc": "Constant INT_MAX in module Math.",
+    "notes": ""
+  },
+  {
+    "symbol": "Math.INT_MIN",
+    "category": "constant",
+    "status": "STDLIB",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "modules/registry.json:117",
+      "src/frontend.js:191",
+      "c/frontend.c:3070"
+    ],
+    "doc": "Constant INT_MIN in module Math.",
+    "notes": ""
+  },
+  {
+    "symbol": "Math.INT_SIZE",
+    "category": "constant",
+    "status": "STDLIB",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "modules/registry.json:118",
+      "src/frontend.js:191",
+      "c/frontend.c:3070"
+    ],
+    "doc": "Constant INT_SIZE in module Math.",
+    "notes": ""
+  },
+  {
+    "symbol": "Math.LN10",
+    "category": "constant",
+    "status": "STDLIB",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "modules/registry.json:111",
+      "src/frontend.js:191",
+      "c/frontend.c:3070"
+    ],
+    "doc": "Constant LN10 in module Math.",
+    "notes": ""
+  },
+  {
+    "symbol": "Math.LN2",
+    "category": "constant",
+    "status": "STDLIB",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "modules/registry.json:110",
+      "src/frontend.js:191",
+      "c/frontend.c:3070"
+    ],
+    "doc": "Constant LN2 in module Math.",
+    "notes": ""
+  },
+  {
+    "symbol": "Math.log",
+    "category": "function",
+    "status": "STDLIB",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "modules/registry.json:94",
+      "src/frontend.js:140",
+      "c/frontend.c:3061"
+    ],
+    "doc": "Function log in module Math.",
+    "notes": ""
+  },
+  {
+    "symbol": "Math.log10",
+    "category": "function",
+    "status": "STDLIB",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "modules/registry.json:97",
+      "src/frontend.js:140",
+      "c/frontend.c:3061"
+    ],
+    "doc": "Function log10 in module Math.",
+    "notes": ""
+  },
+  {
+    "symbol": "Math.LOG10E",
+    "category": "constant",
+    "status": "STDLIB",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "modules/registry.json:113",
+      "src/frontend.js:191",
+      "c/frontend.c:3070"
+    ],
+    "doc": "Constant LOG10E in module Math.",
+    "notes": ""
+  },
+  {
+    "symbol": "Math.log1p",
+    "category": "function",
+    "status": "STDLIB",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "modules/registry.json:95",
+      "src/frontend.js:140",
+      "c/frontend.c:3061"
+    ],
+    "doc": "Function log1p in module Math.",
+    "notes": ""
+  },
+  {
+    "symbol": "Math.log2",
+    "category": "function",
+    "status": "STDLIB",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "modules/registry.json:96",
+      "src/frontend.js:140",
+      "c/frontend.c:3061"
+    ],
+    "doc": "Function log2 in module Math.",
+    "notes": ""
+  },
+  {
+    "symbol": "Math.LOG2E",
+    "category": "constant",
+    "status": "STDLIB",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "modules/registry.json:112",
+      "src/frontend.js:191",
+      "c/frontend.c:3070"
+    ],
+    "doc": "Constant LOG2E in module Math.",
+    "notes": ""
+  },
+  {
+    "symbol": "Math.max",
+    "category": "function",
+    "status": "STDLIB",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "modules/registry.json:73",
+      "src/frontend.js:140",
+      "c/frontend.c:3061"
+    ],
+    "doc": "Function max in module Math.",
+    "notes": ""
+  },
+  {
+    "symbol": "Math.min",
+    "category": "function",
+    "status": "STDLIB",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "modules/registry.json:72",
+      "src/frontend.js:140",
+      "c/frontend.c:3061"
+    ],
+    "doc": "Function min in module Math.",
+    "notes": ""
+  },
+  {
+    "symbol": "Math.PI",
+    "category": "constant",
+    "status": "STDLIB",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "modules/registry.json:108",
+      "src/frontend.js:191",
+      "c/frontend.c:3070"
+    ],
+    "doc": "Constant PI in module Math.",
+    "notes": ""
+  },
+  {
+    "symbol": "Math.pow",
+    "category": "function",
+    "status": "STDLIB",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "modules/registry.json:78",
+      "src/frontend.js:140",
+      "c/frontend.c:3061"
+    ],
+    "doc": "Function pow in module Math.",
+    "notes": ""
+  },
+  {
+    "symbol": "Math.random",
+    "category": "function",
+    "status": "STDLIB",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "modules/registry.json:105",
+      "src/frontend.js:140",
+      "c/frontend.c:3061"
+    ],
+    "doc": "Function random in module Math.",
+    "notes": ""
+  },
+  {
+    "symbol": "Math.round",
+    "category": "function",
+    "status": "STDLIB",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "modules/registry.json:76",
+      "src/frontend.js:140",
+      "c/frontend.c:3061"
+    ],
+    "doc": "Function round in module Math.",
+    "notes": ""
+  },
+  {
+    "symbol": "Math.sign",
+    "category": "function",
+    "status": "STDLIB",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "modules/registry.json:101",
+      "src/frontend.js:140",
+      "c/frontend.c:3061"
+    ],
+    "doc": "Function sign in module Math.",
+    "notes": ""
+  },
+  {
+    "symbol": "Math.sin",
+    "category": "function",
+    "status": "STDLIB",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "modules/registry.json:79",
+      "src/frontend.js:140",
+      "c/frontend.c:3061"
+    ],
+    "doc": "Function sin in module Math.",
+    "notes": ""
+  },
+  {
+    "symbol": "Math.sinh",
+    "category": "function",
+    "status": "STDLIB",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "modules/registry.json:86",
+      "src/frontend.js:140",
+      "c/frontend.c:3061"
+    ],
+    "doc": "Function sinh in module Math.",
+    "notes": ""
+  },
+  {
+    "symbol": "Math.sqrt",
+    "category": "function",
+    "status": "STDLIB",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "modules/registry.json:77",
+      "src/frontend.js:140",
+      "c/frontend.c:3061"
+    ],
+    "doc": "Function sqrt in module Math.",
+    "notes": ""
+  },
+  {
+    "symbol": "Math.SQRT1_2",
+    "category": "constant",
+    "status": "STDLIB",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "modules/registry.json:114",
+      "src/frontend.js:191",
+      "c/frontend.c:3070"
+    ],
+    "doc": "Constant SQRT1_2 in module Math.",
+    "notes": ""
+  },
+  {
+    "symbol": "Math.SQRT2",
+    "category": "constant",
+    "status": "STDLIB",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "modules/registry.json:115",
+      "src/frontend.js:191",
+      "c/frontend.c:3070"
+    ],
+    "doc": "Constant SQRT2 in module Math.",
+    "notes": ""
+  },
+  {
+    "symbol": "Math.tan",
+    "category": "function",
+    "status": "STDLIB",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "modules/registry.json:81",
+      "src/frontend.js:140",
+      "c/frontend.c:3061"
+    ],
+    "doc": "Function tan in module Math.",
+    "notes": ""
+  },
+  {
+    "symbol": "Math.tanh",
+    "category": "function",
+    "status": "STDLIB",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "modules/registry.json:88",
+      "src/frontend.js:140",
+      "c/frontend.c:3061"
+    ],
+    "doc": "Function tanh in module Math.",
+    "notes": ""
+  },
+  {
+    "symbol": "Math.trunc",
+    "category": "function",
+    "status": "STDLIB",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "modules/registry.json:100",
+      "src/frontend.js:140",
+      "c/frontend.c:3061"
+    ],
+    "doc": "Function trunc in module Math.",
+    "notes": ""
+  },
+  {
+    "symbol": "member_expr",
+    "category": "construct",
+    "status": "CORE",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "src/frontend.js:1075",
+      "c/frontend.c:2236"
+    ],
+    "doc": "Core syntax construct (member_expr).",
+    "notes": ""
+  },
+  {
+    "symbol": "NotADirectoryException",
+    "category": "exception",
+    "status": "RUNTIME_ONLY",
+    "frontends": {
+      "c": false,
+      "node": true
+    },
+    "locations": [
+      "src/runtime.js:190"
+    ],
+    "doc": "Runtime-only symbol NotADirectoryException.",
+    "notes": ""
+  },
+  {
+    "symbol": "NotAFileException",
+    "category": "exception",
+    "status": "RUNTIME_ONLY",
+    "frontends": {
+      "c": false,
+      "node": true
+    },
+    "locations": [
+      "src/runtime.js:191"
+    ],
+    "doc": "Runtime-only symbol NotAFileException.",
+    "notes": ""
+  },
+  {
+    "symbol": "of",
+    "category": "keyword",
+    "status": "CORE",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "src/frontend.js:30"
+    ],
+    "doc": "Reserved keyword.",
+    "notes": ""
+  },
+  {
+    "symbol": "PathEntry",
+    "category": "exception",
+    "status": "STDLIB",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "c/frontend.c:3895"
+    ],
+    "doc": "Exception or built-in prototype PathEntry.",
+    "notes": ""
+  },
+  {
+    "symbol": "PathInfo",
+    "category": "exception",
+    "status": "STDLIB",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "c/frontend.c:3885"
+    ],
+    "doc": "Exception or built-in prototype PathInfo.",
+    "notes": ""
+  },
+  {
+    "symbol": "PermissionDeniedException",
+    "category": "exception",
+    "status": "STDLIB",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "c/frontend.c:3954"
+    ],
+    "doc": "Exception or built-in prototype PermissionDeniedException.",
+    "notes": ""
+  },
+  {
+    "symbol": "ProcessCreationException",
+    "category": "exception",
+    "status": "RUNTIME_ONLY",
+    "frontends": {
+      "c": false,
+      "node": true
+    },
+    "locations": [
+      "src/runtime.js:176"
+    ],
+    "doc": "Runtime-only symbol ProcessCreationException.",
+    "notes": ""
+  },
+  {
+    "symbol": "ProcessEvent",
+    "category": "type",
+    "status": "RUNTIME_ONLY",
+    "frontends": {
+      "c": false,
+      "node": true
+    },
+    "locations": [
+      "src/runtime.js:90"
+    ],
+    "doc": "Runtime-only symbol ProcessEvent.",
+    "notes": ""
+  },
+  {
+    "symbol": "ProcessExecutionException",
+    "category": "exception",
+    "status": "RUNTIME_ONLY",
+    "frontends": {
+      "c": false,
+      "node": true
+    },
+    "locations": [
+      "src/runtime.js:177"
+    ],
+    "doc": "Runtime-only symbol ProcessExecutionException.",
+    "notes": ""
+  },
+  {
+    "symbol": "ProcessPermissionException",
+    "category": "exception",
+    "status": "RUNTIME_ONLY",
+    "frontends": {
+      "c": false,
+      "node": true
+    },
+    "locations": [
+      "src/runtime.js:178"
+    ],
+    "doc": "Runtime-only symbol ProcessPermissionException.",
+    "notes": ""
+  },
+  {
+    "symbol": "ProcessResult",
+    "category": "type",
+    "status": "RUNTIME_ONLY",
+    "frontends": {
+      "c": false,
+      "node": true
+    },
+    "locations": [
+      "src/runtime.js:100"
+    ],
+    "doc": "Runtime-only symbol ProcessResult.",
+    "notes": ""
+  },
+  {
+    "symbol": "prototype",
+    "category": "keyword",
+    "status": "CORE",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "src/frontend.js:9"
+    ],
+    "doc": "Reserved keyword.",
+    "notes": ""
+  },
+  {
+    "symbol": "prototype_decl",
+    "category": "construct",
+    "status": "CORE",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "src/frontend.js:521",
+      "c/frontend.c:2236"
+    ],
+    "doc": "Core syntax construct (prototype_decl).",
+    "notes": ""
+  },
+  {
+    "symbol": "R1001",
+    "category": "error_code",
+    "status": "CORE",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "src/runtime.js:704",
+      "c/runtime/ps_errors.c:48"
+    ],
+    "doc": "Diagnostic code R1001.",
+    "notes": ""
+  },
+  {
+    "symbol": "R1002",
+    "category": "error_code",
+    "status": "CORE",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "src/runtime.js:630",
+      "c/runtime/ps_errors.c:52"
+    ],
+    "doc": "Diagnostic code R1002.",
+    "notes": ""
+  },
+  {
+    "symbol": "R1003",
+    "category": "error_code",
+    "status": "CORE",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "src/runtime.js:3419",
+      "c/runtime/ps_errors.c:56"
+    ],
+    "doc": "Diagnostic code R1003.",
+    "notes": ""
+  },
+  {
+    "symbol": "R1004",
+    "category": "error_code",
+    "status": "CORE",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "src/runtime.js:3327",
+      "c/runtime/ps_errors.c:60"
+    ],
+    "doc": "Diagnostic code R1004.",
+    "notes": ""
+  },
+  {
+    "symbol": "R1005",
+    "category": "error_code",
+    "status": "CORE",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "src/runtime.js:3343",
+      "c/runtime/ps_errors.c:64"
+    ],
+    "doc": "Diagnostic code R1005.",
+    "notes": ""
+  },
+  {
+    "symbol": "R1006",
+    "category": "error_code",
+    "status": "CORE",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "src/runtime.js:4286",
+      "c/runtime/ps_errors.c:68"
+    ],
+    "doc": "Diagnostic code R1006.",
+    "notes": ""
+  },
+  {
+    "symbol": "R1007",
+    "category": "error_code",
+    "status": "CORE",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "src/runtime.js:4028",
+      "c/runtime/ps_errors.c:86"
+    ],
+    "doc": "Diagnostic code R1007.",
+    "notes": ""
+  },
+  {
+    "symbol": "R1008",
+    "category": "error_code",
+    "status": "CORE",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "src/runtime.js:712",
+      "c/runtime/ps_errors.c:72"
+    ],
+    "doc": "Diagnostic code R1008.",
+    "notes": ""
+  },
+  {
+    "symbol": "R1010",
+    "category": "error_code",
+    "status": "CORE",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "src/runtime.js:741",
+      "c/runtime/ps_errors.c:43"
+    ],
+    "doc": "Diagnostic code R1010.",
+    "notes": ""
+  },
+  {
+    "symbol": "R1011",
+    "category": "error_code",
+    "status": "CORE",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "src/runtime.js:1",
+      "c/runtime/ps_errors.c:1"
+    ],
+    "doc": "Diagnostic code R1011.",
+    "notes": ""
+  },
+  {
+    "symbol": "R1012",
+    "category": "error_code",
+    "status": "CORE",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "src/runtime.js:615",
+      "c/runtime/ps_errors.c:76"
+    ],
+    "doc": "Diagnostic code R1012.",
+    "notes": ""
+  },
+  {
+    "symbol": "ReadFailureException",
+    "category": "exception",
+    "status": "STDLIB",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "c/frontend.c:3959"
+    ],
+    "doc": "Exception or built-in prototype ReadFailureException.",
+    "notes": ""
+  },
+  {
+    "symbol": "RegExp",
+    "category": "module",
+    "status": "STDLIB",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "modules/registry.json:227",
+      "src/frontend.js:140",
+      "c/frontend.c:2920"
+    ],
+    "doc": "Module RegExp from registry.",
+    "notes": ""
+  },
+  {
+    "symbol": "RegExp.compile",
+    "category": "function",
+    "status": "STDLIB",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "modules/registry.json:229",
+      "src/frontend.js:140",
+      "c/frontend.c:3061"
+    ],
+    "doc": "Function compile in module RegExp.",
+    "notes": ""
+  },
+  {
+    "symbol": "RegExp.find",
+    "category": "function",
+    "status": "STDLIB",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "modules/registry.json:231",
+      "src/frontend.js:140",
+      "c/frontend.c:3061"
+    ],
+    "doc": "Function find in module RegExp.",
+    "notes": ""
+  },
+  {
+    "symbol": "RegExp.find()",
+    "category": "method",
+    "status": "STDLIB",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "c/frontend.c:4798",
+      "src/runtime.js:130"
+    ],
+    "doc": "Built-in method find on RegExp.",
+    "notes": ""
+  },
+  {
+    "symbol": "RegExp.findAll",
+    "category": "function",
+    "status": "STDLIB",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "modules/registry.json:232",
+      "src/frontend.js:140",
+      "c/frontend.c:3061"
+    ],
+    "doc": "Function findAll in module RegExp.",
+    "notes": ""
+  },
+  {
+    "symbol": "RegExp.findAll()",
+    "category": "method",
+    "status": "STDLIB",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "c/frontend.c:4800",
+      "src/runtime.js:131"
+    ],
+    "doc": "Built-in method findAll on RegExp.",
+    "notes": ""
+  },
+  {
+    "symbol": "RegExp.flags",
+    "category": "function",
+    "status": "STDLIB",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "modules/registry.json:237",
+      "src/frontend.js:140",
+      "c/frontend.c:3061"
+    ],
+    "doc": "Function flags in module RegExp.",
+    "notes": ""
+  },
+  {
+    "symbol": "RegExp.flags()",
+    "category": "method",
+    "status": "STDLIB",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "c/frontend.c:4804",
+      "src/runtime.js:136"
+    ],
+    "doc": "Built-in method flags on RegExp.",
+    "notes": ""
+  },
+  {
+    "symbol": "RegExp.pattern",
+    "category": "function",
+    "status": "STDLIB",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "modules/registry.json:236",
+      "src/frontend.js:140",
+      "c/frontend.c:3061"
+    ],
+    "doc": "Function pattern in module RegExp.",
+    "notes": ""
+  },
+  {
+    "symbol": "RegExp.pattern()",
+    "category": "method",
+    "status": "STDLIB",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "c/frontend.c:4804",
+      "src/runtime.js:135"
+    ],
+    "doc": "Built-in method pattern on RegExp.",
+    "notes": ""
+  },
+  {
+    "symbol": "RegExp.replaceAll",
+    "category": "function",
+    "status": "STDLIB",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "modules/registry.json:234",
+      "src/frontend.js:140",
+      "c/frontend.c:3061"
+    ],
+    "doc": "Function replaceAll in module RegExp.",
+    "notes": ""
+  },
+  {
+    "symbol": "RegExp.replaceAll()",
+    "category": "method",
+    "status": "STDLIB",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "c/frontend.c:4802",
+      "src/runtime.js:133"
+    ],
+    "doc": "Built-in method replaceAll on RegExp.",
+    "notes": ""
+  },
+  {
+    "symbol": "RegExp.replaceFirst",
+    "category": "function",
+    "status": "STDLIB",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "modules/registry.json:233",
+      "src/frontend.js:140",
+      "c/frontend.c:3061"
+    ],
+    "doc": "Function replaceFirst in module RegExp.",
+    "notes": ""
+  },
+  {
+    "symbol": "RegExp.replaceFirst()",
+    "category": "method",
+    "status": "STDLIB",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "c/frontend.c:4800",
+      "src/runtime.js:132"
+    ],
+    "doc": "Built-in method replaceFirst on RegExp.",
+    "notes": ""
+  },
+  {
+    "symbol": "RegExp.split",
+    "category": "function",
+    "status": "STDLIB",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "modules/registry.json:235",
+      "src/frontend.js:140",
+      "c/frontend.c:3061"
+    ],
+    "doc": "Function split in module RegExp.",
+    "notes": ""
+  },
+  {
+    "symbol": "RegExp.split()",
+    "category": "method",
+    "status": "STDLIB",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "c/frontend.c:4750",
+      "src/runtime.js:134"
+    ],
+    "doc": "Built-in method split on RegExp.",
+    "notes": ""
+  },
+  {
+    "symbol": "RegExp.test",
+    "category": "function",
+    "status": "STDLIB",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "modules/registry.json:230",
+      "src/frontend.js:140",
+      "c/frontend.c:3061"
+    ],
+    "doc": "Function test in module RegExp.",
+    "notes": ""
+  },
+  {
+    "symbol": "RegExp.test()",
+    "category": "method",
+    "status": "STDLIB",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "c/frontend.c:4798",
+      "src/runtime.js:129"
+    ],
+    "doc": "Built-in method test on RegExp.",
+    "notes": ""
+  },
+  {
+    "symbol": "RegExpMatch",
+    "category": "exception",
+    "status": "STDLIB",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "c/frontend.c:3926"
+    ],
+    "doc": "Exception or built-in prototype RegExpMatch.",
+    "notes": ""
+  },
+  {
+    "symbol": "return",
+    "category": "keyword",
+    "status": "CORE",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "src/frontend.js:39"
+    ],
+    "doc": "Reserved keyword.",
+    "notes": ""
+  },
+  {
+    "symbol": "return_stmt",
+    "category": "construct",
+    "status": "CORE",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "src/frontend.js:762",
+      "c/frontend.c:2236"
+    ],
+    "doc": "Core syntax construct (return_stmt).",
+    "notes": ""
+  },
+  {
+    "symbol": "RuntimeException",
+    "category": "exception",
+    "status": "CORE",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "c/frontend.c:3865"
+    ],
+    "doc": "Exception or built-in prototype RuntimeException.",
+    "notes": ""
+  },
+  {
+    "symbol": "sealed",
+    "category": "keyword",
+    "status": "CORE",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "src/frontend.js:10"
+    ],
+    "doc": "Reserved keyword.",
+    "notes": ""
+  },
+  {
+    "symbol": "sealed_prototype_decl",
+    "category": "construct",
+    "status": "CORE",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "src/frontend.js:521",
+      "c/frontend.c:2236"
+    ],
+    "doc": "Core syntax construct (sealed_prototype_decl).",
+    "notes": ""
+  },
+  {
+    "symbol": "self",
+    "category": "keyword",
+    "status": "CORE",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "src/frontend.js:46"
+    ],
+    "doc": "Reserved keyword.",
+    "notes": ""
+  },
+  {
+    "symbol": "slice",
+    "category": "keyword",
+    "status": "CORE",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "src/frontend.js:24"
+    ],
+    "doc": "Reserved keyword.",
+    "notes": ""
+  },
+  {
+    "symbol": "slice",
+    "category": "type",
+    "status": "CORE",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "src/frontend.js:24",
+      "c/frontend.c:333"
+    ],
+    "doc": "Core type symbol.",
+    "notes": ""
+  },
+  {
+    "symbol": "slice<T>.isEmpty()",
+    "category": "method",
+    "status": "CORE",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "c/frontend.c:4744",
+      "src/runtime.js:3909"
+    ],
+    "doc": "Built-in method isEmpty on slice<T>.",
+    "notes": ""
+  },
+  {
+    "symbol": "slice<T>.length()",
+    "category": "method",
+    "status": "CORE",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "c/frontend.c:4744",
+      "src/runtime.js:3898"
+    ],
+    "doc": "Built-in method length on slice<T>.",
+    "notes": ""
+  },
+  {
+    "symbol": "slice<T>.slice()",
+    "category": "method",
+    "status": "CORE",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "c/frontend.c:333",
+      "src/runtime.js:288"
+    ],
+    "doc": "Built-in method slice on slice<T>.",
+    "notes": ""
+  },
+  {
+    "symbol": "StandardStreamCloseException",
+    "category": "exception",
+    "status": "STDLIB",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "c/frontend.c:3962"
+    ],
+    "doc": "Exception or built-in prototype StandardStreamCloseException.",
+    "notes": ""
+  },
+  {
+    "symbol": "string",
+    "category": "keyword",
+    "status": "CORE",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "src/frontend.js:21"
+    ],
+    "doc": "Reserved keyword.",
+    "notes": ""
+  },
+  {
+    "symbol": "string",
+    "category": "type",
+    "status": "CORE",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "src/frontend.js:21",
+      "c/frontend.c:9"
+    ],
+    "doc": "Core type symbol.",
+    "notes": ""
+  },
+  {
+    "symbol": "string.concat()",
+    "category": "method",
+    "status": "CORE",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "c/frontend.c:4749",
+      "src/runtime.js:3964"
+    ],
+    "doc": "Built-in method concat on string.",
+    "notes": ""
+  },
+  {
+    "symbol": "string.endsWith()",
+    "category": "method",
+    "status": "CORE",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "c/frontend.c:4750",
+      "src/runtime.js:3988"
+    ],
+    "doc": "Built-in method endsWith on string.",
+    "notes": ""
+  },
+  {
+    "symbol": "string.indexOf()",
+    "category": "method",
+    "status": "CORE",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "c/frontend.c:4749",
+      "src/runtime.js:3979"
+    ],
+    "doc": "Built-in method indexOf on string.",
+    "notes": ""
+  },
+  {
+    "symbol": "string.isEmpty()",
+    "category": "method",
+    "status": "CORE",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "c/frontend.c:4744",
+      "src/runtime.js:3909"
+    ],
+    "doc": "Built-in method isEmpty on string.",
+    "notes": ""
+  },
+  {
+    "symbol": "string.length()",
+    "category": "method",
+    "status": "CORE",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "c/frontend.c:4744",
+      "src/runtime.js:3898"
+    ],
+    "doc": "Built-in method length on string.",
+    "notes": ""
+  },
+  {
+    "symbol": "string.replace()",
+    "category": "method",
+    "status": "CORE",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "c/frontend.c:4752",
+      "src/runtime.js:4010"
+    ],
+    "doc": "Built-in method replace on string.",
+    "notes": ""
+  },
+  {
+    "symbol": "string.split()",
+    "category": "method",
+    "status": "CORE",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "c/frontend.c:4750",
+      "src/runtime.js:134"
+    ],
+    "doc": "Built-in method split on string.",
+    "notes": ""
+  },
+  {
+    "symbol": "string.startsWith()",
+    "category": "method",
+    "status": "CORE",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "c/frontend.c:4749",
+      "src/runtime.js:3984"
+    ],
+    "doc": "Built-in method startsWith on string.",
+    "notes": ""
+  },
+  {
+    "symbol": "string.substring()",
+    "category": "method",
+    "status": "CORE",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "c/frontend.c:4752",
+      "src/runtime.js:3968"
+    ],
+    "doc": "Built-in method substring on string.",
+    "notes": ""
+  },
+  {
+    "symbol": "string.toFloat()",
+    "category": "method",
+    "status": "CORE",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "c/frontend.c:4745",
+      "src/runtime.js:3838"
+    ],
+    "doc": "Built-in method toFloat on string.",
+    "notes": ""
+  },
+  {
+    "symbol": "string.toInt()",
+    "category": "method",
+    "status": "CORE",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "c/frontend.c:4745",
+      "src/runtime.js:3818"
+    ],
+    "doc": "Built-in method toInt on string.",
+    "notes": ""
+  },
+  {
+    "symbol": "string.toLower()",
+    "category": "method",
+    "status": "CORE",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "c/frontend.c:4746",
+      "src/runtime.js:3813"
+    ],
+    "doc": "Built-in method toLower on string.",
+    "notes": ""
+  },
+  {
+    "symbol": "string.toString()",
+    "category": "method",
+    "status": "CORE",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "c/frontend.c:4744",
+      "src/runtime.js:1158"
+    ],
+    "doc": "Built-in method toString on string.",
+    "notes": ""
+  },
+  {
+    "symbol": "string.toUpper()",
+    "category": "method",
+    "status": "CORE",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "c/frontend.c:4745",
+      "src/runtime.js:3808"
+    ],
+    "doc": "Built-in method toUpper on string.",
+    "notes": ""
+  },
+  {
+    "symbol": "string.toUtf8Bytes()",
+    "category": "method",
+    "status": "CORE",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "c/frontend.c:4746",
+      "src/runtime.js:3819"
+    ],
+    "doc": "Built-in method toUtf8Bytes on string.",
+    "notes": ""
+  },
+  {
+    "symbol": "string.trim()",
+    "category": "method",
+    "status": "CORE",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "c/frontend.c:4746",
+      "src/runtime.js:3998"
+    ],
+    "doc": "Built-in method trim on string.",
+    "notes": ""
+  },
+  {
+    "symbol": "string.trimEnd()",
+    "category": "method",
+    "status": "CORE",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "c/frontend.c:4747",
+      "src/runtime.js:4006"
+    ],
+    "doc": "Built-in method trimEnd on string.",
+    "notes": ""
+  },
+  {
+    "symbol": "string.trimStart()",
+    "category": "method",
+    "status": "CORE",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "c/frontend.c:4747",
+      "src/runtime.js:4002"
+    ],
+    "doc": "Built-in method trimStart on string.",
+    "notes": ""
+  },
+  {
+    "symbol": "switch",
+    "category": "keyword",
+    "status": "CORE",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "src/frontend.js:34"
+    ],
+    "doc": "Reserved keyword.",
+    "notes": ""
+  },
+  {
+    "symbol": "switch_stmt",
+    "category": "construct",
+    "status": "CORE",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "src/frontend.js:760",
+      "c/frontend.c:2236"
+    ],
+    "doc": "Core syntax construct (switch_stmt).",
+    "notes": ""
+  },
+  {
+    "symbol": "Sys",
+    "category": "module",
+    "status": "STDLIB",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "modules/registry.json:172",
+      "src/frontend.js:140",
+      "c/frontend.c:2920"
+    ],
+    "doc": "Module Sys from registry.",
+    "notes": ""
+  },
+  {
+    "symbol": "Sys.env",
+    "category": "function",
+    "status": "STDLIB",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "modules/registry.json:175",
+      "src/frontend.js:140",
+      "c/frontend.c:3061"
+    ],
+    "doc": "Function env in module Sys.",
+    "notes": ""
+  },
+  {
+    "symbol": "Sys.execute",
+    "category": "function",
+    "status": "STDLIB",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "modules/registry.json:176",
+      "src/frontend.js:140",
+      "c/frontend.c:3061"
+    ],
+    "doc": "Function execute in module Sys.",
+    "notes": ""
+  },
+  {
+    "symbol": "Sys.hasEnv",
+    "category": "function",
+    "status": "STDLIB",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "modules/registry.json:174",
+      "src/frontend.js:140",
+      "c/frontend.c:3061"
+    ],
+    "doc": "Function hasEnv in module Sys.",
+    "notes": ""
+  },
+  {
+    "symbol": "test.badver",
+    "category": "module",
+    "status": "TEST_ONLY",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "modules/registry.json:45",
+      "src/frontend.js:140",
+      "c/frontend.c:2920"
+    ],
+    "doc": "Module test.badver from registry.",
+    "notes": ""
+  },
+  {
+    "symbol": "test.badver.ping",
+    "category": "function",
+    "status": "TEST_ONLY",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "modules/registry.json:47",
+      "src/frontend.js:140",
+      "c/frontend.c:3061"
+    ],
+    "doc": "Function ping in module test.badver.",
+    "notes": ""
+  },
+  {
+    "symbol": "test.env",
+    "category": "module",
+    "status": "TEST_ONLY",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "modules/registry.json:26",
+      "src/frontend.js:140",
+      "c/frontend.c:2920"
+    ],
+    "doc": "Module test.env from registry.",
+    "notes": ""
+  },
+  {
+    "symbol": "test.env.set",
+    "category": "function",
+    "status": "TEST_ONLY",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "modules/registry.json:28",
+      "src/frontend.js:140",
+      "c/frontend.c:3061"
+    ],
+    "doc": "Function set in module test.env.",
+    "notes": ""
+  },
+  {
+    "symbol": "test.env.setInvalidUtf8",
+    "category": "function",
+    "status": "TEST_ONLY",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "modules/registry.json:29",
+      "src/frontend.js:140",
+      "c/frontend.c:3061"
+    ],
+    "doc": "Function setInvalidUtf8 in module test.env.",
+    "notes": ""
+  },
+  {
+    "symbol": "test.invalid",
+    "category": "module",
+    "status": "TEST_ONLY",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "modules/registry.json:63",
+      "src/frontend.js:140",
+      "c/frontend.c:2920"
+    ],
+    "doc": "Module test.invalid from registry.",
+    "notes": ""
+  },
+  {
+    "symbol": "test.invalid.bad",
+    "category": "function",
+    "status": "TEST_ONLY",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "modules/registry.json:65",
+      "src/frontend.js:140",
+      "c/frontend.c:3061"
+    ],
+    "doc": "Function bad in module test.invalid.",
+    "notes": ""
+  },
+  {
+    "symbol": "test.missing",
+    "category": "module",
+    "status": "TEST_ONLY",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "modules/registry.json:57",
+      "src/frontend.js:140",
+      "c/frontend.c:2920"
+    ],
+    "doc": "Module test.missing from registry.",
+    "notes": ""
+  },
+  {
+    "symbol": "test.missing.ping",
+    "category": "function",
+    "status": "TEST_ONLY",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "modules/registry.json:59",
+      "src/frontend.js:140",
+      "c/frontend.c:3061"
+    ],
+    "doc": "Function ping in module test.missing.",
+    "notes": ""
+  },
+  {
+    "symbol": "test.noinit",
+    "category": "module",
+    "status": "TEST_ONLY",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "modules/registry.json:39",
+      "src/frontend.js:140",
+      "c/frontend.c:2920"
+    ],
+    "doc": "Module test.noinit from registry.",
+    "notes": ""
+  },
+  {
+    "symbol": "test.noinit.ping",
+    "category": "function",
+    "status": "TEST_ONLY",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "modules/registry.json:41",
+      "src/frontend.js:140",
+      "c/frontend.c:3061"
+    ],
+    "doc": "Function ping in module test.noinit.",
+    "notes": ""
+  },
+  {
+    "symbol": "test.nosym",
+    "category": "module",
+    "status": "TEST_ONLY",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "modules/registry.json:51",
+      "src/frontend.js:140",
+      "c/frontend.c:2920"
+    ],
+    "doc": "Module test.nosym from registry.",
+    "notes": ""
+  },
+  {
+    "symbol": "test.nosym.missing",
+    "category": "function",
+    "status": "TEST_ONLY",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "modules/registry.json:53",
+      "src/frontend.js:140",
+      "c/frontend.c:3061"
+    ],
+    "doc": "Function missing in module test.nosym.",
+    "notes": ""
+  },
+  {
+    "symbol": "test.simple",
+    "category": "module",
+    "status": "TEST_ONLY",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "modules/registry.json:14",
+      "src/frontend.js:140",
+      "c/frontend.c:2920"
+    ],
+    "doc": "Module test.simple from registry.",
+    "notes": ""
+  },
+  {
+    "symbol": "test.simple.add",
+    "category": "function",
+    "status": "TEST_ONLY",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "modules/registry.json:16",
+      "src/frontend.js:140",
+      "c/frontend.c:3061"
+    ],
+    "doc": "Function add in module test.simple.",
+    "notes": ""
+  },
+  {
+    "symbol": "test.throw",
+    "category": "module",
+    "status": "TEST_ONLY",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "modules/registry.json:33",
+      "src/frontend.js:140",
+      "c/frontend.c:2920"
+    ],
+    "doc": "Module test.throw from registry.",
+    "notes": ""
+  },
+  {
+    "symbol": "test.throw.fail",
+    "category": "function",
+    "status": "TEST_ONLY",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "modules/registry.json:35",
+      "src/frontend.js:140",
+      "c/frontend.c:3061"
+    ],
+    "doc": "Function fail in module test.throw.",
+    "notes": ""
+  },
+  {
+    "symbol": "test.utf8",
+    "category": "module",
+    "status": "TEST_ONLY",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "modules/registry.json:20",
+      "src/frontend.js:140",
+      "c/frontend.c:2920"
+    ],
+    "doc": "Module test.utf8 from registry.",
+    "notes": ""
+  },
+  {
+    "symbol": "test.utf8.roundtrip",
+    "category": "function",
+    "status": "TEST_ONLY",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "modules/registry.json:22",
+      "src/frontend.js:140",
+      "c/frontend.c:3061"
+    ],
+    "doc": "Function roundtrip in module test.utf8.",
+    "notes": ""
+  },
+  {
+    "symbol": "TextFile.close()",
+    "category": "method",
+    "status": "STDLIB",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "c/frontend.c:3913",
+      "src/runtime.js:3641"
+    ],
+    "doc": "Built-in method close on TextFile.",
+    "notes": ""
+  },
+  {
+    "symbol": "TextFile.name()",
+    "category": "method",
+    "status": "STDLIB",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "c/frontend.c:2956",
+      "src/runtime.js:82"
+    ],
+    "doc": "Built-in method name on TextFile.",
+    "notes": ""
+  },
+  {
+    "symbol": "TextFile.read()",
+    "category": "method",
+    "status": "STDLIB",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "c/frontend.c:4758",
+      "src/runtime.js:4168"
+    ],
+    "doc": "Built-in method read on TextFile.",
+    "notes": ""
+  },
+  {
+    "symbol": "TextFile.seek()",
+    "category": "method",
+    "status": "STDLIB",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "c/frontend.c:4758",
+      "src/runtime.js:4246"
+    ],
+    "doc": "Built-in method seek on TextFile.",
+    "notes": ""
+  },
+  {
+    "symbol": "TextFile.size()",
+    "category": "method",
+    "status": "STDLIB",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "c/frontend.c:4756",
+      "src/runtime.js:1505"
+    ],
+    "doc": "Built-in method size on TextFile.",
+    "notes": ""
+  },
+  {
+    "symbol": "TextFile.tell()",
+    "category": "method",
+    "status": "STDLIB",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "c/frontend.c:4756",
+      "src/runtime.js:4230"
+    ],
+    "doc": "Built-in method tell on TextFile.",
+    "notes": ""
+  },
+  {
+    "symbol": "TextFile.write()",
+    "category": "method",
+    "status": "STDLIB",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "c/frontend.c:4758",
+      "src/runtime.js:4193"
+    ],
+    "doc": "Built-in method write on TextFile.",
+    "notes": ""
+  },
+  {
+    "symbol": "throw",
+    "category": "keyword",
+    "status": "CORE",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "src/frontend.js:43"
+    ],
+    "doc": "Reserved keyword.",
+    "notes": ""
+  },
+  {
+    "symbol": "throw_stmt",
+    "category": "construct",
+    "status": "CORE",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "src/frontend.js:765",
+      "c/frontend.c:2236"
+    ],
+    "doc": "Core syntax construct (throw_stmt).",
+    "notes": ""
+  },
+  {
+    "symbol": "Time",
+    "category": "module",
+    "status": "STDLIB",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "modules/registry.json:194",
+      "src/frontend.js:140",
+      "c/frontend.c:2920"
+    ],
+    "doc": "Module Time from registry.",
+    "notes": ""
+  },
+  {
+    "symbol": "Time.nowEpochMillis",
+    "category": "function",
+    "status": "STDLIB",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "modules/registry.json:196",
+      "src/frontend.js:140",
+      "c/frontend.c:3061"
+    ],
+    "doc": "Function nowEpochMillis in module Time.",
+    "notes": ""
+  },
+  {
+    "symbol": "Time.nowMonotonicNanos",
+    "category": "function",
+    "status": "STDLIB",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "modules/registry.json:197",
+      "src/frontend.js:140",
+      "c/frontend.c:3061"
+    ],
+    "doc": "Function nowMonotonicNanos in module Time.",
+    "notes": ""
+  },
+  {
+    "symbol": "Time.sleepMillis",
+    "category": "function",
+    "status": "STDLIB",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "modules/registry.json:198",
+      "src/frontend.js:140",
+      "c/frontend.c:3061"
+    ],
+    "doc": "Function sleepMillis in module Time.",
+    "notes": ""
+  },
+  {
+    "symbol": "TimeCivil",
+    "category": "module",
+    "status": "STDLIB",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "modules/registry.json:202",
+      "src/frontend.js:140",
+      "c/frontend.c:2920"
+    ],
+    "doc": "Module TimeCivil from registry.",
+    "notes": ""
+  },
+  {
+    "symbol": "TimeCivil.dayOfWeek",
+    "category": "function",
+    "status": "STDLIB",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "modules/registry.json:211",
+      "src/frontend.js:140",
+      "c/frontend.c:3061"
+    ],
+    "doc": "Function dayOfWeek in module TimeCivil.",
+    "notes": ""
+  },
+  {
+    "symbol": "TimeCivil.dayOfYear",
+    "category": "function",
+    "status": "STDLIB",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "modules/registry.json:212",
+      "src/frontend.js:140",
+      "c/frontend.c:3061"
+    ],
+    "doc": "Function dayOfYear in module TimeCivil.",
+    "notes": ""
+  },
+  {
+    "symbol": "TimeCivil.daysInMonth",
+    "category": "function",
+    "status": "STDLIB",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "modules/registry.json:216",
+      "src/frontend.js:140",
+      "c/frontend.c:3061"
+    ],
+    "doc": "Function daysInMonth in module TimeCivil.",
+    "notes": ""
+  },
+  {
+    "symbol": "TimeCivil.DST_EARLIER",
+    "category": "constant",
+    "status": "STDLIB",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "modules/registry.json:221",
+      "src/frontend.js:191",
+      "c/frontend.c:3070"
+    ],
+    "doc": "Constant DST_EARLIER in module TimeCivil.",
+    "notes": ""
+  },
+  {
+    "symbol": "TimeCivil.DST_ERROR",
+    "category": "constant",
+    "status": "STDLIB",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "modules/registry.json:223",
+      "src/frontend.js:191",
+      "c/frontend.c:3070"
+    ],
+    "doc": "Constant DST_ERROR in module TimeCivil.",
+    "notes": ""
+  },
+  {
+    "symbol": "TimeCivil.DST_LATER",
+    "category": "constant",
+    "status": "STDLIB",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "modules/registry.json:222",
+      "src/frontend.js:191",
+      "c/frontend.c:3070"
+    ],
+    "doc": "Constant DST_LATER in module TimeCivil.",
+    "notes": ""
+  },
+  {
+    "symbol": "TimeCivil.formatISO8601",
+    "category": "function",
+    "status": "STDLIB",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "modules/registry.json:218",
+      "src/frontend.js:140",
+      "c/frontend.c:3061"
+    ],
+    "doc": "Function formatISO8601 in module TimeCivil.",
+    "notes": ""
+  },
+  {
+    "symbol": "TimeCivil.fromEpoch",
+    "category": "function",
+    "status": "STDLIB",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "modules/registry.json:206",
+      "src/frontend.js:140",
+      "c/frontend.c:3061"
+    ],
+    "doc": "Function fromEpoch in module TimeCivil.",
+    "notes": ""
+  },
+  {
+    "symbol": "TimeCivil.fromEpochUTC",
+    "category": "function",
+    "status": "STDLIB",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "modules/registry.json:204",
+      "src/frontend.js:140",
+      "c/frontend.c:3061"
+    ],
+    "doc": "Function fromEpochUTC in module TimeCivil.",
+    "notes": ""
+  },
+  {
+    "symbol": "TimeCivil.isDST",
+    "category": "function",
+    "status": "STDLIB",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "modules/registry.json:208",
+      "src/frontend.js:140",
+      "c/frontend.c:3061"
+    ],
+    "doc": "Function isDST in module TimeCivil.",
+    "notes": ""
+  },
+  {
+    "symbol": "TimeCivil.isLeapYear",
+    "category": "function",
+    "status": "STDLIB",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "modules/registry.json:215",
+      "src/frontend.js:140",
+      "c/frontend.c:3061"
+    ],
+    "doc": "Function isLeapYear in module TimeCivil.",
+    "notes": ""
+  },
+  {
+    "symbol": "TimeCivil.offsetSeconds",
+    "category": "function",
+    "status": "STDLIB",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "modules/registry.json:209",
+      "src/frontend.js:140",
+      "c/frontend.c:3061"
+    ],
+    "doc": "Function offsetSeconds in module TimeCivil.",
+    "notes": ""
+  },
+  {
+    "symbol": "TimeCivil.parseISO8601",
+    "category": "function",
+    "status": "STDLIB",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "modules/registry.json:217",
+      "src/frontend.js:140",
+      "c/frontend.c:3061"
+    ],
+    "doc": "Function parseISO8601 in module TimeCivil.",
+    "notes": ""
+  },
+  {
+    "symbol": "TimeCivil.standardOffsetSeconds",
+    "category": "function",
+    "status": "STDLIB",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "modules/registry.json:210",
+      "src/frontend.js:140",
+      "c/frontend.c:3061"
+    ],
+    "doc": "Function standardOffsetSeconds in module TimeCivil.",
+    "notes": ""
+  },
+  {
+    "symbol": "TimeCivil.toEpoch",
+    "category": "function",
+    "status": "STDLIB",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "modules/registry.json:207",
+      "src/frontend.js:140",
+      "c/frontend.c:3061"
+    ],
+    "doc": "Function toEpoch in module TimeCivil.",
+    "notes": ""
+  },
+  {
+    "symbol": "TimeCivil.toEpochUTC",
+    "category": "function",
+    "status": "STDLIB",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "modules/registry.json:205",
+      "src/frontend.js:140",
+      "c/frontend.c:3061"
+    ],
+    "doc": "Function toEpochUTC in module TimeCivil.",
+    "notes": ""
+  },
+  {
+    "symbol": "TimeCivil.weekOfYearISO",
+    "category": "function",
+    "status": "STDLIB",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "modules/registry.json:213",
+      "src/frontend.js:140",
+      "c/frontend.c:3061"
+    ],
+    "doc": "Function weekOfYearISO in module TimeCivil.",
+    "notes": ""
+  },
+  {
+    "symbol": "TimeCivil.weekYearISO",
+    "category": "function",
+    "status": "STDLIB",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "modules/registry.json:214",
+      "src/frontend.js:140",
+      "c/frontend.c:3061"
+    ],
+    "doc": "Function weekYearISO in module TimeCivil.",
+    "notes": ""
+  },
+  {
+    "symbol": "true",
+    "category": "keyword",
+    "status": "CORE",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "src/frontend.js:44"
+    ],
+    "doc": "Reserved keyword.",
+    "notes": ""
+  },
+  {
+    "symbol": "try",
+    "category": "keyword",
+    "status": "CORE",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "src/frontend.js:40"
+    ],
+    "doc": "Reserved keyword.",
+    "notes": ""
+  },
+  {
+    "symbol": "try_stmt",
+    "category": "construct",
+    "status": "CORE",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "src/frontend.js:761",
+      "c/frontend.c:2236"
+    ],
+    "doc": "Core syntax construct (try_stmt).",
+    "notes": ""
+  },
+  {
+    "symbol": "Utf8DecodeException",
+    "category": "exception",
+    "status": "STDLIB",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "c/frontend.c:3961"
+    ],
+    "doc": "Exception or built-in prototype Utf8DecodeException.",
+    "notes": ""
+  },
+  {
+    "symbol": "var",
+    "category": "keyword",
+    "status": "CORE",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "src/frontend.js:12"
+    ],
+    "doc": "Reserved keyword.",
+    "notes": ""
+  },
+  {
+    "symbol": "var_decl",
+    "category": "construct",
+    "status": "CORE",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "src/frontend.js:753",
+      "c/frontend.c:2236"
+    ],
+    "doc": "Core syntax construct (var_decl).",
+    "notes": ""
+  },
+  {
+    "symbol": "view",
+    "category": "keyword",
+    "status": "CORE",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "src/frontend.js:25"
+    ],
+    "doc": "Reserved keyword.",
+    "notes": ""
+  },
+  {
+    "symbol": "view",
+    "category": "type",
+    "status": "CORE",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "src/frontend.js:25",
+      "c/frontend.c:333"
+    ],
+    "doc": "Core type symbol.",
+    "notes": ""
+  },
+  {
+    "symbol": "view<T>.isEmpty()",
+    "category": "method",
+    "status": "CORE",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "c/frontend.c:4744",
+      "src/runtime.js:3909"
+    ],
+    "doc": "Built-in method isEmpty on view<T>.",
+    "notes": ""
+  },
+  {
+    "symbol": "view<T>.length()",
+    "category": "method",
+    "status": "CORE",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "c/frontend.c:4744",
+      "src/runtime.js:3898"
+    ],
+    "doc": "Built-in method length on view<T>.",
+    "notes": ""
+  },
+  {
+    "symbol": "view<T>.view()",
+    "category": "method",
+    "status": "CORE",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "c/frontend.c:333",
+      "src/runtime.js:288"
+    ],
+    "doc": "Built-in method view on view<T>.",
+    "notes": ""
+  },
+  {
+    "symbol": "void",
+    "category": "keyword",
+    "status": "CORE",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "src/frontend.js:26"
+    ],
+    "doc": "Reserved keyword.",
+    "notes": ""
+  },
+  {
+    "symbol": "void",
+    "category": "type",
+    "status": "CORE",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "src/frontend.js:26",
+      "c/frontend.c:43"
+    ],
+    "doc": "Core type symbol.",
+    "notes": ""
+  },
+  {
+    "symbol": "Walker",
+    "category": "exception",
+    "status": "STDLIB",
+    "frontends": {
+      "c": true,
+      "node": false
+    },
+    "locations": [
+      "c/frontend.c:3917"
+    ],
+    "doc": "Exception or built-in prototype Walker.",
+    "notes": ""
+  },
+  {
+    "symbol": "Walker.close()",
+    "category": "method",
+    "status": "STDLIB",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "c/frontend.c:3913",
+      "src/runtime.js:3641"
+    ],
+    "doc": "Built-in method close on Walker.",
+    "notes": ""
+  },
+  {
+    "symbol": "Walker.hasNext()",
+    "category": "method",
+    "status": "STDLIB",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "c/frontend.c:3911",
+      "src/runtime.js:3620"
+    ],
+    "doc": "Built-in method hasNext on Walker.",
+    "notes": ""
+  },
+  {
+    "symbol": "Walker.next()",
+    "category": "method",
+    "status": "STDLIB",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "c/frontend.c:3912",
+      "src/runtime.js:3621"
+    ],
+    "doc": "Built-in method next on Walker.",
+    "notes": ""
+  },
+  {
+    "symbol": "while",
+    "category": "keyword",
+    "status": "CORE",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "src/frontend.js:32"
+    ],
+    "doc": "Reserved keyword.",
+    "notes": ""
+  },
+  {
+    "symbol": "while_stmt",
+    "category": "construct",
+    "status": "CORE",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "src/frontend.js:757",
+      "c/frontend.c:2236"
+    ],
+    "doc": "Core syntax construct (while_stmt).",
+    "notes": ""
+  },
+  {
+    "symbol": "WriteFailureException",
+    "category": "exception",
+    "status": "STDLIB",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "c/frontend.c:3960"
+    ],
+    "doc": "Exception or built-in prototype WriteFailureException.",
+    "notes": ""
+  }
+]
