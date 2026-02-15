@@ -1,0 +1,7 @@
+import Sys;
+import Io;
+import test.simple;
+
+function main() : void {
+    Io.printLine(Sys.hasEnv("PATH").toString());
+}

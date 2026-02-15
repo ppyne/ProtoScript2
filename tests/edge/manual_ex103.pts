@@ -1,0 +1,7 @@
+import Io;
+
+function main() : void {
+    const int Max = 10;
+    const string Name = "ps2";
+    Io.printLine(Max.toString().concat("|").concat(Name));
+}

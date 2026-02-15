@@ -44,6 +44,36 @@ function loadModuleRegistry() {
 
 const MODULE_RETURNS = loadModuleRegistry();
 
+function cStringLiteral(value) {
+  const buf = Buffer.from(String(value), "utf8");
+  let out = "\"";
+  for (const b of buf) {
+    if (b === 0x22) {
+      out += "\\\"";
+    } else if (b === 0x5c) {
+      out += "\\\\";
+    } else if (b === 0x0a) {
+      out += "\\n";
+    } else if (b === 0x0d) {
+      out += "\\r";
+    } else if (b === 0x09) {
+      out += "\\t";
+    } else if (b === 0x08) {
+      out += "\\b";
+    } else if (b === 0x0c) {
+      out += "\\f";
+    } else if (b === 0x0b) {
+      out += "\\v";
+    } else if (b >= 0x20 && b <= 0x7e) {
+      out += String.fromCharCode(b);
+    } else {
+      out += `\\${b.toString(8).padStart(3, "0")}`;
+    }
+  }
+  out += "\"";
+  return out;
+}
+
 function baseName(typeName) {
   return typeName.replace(/[^A-Za-z0-9_]/g, "_");
 }
@@ -3545,12 +3575,12 @@ function emitRuntimeHelpers(protoMap) {
     "    char ch = pattern.ptr[i];",
     "    if (ch == '\\\\' && i + 1 < pattern.len) {",
     "      char nx = pattern.ptr[i + 1];",
-    "      if (nx == 'w') { ps_rx_append(&out, &w, &cap, \"[[:alnum:]_]\"); i += 1; continue; }",
-    "      if (nx == 'W') { ps_rx_append(&out, &w, &cap, \"[^[:alnum:]_]\"); i += 1; continue; }",
-    "      if (nx == 'd') { ps_rx_append(&out, &w, &cap, \"[[:digit:]]\"); i += 1; continue; }",
-    "      if (nx == 'D') { ps_rx_append(&out, &w, &cap, \"[^[:digit:]]\"); i += 1; continue; }",
-    "      if (nx == 's') { ps_rx_append(&out, &w, &cap, \"[[:space:]]\"); i += 1; continue; }",
-    "      if (nx == 'S') { ps_rx_append(&out, &w, &cap, \"[^[:space:]]\"); i += 1; continue; }",
+    "      if (nx == 'w') { ps_rx_append(&out, &w, &cap, \"[A-Za-z0-9_]\"); i += 1; continue; }",
+    "      if (nx == 'W') { ps_rx_append(&out, &w, &cap, \"[^A-Za-z0-9_]\"); i += 1; continue; }",
+    "      if (nx == 'd') { ps_rx_append(&out, &w, &cap, \"[0-9]\"); i += 1; continue; }",
+    "      if (nx == 'D') { ps_rx_append(&out, &w, &cap, \"[^0-9]\"); i += 1; continue; }",
+    "      if (nx == 's') { ps_rx_append(&out, &w, &cap, \"[ \\t\\r\\n\\f\\v]\"); i += 1; continue; }",
+    "      if (nx == 'S') { ps_rx_append(&out, &w, &cap, \"[^ \\t\\r\\n\\f\\v]\"); i += 1; continue; }",
     "    }",
     "    if (w + 2 > cap) {",
     "      cap *= 2;",
@@ -3800,13 +3830,14 @@ function emitRuntimeHelpers(protoMap) {
     "static ps_list_string RegExp_split(RegExp* self, ps_string input, int64_t start, int64_t maxParts) {",
     "  size_t gl = ps_utf8_glyph_len(input);",
     "  if (start < 0 || (size_t)start > gl) ps_rx_fail(\"RegExpRange\", \"start out of range\");",
-    "  if (maxParts < 0) ps_rx_fail(\"RegExpRange\", \"maxParts out of range\");",
+    "  if (maxParts < -1) ps_rx_fail(\"RegExpRange\", \"maxParts out of range\");",
     "  ps_list_string out = { NULL, 0, 0, 0 };",
     "  if (maxParts == 0) return out;",
+    "  int64_t limit = maxParts < 0 ? INT64_MAX : maxParts;",
     "  size_t cur = (size_t)start;",
     "  size_t cur_b = ps_rx_glyph_to_byte(input, start);",
     "  if (maxParts == 1) { ps_list_string_push(&out, ps_rx_copy(input.ptr + cur_b, input.len - cur_b)); return out; }",
-    "  while (cur <= gl && (int64_t)out.len + 1 < maxParts) {",
+    "  while (cur <= gl && (int64_t)out.len + 1 < limit) {",
     "    RegExpMatch* m = RegExp_find(self, input, (int64_t)cur);",
     "    if (!m->ok) break;",
     "    size_t ms = ps_rx_glyph_to_byte(input, m->start);",
@@ -3817,7 +3848,7 @@ function emitRuntimeHelpers(protoMap) {
     "      cur = (size_t)m->end + 1; cur_b = ps_rx_glyph_to_byte(input, (int64_t)cur);",
     "    } else { cur = (size_t)m->end; cur_b = me; }",
     "  }",
-    "  if ((int64_t)out.len < maxParts) ps_list_string_push(&out, ps_rx_copy(input.ptr + cur_b, input.len - cur_b));",
+    "  if ((int64_t)out.len < limit) ps_list_string_push(&out, ps_rx_copy(input.ptr + cur_b, input.len - cur_b));",
     "  return out;",
     "}",
     "static ps_string RegExp_pattern(RegExp* self) {",
@@ -3873,7 +3904,7 @@ function emitInstr(i, fnInf, state) {
   switch (i.op) {
     case "const":
       if (i.literalType === "string") {
-        out.push(`${n(i.dst)}.ptr = ${JSON.stringify(String(i.value))};`);
+        out.push(`${n(i.dst)}.ptr = ${cStringLiteral(i.value)};`);
         out.push(`${n(i.dst)}.len = strlen(${n(i.dst)}.ptr);`);
       } else if (i.literalType === "TextFile" || i.literalType === "BinaryFile") {
         if (i.value === "stdin") out.push(`${n(i.dst)} = &ps_stdin;`);
@@ -4697,31 +4728,29 @@ function emitFunctionBody(fn, fnInf) {
 
   const emitState = { mapAliases: new Map(), mapVarAliases: new Map() };
   const blocks = fn.blocks.map((b) => ({ label: b.label, instrs: b.instrs.slice() }));
-  const postJumpInstrs = [];
+  const terminators = new Set(["jump", "branch_if", "branch_iter_has_next", "return", "rethrow"]);
+  const defaultReturnLine = (() => {
+    if (ret === "void") return "return;";
+    if (fn.name === "main") return "return 0;";
+    if (ret.endsWith("*")) return "return NULL;";
+    return `return (${ret}){0};`;
+  })();
   for (const b of blocks) {
-    const idx = b.instrs.findIndex((i) => ["jump", "branch_if", "return", "rethrow"].includes(i.op));
+    const idx = b.instrs.findIndex((i) => terminators.has(i.op));
     if (idx >= 0 && idx < b.instrs.length - 1) {
-      const trailing = b.instrs
-        .slice(idx + 1)
-        .filter((i) => !["jump", "branch_if", "return", "rethrow", "break", "continue", "nop"].includes(i.op));
-      postJumpInstrs.push(...trailing);
       b.instrs = b.instrs.slice(0, idx + 1);
     }
   }
-  let postInjected = false;
   if (blocks.length > 0) out.push(`  goto ${blocks[0].label};`);
   for (const b of blocks) {
     out.push(`${b.label}:`);
-    if (!postInjected && postJumpInstrs.length > 0 && b.label.startsWith("try_done_")) {
-      postInjected = true;
-      for (const i of postJumpInstrs) {
-        const lines = emitInstr(i, fnInf, emitState);
-        for (const l of lines) out.push(`  ${l}`);
-      }
-    }
     for (const i of b.instrs) {
       const lines = emitInstr(i, fnInf, emitState);
       for (const l of lines) out.push(`  ${l}`);
+    }
+    const last = b.instrs.length > 0 ? b.instrs[b.instrs.length - 1] : null;
+    if (!last || !terminators.has(last.op)) {
+      out.push(`  ${defaultReturnLine}`);
     }
   }
 

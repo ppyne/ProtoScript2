@@ -69,6 +69,20 @@ Flags **non supportés** (erreur) : `u` (le moteur est déjà UTF‑8 strict), `
 
 ### 3.2 Méthodes
 
+#### 3.2.1 Règle unifiée des paramètres de limite (normatif)
+
+Cette règle s’applique à tous les paramètres de limite du module :
+
+- `max` dans `findAll` et `replaceAll`
+- `maxParts` dans `split`
+
+Sémantique commune :
+
+- `-1` : illimité
+- `0` : comportement spécifique à la méthode (défini ci-dessous)
+- `> 0` : limite explicite
+- `< -1` : erreur runtime `RegExpRange`
+
 #### `test`
 
 `RegExp.test(input: string, start: int) : bool`
@@ -88,9 +102,8 @@ Flags **non supportés** (erreur) : `u` (le moteur est déjà UTF‑8 strict), `
 `RegExp.findAll(input: string, start: int, max: int) : list<RegExpMatch>`
 
 - Retourne une liste de matches **non chevauchants**, de gauche à droite.
-- Si `max < 0`, lève une exception runtime.
-- Si `max == 0`, retourne `[]`.
-- Si `max > 0`, limite le nombre de matches.
+- Le paramètre `max` suit la règle unifiée (3.2.1).
+- Cas spécifique `max == 0` : retourne `[]`.
 
 Règle anti‑boucle pour match vide :
 
@@ -108,16 +121,18 @@ Règle anti‑boucle pour match vide :
 `RegExp.replaceAll(input: string, replacement: string, start: int, max: int) : string`
 
 - Remplace toutes les occurrences (non chevauchantes) à partir de `start`, limitées à `max` si `max > 0`.
-- Si `max == 0`, retourne `input`.
+- Le paramètre `max` suit la règle unifiée (3.2.1).
+- Cas spécifique `max == 0` : retourne `input`.
 
 #### `split`
 
 `RegExp.split(input: string, start: int, maxParts: int) : list<string>`
 
 - Découpe `input` selon les matches.
-- `maxParts == 0` → `[]`.
-- `maxParts == 1` → `[input.substring(start, input.length()-start)]`.
-- Sinon : au plus `maxParts` éléments.
+- Le paramètre `maxParts` suit la règle unifiée (3.2.1).
+- Cas spécifique `maxParts == 0` : `[]`.
+- Cas spécifique `maxParts == 1` : `[input.substring(start, input.length()-start)]`.
+- Pour `maxParts > 1`, la sortie contient au plus `maxParts` éléments.
 
 Règle match vide : identique à `findAll` (avance d’un glyphe pour éviter boucle).
 
@@ -307,8 +322,7 @@ Catégories recommandées (dans le message) :
 Règles :
 
 - `start < 0` ou `start > input.length()` → `RegExpRange`
-- `max < -1` (pour replace/findAll) → `RegExpRange`
-- `maxParts < 0` → `RegExpRange`
+- pour tout paramètre de limite (`max`, `maxParts`) : valeur `< -1` → `RegExpRange`
 
 ---
 
@@ -369,4 +383,3 @@ Le module doit être déclaré dans `modules/registry.json` avec :
 - Moteur recommandé : Thompson NFA avec priorité déterministe pour greedy/non‑greedy.
 - Les groupes capturants nécessitent un suivi d’offsets internes; V1 ne les expose pas mais les utilise pour extraire les substrings.
 - Anti‑boucle match vide : indispensable pour `findAll`, `replaceAll`, `split`.
-

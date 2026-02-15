@@ -1,0 +1,11 @@
+import Io;
+import Math.{abs, sqrt as racine};
+import JSON.{encode, decode};
+
+function main() : void {
+    float x = abs(-9.0);
+    float y = racine(x);
+    string s = encode(decode("{\"value\":1}"));
+    Io.printLine(y.toString());
+    Io.printLine(s);
+}

@@ -1,0 +1,8 @@
+import RegExp;
+import Io;
+
+function main() : void {
+    RegExp tags = RegExp.compile("<[^>]+>", "");
+    string cleaned = tags.replaceAll("<p>Hello <b>world</b></p>", "", 0, -1);
+    Io.printLine(cleaned);
+}

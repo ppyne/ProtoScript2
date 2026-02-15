@@ -1,0 +1,8 @@
+import RegExp;
+import Io;
+
+function main() : void {
+    RegExp identifier = RegExp.compile("^[A-Za-z_][A-Za-z0-9_]*$", "");
+    Io.printLine(identifier.test("valid_name_1", 0));
+    Io.printLine(identifier.test("1invalid", 0));
+}

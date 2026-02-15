@@ -340,14 +340,43 @@ static int convert_pattern_to_posix(const char *in, size_t len, char **out, int 
   for (size_t i = 0; i < len; i++) {
     char c = in[i];
     if (c == '\\') {
+      if (!in_class && i + 1 < len) {
+        const char *mapped = NULL;
+        char next = in[i + 1];
+        if (next == 'd') mapped = "[0-9]";
+        else if (next == 'D') mapped = "[^0-9]";
+        else if (next == 'w') mapped = "[A-Za-z0-9_]";
+        else if (next == 'W') mapped = "[^A-Za-z0-9_]";
+        else if (next == 's') mapped = "[ \t\r\n\f\v]";
+        else if (next == 'S') mapped = "[^ \t\r\n\f\v]";
+        if (mapped) {
+          size_t ml = strlen(mapped);
+          if (w + ml + 1 >= cap) {
+            size_t ncap = cap;
+            while (w + ml + 1 >= ncap) ncap *= 2;
+            char *nb = (char *)realloc(buf, ncap);
+            if (!nb) {
+              free(buf);
+              return 0;
+            }
+            buf = nb;
+            cap = ncap;
+          }
+          memcpy(buf + w, mapped, ml);
+          w += ml;
+          i += 1;
+          continue;
+        }
+      }
       if (w + 2 >= cap) {
-        cap *= 2;
-        char *nb = (char *)realloc(buf, cap);
+        size_t ncap = cap * 2;
+        char *nb = (char *)realloc(buf, ncap);
         if (!nb) {
           free(buf);
           return 0;
         }
         buf = nb;
+        cap = ncap;
       }
       buf[w++] = c;
       if (i + 1 < len) {
@@ -1047,7 +1076,7 @@ static PS_Status mod_split(PS_Context *ctx, int argc, PS_Value **argv, PS_Value 
     glyph_index_free(&idx);
     return rx_range(ctx, "start out of range");
   }
-  if (max_parts < 0) {
+  if (max_parts < -1) {
     glyph_index_free(&idx);
     return rx_range(ctx, "maxParts out of range");
   }
@@ -1081,7 +1110,8 @@ static PS_Status mod_split(PS_Context *ctx, int argc, PS_Value **argv, PS_Value 
     return PS_OK;
   }
 
-  while (cur <= idx.glyph_count && parts + 1 < max_parts) {
+  int64_t limit = (max_parts < 0) ? INT64_MAX : max_parts;
+  while (cur <= idx.glyph_count && parts + 1 < limit) {
     PS_Value *m = NULL;
     if (run_find(ctx, e, input, input_len, &idx, cur, &m) != PS_OK) {
       ps_value_release(list);
@@ -1130,7 +1160,7 @@ static PS_Status mod_split(PS_Context *ctx, int argc, PS_Value **argv, PS_Value 
     ps_value_release(m);
   }
 
-  if (parts < max_parts) {
+  if (parts < limit) {
     PS_Value *tail = ps_make_string_utf8(ctx, input + cur_b, input_len - cur_b);
     if (!tail || ps_list_push(ctx, list, tail) != PS_OK) {
       if (tail) ps_value_release(tail);

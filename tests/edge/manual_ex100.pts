@@ -1,0 +1,23 @@
+import Fs;
+import Io;
+
+function main() : void {
+    string base = Io.tempPath();
+    Fs.mkdir(base);
+    Fs.mkdir(base.concat("/sub"));
+    TextFile a = Io.openText(base.concat("/sub/a.txt"), "w");
+    a.write("x");
+    a.close();
+
+    Walker w = Fs.walk(base, -1, false);
+    int n = 0;
+    while (w.hasNext()) {
+        PathEntry e = w.next();
+        if (e.path.length() > 0) n = n + 1;
+    }
+    w.close();
+    Fs.rm(base.concat("/sub/a.txt"));
+    Fs.rmdir(base.concat("/sub"));
+    Fs.rmdir(base);
+    Io.printLine((n >= 1).toString());
+}

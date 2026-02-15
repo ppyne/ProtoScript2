@@ -1,0 +1,7 @@
+import Io;
+import RegExp;
+
+function main() : void {
+    RegExp r = RegExp.compile("(\\d+)", "");
+    Io.printLine(r.replaceAll("a1 b22 c333", "<$1>", 0, -1));
+}

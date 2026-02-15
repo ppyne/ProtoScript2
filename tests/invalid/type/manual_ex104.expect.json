@@ -1,0 +1,11 @@
+{
+  "status": "reject-static",
+  "error_family": "E3xxx",
+  "error_code": "E3130",
+  "category": "CONST_REASSIGNMENT",
+  "position": {
+    "file": "EX-104.pts",
+    "line": 3,
+    "column": 5
+  }
+}

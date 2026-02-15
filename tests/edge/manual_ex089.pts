@@ -1,0 +1,8 @@
+import Io;
+import TimeCivil;
+
+function main() : void {
+    int epoch = TimeCivil.parseISO8601("1970-01-01T00:00:00.000Z");
+    string s = TimeCivil.formatISO8601(epoch);
+    Io.printLine(s);
+}

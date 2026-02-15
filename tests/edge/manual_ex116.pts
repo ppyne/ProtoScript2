@@ -1,0 +1,7 @@
+import RegExp;
+import Io;
+
+function main() : void {
+    RegExp spaces = RegExp.compile("\\s+", "");
+    Io.printLine(spaces.replaceAll("Hello    world   !", " ", 0, -1));
+}

@@ -1,0 +1,7 @@
+import Io;
+
+// commentaire ligne
+/* commentaire bloc */
+function main() : void {
+    Io.printLine("ok");
+}

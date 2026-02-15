@@ -1,0 +1,10 @@
+import Sys;
+import Io;
+
+function main() : void {
+    list<byte> input = [];
+    ProcessResult r = Sys.execute("/bin/echo", ["hello"], input, true, true);
+    for (ProcessEvent e in r.events) {
+        Io.printLine(e.data.toUtf8String().trimEnd());
+    }
+}

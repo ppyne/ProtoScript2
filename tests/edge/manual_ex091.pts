@@ -1,0 +1,3 @@
+function main(list<string> args) : void {
+    int n = args.length();
+}

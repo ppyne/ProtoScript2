@@ -1,0 +1,9 @@
+import RegExp;
+import Io;
+
+function main() : void {
+    RegExp phone = RegExp.compile("^\\+?[0-9]{8,15}$", "");
+    Io.printLine(phone.test("+33612345678", 0));
+    Io.printLine(phone.test("0612345678", 0));
+    Io.printLine(phone.test("12-34-56", 0));
+}

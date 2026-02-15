@@ -1,0 +1,9 @@
+import Io;
+import TimeCivil;
+
+function main() : void {
+    int epoch = 0;
+    CivilDateTime dt = TimeCivil.fromEpochUTC(epoch);
+    int round = TimeCivil.toEpochUTC(dt);
+    Io.printLine((round == 0).toString());
+}

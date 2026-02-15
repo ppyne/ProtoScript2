@@ -1,0 +1,11 @@
+import Io;
+
+function main() : void {
+    string p = Io.tempPath();
+    TextFile f = Io.openText(p, "w");
+    f.write("temp");
+    f.close();
+    TextFile r = Io.openText(p, "r");
+    Io.printLine(r.read(4));
+    r.close();
+}

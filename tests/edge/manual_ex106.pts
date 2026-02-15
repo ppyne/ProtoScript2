@@ -1,0 +1,12 @@
+import RegExp;
+import Io;
+
+function main() : void {
+    RegExp email = RegExp.compile(
+        "^[A-Za-z0-9_%+-]+(\\.[A-Za-z0-9_%+-]+)*@[A-Za-z0-9-]+(\\.[A-Za-z0-9-]+)+$",
+        ""
+    );
+    Io.printLine(email.test("john.doe@example.com", 0));
+    Io.printLine(email.test("john..doe@example.com", 0));
+    Io.printLine(email.test(".john@example.com", 0));
+}

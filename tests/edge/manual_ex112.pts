@@ -1,0 +1,8 @@
+import RegExp;
+import Io;
+
+function main() : void {
+    RegExp password = RegExp.compile("^[A-Za-z0-9]{8,}$", "");
+    Io.printLine(password.test("abc12345", 0));
+    Io.printLine(password.test("short1", 0));
+}

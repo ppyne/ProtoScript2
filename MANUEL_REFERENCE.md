@@ -407,6 +407,7 @@ Exemple :
 const int Max = 10;
 const string Name = "ps2";
 ```
+Ref: EX-103
 
 Contre-exemples :
 
@@ -415,6 +416,7 @@ const int x;     // Erreur : E3130 CONST_REASSIGNMENT
 const int y = 1;
 y = 2;           // Erreur : E3130 CONST_REASSIGNMENT
 ```
+Ref: EX-104
 
 ### 5.2 Portée lexicale et shadowing
 
@@ -2603,6 +2605,13 @@ Fonctions / méthodes principales :
 - `r.pattern() -> string`
 - `r.flags() -> string`
 
+Conventions de limite (uniformes) :
+
+- `findAll(..., max = -1)` : illimité
+- `replaceAll(..., max = -1)` : illimité
+- `split(..., maxParts = -1)` : illimité
+- seules les valeurs `< -1` lèvent `RegExpRange`
+
 `RegExpMatch` expose (lecture seule) :
 
 - `ok : bool`
@@ -2650,6 +2659,7 @@ import Io; function  main() : void {
   Io.printLine(email.test("bad@@example", 0));         // false
 }
 ```
+Ref: EX-105
 
 Version pratique, plus robuste, recommandée, qui couvre: local part classique, points internes (pas au début/fin), pas de double point, domaine structuré et TLD ≥ 2 lettres.
 
@@ -2668,6 +2678,7 @@ function main() : void {
   Io.printLine(email.test(".john@example.com", 0)); // false
 }
 ```
+Ref: EX-106
 
 Ce que ça accepte :
 
@@ -2698,6 +2709,7 @@ RegExp email = RegExp.compile([
     ""
 );
 ```
+Ref: EX-107
 
 ---
 
@@ -2712,6 +2724,7 @@ Io.printLine(phone.test("+33612345678", 0)); // true
 Io.printLine(phone.test("0612345678", 0));   // true
 Io.printLine(phone.test("12-34-56", 0));     // false
 ```
+Ref: EX-108
 
 ---
 
@@ -2729,6 +2742,7 @@ if (m.ok) {
     Io.printLine(m.groups[3]); // 2026
 }
 ```
+Ref: EX-109
 
 ---
 
@@ -2740,6 +2754,7 @@ Io.printLine(
 );
 // 2026-12-31
 ```
+Ref: EX-110
 
 ---
 
@@ -2752,6 +2767,7 @@ string cleaned = tags.replaceAll("<p>Hello <b>world</b></p>", "", 0, -1);
 
 Io.printLine(cleaned); // Hello world
 ```
+Ref: EX-111
 
 ---
 
@@ -2769,6 +2785,7 @@ RegExp password = RegExp.compile("^[A-Za-z0-9]{8,}$", "");
 Io.printLine(password.test("abc12345", 0)); // true
 Io.printLine(password.test("short1", 0));   // false
 ```
+Ref: EX-112
 
 Note :  
 Sans lookahead, on ne peut pas forcer “au moins un chiffre et une lettre” en une seule regex.  
@@ -2785,6 +2802,7 @@ list<RegExpMatch> matches = numbers.findAll("Prix: 10€, taxe: 2€, total: 12�
 for (int i = 0; i < matches.length(); i++)
     Io.printLine(matches[i].groups[0]);
 ```
+Ref: EX-113
 
 Sortie :
 
@@ -2804,6 +2822,7 @@ RegExp ipv4 = RegExp.compile( "^([0-9]{1,3}\\.){3}[0-9]{1,3}$", "" );
 Io.printLine(ipv4.test("192.168.1.1", 0));  // true
 Io.printLine(ipv4.test("999.999.999.999",0)); // true (structure OK)
 ```
+Ref: EX-114
 
 Note pédagogique :
 
@@ -2821,6 +2840,7 @@ list<string> parts = comma.split("alpha,beta,gamma", 0, -1);
 for (int i = 0; i < parts.length(); i++)
     Io.printLine(parts[i]);
 ```
+Ref: EX-115
 
 ---
 
@@ -2834,6 +2854,7 @@ Io.printLine(
 );
 // Hello world !
 ```
+Ref: EX-116
 
 ---
 
@@ -2845,6 +2866,7 @@ RegExp identifier = RegExp.compile( "^[A-Za-z_][A-Za-z0-9_]*$", "" );
 Io.printLine(identifier.test("valid_name_1", 0)); // true
 Io.printLine(identifier.test("1invalid", 0));     // false
 ```
+Ref: EX-117
 
 ---
 

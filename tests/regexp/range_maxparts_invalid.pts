@@ -2,5 +2,5 @@ import RegExp;
 
 function main() : void {
     RegExp r = RegExp.compile(",", "");
-    r.split("a,b", 0, -1);
+    r.split("a,b", 0, -2);
 }

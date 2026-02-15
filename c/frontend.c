@@ -3822,6 +3822,35 @@ static int proto_add_field(ProtoInfo *p, const char *name, const char *type) {
   return 1;
 }
 
+static int proto_add_method0(ProtoInfo *p, const char *name, const char *ret_type) {
+  if (!p || !name || !ret_type) return 0;
+  ProtoMethod *nm = (ProtoMethod *)calloc(1, sizeof(ProtoMethod));
+  if (!nm) return 0;
+  nm->name = strdup(name);
+  nm->ret_type = strdup(ret_type);
+  nm->param_count = 0;
+  nm->fixed_count = 0;
+  nm->variadic = 0;
+  nm->is_internal = 0;
+  nm->owner_proto = p->name;
+  nm->module_path = p->module_path;
+  if (!nm->name || !nm->ret_type) {
+    free(nm->name);
+    free(nm->ret_type);
+    free(nm);
+    return 0;
+  }
+  nm->next = NULL;
+  if (!p->methods) {
+    p->methods = nm;
+  } else {
+    ProtoMethod *tail = p->methods;
+    while (tail->next) tail = tail->next;
+    tail->next = nm;
+  }
+  return 1;
+}
+
 static int add_builtin_exception_protos(Analyzer *a) {
   if (proto_find(a->protos, "Exception")) return 1;
   ProtoInfo *ex = proto_append(a, "Exception", NULL);
@@ -3851,6 +3880,57 @@ static int add_builtin_exception_protos(Analyzer *a) {
     if (!proto_add_field(dt, "minute", "int")) return 0;
     if (!proto_add_field(dt, "second", "int")) return 0;
     if (!proto_add_field(dt, "millisecond", "int")) return 0;
+  }
+
+  if (!proto_find(a->protos, "PathInfo")) {
+    ProtoInfo *pi = proto_append(a, "PathInfo", NULL);
+    if (!pi) return 0;
+    pi->builtin = 1;
+    if (!proto_add_field(pi, "dirname", "string")) return 0;
+    if (!proto_add_field(pi, "basename", "string")) return 0;
+    if (!proto_add_field(pi, "filename", "string")) return 0;
+    if (!proto_add_field(pi, "extension", "string")) return 0;
+  }
+
+  if (!proto_find(a->protos, "PathEntry")) {
+    ProtoInfo *pe = proto_append(a, "PathEntry", NULL);
+    if (!pe) return 0;
+    pe->builtin = 1;
+    if (!proto_add_field(pe, "path", "string")) return 0;
+    if (!proto_add_field(pe, "name", "string")) return 0;
+    if (!proto_add_field(pe, "depth", "int")) return 0;
+    if (!proto_add_field(pe, "isDir", "bool")) return 0;
+    if (!proto_add_field(pe, "isFile", "bool")) return 0;
+    if (!proto_add_field(pe, "isSymlink", "bool")) return 0;
+  }
+
+  if (!proto_find(a->protos, "Dir")) {
+    ProtoInfo *dir = proto_append(a, "Dir", NULL);
+    if (!dir) return 0;
+    dir->builtin = 1;
+    if (!proto_add_method0(dir, "hasNext", "bool")) return 0;
+    if (!proto_add_method0(dir, "next", "string")) return 0;
+    if (!proto_add_method0(dir, "close", "void")) return 0;
+    if (!proto_add_method0(dir, "reset", "void")) return 0;
+  }
+
+  if (!proto_find(a->protos, "Walker")) {
+    ProtoInfo *wk = proto_append(a, "Walker", NULL);
+    if (!wk) return 0;
+    wk->builtin = 1;
+    if (!proto_add_method0(wk, "hasNext", "bool")) return 0;
+    if (!proto_add_method0(wk, "next", "PathEntry")) return 0;
+    if (!proto_add_method0(wk, "close", "void")) return 0;
+  }
+
+  if (!proto_find(a->protos, "RegExpMatch")) {
+    ProtoInfo *rm = proto_append(a, "RegExpMatch", NULL);
+    if (!rm) return 0;
+    rm->builtin = 1;
+    if (!proto_add_field(rm, "ok", "bool")) return 0;
+    if (!proto_add_field(rm, "start", "int")) return 0;
+    if (!proto_add_field(rm, "end", "int")) return 0;
+    if (!proto_add_field(rm, "groups", "list<string>")) return 0;
   }
 
   const char *time_exceptions[] = {
@@ -4724,6 +4804,15 @@ static int check_method_arity(Analyzer *a, AstNode *e, const char *recv_t, const
     } else if (strcmp(method, "pattern") == 0 || strcmp(method, "flags") == 0) {
       min = max = 0;
     }
+  } else if (strcmp(recv_t, "Dir") == 0) {
+    if (strcmp(method, "hasNext") == 0 || strcmp(method, "next") == 0 || strcmp(method, "close") == 0 ||
+        strcmp(method, "reset") == 0) {
+      min = max = 0;
+    }
+  } else if (strcmp(recv_t, "Walker") == 0) {
+    if (strcmp(method, "hasNext") == 0 || strcmp(method, "next") == 0 || strcmp(method, "close") == 0) {
+      min = max = 0;
+    }
   }
 
   if (min == -1) return 1;
@@ -4806,6 +4895,14 @@ static char *method_ret_type(const char *recv_t, const char *m) {
     if (strcmp(m, "close") == 0) return strdup("void");
     if (strcmp(m, "tell") == 0 || strcmp(m, "size") == 0) return strdup("int");
     if (strcmp(m, "name") == 0) return strdup("string");
+  } else if (strcmp(recv_t, "Dir") == 0) {
+    if (strcmp(m, "hasNext") == 0) return strdup("bool");
+    if (strcmp(m, "next") == 0) return strdup("string");
+    if (strcmp(m, "close") == 0 || strcmp(m, "reset") == 0) return strdup("void");
+  } else if (strcmp(recv_t, "Walker") == 0) {
+    if (strcmp(m, "hasNext") == 0) return strdup("bool");
+    if (strcmp(m, "next") == 0) return strdup("PathEntry");
+    if (strcmp(m, "close") == 0) return strdup("void");
   } else if (strncmp(recv_t, "list<", 5) == 0) {
     char *et = ir_type_elem_for_index(recv_t);
     if (et && strcmp(et, "byte") == 0 && strcmp(m, "toUtf8String") == 0) {
@@ -6816,14 +6913,23 @@ static char *ir_guess_expr_type(AstNode *e, IrFnCtx *ctx) {
       }
       char *recv_t = (c->child_len > 0) ? ir_guess_expr_type(c->children[0], ctx) : NULL;
       const char *m = c->text;
-      if (recv_t) {
-        if (proto_find(ctx->protos, recv_t)) {
-          ProtoMethod *pm = proto_find_method(ctx->protos, recv_t, m);
-          char *ret = strdup(pm && pm->ret_type ? pm->ret_type : "unknown");
-          free(recv_t);
-          return ret;
-        }
-        if (strcmp(recv_t, "int") == 0) {
+        if (recv_t) {
+          if (proto_find(ctx->protos, recv_t)) {
+            ProtoMethod *pm = proto_find_method(ctx->protos, recv_t, m);
+            char *ret = strdup(pm && pm->ret_type ? pm->ret_type : "unknown");
+            free(recv_t);
+            return ret;
+          }
+          if (strcmp(recv_t, "Dir") == 0) {
+            if (strcmp(m, "hasNext") == 0) { free(recv_t); return strdup("bool"); }
+            if (strcmp(m, "next") == 0) { free(recv_t); return strdup("string"); }
+            if (strcmp(m, "close") == 0 || strcmp(m, "reset") == 0) { free(recv_t); return strdup("void"); }
+          } else if (strcmp(recv_t, "Walker") == 0) {
+            if (strcmp(m, "hasNext") == 0) { free(recv_t); return strdup("bool"); }
+            if (strcmp(m, "next") == 0) { free(recv_t); return strdup("PathEntry"); }
+            if (strcmp(m, "close") == 0) { free(recv_t); return strdup("void"); }
+          }
+          if (strcmp(recv_t, "int") == 0) {
           if (strcmp(m, "toByte") == 0) return strdup("byte");
           if (strcmp(m, "toFloat") == 0) return strdup("float");
           if (strcmp(m, "toString") == 0) return strdup("string");
@@ -7181,7 +7287,8 @@ static char *ir_lower_call(AstNode *e, IrFnCtx *ctx) {
       char *recv_esc = json_escape(recv);
       char *dst_esc = json_escape(dst);
       char *method_esc = json_escape(callee->text ? callee->text : "");
-      if (recv_type && proto_find(ctx->protos, recv_type)) {
+      if (recv_type && proto_find(ctx->protos, recv_type) &&
+          strcmp(recv_type, "Dir") != 0 && strcmp(recv_type, "Walker") != 0) {
         char *args_json = strdup("");
         char *recv_arg = json_escape(recv);
         char *prev = args_json;
@@ -7239,6 +7346,49 @@ static char *ir_lower_call(AstNode *e, IrFnCtx *ctx) {
             free(arg_esc);
           }
           char *callee_full = str_printf("RegExp.%s", m);
+          char *callee_esc = json_escape(callee_full ? callee_full : "");
+          char *ins = str_printf(
+              "{\"op\":\"call_static\",\"dst\":\"%s\",\"callee\":\"%s\",\"args\":[%s],\"variadic\":false}",
+              dst_esc ? dst_esc : "", callee_esc ? callee_esc : "", args_json ? args_json : "");
+          free(callee_full);
+          free(callee_esc);
+          free(args_json);
+          ir_set_loc(ctx, callee);
+          if (!ir_emit(ctx, ins)) {
+            free(dst);
+            dst = NULL;
+          }
+          free(recv_esc);
+          free(dst_esc);
+          free(method_esc);
+          free(recv);
+          free(recv_type);
+          for (size_t i = 0; i < argc; i++) free(args[i]);
+          free(args);
+          return dst;
+        }
+      }
+      if (recv_type && (strcmp(recv_type, "Dir") == 0 || strcmp(recv_type, "Walker") == 0)) {
+        const char *m = callee->text ? callee->text : "";
+        const char *helper = NULL;
+        if (strcmp(recv_type, "Dir") == 0) {
+          if (strcmp(m, "hasNext") == 0) helper = "__dir_hasNext";
+          else if (strcmp(m, "next") == 0) helper = "__dir_next";
+          else if (strcmp(m, "close") == 0) helper = "__dir_close";
+          else if (strcmp(m, "reset") == 0) helper = "__dir_reset";
+        } else {
+          if (strcmp(m, "hasNext") == 0) helper = "__walker_hasNext";
+          else if (strcmp(m, "next") == 0) helper = "__walker_next";
+          else if (strcmp(m, "close") == 0) helper = "__walker_close";
+        }
+        if (helper) {
+          char *args_json = strdup("");
+          char *recv_arg = json_escape(recv);
+          char *prev = args_json;
+          args_json = str_printf("%s\"%s\"", prev ? prev : "", recv_arg ? recv_arg : "");
+          free(prev);
+          free(recv_arg);
+          char *callee_full = str_printf("Fs.%s", helper);
           char *callee_esc = json_escape(callee_full ? callee_full : "");
           char *ins = str_printf(
               "{\"op\":\"call_static\",\"dst\":\"%s\",\"callee\":\"%s\",\"args\":[%s],\"variadic\":false}",

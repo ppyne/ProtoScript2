@@ -2443,6 +2443,55 @@ function buildModuleEnv(ast, file, hooks = null) {
   };
   const rxForbidden = (p) =>
     /(?:\(\?=|\(\?!|\(\?<=|\(\?<!|\\[1-9])/.test(p);
+  const rxTranslatePattern = (pattern) => {
+    let out = "";
+    let inClass = false;
+    for (let i = 0; i < pattern.length; i += 1) {
+      const ch = pattern[i];
+      if (ch === "\\" && i + 1 < pattern.length) {
+        const nx = pattern[i + 1];
+        if (!inClass) {
+          if (nx === "d") {
+            out += "[0-9]";
+            i += 1;
+            continue;
+          }
+          if (nx === "D") {
+            out += "[^0-9]";
+            i += 1;
+            continue;
+          }
+          if (nx === "w") {
+            out += "[A-Za-z0-9_]";
+            i += 1;
+            continue;
+          }
+          if (nx === "W") {
+            out += "[^A-Za-z0-9_]";
+            i += 1;
+            continue;
+          }
+          if (nx === "s") {
+            out += "[ \\t\\r\\n\\f\\v]";
+            i += 1;
+            continue;
+          }
+          if (nx === "S") {
+            out += "[^ \\t\\r\\n\\f\\v]";
+            i += 1;
+            continue;
+          }
+        }
+        out += ch + nx;
+        i += 1;
+        continue;
+      }
+      if (!inClass && ch === "[") inClass = true;
+      else if (inClass && ch === "]") inClass = false;
+      out += ch;
+    }
+    return out;
+  };
   const rxExpand = (replacement, groups) => {
     let out = "";
     for (let i = 0; i < replacement.length; i += 1) {
@@ -2496,7 +2545,7 @@ function buildModuleEnv(ast, file, hooks = null) {
     }
     let re = null;
     try {
-      re = new RegExp(pattern, outFlags);
+      re = new RegExp(rxTranslatePattern(pattern), outFlags);
     } catch (e) {
       rxThrow("RegExpSyntax", node, e && e.message ? String(e.message) : "invalid pattern");
     }
@@ -2582,9 +2631,10 @@ function buildModuleEnv(ast, file, hooks = null) {
     const rr = rxEnsure(r, node);
     if (typeof input !== "string") rxThrow("RegExpRange", node, "invalid arguments");
     const mp = rxCheckMax(maxParts, node, "maxParts");
-    if (mp < 0) rxThrow("RegExpRange", node, "maxParts out of range");
+    if (mp < -1) rxThrow("RegExpRange", node, "maxParts out of range");
     if (mp === 0) return makeList([]);
     const out = makeList([]);
+    const limit = mp < 0 ? Number.MAX_SAFE_INTEGER : mp;
     let cur = rxCheckRange(input, start, node);
     let curCu = rxGlyphToCu(input, cur);
     if (mp === 1) {
@@ -2592,7 +2642,7 @@ function buildModuleEnv(ast, file, hooks = null) {
       bumpList(out);
       return out;
     }
-    while (cur <= Array.from(input).length && out.length + 1 < mp) {
+    while (cur <= Array.from(input).length && out.length + 1 < limit) {
       const one = rxFind(rr, input, BigInt(cur), node);
       if (!one.__fields.ok) break;
       const s = Number(one.__fields.start);
