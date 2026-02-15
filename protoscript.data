@@ -222,6 +222,20 @@
         { "name": "DST_LATER", "type": "int", "value": "1" },
         { "name": "DST_ERROR", "type": "int", "value": "2" }
       ]
+    },
+    {
+      "name": "RegExp",
+      "functions": [
+        { "name": "compile", "ret": "RegExp", "params": ["string", "string"] },
+        { "name": "test", "ret": "bool", "params": ["RegExp", "string", "int"] },
+        { "name": "find", "ret": "RegExpMatch", "params": ["RegExp", "string", "int"] },
+        { "name": "findAll", "ret": "list<RegExpMatch>", "params": ["RegExp", "string", "int", "int"] },
+        { "name": "replaceFirst", "ret": "string", "params": ["RegExp", "string", "string", "int"] },
+        { "name": "replaceAll", "ret": "string", "params": ["RegExp", "string", "string", "int", "int"] },
+        { "name": "split", "ret": "list<string>", "params": ["RegExp", "string", "int", "int"] },
+        { "name": "pattern", "ret": "string", "params": ["RegExp"] },
+        { "name": "flags", "ret": "string", "params": ["RegExp"] }
+      ]
     }
   ]
 }
