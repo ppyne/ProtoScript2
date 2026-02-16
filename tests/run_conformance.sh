@@ -26,10 +26,22 @@ CONFORMANCE_RUN_CMD="${CONFORMANCE_RUN_CMD:-$COMPILER --run}"
 FRONTEND_ONLY="${FRONTEND_ONLY:-0}"
 CONFORMANCE_MODULES="${CONFORMANCE_MODULES:-0}"
 MODULES_BUILT=0
+MODULES_TMP_DIR=""
 
 if [[ "$CONFORMANCE_MODULES" == "1" ]]; then
   export PS_MODULE_REGISTRY="$ROOT_DIR/modules/registry.json"
+  if [[ -z "${PS_MODULE_PATH:-}" ]]; then
+    MODULES_TMP_DIR="$(mktemp -d "${TMPDIR:-/tmp}/ps_modules_XXXXXX")"
+    export PS_MODULE_PATH="$MODULES_TMP_DIR"
+  fi
 fi
+
+cleanup_modules_tmp() {
+  if [[ -n "$MODULES_TMP_DIR" && -d "$MODULES_TMP_DIR" ]]; then
+    rm -rf "$MODULES_TMP_DIR"
+  fi
+}
+trap cleanup_modules_tmp EXIT
 
 if ! command -v jq >/dev/null 2>&1; then
   if [[ -x "/usr/local/bin/jq" ]]; then

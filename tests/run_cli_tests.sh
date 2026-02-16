@@ -4,7 +4,26 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 PS="${PS:-$ROOT_DIR/c/ps}"
 export PS_MODULE_REGISTRY="${PS_MODULE_REGISTRY:-$ROOT_DIR/modules/registry.json}"
-export PS_MODULE_PATH="${PS_MODULE_PATH:-$ROOT_DIR/modules}"
+CLI_MODULES_TMP_DIR=""
+if [[ -z "${PS_MODULE_PATH:-}" ]]; then
+  CLI_MODULES_TMP_DIR="$(mktemp -d "${TMPDIR:-/tmp}/ps_modules_cli_XXXXXX")"
+  export PS_MODULE_PATH="$CLI_MODULES_TMP_DIR"
+fi
+
+cleanup_cli_modules_tmp() {
+  if [[ -n "$CLI_MODULES_TMP_DIR" && -d "$CLI_MODULES_TMP_DIR" ]]; then
+    rm -rf "$CLI_MODULES_TMP_DIR"
+  fi
+}
+trap cleanup_cli_modules_tmp EXIT
+
+if [[ -x "$ROOT_DIR/tests/build_modules.sh" ]]; then
+  "$ROOT_DIR/tests/build_modules.sh" >/tmp/ps_cli_modules_build.out 2>&1 || {
+    echo "ERROR: failed to build test modules" >&2
+    sed -n '1,80p' /tmp/ps_cli_modules_build.out >&2
+    exit 2
+  }
+fi
 
 pass=0
 fail=0

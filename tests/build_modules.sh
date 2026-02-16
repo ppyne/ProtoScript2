@@ -2,7 +2,7 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-OUT_DIR="$ROOT_DIR/modules"
+OUT_DIR="${PS_MODULE_PATH:-$ROOT_DIR/modules}"
 SRC_DIR="$ROOT_DIR/tests/modules_src"
 
 mkdir -p "$OUT_DIR"
