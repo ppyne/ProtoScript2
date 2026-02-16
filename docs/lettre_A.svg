@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg id="Calque_1" xmlns="http://www.w3.org/2000/svg" version="1.1" viewBox="0 0 32 32">
+  <!-- Generator: Adobe Illustrator 29.6.1, SVG Export Plug-In . SVG Version: 2.1.1 Build 9)  -->
+  <defs>
+    <style>
+      .st0 {
+        fill: #009245;
+      }
+    </style>
+  </defs>
+  <g id="A">
+    <g>
+      <rect class="st0" x="1.04" y="1.04" width="29.92" height="29.92"/>
+      <path d="M14.38,6.72c.06-.19.18-.28.36-.28h2.59c.19,0,.31.09.36.28l6.47,18.57c.06.19-.01.28-.2.28h-2.76c-.19,0-.31-.09-.36-.28l-1.27-3.71h-7.2l-1.27,3.71c-.06.19-.18.28-.36.28h-2.73c-.19,0-.26-.09-.2-.28L14.38,6.72ZM18.57,18.62l-2.53-7.43h-.08l-2.56,7.43h5.18-.01Z"/>
+    </g>
+  </g>
+  <g id="Contour">
+    <path d="M32,32H0V0h32v32ZM2.08,29.92h27.83V2.08H2.08v27.83h0Z"/>
+  </g>
+</svg>

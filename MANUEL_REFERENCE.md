@@ -56,6 +56,77 @@ Ce code est invalide : le type de retour est obligatoire.
 
 Le langage préfère une surface explicite dès le premier exemple : type de retour visible, point d'entrée explicite, aucun comportement implicite.
 
+### 1.6 Complexité algorithmique et impact énergétique
+
+ProtoScript V2 vise la transparence des coûts.  
+Au-delà des règles syntaxiques et sémantiques, ce manuel indique, à titre informatif, deux métriques complémentaires :
+
+- **Complexité algorithmique**
+- **Impact énergétique estimé**
+
+Ces indicateurs sont pédagogiques.  
+Ils ne font pas partie de la spécification normative et peuvent évoluer selon l’implémentation du runtime.
+
+Ils ont pour objectif de rendre visibles :
+
+- la croissance asymptotique d’une opération
+- son profil énergétique typique
+
+### 1.6.1 Complexité algorithmique (A–F)
+
+| Classe | Complexité asymptotique | Interprétation           | Opérations pour 10 éléments |
+|:------:|-------------------------|--------------------------|:---------------------------:|
+|    A   | O(1)                    | Coût constant            |              1              |
+|    B   | O(log n)                | Croissance logarithmique |              3              |
+|    C   | O(n)                    | Croissance linéaire      |              10             |
+|    D   | O(n log n)              | Linéaire-logarithmique   |              30             |
+|    E   | O(n²)                   | Quadratique              |             100             |
+|    F   | O(2ⁿ) à O(N!)           | Explosion exponentielle  |        1024 à 3628800       |
+
+**Notes :**
+
+- Cette classification décrit un ordre de grandeur.
+- Les constantes multiplicatives ne sont pas représentées.
+- Elle ne reflète ni la localité mémoire ni les coûts de cache.
+- Elle ne constitue pas une garantie contractuelle.
+
+![Complexité des algorithmes](docs/complexity-graph.svg)
+
+---
+
+### 1.6.2 Impact énergétique (A–F)
+
+| Classe | Profil énergétique typique |
+|:------:|----------------------------|
+| A | Pas d’allocation, accès séquentiel, coût constant |
+| B | Allocation bornée ou rare, bonne localité mémoire |
+| C | Allocation proportionnelle à n ou copies visibles |
+| D | Accès mémoire dispersés ou nombreux checks runtime |
+| E | Backtracking ou comportement exponentiel |
+| F | Explosion combinatoire sévère |
+
+**Notes :**
+
+- L’impact énergétique dépend du runtime et de la plateforme.
+- Il peut différer de la complexité asymptotique.
+- Il ne constitue pas une mesure électrique physique.
+
+![Impact énergétique](docs/impact-energetique.svg)
+
+---
+
+### 1.6.3 Complexité ≠ Impact énergétique
+
+Une complexité algorithmique faible n’implique pas un impact énergétique minimal.
+
+| Situation | Complexité | Impact énergétique |
+|------------|------------|-------------------|
+| O(log n) avec accès mémoire dispersé | B | C ou D |
+| O(n) séquentiel | C | B |
+| O(1) avec réallocation | A | B |
+
+Les deux indicateurs sont complémentaires.
+
 ---
 
 ## 2. Syntaxe de base
@@ -1496,6 +1567,17 @@ Notes sur `sort()` :
 - tri en place, **stable** et déterministe.
 - aucune variante `sort(cmp)` n’existe.
 
+| Opération | Complexité | Impact énergétique |
+|------------|------------|-------------------|
+| pop() | <img src="docs/lettre_A.svg" alt="A" width="24" /> | <img src="docs/lettre_A.svg" alt="A" width="24" /> |
+| indexation | <img src="docs/lettre_A.svg" alt="A" width="24" /> | <img src="docs/lettre_A.svg" alt="A" width="24" /> |
+| push(x) (amorti) | <img src="docs/lettre_A.svg" alt="A" width="24" /> | <img src="docs/lettre_B.svg" alt="B" width="24" /> |
+| reverse() | <img src="docs/lettre_C.svg" alt="C" width="24" /> | <img src="docs/lettre_B.svg" alt="B" width="24" /> |
+| contains(x) | <img src="docs/lettre_C.svg" alt="C" width="24" /> | <img src="docs/lettre_C.svg" alt="C" width="24" /> |
+| concat() | <img src="docs/lettre_C.svg" alt="C" width="24" /> | <img src="docs/lettre_C.svg" alt="C" width="24" /> |
+| join(sep) | <img src="docs/lettre_C.svg" alt="C" width="24" /> | <img src="docs/lettre_C.svg" alt="C" width="24" /> |
+| sort() | <img src="docs/lettre_D.svg" alt="D" width="24" /> | <img src="docs/lettre_C.svg" alt="C" width="24" /> |
+
 Exemple (types primitifs) :
 
 ```c
@@ -1600,6 +1682,14 @@ Ref: EX-063
 | `keys()` | `() -> list<K>` | liste des clés | — |
 | `values()` | `() -> list<V>` | liste des valeurs | — |
 
+| Opération | Complexité | Impact énergétique |
+|------------|------------|-------------------|
+| lecture map[k] (amorti) | <img src="docs/lettre_A.svg" alt="A" width="24" /> | <img src="docs/lettre_B.svg" alt="B" width="24" /> |
+| écriture map[k] (amorti) | <img src="docs/lettre_A.svg" alt="A" width="24" /> | <img src="docs/lettre_B.svg" alt="B" width="24" /> |
+| containsKey(k) | <img src="docs/lettre_A.svg" alt="A" width="24" /> | <img src="docs/lettre_B.svg" alt="B" width="24" /> |
+| keys() | <img src="docs/lettre_C.svg" alt="C" width="24" /> | <img src="docs/lettre_C.svg" alt="C" width="24" /> |
+| values() | <img src="docs/lettre_C.svg" alt="C" width="24" /> | <img src="docs/lettre_C.svg" alt="C" width="24" /> |
+
 ### 11.2.2 Trier une map par clé ou par valeur
 
 Une `map` conserve l’ordre d’insertion et **ne** définit **aucune** méthode `sort()`.
@@ -1702,6 +1792,12 @@ Ref: EX-066
 | `view(start, len)` | `(int,int) -> view<T>` | sous‑vue readonly | runtime si hors bornes |
 
 `string.view(start,len)` retourne `view<glyph>` avec indexation glyphique.
+
+| Opération | Complexité | Impact énergétique |
+|------------|------------|-------------------|
+| création slice/view | <img src="docs/lettre_A.svg" alt="A" width="24" /> | <img src="docs/lettre_A.svg" alt="A" width="24" /> |
+| accès indexé | <img src="docs/lettre_A.svg" alt="A" width="24" /> | <img src="docs/lettre_A.svg" alt="A" width="24" /> |
+| mutation structurelle source | <img src="docs/lettre_A.svg" alt="A" width="24" /> | <img src="docs/lettre_B.svg" alt="B" width="24" /> |
 
 ### 12.4 Durée de vie et invalidation
 
@@ -1830,6 +1926,15 @@ Notes :
 - `split` ne fait aucun traitement regex
 - les indices de `indexOf` sont exprimés en glyphes
 - `trim`, `trimStart`, `trimEnd` retirent uniquement `' '`, `'\t'`, `'\n'`, `'\r'`
+
+| Opération | Complexité | Impact énergétique |
+|------------|------------|-------------------|
+| length() | <img src="docs/lettre_A.svg" alt="A" width="24" /> | <img src="docs/lettre_A.svg" alt="A" width="24" /> |
+| indexation | <img src="docs/lettre_A.svg" alt="A" width="24" /> | <img src="docs/lettre_A.svg" alt="A" width="24" /> |
+| substring() | <img src="docs/lettre_C.svg" alt="C" width="24" /> | <img src="docs/lettre_C.svg" alt="C" width="24" /> |
+| concat() | <img src="docs/lettre_C.svg" alt="C" width="24" /> | <img src="docs/lettre_C.svg" alt="C" width="24" /> |
+| replace() | <img src="docs/lettre_C.svg" alt="C" width="24" /> | <img src="docs/lettre_C.svg" alt="C" width="24" /> |
+| split() | <img src="docs/lettre_C.svg" alt="C" width="24" /> | <img src="docs/lettre_C.svg" alt="C" width="24" /> |
 
 ### 13.8 Pourquoi ?
 
@@ -2605,6 +2710,15 @@ Fonctions / méthodes principales :
 - `r.pattern() -> string`
 - `r.flags() -> string`
 
+| Opération | Complexité | Impact énergétique |
+|------------|------------|-------------------|
+| split() | <img src="docs/lettre_C.svg" alt="C" width="24" /> | <img src="docs/lettre_C.svg" alt="C" width="24" /> |
+| test() | <img src="docs/lettre_C.svg" alt="C" width="24" /> à <img src="docs/lettre_E.svg" alt="E" width="24" /> | <img src="docs/lettre_D.svg" alt="D" width="24" /> |
+| findAll() | <img src="docs/lettre_C.svg" alt="C" width="24" /> à <img src="docs/lettre_E.svg" alt="E" width="24" /> | <img src="docs/lettre_D.svg" alt="D" width="24" /> |
+| replaceAll() | <img src="docs/lettre_C.svg" alt="C" width="24" /> à <img src="docs/lettre_E.svg" alt="E" width="24" /> | <img src="docs/lettre_D.svg" alt="D" width="24" /> |
+
+Note : la complexité dépend fortement du motif.
+
 Conventions de limite (uniformes) :
 
 - `findAll(..., max = -1)` : illimité
@@ -2650,7 +2764,7 @@ Erreurs runtime (catégories dans le message) :
 
 Si on veut une validation simple et raisonnable sans couvrir 100% du RFC 5322 (ce qui serait irréaliste).
 
-```
+```c
 import RegExp;
 import Io; function  main() : void {
   RegExp email = RegExp.compile( "^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}$", "" );
@@ -2663,7 +2777,7 @@ Ref: EX-105
 
 Version pratique, plus robuste, recommandée, qui couvre: local part classique, points internes (pas au début/fin), pas de double point, domaine structuré et TLD ≥ 2 lettres.
 
-```
+```c
 import RegExp;
 import Io;
 
@@ -2701,7 +2815,7 @@ john@example
 
 Si on veut aller encore un cran au-dessus, on peut empêcher les labels domaine qui commencent ou finissent par `-` :
 
-```
+```c
 RegExp email = RegExp.compile([
     "^[A-Za-z0-9_%+-]+(\\.[A-Za-z0-9_%+-]+)*@",
     "[A-Za-z0-9]([A-Za-z0-9-]*[A-Za-z0-9])?",
@@ -2717,7 +2831,7 @@ Ref: EX-107
 
 Format international simple.
 
-```
+```c
 RegExp phone = RegExp.compile("^\\+?[0-9]{8,15}$", "");
 
 Io.printLine(phone.test("+33612345678", 0)); // true
@@ -2732,7 +2846,7 @@ Ref: EX-108
 
 Format `DD/MM/YYYY`
 
-```
+```c
 RegExp date = RegExp.compile("(\\d{2})/(\\d{2})/(\\d{4})", "");
 
 RegExpMatch m = date.find("Date: 31/12/2026", 0);
@@ -2748,7 +2862,7 @@ Ref: EX-109
 
 ##### Réorganisation de date
 
-```
+```c
 Io.printLine(
     date.replaceAll("31/12/2026", "$3-$2-$1", 0, -1)
 );
@@ -2760,7 +2874,7 @@ Ref: EX-110
 
 ##### Suppression des balises HTML simples
 
-```
+```c
 RegExp tags = RegExp.compile("<[^>]+>", "");
 
 string cleaned = tags.replaceAll("<p>Hello <b>world</b></p>", "", 0, -1);
@@ -2779,7 +2893,7 @@ Au moins :
 
 - lettres et chiffres
 
-```
+```c
 RegExp password = RegExp.compile("^[A-Za-z0-9]{8,}$", "");
 
 Io.printLine(password.test("abc12345", 0)); // true
@@ -2795,7 +2909,7 @@ C’est volontaire et cohérent avec le choix d'implémentation retenue par Prot
 
 ##### Extraction de tous les nombres dans un texte
 
-```
+```c
 RegExp numbers = RegExp.compile("\\d+", "");
 
 list<RegExpMatch> matches = numbers.findAll("Prix: 10€, taxe: 2€, total: 12€", 0, -1);
@@ -2816,7 +2930,7 @@ Sortie :
 
 Structure qui ressamble à une adresse IPv4.
 
-```
+```c
 RegExp ipv4 = RegExp.compile( "^([0-9]{1,3}\\.){3}[0-9]{1,3}$", "" );
 
 Io.printLine(ipv4.test("192.168.1.1", 0));  // true
@@ -2833,7 +2947,7 @@ La validation complète doit être faite en code.
 
 ##### Découpage CSV simple
 
-```
+```c
 RegExp comma = RegExp.compile(",", "");
 
 list<string> parts = comma.split("alpha,beta,gamma", 0, -1);
@@ -2846,7 +2960,7 @@ Ref: EX-115
 
 ##### Nettoyage des espaces multiples
 
-```
+```c
 RegExp spaces = RegExp.compile("\\s+", "");
 
 Io.printLine(
@@ -2860,7 +2974,7 @@ Ref: EX-116
 
 ##### Vérification d’un identifiant valide
 
-```
+```c
 RegExp identifier = RegExp.compile( "^[A-Za-z_][A-Za-z0-9_]*$", "" );
 
 Io.printLine(identifier.test("valid_name_1", 0)); // true
@@ -3215,6 +3329,17 @@ Pas d'ajout dynamique de membres/fonctions à chaud. L'exécution suit un contra
 ### 17.1 Principe
 
 Les coûts doivent rester visibles dans le code et prévisibles.
+
+ProtoScript V2 privilégie la transparence des coûts.
+
+| Principe | Effet |
+|-----------|-------|
+| Copies explicites | Pas de coût caché |
+| Vues non possédantes | Pas de duplication implicite |
+| Checks runtime normatifs | Sécurité visible |
+| Absence de magie | Pas d’explosion implicite |
+
+La complexité algorithmique et l’impact énergétique doivent rester visibles dans le code.
 
 ### 17.2 Checks runtime
 
