@@ -76,12 +76,12 @@ Ils ont pour objectif de rendre visibles :
 
 | Classe | Complexité asymptotique | Interprétation           | Opérations pour 10 éléments |
 |:------:|-------------------------|--------------------------|:---------------------------:|
-|    A   | O(1)                    | Coût constant            |              1              |
-|    B   | O(log n)                | Croissance logarithmique |              3              |
-|    C   | O(n)                    | Croissance linéaire      |              10             |
-|    D   | O(n log n)              | Linéaire-logarithmique   |              30             |
-|    E   | O(n²)                   | Quadratique              |             100             |
-|    F   | O(2ⁿ) à O(N!)           | Explosion exponentielle  |        1024 à 3628800       |
+|    <img src="docs/lettre_A.svg" alt="A" width="24" />   | O(1)                    | Coût constant            |              1              |
+|    <img src="docs/lettre_B.svg" alt="B" width="24" />   | O(log n)                | Croissance logarithmique |              3              |
+|    <img src="docs/lettre_C.svg" alt="C" width="24" />   | O(n)                    | Croissance linéaire      |              10             |
+|    <img src="docs/lettre_D.svg" alt="D" width="24" />   | O(n log n)              | Linéaire-logarithmique   |              30             |
+|    <img src="docs/lettre_E.svg" alt="E" width="24" />   | O(n²)                   | Quadratique              |             100             |
+|    <img src="docs/lettre_F.svg" alt="F" width="24" />   | O(2ⁿ) à O(N!)           | Explosion exponentielle  |        1024 à 3628800       |
 
 **Notes :**
 
@@ -90,7 +90,7 @@ Ils ont pour objectif de rendre visibles :
 - Elle ne reflète ni la localité mémoire ni les coûts de cache.
 - Elle ne constitue pas une garantie contractuelle.
 
-![Complexité des algorithmes](docs/complexity-graph.svg)
+<img src="docs/complexity-graph.svg" alt="Complexité des algorithmes" width="640" />
 
 ---
 
@@ -98,12 +98,12 @@ Ils ont pour objectif de rendre visibles :
 
 | Classe | Profil énergétique typique |
 |:------:|----------------------------|
-| A | Pas d’allocation, accès séquentiel, coût constant |
-| B | Allocation bornée ou rare, bonne localité mémoire |
-| C | Allocation proportionnelle à n ou copies visibles |
-| D | Accès mémoire dispersés ou nombreux checks runtime |
-| E | Backtracking ou comportement exponentiel |
-| F | Explosion combinatoire sévère |
+| <img src="docs/lettre_A.svg" alt="A" width="24" /> | Minimal: pas d’allocation, accès séquentiel, coût constant |
+| <img src="docs/lettre_B.svg" alt="B" width="24" /> | Faible: allocation bornée ou rare, bonne localité mémoire |
+| <img src="docs/lettre_C.svg" alt="C" width="24" /> | Modéré: allocation proportionnelle à n ou copies visibles |
+| <img src="docs/lettre_D.svg" alt="D" width="24" /> | Élevé: accès mémoire dispersés ou nombreux checks runtime |
+| <img src="docs/lettre_E.svg" alt="E" width="24" /> | Très élevé: backtracking ou comportement exponentiel |
+| <img src="docs/lettre_F.svg" alt="F" width="24" /> | Critique: explosion combinatoire sévère |
 
 **Notes :**
 
@@ -111,7 +111,7 @@ Ils ont pour objectif de rendre visibles :
 - Il peut différer de la complexité asymptotique.
 - Il ne constitue pas une mesure électrique physique.
 
-![Impact énergétique](docs/impact-energetique.svg)
+<img src="docs/impact-energetique.svg" alt="Impact énergétique" width="640" />
 
 ---
 
@@ -121,9 +121,9 @@ Une complexité algorithmique faible n’implique pas un impact énergétique mi
 
 | Situation | Complexité | Impact énergétique |
 |------------|------------|-------------------|
-| O(log n) avec accès mémoire dispersé | B | C ou D |
-| O(n) séquentiel | C | B |
-| O(1) avec réallocation | A | B |
+| O(log n) avec accès mémoire dispersé | <img src="docs/lettre_B.svg" alt="B" width="24" /> | <img src="docs/lettre_C.svg" alt="C" width="24" /> ou <img src="docs/lettre_D.svg" alt="D" width="24" /> |
+| O(n) séquentiel | <img src="docs/lettre_C.svg" alt="C" width="24" /> | <img src="docs/lettre_B.svg" alt="B" width="24" /> |
+| O(1) avec réallocation | <img src="docs/lettre_A.svg" alt="A" width="24" /> | <img src="docs/lettre_B.svg" alt="B" width="24" /> |
 
 Les deux indicateurs sont complémentaires.
 
