@@ -5323,6 +5323,36 @@
     "notes": ""
   },
   {
+    "symbol": "string.contains()",
+    "category": "method",
+    "status": "CORE",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "c/frontend.c:4751",
+      "src/runtime.js:4028"
+    ],
+    "doc": "Built-in method contains on string.",
+    "notes": ""
+  },
+  {
+    "symbol": "string.glyphAt()",
+    "category": "method",
+    "status": "CORE",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "c/frontend.c:4753",
+      "src/runtime.js:4078"
+    ],
+    "doc": "Built-in method glyphAt on string.",
+    "notes": ""
+  },
+  {
     "symbol": "string.isEmpty()",
     "category": "method",
     "status": "CORE",
@@ -5353,6 +5383,51 @@
     "notes": ""
   },
   {
+    "symbol": "string.lastIndexOf()",
+    "category": "method",
+    "status": "CORE",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "c/frontend.c:4751",
+      "src/runtime.js:4032"
+    ],
+    "doc": "Built-in method lastIndexOf on string.",
+    "notes": ""
+  },
+  {
+    "symbol": "string.padEnd()",
+    "category": "method",
+    "status": "CORE",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "c/frontend.c:4755",
+      "src/runtime.js:4098"
+    ],
+    "doc": "Built-in method padEnd on string.",
+    "notes": ""
+  },
+  {
+    "symbol": "string.padStart()",
+    "category": "method",
+    "status": "CORE",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "c/frontend.c:4755",
+      "src/runtime.js:4098"
+    ],
+    "doc": "Built-in method padStart on string.",
+    "notes": ""
+  },
+  {
     "symbol": "string.replace()",
     "category": "method",
     "status": "CORE",
@@ -5365,6 +5440,36 @@
       "src/runtime.js:4010"
     ],
     "doc": "Built-in method replace on string.",
+    "notes": ""
+  },
+  {
+    "symbol": "string.replaceAll()",
+    "category": "method",
+    "status": "CORE",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "c/frontend.c:4755",
+      "src/runtime.js:4070"
+    ],
+    "doc": "Built-in method replaceAll on string.",
+    "notes": ""
+  },
+  {
+    "symbol": "string.repeat()",
+    "category": "method",
+    "status": "CORE",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "c/frontend.c:4754",
+      "src/runtime.js:4088"
+    ],
+    "doc": "Built-in method repeat on string.",
     "notes": ""
   },
   {
@@ -5398,7 +5503,7 @@
     "notes": ""
   },
   {
-    "symbol": "string.substring()",
+    "symbol": "string.subString()",
     "category": "method",
     "status": "CORE",
     "frontends": {
@@ -5406,10 +5511,10 @@
       "node": true
     },
     "locations": [
-      "c/frontend.c:4752",
-      "src/runtime.js:3968"
+      "c/frontend.c:4754",
+      "src/runtime.js:4016"
     ],
-    "doc": "Built-in method substring on string.",
+    "doc": "Built-in method subString on string.",
     "notes": ""
   },
   {

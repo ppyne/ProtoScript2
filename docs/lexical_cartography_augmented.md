@@ -3580,6 +3580,16 @@
 - Définition courte : Built-in method replace on string.
 - Notes de divergence : none
 
+### string.replaceAll()
+
+- Catégorie : method
+- Statut : CORE
+- Présence Frontend C : yes
+- Présence Frontend Node : yes
+- Localisations exactes : c/frontend.c:4755, src/runtime.js:4070
+- Définition courte : Built-in method replaceAll on string.
+- Notes de divergence : none
+
 ### string.split()
 
 - Catégorie : method
@@ -3588,6 +3598,66 @@
 - Présence Frontend Node : yes
 - Localisations exactes : c/frontend.c:4750, src/runtime.js:134
 - Définition courte : Built-in method split on string.
+- Notes de divergence : none
+
+### string.contains()
+
+- Catégorie : method
+- Statut : CORE
+- Présence Frontend C : yes
+- Présence Frontend Node : yes
+- Localisations exactes : c/frontend.c:4751, src/runtime.js:4028
+- Définition courte : Built-in method contains on string.
+- Notes de divergence : none
+
+### string.glyphAt()
+
+- Catégorie : method
+- Statut : CORE
+- Présence Frontend C : yes
+- Présence Frontend Node : yes
+- Localisations exactes : c/frontend.c:4753, src/runtime.js:4078
+- Définition courte : Built-in method glyphAt on string.
+- Notes de divergence : none
+
+### string.lastIndexOf()
+
+- Catégorie : method
+- Statut : CORE
+- Présence Frontend C : yes
+- Présence Frontend Node : yes
+- Localisations exactes : c/frontend.c:4751, src/runtime.js:4032
+- Définition courte : Built-in method lastIndexOf on string.
+- Notes de divergence : none
+
+### string.padEnd()
+
+- Catégorie : method
+- Statut : CORE
+- Présence Frontend C : yes
+- Présence Frontend Node : yes
+- Localisations exactes : c/frontend.c:4755, src/runtime.js:4098
+- Définition courte : Built-in method padEnd on string.
+- Notes de divergence : none
+
+### string.padStart()
+
+- Catégorie : method
+- Statut : CORE
+- Présence Frontend C : yes
+- Présence Frontend Node : yes
+- Localisations exactes : c/frontend.c:4755, src/runtime.js:4098
+- Définition courte : Built-in method padStart on string.
+- Notes de divergence : none
+
+### string.repeat()
+
+- Catégorie : method
+- Statut : CORE
+- Présence Frontend C : yes
+- Présence Frontend Node : yes
+- Localisations exactes : c/frontend.c:4754, src/runtime.js:4088
+- Définition courte : Built-in method repeat on string.
 - Notes de divergence : none
 
 ### string.startsWith()
@@ -3600,14 +3670,14 @@
 - Définition courte : Built-in method startsWith on string.
 - Notes de divergence : none
 
-### string.substring()
+### string.subString()
 
 - Catégorie : method
 - Statut : CORE
 - Présence Frontend C : yes
 - Présence Frontend Node : yes
-- Localisations exactes : c/frontend.c:4752, src/runtime.js:3968
-- Définition courte : Built-in method substring on string.
+- Localisations exactes : c/frontend.c:4754, src/runtime.js:4016
+- Définition courte : Built-in method subString on string.
 - Notes de divergence : none
 
 ### string.toFloat()

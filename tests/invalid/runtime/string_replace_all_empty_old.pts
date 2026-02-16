@@ -2,6 +2,5 @@ import Io;
 
 function main() : void {
     string s = "abc";
-    string t = s.subString(2, 2);
-    Io.printLine(t);
+    Io.printLine(s.replaceAll("", "x"));
 }

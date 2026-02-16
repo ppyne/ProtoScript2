@@ -1,0 +1,38 @@
+import Io;
+
+function main() : void {
+    Io.printLine("abc".contains("").toString());
+    Io.printLine("abc".contains("b").toString());
+    Io.printLine("abc".contains("d").toString());
+    Io.printLine("a😊b".contains("😊").toString());
+
+    string a = "aoboc";
+    string b = "aaaa";
+    string c = "abc";
+    string d = "a😊b😊";
+    string x = "x";
+    string sep = "o";
+    string smile = "😊";
+
+    Io.printLine(a.lastIndexOf(sep).toString());
+    Io.printLine(b.lastIndexOf("aa").toString());
+    Io.printLine(c.lastIndexOf("x").toString());
+    Io.printLine(c.lastIndexOf("").toString());
+
+    Io.printLine(a.replaceAll(sep, "z"));
+    Io.printLine(b.replaceAll("aa", "x"));
+    Io.printLine(c.replaceAll("x", "y"));
+    Io.printLine(d.replaceAll(smile, "q"));
+
+    Io.printLine(c.glyphAt(0).toString());
+    Io.printLine("😊".glyphAt(0).toString());
+
+    Io.printLine("ab".repeat(3));
+    Io.printLine("😊".repeat(2));
+
+    Io.printLine(x.padStart(3, "0"));
+    Io.printLine(x.padEnd(3, "0"));
+    Io.printLine(x.padStart(5, "ab"));
+    Io.printLine(x.padStart(3, "😊"));
+    Io.printLine("abcd".padStart(2, "0"));
+}

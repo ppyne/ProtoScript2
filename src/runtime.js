@@ -687,6 +687,54 @@ function indexOfGlyphs(hay, needle) {
   return -1;
 }
 
+function lastIndexOfGlyphs(hay, needle) {
+  const h = glyphStringsOf(hay);
+  const n = glyphStringsOf(needle);
+  if (n.length === 0) return h.length;
+  for (let i = h.length - n.length; i >= 0; i -= 1) {
+    let ok = true;
+    for (let j = 0; j < n.length; j += 1) {
+      if (h[i + j] !== n[j]) {
+        ok = false;
+        break;
+      }
+    }
+    if (ok) return i;
+  }
+  return -1;
+}
+
+function replaceAllGlyphs(hay, oldValue, newValue) {
+  const h = glyphStringsOf(hay);
+  const o = glyphStringsOf(oldValue);
+  const n = glyphStringsOf(newValue);
+  if (o.length === 0) return null;
+  const out = [];
+  let i = 0;
+  let replaced = false;
+  while (i < h.length) {
+    let match = i + o.length <= h.length;
+    if (match) {
+      for (let j = 0; j < o.length; j += 1) {
+        if (h[i + j] !== o[j]) {
+          match = false;
+          break;
+        }
+      }
+    }
+    if (match) {
+      replaced = true;
+      for (const g of n) out.push(g);
+      i += o.length;
+    } else {
+      out.push(h[i]);
+      i += 1;
+    }
+  }
+  if (!replaced) return hay;
+  return out.join("");
+}
+
 function isFloatLiteral(raw) {
   return raw.includes(".") || /[eE]/.test(raw);
 }
@@ -3965,7 +4013,7 @@ function evalCall(expr, scope, functions, moduleEnv, protoEnv, file, callFunctio
         expectArity(1, 1);
         return String(target) + String(args[0]);
       }
-      if (m.name === "substring") {
+      if (m.name === "subString") {
         expectArity(2, 2);
         const start = Number(args[0]);
         const length = Number(args[1]);
@@ -3980,6 +4028,14 @@ function evalCall(expr, scope, functions, moduleEnv, protoEnv, file, callFunctio
         expectArity(1, 1);
         const needle = String(args[0]);
         return BigInt(indexOfGlyphs(target, needle));
+      }
+      if (m.name === "contains") {
+        expectArity(1, 1);
+        return indexOfGlyphs(target, String(args[0])) >= 0;
+      }
+      if (m.name === "lastIndexOf") {
+        expectArity(1, 1);
+        return BigInt(lastIndexOfGlyphs(target, String(args[0])));
       }
       if (m.name === "startsWith") {
         expectArity(1, 1);
@@ -4010,6 +4066,57 @@ function evalCall(expr, scope, functions, moduleEnv, protoEnv, file, callFunctio
       if (m.name === "replace") {
         expectArity(2, 2);
         return target.replace(String(args[0]), String(args[1]));
+      }
+      if (m.name === "replaceAll") {
+        expectArity(2, 2);
+        const out = replaceAllGlyphs(target, String(args[0]), String(args[1]));
+        if (out === null) {
+          throw new RuntimeError(rdiag(file, m, "R1009", "RUNTIME_INVALID_ARGUMENT", diagMsg("invalid argument", "oldValue=\"\"", "non-empty oldValue")));
+        }
+        return out;
+      }
+      if (m.name === "glyphAt") {
+        expectArity(1, 1);
+        const idx = Number(args[0]);
+        const gs = glyphStringsOf(target);
+        if (!Number.isInteger(idx) || idx < 0 || idx >= gs.length) {
+          const got = `index=${idx}`;
+          throw new RuntimeError(rdiag(file, m, "R1002", "RUNTIME_INDEX_OOB", diagMsg("index out of bounds", got, "index within string")));
+        }
+        return new Glyph(gs[idx].codePointAt(0));
+      }
+      if (m.name === "repeat") {
+        expectArity(1, 1);
+        const count = Number(args[0]);
+        if (!Number.isInteger(count) || count < 0) {
+          throw new RuntimeError(rdiag(file, m, "R1009", "RUNTIME_INVALID_ARGUMENT", diagMsg("invalid argument", `count=${count}`, "count >= 0")));
+        }
+        if (count === 0) return "";
+        return target.repeat(count);
+      }
+      if (m.name === "padStart" || m.name === "padEnd") {
+        expectArity(2, 2);
+        const targetLength = Number(args[0]);
+        const pad = String(args[1]);
+        const gs = glyphStringsOf(target);
+        if (!Number.isInteger(targetLength)) {
+          throw new RuntimeError(rdiag(file, m, "R1009", "RUNTIME_INVALID_ARGUMENT", diagMsg("invalid argument", `targetLength=${targetLength}`, "integer targetLength")));
+        }
+        if (targetLength <= gs.length) return target;
+        const padGlyphs = glyphStringsOf(pad);
+        if (padGlyphs.length === 0) {
+          throw new RuntimeError(rdiag(file, m, "R1009", "RUNTIME_INVALID_ARGUMENT", diagMsg("invalid argument", "pad=\"\"", "non-empty pad when padding is required")));
+        }
+        const need = targetLength - gs.length;
+        const fill = [];
+        while (fill.length < need) {
+          for (const g of padGlyphs) {
+            if (fill.length >= need) break;
+            fill.push(g);
+          }
+        }
+        const filler = fill.join("");
+        return m.name === "padStart" ? `${filler}${target}` : `${target}${filler}`;
       }
       if (m.name === "toUtf8Bytes") {
         expectArity(0, 0);

@@ -1,0 +1,11 @@
+{
+  "status": "reject-runtime",
+  "error_family": "Rxxxx",
+  "error_code": "R1009",
+  "category": "RUNTIME_INVALID_ARGUMENT",
+  "position": {
+    "file": "invalid/runtime/string_pad_start_empty_pad.pts",
+    "line": 5,
+    "column": 19
+  }
+}

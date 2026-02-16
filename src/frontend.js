@@ -2914,11 +2914,11 @@ class Analyzer {
         fail(0, 0);
         return;
       }
-      if (["concat", "indexOf", "startsWith", "endsWith", "split"].includes(name)) {
+      if (["concat", "indexOf", "contains", "lastIndexOf", "startsWith", "endsWith", "split", "glyphAt", "repeat"].includes(name)) {
         fail(1, 1);
         return;
       }
-      if (["substring", "replace"].includes(name)) {
+      if (["subString", "replace", "replaceAll", "padStart", "padEnd"].includes(name)) {
         fail(2, 2);
         return;
       }
@@ -3162,12 +3162,18 @@ class Analyzer {
         if (name === "toString") return prim("string");
         if (name === "toInt") return prim("int");
         if (name === "toFloat") return prim("float");
-        if (name === "substring") return prim("string");
+        if (name === "subString") return prim("string");
         if (name === "indexOf") return prim("int");
+        if (name === "contains") return prim("bool");
+        if (name === "lastIndexOf") return prim("int");
         if (name === "startsWith" || name === "endsWith") return prim("bool");
         if (name === "split") return { kind: "GenericType", name: "list", args: [prim("string")] };
         if (name === "trim" || name === "trimStart" || name === "trimEnd") return prim("string");
         if (name === "replace") return prim("string");
+        if (name === "replaceAll") return prim("string");
+        if (name === "glyphAt") return prim("glyph");
+        if (name === "repeat") return prim("string");
+        if (name === "padStart" || name === "padEnd") return prim("string");
         if (name === "toUpper" || name === "toLower") return prim("string");
         if (name === "toUtf8Bytes") return { kind: "GenericType", name: "list", args: [prim("byte")] };
         if (name === "view") {

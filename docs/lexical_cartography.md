@@ -144,8 +144,10 @@ Source principale: `c/frontend.c` (`check_method_arity`, `method_ret_type`) and 
 - `toInt() -> int`
 - `toFloat() -> float`
 - `concat(string) -> string`
-- `substring(int,int) -> string`
+- `subString(int,int) -> string`
 - `indexOf(string) -> int`
+- `contains(string) -> bool`
+- `lastIndexOf(string) -> int`
 - `startsWith(string) -> bool`
 - `endsWith(string) -> bool`
 - `split(string) -> list<string>`
@@ -153,6 +155,11 @@ Source principale: `c/frontend.c` (`check_method_arity`, `method_ret_type`) and 
 - `trimStart() -> string`
 - `trimEnd() -> string`
 - `replace(string,string) -> string`
+- `replaceAll(string,string) -> string`
+- `glyphAt(int) -> glyph`
+- `repeat(int) -> string`
+- `padStart(int,string) -> string`
+- `padEnd(int,string) -> string`
 - `toUpper() -> string`
 - `toLower() -> string`
 - `toUtf8Bytes() -> list<byte>`

@@ -392,8 +392,10 @@ s.concat(parts);     // concaténation explicite
 s.toUtf8Bytes();     // list<byte> (UTF-8 strict)
 s.length();                 // longueur en glyphes
 s.isEmpty();                // bool
-s.substring(start, length); // sous-chaîne (glyphes)
+s.subString(start, length); // sous-chaîne (glyphes)
 s.indexOf(needle);   // position en glyphes (ou -1)
+s.contains(needle);  // bool
+s.lastIndexOf(needle); // dernière position en glyphes (ou -1)
 s.startsWith(prefix);
 s.endsWith(suffix);
 s.split(sep);        // list<string>
@@ -401,6 +403,11 @@ s.trim();
 s.trimStart();
 s.trimEnd();
 s.replace(old, new); // remplace la première occurrence
+s.replaceAll(old, new); // remplace toutes les occurrences (non-chevauchantes)
+s.glyphAt(index);    // équivalent à s[index]
+s.repeat(count);
+s.padStart(targetLength, pad);
+s.padEnd(targetLength, pad);
 
 ```
 
@@ -415,15 +422,22 @@ Règles normatives d’accès indexé sur `string` :
 - `list<byte>.toUtf8String()` retourne une `string` en UTF-8 strict
 - `string.length()` retourne le nombre de glyphes (Unicode scalar values)
 - `string.isEmpty()` retourne `true` si la longueur en glyphes est `0`
-- `string.substring(start, length)` retourne une nouvelle `string` extraite en glyphes
-- `string.substring` n’expose ni vue ni référence partagée
+- `string.subString(start, length)` retourne une nouvelle `string` extraite en glyphes
+- `string.subString` n’expose ni vue ni référence partagée
 - les indices et positions retournés par les méthodes de recherche sont exprimés en **glyphes**
 - `string.indexOf(needle)` retourne l’index (en glyphes) de la première occurrence, ou `-1` si absent
+- `string.contains(needle)` est équivalent à `string.indexOf(needle) >= 0` ; si `needle == ""`, retourne `true`
+- `string.lastIndexOf(needle)` retourne l’index (en glyphes) de la dernière occurrence, ou `-1` si absent ; si `needle == ""`, retourne `string.length()`
 - `string.startsWith(prefix)` et `string.endsWith(suffix)` retournent `bool`
 - `string.split(sep)` retourne une `list<string>` et ne fait **aucun** traitement regex
 - si `sep` est une chaîne vide, `split` retourne une liste de chaînes d’un glyphe chacune
 - `string.trim*` retire uniquement les espaces ASCII (`' '`, `'\t'`, `'\n'`, `'\r'`) en début/fin selon la variante
 - `string.replace(old, new)` remplace la **première** occurrence exacte (pas de regex) et retourne une nouvelle `string`
+- `string.replaceAll(old, new)` remplace **toutes** les occurrences exactes non-chevauchantes (pas de regex)
+- `string.replaceAll("", new)` doit lever une exception runtime `RUNTIME_INVALID_ARGUMENT`
+- `string.glyphAt(index)` retourne le `glyph` à `index` (même règle d’erreur que `string[index]`)
+- `string.repeat(count)` retourne `count` répétitions ; `count < 0` doit lever `RUNTIME_INVALID_ARGUMENT`
+- `string.padStart(targetLength, pad)` et `string.padEnd(targetLength, pad)` paddent en glyphes ; si padding requis et `pad == ""`, lever `RUNTIME_INVALID_ARGUMENT`
 
 **list<T>**
 
@@ -508,11 +522,18 @@ map.containsKey(k);
 | `trimEnd()` | 0 |
 | `concat(x)` | 1 |
 | `indexOf(x)` | 1 |
+| `contains(x)` | 1 |
+| `lastIndexOf(x)` | 1 |
 | `startsWith(x)` | 1 |
 | `endsWith(x)` | 1 |
 | `split(x)` | 1 |
-| `substring(start, length)` | 2 |
+| `glyphAt(index)` | 1 |
+| `repeat(count)` | 1 |
+| `subString(start, length)` | 2 |
 | `replace(old, new)` | 2 |
+| `replaceAll(old, new)` | 2 |
+| `padStart(targetLength, pad)` | 2 |
+| `padEnd(targetLength, pad)` | 2 |
 
 **list<T>**
 
@@ -3287,7 +3308,8 @@ Principe général (normatif) :
 | écriture `view[i] = v` | erreur statique | toute mutation indexée de `view<T>` doit être rejetée | catégorie `IMMUTABLE_INDEX_WRITE`, position |
 | `list.pop()` sur liste vide | erreur statique si prouvée vide, sinon exception runtime | l’appel doit être rejeté statiquement quand prouvable ; sinon lever une exception runtime | catégorie `STATIC_EMPTY_POP` ou `RUNTIME_EMPTY_POP`, position |
 | conversion UTF-8 invalide (`list<byte>.toUtf8String()`) | exception runtime | la conversion doit échouer si l’octetage n’est pas UTF-8 valide | catégorie `RUNTIME_INVALID_UTF8`, position |
-| sous-chaîne hors bornes (`string.substring`) | exception runtime | l’extraction doit échouer si `start` ou `length` est invalide | catégorie `RUNTIME_INDEX_OOB`, position |
+| sous-chaîne hors bornes (`string.subString`) | exception runtime | l’extraction doit échouer si `start` ou `length` est invalide | catégorie `RUNTIME_INDEX_OOB`, position |
+| argument invalide (`string.replaceAll("", ...)`, `string.repeat(count<0)`, `string.padStart/padEnd(..., "")` si padding requis) | exception runtime | l’appel doit échouer sur argument interdit | catégorie `RUNTIME_INVALID_ARGUMENT`, position |
 | accès `map[k]` avec clé absente | exception runtime | l’accès doit lever une exception | catégorie `RUNTIME_MISSING_KEY`, position |
 | écriture `map[k] = v` avec clé absente | autorisé | l’opération doit insérer une entrée `(k, v)` | pas d’exception |
 | mutation structurelle pendant itération (`list`/`map`) | exception runtime | l’itération doit détecter la mutation et lever une exception au plus tard au prochain pas | catégorie `RUNTIME_CONCURRENT_MUTATION`, position |

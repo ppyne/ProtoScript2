@@ -2,6 +2,6 @@ import Io;
 
 function main() : void {
     string s = "a😀b";
-    string t = s.substring(1, 1);
+    string t = s.subString(1, 1);
     Io.printLine(t);
 }

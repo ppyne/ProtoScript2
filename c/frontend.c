@@ -4746,10 +4746,14 @@ static int check_method_arity(Analyzer *a, AstNode *e, const char *recv_t, const
         strcmp(method, "toLower") == 0 || strcmp(method, "toUtf8Bytes") == 0 || strcmp(method, "trim") == 0 ||
         strcmp(method, "trimStart") == 0 || strcmp(method, "trimEnd") == 0) {
       min = max = 0;
-    } else if (strcmp(method, "concat") == 0 || strcmp(method, "indexOf") == 0 || strcmp(method, "startsWith") == 0 ||
-               strcmp(method, "endsWith") == 0 || strcmp(method, "split") == 0) {
+    } else if (strcmp(method, "concat") == 0 || strcmp(method, "indexOf") == 0 || strcmp(method, "contains") == 0 ||
+               strcmp(method, "lastIndexOf") == 0 || strcmp(method, "startsWith") == 0 ||
+               strcmp(method, "endsWith") == 0 || strcmp(method, "split") == 0 || strcmp(method, "glyphAt") == 0 ||
+               strcmp(method, "repeat") == 0) {
       min = max = 1;
-    } else if (strcmp(method, "substring") == 0 || strcmp(method, "replace") == 0) {
+    } else if (strcmp(method, "subString") == 0 || strcmp(method, "replace") == 0 ||
+               strcmp(method, "replaceAll") == 0 || strcmp(method, "padStart") == 0 ||
+               strcmp(method, "padEnd") == 0) {
       min = max = 2;
     }
   } else if (strcmp(recv_t, "TextFile") == 0 || strcmp(recv_t, "BinaryFile") == 0) {
@@ -4873,12 +4877,18 @@ static char *method_ret_type(const char *recv_t, const char *m) {
     if (strcmp(m, "toInt") == 0) return strdup("int");
     if (strcmp(m, "toFloat") == 0) return strdup("float");
     if (strcmp(m, "concat") == 0) return strdup("string");
-    if (strcmp(m, "substring") == 0) return strdup("string");
+    if (strcmp(m, "subString") == 0) return strdup("string");
     if (strcmp(m, "indexOf") == 0) return strdup("int");
+    if (strcmp(m, "contains") == 0) return strdup("bool");
+    if (strcmp(m, "lastIndexOf") == 0) return strdup("int");
     if (strcmp(m, "startsWith") == 0 || strcmp(m, "endsWith") == 0) return strdup("bool");
     if (strcmp(m, "split") == 0) return strdup("list<string>");
     if (strcmp(m, "trim") == 0 || strcmp(m, "trimStart") == 0 || strcmp(m, "trimEnd") == 0) return strdup("string");
     if (strcmp(m, "replace") == 0) return strdup("string");
+    if (strcmp(m, "replaceAll") == 0) return strdup("string");
+    if (strcmp(m, "glyphAt") == 0) return strdup("glyph");
+    if (strcmp(m, "repeat") == 0) return strdup("string");
+    if (strcmp(m, "padStart") == 0 || strcmp(m, "padEnd") == 0) return strdup("string");
     if (strcmp(m, "toUpper") == 0 || strcmp(m, "toLower") == 0) return strdup("string");
     if (strcmp(m, "toUtf8Bytes") == 0) return strdup("list<byte>");
   } else if (strcmp(recv_t, "TextFile") == 0) {
@@ -6960,12 +6970,18 @@ static char *ir_guess_expr_type(AstNode *e, IrFnCtx *ctx) {
           if (strcmp(m, "toInt") == 0) return strdup("int");
           if (strcmp(m, "toFloat") == 0) return strdup("float");
           if (strcmp(m, "concat") == 0) return strdup("string");
-          if (strcmp(m, "substring") == 0) return strdup("string");
+          if (strcmp(m, "subString") == 0) return strdup("string");
           if (strcmp(m, "indexOf") == 0) return strdup("int");
+          if (strcmp(m, "contains") == 0) return strdup("bool");
+          if (strcmp(m, "lastIndexOf") == 0) return strdup("int");
           if (strcmp(m, "startsWith") == 0 || strcmp(m, "endsWith") == 0) return strdup("bool");
           if (strcmp(m, "split") == 0) return strdup("list<string>");
           if (strcmp(m, "trim") == 0 || strcmp(m, "trimStart") == 0 || strcmp(m, "trimEnd") == 0) return strdup("string");
           if (strcmp(m, "replace") == 0) return strdup("string");
+          if (strcmp(m, "replaceAll") == 0) return strdup("string");
+          if (strcmp(m, "glyphAt") == 0) return strdup("glyph");
+          if (strcmp(m, "repeat") == 0) return strdup("string");
+          if (strcmp(m, "padStart") == 0 || strcmp(m, "padEnd") == 0) return strdup("string");
           if (strcmp(m, "toUpper") == 0 || strcmp(m, "toLower") == 0) return strdup("string");
           if (strcmp(m, "toUtf8Bytes") == 0) return strdup("list<byte>");
         } else if (strncmp(recv_t, "list<", 5) == 0) {

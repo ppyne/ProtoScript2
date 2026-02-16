@@ -2914,11 +2914,11 @@ static int exec_function(PS_Context *ctx, PS_IR_Module *m, IRFunction *f, PS_Val
             PS_Value *v = ps_make_float(ctx, fv);
             bindings_set(&temps, ins->dst, v);
             ps_value_release(v);
-          } else if (strcmp(ins->method, "substring") == 0) {
+          } else if (strcmp(ins->method, "subString") == 0) {
             if (!expect_arity(ctx, ins, 2, 2)) goto raise;
             PS_Value *a = get_value(&temps, &vars, ins->args[0]);
             PS_Value *b = get_value(&temps, &vars, ins->args[1]);
-            PS_Value *v = ps_string_substring(ctx, recv, (size_t)a->as.int_v, (size_t)b->as.int_v);
+            PS_Value *v = ps_string_substring(ctx, recv, a->as.int_v, b->as.int_v);
             if (!v) goto raise;
             bindings_set(&temps, ins->dst, v);
             ps_value_release(v);
@@ -2926,6 +2926,19 @@ static int exec_function(PS_Context *ctx, PS_IR_Module *m, IRFunction *f, PS_Val
             if (!expect_arity(ctx, ins, 1, 1)) goto raise;
             PS_Value *needle = get_value(&temps, &vars, ins->args[0]);
             int64_t idx = ps_string_index_of(recv, needle);
+            PS_Value *v = ps_make_int(ctx, idx);
+            bindings_set(&temps, ins->dst, v);
+            ps_value_release(v);
+          } else if (strcmp(ins->method, "contains") == 0) {
+            if (!expect_arity(ctx, ins, 1, 1)) goto raise;
+            PS_Value *needle = get_value(&temps, &vars, ins->args[0]);
+            PS_Value *v = ps_make_bool(ctx, ps_string_contains(recv, needle));
+            bindings_set(&temps, ins->dst, v);
+            ps_value_release(v);
+          } else if (strcmp(ins->method, "lastIndexOf") == 0) {
+            if (!expect_arity(ctx, ins, 1, 1)) goto raise;
+            PS_Value *needle = get_value(&temps, &vars, ins->args[0]);
+            int64_t idx = ps_string_last_index_of(recv, needle);
             PS_Value *v = ps_make_int(ctx, idx);
             bindings_set(&temps, ins->dst, v);
             ps_value_release(v);
@@ -2971,6 +2984,44 @@ static int exec_function(PS_Context *ctx, PS_IR_Module *m, IRFunction *f, PS_Val
             PS_Value *a = get_value(&temps, &vars, ins->args[0]);
             PS_Value *b = get_value(&temps, &vars, ins->args[1]);
             PS_Value *v = ps_string_replace(ctx, recv, a, b);
+            if (!v) goto raise;
+            bindings_set(&temps, ins->dst, v);
+            ps_value_release(v);
+          } else if (strcmp(ins->method, "replaceAll") == 0) {
+            if (!expect_arity(ctx, ins, 2, 2)) goto raise;
+            PS_Value *a = get_value(&temps, &vars, ins->args[0]);
+            PS_Value *b = get_value(&temps, &vars, ins->args[1]);
+            PS_Value *v = ps_string_replace_all(ctx, recv, a, b);
+            if (!v) goto raise;
+            bindings_set(&temps, ins->dst, v);
+            ps_value_release(v);
+          } else if (strcmp(ins->method, "glyphAt") == 0) {
+            if (!expect_arity(ctx, ins, 1, 1)) goto raise;
+            PS_Value *a = get_value(&temps, &vars, ins->args[0]);
+            PS_Value *v = ps_string_glyph_at(ctx, recv, a->as.int_v);
+            if (!v) goto raise;
+            bindings_set(&temps, ins->dst, v);
+            ps_value_release(v);
+          } else if (strcmp(ins->method, "repeat") == 0) {
+            if (!expect_arity(ctx, ins, 1, 1)) goto raise;
+            PS_Value *a = get_value(&temps, &vars, ins->args[0]);
+            PS_Value *v = ps_string_repeat(ctx, recv, a->as.int_v);
+            if (!v) goto raise;
+            bindings_set(&temps, ins->dst, v);
+            ps_value_release(v);
+          } else if (strcmp(ins->method, "padStart") == 0) {
+            if (!expect_arity(ctx, ins, 2, 2)) goto raise;
+            PS_Value *a = get_value(&temps, &vars, ins->args[0]);
+            PS_Value *b = get_value(&temps, &vars, ins->args[1]);
+            PS_Value *v = ps_string_pad_start(ctx, recv, a->as.int_v, b);
+            if (!v) goto raise;
+            bindings_set(&temps, ins->dst, v);
+            ps_value_release(v);
+          } else if (strcmp(ins->method, "padEnd") == 0) {
+            if (!expect_arity(ctx, ins, 2, 2)) goto raise;
+            PS_Value *a = get_value(&temps, &vars, ins->args[0]);
+            PS_Value *b = get_value(&temps, &vars, ins->args[1]);
+            PS_Value *v = ps_string_pad_end(ctx, recv, a->as.int_v, b);
             if (!v) goto raise;
             bindings_set(&temps, ins->dst, v);
             ps_value_release(v);

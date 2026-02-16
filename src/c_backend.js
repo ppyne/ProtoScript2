@@ -333,15 +333,16 @@ function inferTempTypes(ir, protoMap) {
                   else if (["toUpper", "toLower"].includes(i.method)) set(i.dst, "glyph");
                   else set(i.dst, "glyph");
                 } else if (rt === "string") {
-                  if (["length", "indexOf"].includes(i.method)) set(i.dst, "int");
-                  else if (i.method === "isEmpty") set(i.dst, "bool");
+                  if (["length", "indexOf", "lastIndexOf"].includes(i.method)) set(i.dst, "int");
+                  else if (["isEmpty", "contains"].includes(i.method)) set(i.dst, "bool");
                   else if (i.method === "toString") set(i.dst, "string");
                   else if (i.method === "toInt") set(i.dst, "int");
                   else if (i.method === "toFloat") set(i.dst, "float");
                   else if (["startsWith", "endsWith"].includes(i.method)) set(i.dst, "bool");
                   else if (i.method === "split") set(i.dst, "list<string>");
                   else if (i.method === "toUtf8Bytes") set(i.dst, "list<byte>");
-                  else if (["substring", "trim", "trimStart", "trimEnd", "replace", "toUpper", "toLower", "concat"].includes(i.method)) set(i.dst, "string");
+                  else if (["subString", "trim", "trimStart", "trimEnd", "replace", "replaceAll", "repeat", "padStart", "padEnd", "toUpper", "toLower", "concat"].includes(i.method)) set(i.dst, "string");
+                  else if (i.method === "glyphAt") set(i.dst, "glyph");
                 } else if (rc && rc.kind === "list" && rc.inner === "byte" && i.method === "toUtf8String") {
                   set(i.dst, "string");
                 } else if (rc && rc.kind === "list" && rc.inner === "string" && (i.method === "join" || i.method === "concat")) {
@@ -2295,29 +2296,19 @@ function emitRuntimeHelpers(protoMap) {
     "}",
     "static ps_string ps_string_substring(ps_string s, int64_t start, int64_t length) {",
     "  if (start < 0 || length < 0) ps_panic(\"R1002\", \"RUNTIME_INDEX_OOB\", \"index out of bounds\");",
-    "  size_t want = (size_t)start;",
-    "  size_t need = (size_t)length;",
-    "  size_t g = 0;",
     "  size_t i = 0;",
-    "  size_t start_b = 0;",
-    "  size_t end_b = 0;",
-    "  while (i < s.len && g < want) {",
+    "  for (size_t g = 0; g < (size_t)start; g += 1) {",
     "    size_t adv = ps_utf8_next(s.ptr, s.len, i, NULL);",
-    "    if (adv == 0) ps_panic(\"R1007\", \"RUNTIME_INVALID_UTF8\", \"invalid UTF-8\");",
+    "    if (adv == 0) ps_panic(\"R1002\", \"RUNTIME_INDEX_OOB\", \"index out of bounds\");",
     "    i += adv;",
-    "    g += 1;",
     "  }",
-    "  if (g != want) ps_panic(\"R1002\", \"RUNTIME_INDEX_OOB\", \"index out of bounds\");",
-    "  start_b = i;",
-    "  while (i < s.len && g < want + need) {",
+    "  size_t start_b = i;",
+    "  for (size_t g = 0; g < (size_t)length; g += 1) {",
     "    size_t adv = ps_utf8_next(s.ptr, s.len, i, NULL);",
-    "    if (adv == 0) ps_panic(\"R1007\", \"RUNTIME_INVALID_UTF8\", \"invalid UTF-8\");",
+    "    if (adv == 0) ps_panic(\"R1002\", \"RUNTIME_INDEX_OOB\", \"index out of bounds\");",
     "    i += adv;",
-    "    g += 1;",
     "  }",
-    "  if (g != want + need) ps_panic(\"R1002\", \"RUNTIME_INDEX_OOB\", \"index out of bounds\");",
-    "  end_b = i;",
-    "  size_t out_len = end_b - start_b;",
+    "  size_t out_len = i - start_b;",
     "  char* buf = (char*)malloc(out_len + 1);",
     "  if (!buf) ps_panic(\"R1998\", \"RUNTIME_OOM\", \"out of memory\");",
     "  if (out_len > 0) memcpy(buf, s.ptr + start_b, out_len);",
@@ -2329,14 +2320,33 @@ function emitRuntimeHelpers(protoMap) {
     "  if (needle.len == 0) return 0;",
     "  size_t i = 0;",
     "  int64_t g = 0;",
-    "  while (i + needle.len <= s.len) {",
-    "    if (memcmp(s.ptr + i, needle.ptr, needle.len) == 0) return g;",
+    "  while (i <= s.len) {",
+    "    if (i + needle.len <= s.len && memcmp(s.ptr + i, needle.ptr, needle.len) == 0) return g;",
+    "    if (i == s.len) break;",
     "    size_t adv = ps_utf8_next(s.ptr, s.len, i, NULL);",
     "    if (adv == 0) ps_panic(\"R1007\", \"RUNTIME_INVALID_UTF8\", \"invalid UTF-8\");",
     "    i += adv;",
     "    g += 1;",
     "  }",
     "  return -1;",
+    "}",
+    "static bool ps_string_contains(ps_string s, ps_string needle) {",
+    "  return ps_string_index_of(s, needle) >= 0;",
+    "}",
+    "static int64_t ps_string_last_index_of(ps_string s, ps_string needle) {",
+    "  if (needle.len == 0) return (int64_t)ps_utf8_glyph_len(s);",
+    "  size_t i = 0;",
+    "  int64_t g = 0;",
+    "  int64_t last = -1;",
+    "  while (i <= s.len) {",
+    "    if (i + needle.len <= s.len && memcmp(s.ptr + i, needle.ptr, needle.len) == 0) last = g;",
+    "    if (i == s.len) break;",
+    "    size_t adv = ps_utf8_next(s.ptr, s.len, i, NULL);",
+    "    if (adv == 0) ps_panic(\"R1007\", \"RUNTIME_INVALID_UTF8\", \"invalid UTF-8\");",
+    "    i += adv;",
+    "    g += 1;",
+    "  }",
+    "  return last;",
     "}",
     "static bool ps_string_starts_with(ps_string s, ps_string prefix) {",
     "  if (prefix.len > s.len) return false;",
@@ -2389,6 +2399,114 @@ function emitRuntimeHelpers(protoMap) {
     "    i += adv;",
     "  }",
     "  return s;",
+    "}",
+    "static ps_string ps_string_replace_all(ps_string s, ps_string oldv, ps_string newv) {",
+    "  if (oldv.len == 0) ps_panic(\"R1009\", \"RUNTIME_INVALID_ARGUMENT\", \"invalid argument\");",
+    "  size_t count = 0;",
+    "  size_t i = 0;",
+    "  while (i <= s.len) {",
+    "    if (i + oldv.len <= s.len && memcmp(s.ptr + i, oldv.ptr, oldv.len) == 0) {",
+    "      count += 1;",
+    "      i += oldv.len;",
+    "      continue;",
+    "    }",
+    "    if (i == s.len) break;",
+    "    size_t adv = ps_utf8_next(s.ptr, s.len, i, NULL);",
+    "    if (adv == 0) ps_panic(\"R1007\", \"RUNTIME_INVALID_UTF8\", \"invalid UTF-8\");",
+    "    i += adv;",
+    "  }",
+    "  if (count == 0) return s;",
+    "  size_t out_len = s.len;",
+    "  if (newv.len >= oldv.len) out_len += count * (newv.len - oldv.len);",
+    "  else out_len -= count * (oldv.len - newv.len);",
+    "  char* buf = (char*)malloc(out_len + 1);",
+    "  if (!buf) ps_panic(\"R1998\", \"RUNTIME_OOM\", \"out of memory\");",
+    "  size_t out = 0;",
+    "  i = 0;",
+    "  while (i <= s.len) {",
+    "    if (i + oldv.len <= s.len && memcmp(s.ptr + i, oldv.ptr, oldv.len) == 0) {",
+    "      if (newv.len > 0) memcpy(buf + out, newv.ptr, newv.len);",
+    "      out += newv.len;",
+    "      i += oldv.len;",
+    "      continue;",
+    "    }",
+    "    if (i == s.len) break;",
+    "    size_t adv = ps_utf8_next(s.ptr, s.len, i, NULL);",
+    "    if (adv == 0) ps_panic(\"R1007\", \"RUNTIME_INVALID_UTF8\", \"invalid UTF-8\");",
+    "    memcpy(buf + out, s.ptr + i, adv);",
+    "    out += adv;",
+    "    i += adv;",
+    "  }",
+    "  buf[out] = 0;",
+    "  ps_string out_s = { buf, out };",
+    "  return out_s;",
+    "}",
+    "static uint32_t ps_string_glyph_at(ps_string s, int64_t idx) {",
+    "  if (idx < 0) ps_panic(\"R1002\", \"RUNTIME_INDEX_OOB\", \"index out of bounds\");",
+    "  return ps_string_index_glyph(s, idx);",
+    "}",
+    "static ps_string ps_string_repeat(ps_string s, int64_t count) {",
+    "  if (count < 0) ps_panic(\"R1009\", \"RUNTIME_INVALID_ARGUMENT\", \"invalid argument\");",
+    "  if (count == 0 || s.len == 0) {",
+    "    char* z = (char*)malloc(1);",
+    "    if (!z) ps_panic(\"R1998\", \"RUNTIME_OOM\", \"out of memory\");",
+    "    z[0] = 0;",
+    "    ps_string out = { z, 0 };",
+    "    return out;",
+    "  }",
+    "  size_t rep = (size_t)count;",
+    "  size_t out_len = s.len * rep;",
+    "  char* buf = (char*)malloc(out_len + 1);",
+    "  if (!buf) ps_panic(\"R1998\", \"RUNTIME_OOM\", \"out of memory\");",
+    "  for (size_t i = 0; i < rep; i += 1) memcpy(buf + (i * s.len), s.ptr, s.len);",
+    "  buf[out_len] = 0;",
+    "  ps_string out = { buf, out_len };",
+    "  return out;",
+    "}",
+    "static ps_string ps_string_pad_impl(ps_string s, int64_t target_len, ps_string pad, bool is_start) {",
+    "  if (target_len < 0) ps_panic(\"R1009\", \"RUNTIME_INVALID_ARGUMENT\", \"invalid argument\");",
+    "  size_t src_glyphs = ps_utf8_glyph_len(s);",
+    "  if ((size_t)target_len <= src_glyphs) return s;",
+    "  size_t pad_glyphs = ps_utf8_glyph_len(pad);",
+    "  if (pad_glyphs == 0) ps_panic(\"R1009\", \"RUNTIME_INVALID_ARGUMENT\", \"invalid argument\");",
+    "  size_t need = (size_t)target_len - src_glyphs;",
+    "  size_t full = need / pad_glyphs;",
+    "  size_t rem = need % pad_glyphs;",
+    "  size_t rem_bytes = 0;",
+    "  if (rem > 0) {",
+    "    size_t p = 0;",
+    "    for (size_t g = 0; g < rem; g += 1) {",
+    "      size_t adv = ps_utf8_next(pad.ptr, pad.len, p, NULL);",
+    "      if (adv == 0) ps_panic(\"R1007\", \"RUNTIME_INVALID_UTF8\", \"invalid UTF-8\");",
+    "      p += adv;",
+    "    }",
+    "    rem_bytes = p;",
+    "  }",
+    "  size_t fill_bytes = full * pad.len + rem_bytes;",
+    "  size_t out_len = fill_bytes + s.len;",
+    "  char* buf = (char*)malloc(out_len + 1);",
+    "  if (!buf) ps_panic(\"R1998\", \"RUNTIME_OOM\", \"out of memory\");",
+    "  size_t off = 0;",
+    "  if (is_start) {",
+    "    for (size_t i = 0; i < full; i += 1) { memcpy(buf + off, pad.ptr, pad.len); off += pad.len; }",
+    "    if (rem_bytes > 0) { memcpy(buf + off, pad.ptr, rem_bytes); off += rem_bytes; }",
+    "    memcpy(buf + off, s.ptr, s.len);",
+    "    off += s.len;",
+    "  } else {",
+    "    memcpy(buf + off, s.ptr, s.len);",
+    "    off += s.len;",
+    "    for (size_t i = 0; i < full; i += 1) { memcpy(buf + off, pad.ptr, pad.len); off += pad.len; }",
+    "    if (rem_bytes > 0) { memcpy(buf + off, pad.ptr, rem_bytes); off += rem_bytes; }",
+    "  }",
+    "  buf[off] = 0;",
+    "  ps_string out = { buf, off };",
+    "  return out;",
+    "}",
+    "static ps_string ps_string_pad_start(ps_string s, int64_t target_len, ps_string pad) {",
+    "  return ps_string_pad_impl(s, target_len, pad, true);",
+    "}",
+    "static ps_string ps_string_pad_end(ps_string s, int64_t target_len, ps_string pad) {",
+    "  return ps_string_pad_impl(s, target_len, pad, false);",
     "}",
     "static ps_string ps_string_concat(ps_string a, ps_string b) {",
     "  size_t out_len = a.len + b.len;",
@@ -4225,10 +4343,14 @@ function emitInstr(i, fnInf, state) {
           out.push(`${n(i.dst)} = ps_glyph_to_upper(${n(i.receiver)});`);
         } else if (rt === "glyph" && i.method === "toLower") {
           out.push(`${n(i.dst)} = ps_glyph_to_lower(${n(i.receiver)});`);
-        } else if (rt === "string" && i.method === "substring") {
+        } else if (rt === "string" && i.method === "subString") {
           out.push(`${n(i.dst)} = ps_string_substring(${n(i.receiver)}, ${n(i.args[0])}, ${n(i.args[1])});`);
         } else if (rt === "string" && i.method === "indexOf") {
           out.push(`${n(i.dst)} = ps_string_index_of(${n(i.receiver)}, ${n(i.args[0])});`);
+        } else if (rt === "string" && i.method === "contains") {
+          out.push(`${n(i.dst)} = ps_string_contains(${n(i.receiver)}, ${n(i.args[0])});`);
+        } else if (rt === "string" && i.method === "lastIndexOf") {
+          out.push(`${n(i.dst)} = ps_string_last_index_of(${n(i.receiver)}, ${n(i.args[0])});`);
         } else if (rt === "string" && i.method === "startsWith") {
           out.push(`${n(i.dst)} = ps_string_starts_with(${n(i.receiver)}, ${n(i.args[0])});`);
         } else if (rt === "string" && i.method === "endsWith") {
@@ -4243,6 +4365,16 @@ function emitInstr(i, fnInf, state) {
           out.push(`${n(i.dst)} = ps_string_trim(${n(i.receiver)}, 2);`);
         } else if (rt === "string" && i.method === "replace") {
           out.push(`${n(i.dst)} = ps_string_replace(${n(i.receiver)}, ${n(i.args[0])}, ${n(i.args[1])});`);
+        } else if (rt === "string" && i.method === "replaceAll") {
+          out.push(`${n(i.dst)} = ps_string_replace_all(${n(i.receiver)}, ${n(i.args[0])}, ${n(i.args[1])});`);
+        } else if (rt === "string" && i.method === "glyphAt") {
+          out.push(`${n(i.dst)} = ps_string_glyph_at(${n(i.receiver)}, ${n(i.args[0])});`);
+        } else if (rt === "string" && i.method === "repeat") {
+          out.push(`${n(i.dst)} = ps_string_repeat(${n(i.receiver)}, ${n(i.args[0])});`);
+        } else if (rt === "string" && i.method === "padStart") {
+          out.push(`${n(i.dst)} = ps_string_pad_start(${n(i.receiver)}, ${n(i.args[0])}, ${n(i.args[1])});`);
+        } else if (rt === "string" && i.method === "padEnd") {
+          out.push(`${n(i.dst)} = ps_string_pad_end(${n(i.receiver)}, ${n(i.args[0])}, ${n(i.args[1])});`);
         } else if (rt === "string" && i.method === "toUpper") {
           out.push(`${n(i.dst)} = ps_string_to_upper(${n(i.receiver)});`);
         } else if (rt === "string" && i.method === "toLower") {

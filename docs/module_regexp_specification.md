@@ -131,7 +131,7 @@ Règle anti‑boucle pour match vide :
 - Découpe `input` selon les matches.
 - Le paramètre `maxParts` suit la règle unifiée (3.2.1).
 - Cas spécifique `maxParts == 0` : `[]`.
-- Cas spécifique `maxParts == 1` : `[input.substring(start, input.length()-start)]`.
+- Cas spécifique `maxParts == 1` : `[input.subString(start, input.length()-start)]`.
 - Pour `maxParts > 1`, la sortie contient au plus `maxParts` éléments.
 
 Règle match vide : identique à `findAll` (avance d’un glyphe pour éviter boucle).

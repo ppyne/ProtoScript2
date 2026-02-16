@@ -44,6 +44,10 @@ const char *ps_runtime_category(PS_ErrorCode code, const char *msg, const char *
     return "RUNTIME_MODULE_ERROR";
   }
   if (code == PS_ERR_RANGE) {
+    if (msg_has(msg, "invalid argument")) {
+      *out_code = "R1009";
+      return "RUNTIME_INVALID_ARGUMENT";
+    }
     if (msg_has(msg, "int overflow")) {
       *out_code = "R1001";
       return "RUNTIME_INT_OVERFLOW";

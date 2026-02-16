@@ -1,0 +1,4 @@
+{
+  "status": "accept-runtime",
+  "expected_stdout": "true\ntrue\nfalse\ntrue\n3\n2\n-1\n3\nazbzc\nxx\nabc\naqbq\na\n😊\nababab\n😊😊\n00x\nx00\nababx\n😊😊x\nabcd"
+}
