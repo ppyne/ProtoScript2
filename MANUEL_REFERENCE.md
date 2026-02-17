@@ -1550,17 +1550,18 @@ Ref: EX-060
 
 Méthodes disponibles :
 
-| Méthode | Signature | Résultat | Erreurs |
-|---|---|---|---|
-| `length()` | `() -> int` | longueur | — |
-| `isEmpty()` | `() -> bool` | vrai si vide | — |
-| `push(x)` | `(T) -> int` | nouvelle longueur | type si `T` incompatible |
-| `pop()` | `() -> T` | dernier élément | erreur statique si liste prouvée vide, sinon runtime si vide |
-| `contains(x)` | `(T) -> bool` | présence | type si `T` incompatible |
-| `sort()` | `() -> int` | longueur | erreur statique si `T` non comparable ou si `compareTo` absent/invalide |
-| `reverse()` | `() -> int` | longueur | — |
-| `join(sep)` | `(string) -> string` | concat avec séparateur | runtime si liste non `list<string>` |
-| `concat()` | `() -> string` | concat sans séparateur | runtime si liste non `list<string>` |
+| Méthode | Description | Paramètres | Retour | Erreurs |
+| --- | --- | --- | --- | --- |
+| `length() : int` | Lit la taille courante sans muter la liste. | — | Taille courante `>= 0`. | — |
+| `isEmpty() : bool` | Teste la vacuité sans effet de bord. | — | `true` si la taille vaut `0`, sinon `false`. | — |
+| `push(element: T) : int` | Ajoute un élément en fin de liste et mute la liste. | `element`: valeur de type `T` compatible statiquement avec la liste. | Nouvelle taille après insertion. | Erreur statique si type incompatible. |
+| `pop() : T` | Retire et retourne le dernier élément ; mutation en place. | — | Élément précédemment en fin de liste. | Erreur statique `STATIC_EMPTY_POP` si vacuité prouvée ; sinon exception runtime `RUNTIME_EMPTY_POP` si vide à l’exécution. |
+| `contains(element: T) : bool` | Recherche séquentielle d’un élément. | `element`: valeur de type `T` comparable avec les éléments de la liste. | `true` si présent, sinon `false`. | Erreur statique si type incompatible. |
+| `sort() : int` | Trie la liste en place ; ordre stable et déterministe. | — | Taille de la liste après tri (égale à la taille avant tri). | Erreur statique si `T` non comparable ou si `compareTo(T other) : int` est absent/invalide. |
+| `reverse() : int` | Inverse l’ordre des éléments en place. | — | Taille de la liste après inversion. | — |
+| `join(separator: string) : string` | Méthode conditionnelle (`T == string`) ; concatène les éléments avec séparateur. | `separator`: chaîne insérée entre deux éléments voisins. | Chaîne résultante ; peut être vide si liste vide. | Erreur statique si `T != string`. |
+| `concat() : string` | Méthode conditionnelle (`T == string`) ; concatène sans séparateur. | — | Chaîne résultante ; peut être vide si liste vide. | Erreur statique si `T != string`. |
+| `toUtf8String() : string` | Méthode conditionnelle (`T == byte`) ; décode la liste comme UTF-8 strict. | — | Chaîne décodée en UTF-8. | Erreur statique si `T != byte` ; exception runtime `RUNTIME_INVALID_UTF8` si séquence invalide. |
 
 Notes sur `sort()` :
 
@@ -1673,14 +1674,14 @@ Ref: EX-063
 
 ### 11.2.1 API `map<K,V>`
 
-| Méthode | Signature | Résultat | Erreurs |
-|---|---|---|---|
-| `length()` | `() -> int` | nombre d’entrées | — |
-| `isEmpty()` | `() -> bool` | vrai si vide | — |
-| `containsKey(k)` | `(K) -> bool` | présence clé | type si clé incompatible |
-| `remove(k)` | `(K) -> bool` | supprime la clé si présente | ne lève jamais pour clé absente |
-| `keys()` | `() -> list<K>` | liste des clés | — |
-| `values()` | `() -> list<V>` | liste des valeurs | — |
+| Méthode | Description | Paramètres | Retour | Erreurs |
+| --- | --- | --- | --- | --- |
+| `length() : int` | Lit le nombre d’entrées sans muter la map. | — | Nombre d’entrées `>= 0`. | — |
+| `isEmpty() : bool` | Teste la vacuité. | — | `true` si aucune entrée, sinon `false`. | — |
+| `containsKey(k: K) : bool` | Vérifie la présence d’une clé. | `k`: clé de type `K`. | `true` si la clé existe. | Erreur statique si type de clé incompatible. |
+| `remove(k: K) : bool` | Supprime l’entrée de clé `k` si elle existe. | `k`: clé de type `K`. | `true` si suppression effective, sinon `false`. | Erreur statique si type de clé incompatible. |
+| `keys() : list<K>` | Extrait les clés dans l’ordre d’insertion courant. | — | Liste de clés ; peut être vide. | — |
+| `values() : list<V>` | Extrait les valeurs dans l’ordre d’insertion courant. | — | Liste de valeurs ; peut être vide. | — |
 
 | Opération | Complexité | Impact énergétique |
 |------------|------------|-------------------|
@@ -1786,10 +1787,10 @@ Ref: EX-066
 
 | Méthode | Signature | Résultat | Erreurs |
 |---|---|---|---|
-| `length()` | `() -> int` | longueur | — |
-| `isEmpty()` | `() -> bool` | vrai si vide | — |
-| `slice(start, len)` | `(int,int) -> slice<T>` | sous‑vue mutable | runtime si hors bornes |
-| `view(start, len)` | `(int,int) -> view<T>` | sous‑vue readonly | runtime si hors bornes |
+| `length()` | `() : int` | longueur | — |
+| `isEmpty()` | `() : bool` | vrai si vide | — |
+| `slice(start, len)` | `(int,int) : slice<T>` | sous‑vue mutable | exception runtime lorsque hors bornes |
+| `view(start, len)` | `(int,int) : view<T>` | sous‑vue readonly | exception runtime lorsque hors bornes |
 
 `string.view(start,len)` retourne `view<glyph>` avec indexation glyphique.
 
@@ -1906,7 +1907,35 @@ Ref: EX-072
 
 Supposer que `string[i]` modifie la chaîne. Toute mutation indexée de `string` est interdite.
 
-### 13.7 Méthodes principales
+### 13.7 Méthodes
+
+| Méthode | Description | Paramètres | Retour | Erreurs |
+| --- | --- | --- | --- | --- |
+| `length() : int` | Retourne le nombre de glyphes de la chaîne. | — | Entier `>= 0` représentant la longueur logique. | — |
+| `isEmpty() : bool` | Teste si la chaîne est vide. | — | `true` si `length() == 0`. | — |
+| `toString() : string` | Retourne la chaîne elle-même (identité). | — | Même valeur texte. | — |
+| `toInt() : int` | Parse la chaîne comme entier. | — | Valeur entière convertie. | Exception runtime lorsque format invalide ou hors bornes. |
+| `toFloat() : float` | Parse la chaîne comme flottant. | — | Valeur flottante convertie. | Exception runtime lorsque format invalide. |
+| `concat(s: string) : string` | Concatène la chaîne courante avec `s`. | `s`: suffixe de type `string`. | Nouvelle chaîne concaténée. | Erreur statique si argument non `string`. |
+| `subString(start: int, length: int) : string` | Extrait une sous-chaîne en unités glyphiques. | `start`: index glyphique de départ ; `length`: nombre de glyphes à extraire. | Nouvelle chaîne (copie), sans vue partagée. | Exception runtime `RUNTIME_INDEX_OOB` si bornes invalides. |
+| `indexOf(needle: string) : int` | Cherche la première occurrence de `needle`. | `needle`: sous-chaîne recherchée. | Index glyphique de la première occurrence, `-1` sinon. | Erreur statique si argument non `string`. |
+| `contains(needle: string) : bool` | Teste la présence d’une sous-chaîne. | `needle`: sous-chaîne recherchée. | `true` si occurrence trouvée. | Erreur statique si argument non `string`. |
+| `lastIndexOf(needle: string) : int` | Cherche la dernière occurrence de `needle`. | `needle`: sous-chaîne recherchée. | Index glyphique de la dernière occurrence, `-1` sinon. | Erreur statique si argument non `string`. |
+| `startsWith(prefix: string) : bool` | Vérifie le préfixe. | `prefix`: préfixe attendu. | `true` si la chaîne commence par `prefix`. | Erreur statique si argument non `string`. |
+| `endsWith(suffix: string) : bool` | Vérifie le suffixe. | `suffix`: suffixe attendu. | `true` si la chaîne finit par `suffix`. | Erreur statique si argument non `string`. |
+| `split(sep: string) : list<string>` | Découpe la chaîne selon un séparateur littéral (pas regex). | `sep`: séparateur textuel. | Liste ordonnée des segments. | Erreur statique si argument non `string`. |
+| `trim() : string` | Retire les espaces ASCII en tête et en fin. | — | Nouvelle chaîne nettoyée. | — |
+| `trimStart() : string` | Retire les espaces ASCII en tête. | — | Nouvelle chaîne nettoyée en tête. | — |
+| `trimEnd() : string` | Retire les espaces ASCII en fin. | — | Nouvelle chaîne nettoyée en fin. | — |
+| `replace(old: string, new: string) : string` | Remplace la première occurrence de `old` par `new`. | `old`: motif littéral ; `new`: remplacement littéral. | Nouvelle chaîne modifiée. | Erreur statique si argument non `string`. |
+| `replaceAll(old: string, new: string) : string` | Remplace toutes les occurrences non chevauchantes de `old`. | `old`: motif littéral ; `new`: remplacement littéral. | Nouvelle chaîne modifiée. | Erreur statique si argument non `string` ; exception runtime `RUNTIME_INVALID_ARGUMENT` si `old == ""`. |
+| `glyphAt(index: int) : glyph` | Retourne le glyphe à l’index donné. | `index`: position glyphique. | Valeur `glyph` extraite. | Exception runtime `RUNTIME_INDEX_OOB` si hors bornes. |
+| `repeat(count: int) : string` | Répète la chaîne `count` fois. | `count`: nombre de répétitions. | Nouvelle chaîne répétée (éventuellement vide). | Exception runtime `RUNTIME_INVALID_ARGUMENT` si `count < 0`. |
+| `padStart(targetLength: int, pad: string) : string` | Complète à gauche jusqu’à `targetLength`. | `targetLength`: longueur cible en glyphes ; `pad`: motif de remplissage. | Nouvelle chaîne paddée à gauche. | Exception runtime `RUNTIME_INVALID_ARGUMENT` si padding requis et `pad == ""`. |
+| `padEnd(targetLength: int, pad: string) : string` | Complète à droite jusqu’à `targetLength`. | `targetLength`: longueur cible en glyphes ; `pad`: motif de remplissage. | Nouvelle chaîne paddée à droite. | Exception runtime `RUNTIME_INVALID_ARGUMENT` si padding requis et `pad == ""`. |
+| `toUpper() : string` | Convertit vers une forme majuscule. | — | Nouvelle chaîne en majuscules. | — |
+| `toLower() : string` | Convertit vers une forme minuscule. | — | Nouvelle chaîne en minuscules. | — |
+| `toUtf8Bytes() : list<byte>` | Encode la chaîne en UTF-8 strict. | — | Liste d’octets UTF-8, ordre conservé. | — |
 
 Exemples :
 
