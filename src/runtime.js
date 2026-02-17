@@ -87,6 +87,59 @@ function buildPrototypeEnv(ast) {
     ],
     methods: new Map(),
   });
+  protos.set("TextFile", {
+    name: "TextFile",
+    parent: null,
+    sealed: true,
+    fields: [],
+    methods: new Map([
+      ["read", { name: "read", params: [{ name: "size", type: { kind: "PrimitiveType", name: "int" } }], retType: { kind: "PrimitiveType", name: "string" } }],
+      ["write", { name: "write", params: [{ name: "text", type: { kind: "PrimitiveType", name: "string" } }], retType: { kind: "PrimitiveType", name: "void" } }],
+      ["tell", { name: "tell", params: [], retType: { kind: "PrimitiveType", name: "int" } }],
+      ["seek", { name: "seek", params: [{ name: "pos", type: { kind: "PrimitiveType", name: "int" } }], retType: { kind: "PrimitiveType", name: "void" } }],
+      ["size", { name: "size", params: [], retType: { kind: "PrimitiveType", name: "int" } }],
+      ["name", { name: "name", params: [], retType: { kind: "PrimitiveType", name: "string" } }],
+      ["close", { name: "close", params: [], retType: { kind: "PrimitiveType", name: "void" } }],
+    ]),
+  });
+  protos.set("BinaryFile", {
+    name: "BinaryFile",
+    parent: null,
+    sealed: true,
+    fields: [],
+    methods: new Map([
+      ["read", { name: "read", params: [{ name: "size", type: { kind: "PrimitiveType", name: "int" } }], retType: { kind: "GenericType", name: "list", args: [{ kind: "PrimitiveType", name: "byte" }] } }],
+      ["write", { name: "write", params: [{ name: "bytes", type: { kind: "GenericType", name: "list", args: [{ kind: "PrimitiveType", name: "byte" }] } }], retType: { kind: "PrimitiveType", name: "void" } }],
+      ["tell", { name: "tell", params: [], retType: { kind: "PrimitiveType", name: "int" } }],
+      ["seek", { name: "seek", params: [{ name: "pos", type: { kind: "PrimitiveType", name: "int" } }], retType: { kind: "PrimitiveType", name: "void" } }],
+      ["size", { name: "size", params: [], retType: { kind: "PrimitiveType", name: "int" } }],
+      ["name", { name: "name", params: [], retType: { kind: "PrimitiveType", name: "string" } }],
+      ["close", { name: "close", params: [], retType: { kind: "PrimitiveType", name: "void" } }],
+    ]),
+  });
+  protos.set("Dir", {
+    name: "Dir",
+    parent: null,
+    sealed: false,
+    fields: [],
+    methods: new Map([
+      ["hasNext", { name: "hasNext", params: [], retType: { kind: "PrimitiveType", name: "bool" } }],
+      ["next", { name: "next", params: [], retType: { kind: "PrimitiveType", name: "string" } }],
+      ["close", { name: "close", params: [], retType: { kind: "PrimitiveType", name: "void" } }],
+      ["reset", { name: "reset", params: [], retType: { kind: "PrimitiveType", name: "void" } }],
+    ]),
+  });
+  protos.set("Walker", {
+    name: "Walker",
+    parent: null,
+    sealed: false,
+    fields: [],
+    methods: new Map([
+      ["hasNext", { name: "hasNext", params: [], retType: { kind: "PrimitiveType", name: "bool" } }],
+      ["next", { name: "next", params: [], retType: { kind: "NamedType", name: "PathEntry" } }],
+      ["close", { name: "close", params: [], retType: { kind: "PrimitiveType", name: "void" } }],
+    ]),
+  });
   protos.set("ProcessEvent", {
     name: "ProcessEvent",
     parent: null,

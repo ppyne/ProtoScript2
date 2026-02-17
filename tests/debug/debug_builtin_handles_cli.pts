@@ -1,0 +1,9 @@
+import Io;
+import Debug;
+
+function main() : void {
+    Debug.dump(Io.stdout);
+    BinaryFile b = Io.openBinary("/tmp/ps_debug_builtin_handles_cli.bin", "w");
+    Debug.dump(b);
+    b.close();
+}

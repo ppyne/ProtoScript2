@@ -227,6 +227,62 @@ typedef struct {
   const PS_ProtoDesc *native;
 } DebugProto;
 
+static const PS_ProtoParamDesc DEBUG_TEXT_READ_PARAMS[] = {
+  { .name = "size", .type = "int", .variadic = 0 },
+};
+static const PS_ProtoParamDesc DEBUG_TEXT_WRITE_PARAMS[] = {
+  { .name = "text", .type = "string", .variadic = 0 },
+};
+static const PS_ProtoParamDesc DEBUG_TEXT_SEEK_PARAMS[] = {
+  { .name = "pos", .type = "int", .variadic = 0 },
+};
+static const PS_ProtoMethodDesc DEBUG_TEXT_METHODS[] = {
+  { .name = "read", .params = DEBUG_TEXT_READ_PARAMS, .param_count = 1, .ret_type = "string" },
+  { .name = "write", .params = DEBUG_TEXT_WRITE_PARAMS, .param_count = 1, .ret_type = "void" },
+  { .name = "tell", .params = NULL, .param_count = 0, .ret_type = "int" },
+  { .name = "seek", .params = DEBUG_TEXT_SEEK_PARAMS, .param_count = 1, .ret_type = "void" },
+  { .name = "size", .params = NULL, .param_count = 0, .ret_type = "int" },
+  { .name = "name", .params = NULL, .param_count = 0, .ret_type = "string" },
+  { .name = "close", .params = NULL, .param_count = 0, .ret_type = "void" },
+};
+static const PS_ProtoDesc DEBUG_TEXTFILE_PROTO = {
+  .name = "TextFile",
+  .parent = NULL,
+  .fields = NULL,
+  .field_count = 0,
+  .methods = DEBUG_TEXT_METHODS,
+  .method_count = sizeof(DEBUG_TEXT_METHODS) / sizeof(DEBUG_TEXT_METHODS[0]),
+  .is_sealed = 1,
+};
+
+static const PS_ProtoParamDesc DEBUG_BINARY_READ_PARAMS[] = {
+  { .name = "size", .type = "int", .variadic = 0 },
+};
+static const PS_ProtoParamDesc DEBUG_BINARY_WRITE_PARAMS[] = {
+  { .name = "bytes", .type = "list<byte>", .variadic = 0 },
+};
+static const PS_ProtoParamDesc DEBUG_BINARY_SEEK_PARAMS[] = {
+  { .name = "pos", .type = "int", .variadic = 0 },
+};
+static const PS_ProtoMethodDesc DEBUG_BINARY_METHODS[] = {
+  { .name = "read", .params = DEBUG_BINARY_READ_PARAMS, .param_count = 1, .ret_type = "list<byte>" },
+  { .name = "write", .params = DEBUG_BINARY_WRITE_PARAMS, .param_count = 1, .ret_type = "void" },
+  { .name = "tell", .params = NULL, .param_count = 0, .ret_type = "int" },
+  { .name = "seek", .params = DEBUG_BINARY_SEEK_PARAMS, .param_count = 1, .ret_type = "void" },
+  { .name = "size", .params = NULL, .param_count = 0, .ret_type = "int" },
+  { .name = "name", .params = NULL, .param_count = 0, .ret_type = "string" },
+  { .name = "close", .params = NULL, .param_count = 0, .ret_type = "void" },
+};
+static const PS_ProtoDesc DEBUG_BINARYFILE_PROTO = {
+  .name = "BinaryFile",
+  .parent = NULL,
+  .fields = NULL,
+  .field_count = 0,
+  .methods = DEBUG_BINARY_METHODS,
+  .method_count = sizeof(DEBUG_BINARY_METHODS) / sizeof(DEBUG_BINARY_METHODS[0]),
+  .is_sealed = 1,
+};
+
 static DebugProto debug_proto_none(void) {
   DebugProto p;
   p.kind = DEBUG_PROTO_NONE;
@@ -253,7 +309,16 @@ static DebugProto debug_proto_from_native(const PS_ProtoDesc *p) {
   return out;
 }
 
+static const PS_ProtoDesc *debug_builtin_proto_by_name(const char *name) {
+  if (!name) return NULL;
+  if (strcmp(name, "TextFile") == 0) return &DEBUG_TEXTFILE_PROTO;
+  if (strcmp(name, "BinaryFile") == 0) return &DEBUG_BINARYFILE_PROTO;
+  return NULL;
+}
+
 static const PS_ProtoDesc *debug_find_native_proto(PS_Context *ctx, const char *name) {
+  const PS_ProtoDesc *bp = debug_builtin_proto_by_name(name);
+  if (bp) return bp;
   if (!ctx || !name) return NULL;
   for (size_t i = 0; i < ctx->module_count; i++) {
     PS_Module *m = &ctx->modules[i].desc;
@@ -550,7 +615,13 @@ static void debug_print_chain(DebugState *st, PS_Context *ctx, const char *proto
 
 static int debug_is_ref_type(PS_Value *v) {
   if (!v) return 0;
-  return v->tag == PS_V_LIST || v->tag == PS_V_MAP || v->tag == PS_V_OBJECT || v->tag == PS_V_VIEW || v->tag == PS_V_EXCEPTION;
+  return v->tag == PS_V_LIST || v->tag == PS_V_MAP || v->tag == PS_V_OBJECT || v->tag == PS_V_VIEW || v->tag == PS_V_EXCEPTION ||
+         v->tag == PS_V_FILE;
+}
+
+static const char *debug_file_proto_name(PS_Value *v) {
+  if (!v || v->tag != PS_V_FILE) return "TextFile";
+  return (v->as.file_v.flags & PS_FILE_BINARY) ? "BinaryFile" : "TextFile";
 }
 
 static PS_Value *debug_exception_field(PS_Context *ctx, PS_Value *ex, const char *name) {
@@ -627,6 +698,9 @@ static int debug_dump_ref_desc(PS_Context *ctx, DebugState *st, PS_Value *v) {
     if (v->tag == PS_V_EXCEPTION) proto_name = v->as.exc_v.type_name;
     if (!proto_name && v->tag == PS_V_OBJECT) proto_name = ps_object_proto_name_internal(v);
     return debug_printf(st, "object<%s>", proto_name ? proto_name : "unknown");
+  }
+  if (v->tag == PS_V_FILE) {
+    return debug_printf(st, "object<%s>", debug_file_proto_name(v));
   }
   return debug_printf(st, "unknown(%s)", value_tag_name(v));
 }
@@ -911,6 +985,7 @@ static int debug_dump_object(PS_Context *ctx, DebugState *st, PS_Value *v, int d
   const char *proto_name = NULL;
   if (v->tag == PS_V_EXCEPTION) proto_name = v->as.exc_v.type_name;
   if (!proto_name && v->tag == PS_V_OBJECT) proto_name = ps_object_proto_name_internal(v);
+  if (!proto_name && v->tag == PS_V_FILE) proto_name = debug_file_proto_name(v);
   const char *name = proto_name ? proto_name : "unknown";
   if (!debug_printf(st, "object<%s> {", name)) return 0;
   if (depth >= (int)st->max_depth) {
@@ -926,7 +1001,18 @@ static int debug_dump_object(PS_Context *ctx, DebugState *st, PS_Value *v, int d
   if (!debug_write(st, "\n")) return 0;
   debug_indent(st, indent + 2);
   if (!debug_write(st, "native: ")) return 0;
-  if (debug_dump_native(ctx, st, v, depth + 1, indent + 2)) {
+  if (v->tag == PS_V_FILE) {
+    PS_File *f = &v->as.file_v;
+    const int is_std = (f->flags & PS_FILE_STD) != 0;
+    const int closed = f->closed || !f->fp;
+    const char *path = f->path ? f->path : "";
+    int truncated = 0;
+    if (!debug_printf(st, "%s(closed=%s, std=%s, path=\"", name, closed ? "true" : "false", is_std ? "true" : "false")) return 0;
+    if (!debug_write_string(st, path, strlen(path), st->max_string, &truncated)) return 0;
+    if (!debug_write(st, "\")")) return 0;
+    if (truncated && !debug_write(st, " ... (truncated)")) return 0;
+    if (!debug_write(st, "\n")) return 0;
+  } else if (debug_dump_native(ctx, st, v, depth + 1, indent + 2)) {
     if (!debug_write(st, "\n")) return 0;
   } else {
     if (!debug_write(st, "<none>\n")) return 0;
@@ -990,6 +1076,7 @@ static int debug_dump_value(PS_Context *ctx, DebugState *st, PS_Value *v, int de
       return debug_dump_view(ctx, st, v, depth, indent);
     case PS_V_OBJECT:
     case PS_V_EXCEPTION:
+    case PS_V_FILE:
       return debug_dump_object(ctx, st, v, depth, indent);
     default:
       return debug_dump_scalar(st, v);

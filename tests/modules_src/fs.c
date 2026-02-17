@@ -115,6 +115,11 @@ static PS_Status fs_set_obj_field(PS_Context *ctx, PS_Value *obj, const char *ke
   return PS_OK;
 }
 
+static PS_Status fs_set_obj_proto(PS_Context *ctx, PS_Value *obj, const char *name) {
+  if (!obj || !name) return PS_ERR;
+  return ps_object_set_proto_name(ctx, obj, name);
+}
+
 static FsDirState *fs_dir_state(PS_Context *ctx, PS_Value *dir_obj) {
   if (!dir_obj || ps_typeof(dir_obj) != PS_T_OBJECT) return NULL;
   PS_Value *ptr = ps_object_get_str(ctx, dir_obj, "__fs_dir_ptr", strlen("__fs_dir_ptr"));
@@ -597,6 +602,7 @@ static PS_Status fs_path_info(PS_Context *ctx, int argc, PS_Value **argv, PS_Val
   }
   PS_Value *obj = ps_make_object(ctx);
   if (!obj) return PS_ERR;
+  if (fs_set_obj_proto(ctx, obj, "PathInfo") != PS_OK) return PS_ERR;
   PS_Value *v_dir = fs_make_string(ctx, ptr, dirname_len);
   PS_Value *v_base = fs_make_string(ctx, basename_ptr, basename_len);
   PS_Value *v_file = fs_make_string(ctx, basename_ptr, filename_len);
@@ -638,6 +644,7 @@ static PS_Status fs_open_dir(PS_Context *ctx, int argc, PS_Value **argv, PS_Valu
   st->closed = 0;
   PS_Value *obj = ps_make_object(ctx);
   if (!obj) return PS_ERR;
+  if (fs_set_obj_proto(ctx, obj, "Dir") != PS_OK) return PS_ERR;
   PS_Value *ptr = ps_make_int(ctx, (int64_t)(intptr_t)st);
   if (!ptr) return PS_ERR;
   if (fs_set_obj_field(ctx, obj, "__fs_dir_ptr", ptr) != PS_OK) return PS_ERR;
@@ -881,6 +888,7 @@ static PS_Status fs_walk(PS_Context *ctx, int argc, PS_Value **argv, PS_Value **
   }
   PS_Value *obj = ps_make_object(ctx);
   if (!obj) return PS_ERR;
+  if (fs_set_obj_proto(ctx, obj, "Walker") != PS_OK) return PS_ERR;
   PS_Value *ptr = ps_make_int(ctx, (int64_t)(intptr_t)w);
   if (!ptr) return PS_ERR;
   if (fs_set_obj_field(ctx, obj, "__fs_walker_ptr", ptr) != PS_OK) return PS_ERR;
@@ -908,6 +916,7 @@ static PS_Status fs_walker_next(PS_Context *ctx, int argc, PS_Value **argv, PS_V
   if (!fs_walker_fill_next(ctx, w)) return fs_throw(ctx, "IOException", "no more entries");
   PS_Value *obj = ps_make_object(ctx);
   if (!obj) return PS_ERR;
+  if (fs_set_obj_proto(ctx, obj, "PathEntry") != PS_OK) return PS_ERR;
   PS_Value *v_path = fs_make_string(ctx, w->next_path, strlen(w->next_path));
   PS_Value *v_name = fs_make_string(ctx, w->next_name, strlen(w->next_name));
   PS_Value *v_depth = ps_make_int(ctx, (int64_t)w->next_depth);
@@ -937,6 +946,85 @@ static PS_Status fs_walker_close(PS_Context *ctx, int argc, PS_Value **argv, PS_
   }
   return PS_OK;
 }
+
+static int fs_debug_dump(PS_Context *ctx, PS_Value *value, const PS_DebugWriter *w, int depth, int indent) {
+  (void)depth;
+  (void)indent;
+  if (!ctx || !value || !w || !w->printf) return 0;
+
+  FsDirState *d = fs_dir_state(ctx, value);
+  if (d) {
+    const char *path = d->path ? d->path : "";
+    return w->printf(w->ud, "Dir(closed=%s, done=%s, path=\"%s\")", d->closed ? "true" : "false",
+                     d->done ? "true" : "false", path);
+  }
+
+  FsWalkerState *wk = fs_walker_state(ctx, value);
+  if (wk) {
+    const char *root = "";
+    if (wk->len > 0 && wk->frames && wk->frames[0].path) root = wk->frames[0].path;
+    return w->printf(w->ud, "Walker(closed=%s, maxDepth=%d, followSymlinks=%s, root=\"%s\")",
+                     wk->closed ? "true" : "false", wk->max_depth, wk->follow_symlinks ? "true" : "false", root);
+  }
+
+  return 0;
+}
+
+static const PS_ProtoFieldDesc FS_PATHINFO_FIELDS[] = {
+    { .name = "dirname", .type = "string" },
+    { .name = "basename", .type = "string" },
+    { .name = "filename", .type = "string" },
+    { .name = "extension", .type = "string" },
+};
+static const PS_ProtoFieldDesc FS_PATHENTRY_FIELDS[] = {
+    { .name = "path", .type = "string" },
+    { .name = "name", .type = "string" },
+    { .name = "depth", .type = "int" },
+    { .name = "isDir", .type = "bool" },
+    { .name = "isFile", .type = "bool" },
+    { .name = "isSymlink", .type = "bool" },
+};
+static const PS_ProtoMethodDesc FS_DIR_METHODS[] = {
+    { .name = "hasNext", .params = NULL, .param_count = 0, .ret_type = "bool" },
+    { .name = "next", .params = NULL, .param_count = 0, .ret_type = "string" },
+    { .name = "close", .params = NULL, .param_count = 0, .ret_type = "void" },
+    { .name = "reset", .params = NULL, .param_count = 0, .ret_type = "void" },
+};
+static const PS_ProtoMethodDesc FS_WALKER_METHODS[] = {
+    { .name = "hasNext", .params = NULL, .param_count = 0, .ret_type = "bool" },
+    { .name = "next", .params = NULL, .param_count = 0, .ret_type = "PathEntry" },
+    { .name = "close", .params = NULL, .param_count = 0, .ret_type = "void" },
+};
+static const PS_ProtoDesc FS_PROTOS[] = {
+    { .name = "PathInfo",
+      .parent = NULL,
+      .fields = FS_PATHINFO_FIELDS,
+      .field_count = sizeof(FS_PATHINFO_FIELDS) / sizeof(FS_PATHINFO_FIELDS[0]),
+      .methods = NULL,
+      .method_count = 0,
+      .is_sealed = 0 },
+    { .name = "PathEntry",
+      .parent = NULL,
+      .fields = FS_PATHENTRY_FIELDS,
+      .field_count = sizeof(FS_PATHENTRY_FIELDS) / sizeof(FS_PATHENTRY_FIELDS[0]),
+      .methods = NULL,
+      .method_count = 0,
+      .is_sealed = 0 },
+    { .name = "Dir",
+      .parent = NULL,
+      .fields = NULL,
+      .field_count = 0,
+      .methods = FS_DIR_METHODS,
+      .method_count = sizeof(FS_DIR_METHODS) / sizeof(FS_DIR_METHODS[0]),
+      .is_sealed = 0 },
+    { .name = "Walker",
+      .parent = NULL,
+      .fields = NULL,
+      .field_count = 0,
+      .methods = FS_WALKER_METHODS,
+      .method_count = sizeof(FS_WALKER_METHODS) / sizeof(FS_WALKER_METHODS[0]),
+      .is_sealed = 0 },
+};
 
 PS_Status ps_module_init(PS_Context *ctx, PS_Module *out) {
   (void)ctx;
@@ -972,5 +1060,8 @@ PS_Status ps_module_init(PS_Context *ctx, PS_Module *out) {
   out->api_version = PS_API_VERSION;
   out->fn_count = sizeof(fns) / sizeof(fns[0]);
   out->fns = fns;
+  out->proto_count = sizeof(FS_PROTOS) / sizeof(FS_PROTOS[0]);
+  out->protos = FS_PROTOS;
+  out->debug_dump = fs_debug_dump;
   return PS_OK;
 }

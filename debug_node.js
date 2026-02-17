@@ -32,6 +32,22 @@ function isExceptionValue(v) {
   return v && v.__exception === true;
 }
 
+function isTextFile(v) {
+  return v && typeof v === "object" && v.constructor && v.constructor.name === "TextFile";
+}
+
+function isBinaryFile(v) {
+  return v && typeof v === "object" && v.constructor && v.constructor.name === "BinaryFile";
+}
+
+function isFsDir(v) {
+  return v && v.__fs_dir === true;
+}
+
+function isFsWalker(v) {
+  return v && v.__fs_walker === true;
+}
+
 function unmapKey(k) {
   if (typeof k !== "string") return k;
   if (k.startsWith("i:")) return BigInt(k.slice(2));
@@ -90,6 +106,11 @@ function inferTypeOfValue(v) {
   if (v instanceof Map) return "map";
   if (isView(v)) return v.readonly ? "view" : "slice";
   if (isJsonValue(v)) return "JSONValue";
+  if (isExceptionValue(v)) return v.type || "Exception";
+  if (isTextFile(v)) return "TextFile";
+  if (isBinaryFile(v)) return "BinaryFile";
+  if (isFsDir(v)) return "Dir";
+  if (isFsWalker(v)) return "Walker";
   if (isObjectInstance(v)) return v.__proto || "object";
   return "unknown";
 }
@@ -258,7 +279,18 @@ function dump(value, opts = {}) {
   };
 
   const isRef = (v) => {
-    return Array.isArray(v) || v instanceof Map || isView(v) || isObjectInstance(v) || isExceptionValue(v) || isJsonValue(v);
+    return (
+      Array.isArray(v) ||
+      v instanceof Map ||
+      isView(v) ||
+      isObjectInstance(v) ||
+      isExceptionValue(v) ||
+      isJsonValue(v) ||
+      isTextFile(v) ||
+      isBinaryFile(v) ||
+      isFsDir(v) ||
+      isFsWalker(v)
+    );
   };
 
   const dumpScalar = (v, expectedType) => {
@@ -403,6 +435,22 @@ function dump(value, opts = {}) {
       write(`object<${protoName}>`);
       return;
     }
+    if (isTextFile(v)) {
+      write("object<TextFile>");
+      return;
+    }
+    if (isBinaryFile(v)) {
+      write("object<BinaryFile>");
+      return;
+    }
+    if (isFsDir(v)) {
+      write("object<Dir>");
+      return;
+    }
+    if (isFsWalker(v)) {
+      write("object<Walker>");
+      return;
+    }
     dumpScalar(v, expectedType);
   };
 
@@ -540,8 +588,28 @@ function dump(value, opts = {}) {
       return;
     }
 
-    if (isObjectInstance(v) || isJsonValue(v)) {
-      const protoName = isObjectInstance(v) ? (v.__proto || "unknown") : "JSONValue";
+    if (
+      isObjectInstance(v) ||
+      isJsonValue(v) ||
+      isExceptionValue(v) ||
+      isTextFile(v) ||
+      isBinaryFile(v) ||
+      isFsDir(v) ||
+      isFsWalker(v)
+    ) {
+      const protoName = isJsonValue(v)
+        ? "JSONValue"
+        : isObjectInstance(v)
+          ? (v.__proto || "unknown")
+          : isExceptionValue(v)
+            ? (v.type || "Exception")
+            : isTextFile(v)
+              ? "TextFile"
+              : isBinaryFile(v)
+                ? "BinaryFile"
+                : isFsDir(v)
+                  ? "Dir"
+                  : "Walker";
       write(`object<${protoName}> {`);
       if (depth >= maxDepth) {
         write("\n");
@@ -560,6 +628,29 @@ function dump(value, opts = {}) {
       write("native: ");
       if (isJsonValue(v)) {
         dumpJsonValue(v, depth + 1, baseIndent + 2);
+        write("\n");
+      } else if (isExceptionValue(v)) {
+        const info = stringifyString(typeof v.message === "string" ? v.message : "", maxString);
+        write(`Exception(type=${protoName}, message="${info.out}")`);
+        if (info.truncated) write(" … (truncated)");
+        write("\n");
+      } else if (isTextFile(v) || isBinaryFile(v)) {
+        const info = stringifyString(typeof v.path === "string" ? v.path : "", maxString);
+        write(`${protoName}(closed=${v.closed ? "true" : "false"}, std=${v.isStd ? "true" : "false"}, path="${info.out}")`);
+        if (info.truncated) write(" … (truncated)");
+        write("\n");
+      } else if (isFsDir(v)) {
+        const info = stringifyString(typeof v.path === "string" ? v.path : "", maxString);
+        write(`Dir(closed=${v.closed ? "true" : "false"}, done=${v.done ? "true" : "false"}, path="${info.out}")`);
+        if (info.truncated) write(" … (truncated)");
+        write("\n");
+      } else if (isFsWalker(v)) {
+        const info = stringifyString(typeof v.root === "string" ? v.root : "", maxString);
+        const md = Number.isInteger(v.maxDepth) ? String(v.maxDepth) : "unknown";
+        write(
+          `Walker(closed=${v.closed ? "true" : "false"}, maxDepth=${md}, followSymlinks=${v.followSymlinks ? "true" : "false"}, root="${info.out}")`
+        );
+        if (info.truncated) write(" … (truncated)");
         write("\n");
       } else {
         write("<none>\n");
@@ -583,8 +674,15 @@ function dump(value, opts = {}) {
         for (const f of cur.fields || []) {
           indent(baseIndent + 4);
           write(`[${cur.name}] ${f.name} : ${typeToString(f.type)} = `);
-          const fieldSrc = isObjectInstance(v) ? v.__fields : null;
-          const val = fieldSrc ? fieldSrc[f.name] : undefined;
+          let val;
+          if (isExceptionValue(v)) {
+            val = Object.prototype.hasOwnProperty.call(v, f.name) ? v[f.name] : undefined;
+          } else if (isObjectInstance(v)) {
+            const fieldSrc = v.__fields || null;
+            val = fieldSrc ? fieldSrc[f.name] : undefined;
+          } else {
+            val = undefined;
+          }
           if (val === undefined) {
             write("unknown(missing)");
           } else {

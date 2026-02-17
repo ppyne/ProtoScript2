@@ -1,0 +1,26 @@
+object<TextFile> {
+  delegation: sealed TextFile
+  native: TextFile(closed=false, std=true, path="stdout")
+  fields:
+  methods:
+    [TextFile] read(size:int) : string
+    [TextFile] write(text:string) : void
+    [TextFile] tell() : int
+    [TextFile] seek(pos:int) : void
+    [TextFile] size() : int
+    [TextFile] name() : string
+    [TextFile] close() : void
+}
+object<BinaryFile> {
+  delegation: sealed BinaryFile
+  native: BinaryFile(closed=false, std=false, path="/tmp/ps_debug_builtin_handles_cli.bin")
+  fields:
+  methods:
+    [BinaryFile] read(size:int) : list<byte>
+    [BinaryFile] write(bytes:list<byte>) : void
+    [BinaryFile] tell() : int
+    [BinaryFile] seek(pos:int) : void
+    [BinaryFile] size() : int
+    [BinaryFile] name() : string
+    [BinaryFile] close() : void
+}
