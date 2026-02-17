@@ -1,0 +1,9 @@
+prototype A {
+    readonly int x = 0;
+}
+
+prototype C {
+    function f(A a) : void {
+        a.x = 1;
+    }
+}

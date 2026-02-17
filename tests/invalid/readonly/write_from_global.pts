@@ -1,0 +1,7 @@
+prototype A {
+    readonly int x = 0;
+}
+
+function touch(A a) : void {
+    a.x = 1;
+}

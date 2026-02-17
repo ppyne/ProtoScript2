@@ -1102,6 +1102,35 @@ Diagnostic minimal valide :
 
 ---
 
+## 4.3.4 Champs `readonly` (normatif)
+
+`readonly` s'applique uniquement aux champs de prototype.
+
+Règles normatives :
+
+1. Un champ `readonly` reste lisible selon les règles normales d'accès membre.
+2. L'écriture d'un champ `readonly` est autorisée uniquement depuis :
+   - une méthode du prototype déclarant ;
+   - une méthode d'un prototype descendant.
+3. L'écriture depuis toute fonction globale ou tout prototype non descendant est interdite.
+4. La vérification est strictement statique (aucun contrôle runtime).
+5. `readonly` ne modifie pas la visibilité ; il restreint uniquement l'écriture.
+6. `readonly` est compatible avec `const`.
+7. `readonly` et `internal` sont mutuellement exclusifs.
+8. `readonly` est interdit hors déclaration de champ de prototype.
+
+Erreurs statiques associées :
+
+- `E3200` — `INVALID_VISIBILITY_LOCATION`
+- `E3202` — `READONLY_INTERNAL_CONFLICT`
+- `E3203` — `READONLY_WRITE_VIOLATION`
+
+Diagnostic minimal valide :
+
+`error[E3203]: cannot assign to readonly field 'x'`
+
+---
+
 ## 4.4 Héritage par délégation
 
 ProtoScript V2 supporte un **héritage par délégation statique**, inspiré de Self, mais fortement restreint afin de préserver la lisibilité et les performances.
@@ -3963,7 +3992,7 @@ Catégories :
 
 ## A.4 Mots-clés réservés
 
-`prototype`, `sealed`, `function`, `var`, `const`, `internal`, `group`, `int`, `float`, `bool`, `byte`, `glyph`, `string`, `list`, `map`, `slice`, `view`, `void`, `if`, `else`, `for`, `of`, `in`, `while`, `do`, `switch`, `case`, `default`, `break`, `continue`, `return`, `try`, `catch`, `finally`, `throw`, `true`, `false`, `self`
+`prototype`, `sealed`, `function`, `var`, `const`, `internal`, `readonly`, `group`, `int`, `float`, `bool`, `byte`, `glyph`, `string`, `list`, `map`, `slice`, `view`, `void`, `if`, `else`, `for`, `of`, `in`, `while`, `do`, `switch`, `case`, `default`, `break`, `continue`, `return`, `try`, `catch`, `finally`, `throw`, `true`, `false`, `self`
 
 ## A.5 Littéraux
 
@@ -3997,7 +4026,8 @@ TopDecl          = PrototypeDecl | FunctionDecl | GroupDecl | VarDecl ";" ;
 PrototypeDecl    = [ "sealed" ] "prototype" Identifier [ ":" TypeName ] "{" { ProtoMember } "}" ;
 ProtoMember      = FieldDecl | MethodDecl ;
 Visibility       = "internal" ;
-FieldDecl        = [ Visibility ] [ "const" ] Type Identifier [ "=" Expr ] ";" ;
+FieldModifier    = Visibility | "readonly" | "const" ;
+FieldDecl        = { FieldModifier } Type Identifier [ "=" Expr ] ";" ;
 MethodDecl       = [ Visibility ] FunctionDecl ;
 
 GroupDecl        = ScalarType "group" Identifier "{" GroupMemberList "}" ;

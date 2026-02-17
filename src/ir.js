@@ -435,7 +435,7 @@ class IRBuilder {
       const methods = new Map();
       this.prototypes.set(
         b.name,
-        { name: b.name, parent: b.parent, fields: b.fields.map((f) => ({ ...f, init: null, isConst: false })), methods }
+        { name: b.name, parent: b.parent, fields: b.fields.map((f) => ({ ...f, init: null, isConst: false, isReadonly: false })), methods }
       );
       const fieldsIr = b.fields.map((f) => ({ name: f.name, type: lowerType(f.type) }));
       mod.prototypes.push({ name: b.name, parent: b.parent, fields: fieldsIr, methods: [] });
@@ -443,8 +443,18 @@ class IRBuilder {
     }
     for (const d of this.ast.decls) {
       if (d.kind === "PrototypeDecl") {
-        const fields = (d.fields || []).map((f) => ({ name: f.name, type: f.type, init: f.init || null, isConst: !!f.isConst }));
-        const fieldsIr = (d.fields || []).map((f) => ({ name: f.name, type: lowerType(f.type) }));
+        const fields = (d.fields || []).map((f) => ({
+          name: f.name,
+          type: f.type,
+          init: f.init || null,
+          isConst: !!f.isConst,
+          isReadonly: !!f.isReadonly,
+        }));
+        const fieldsIr = (d.fields || []).map((f) => {
+          const out = { name: f.name, type: lowerType(f.type) };
+          if (f.isReadonly) out.readonly = true;
+          return out;
+        });
         const methods = new Map();
         const methodsIr = [];
         for (const m of d.methods || []) {

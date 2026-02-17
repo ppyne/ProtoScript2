@@ -12,6 +12,7 @@ const KEYWORDS = new Set([
   "var",
   "const",
   "internal",
+  "readonly",
   "group",
   "int",
   "float",
@@ -533,6 +534,12 @@ class Parser {
           diag(this.file, tok.line, tok.col, "E3200", "INVALID_VISIBILITY_LOCATION", "keyword 'internal' is only allowed in prototype members")
         );
       }
+      else if (this.at("kw", "readonly")) {
+        const tok = this.eat("kw", "readonly");
+        throw new FrontendError(
+          diag(this.file, tok.line, tok.col, "E3200", "INVALID_VISIBILITY_LOCATION", "keyword 'readonly' is only allowed on prototype fields")
+        );
+      }
       else {
         const tok = this.t();
         throw new FrontendError(
@@ -565,21 +572,49 @@ class Parser {
     const fields = [];
     const methods = [];
     while (!this.at("sym", "}")) {
+      let isConst = false;
       let visibility = "public";
-      if (this.at("kw", "internal")) {
-        this.eat("kw", "internal");
-        visibility = "internal";
+      let isReadonly = false;
+      let sawModifier = true;
+      while (sawModifier) {
+        sawModifier = false;
+        if (this.at("kw", "internal")) {
+          this.eat("kw", "internal");
+          visibility = "internal";
+          sawModifier = true;
+          continue;
+        }
+        if (this.at("kw", "readonly")) {
+          this.eat("kw", "readonly");
+          isReadonly = true;
+          sawModifier = true;
+          continue;
+        }
+        if (this.at("kw", "const")) {
+          this.eat("kw", "const");
+          isConst = true;
+          sawModifier = true;
+          continue;
+        }
+      }
+      if (isReadonly && this.at("kw", "function")) {
+        const tok = this.t();
+        throw new FrontendError(
+          diag(this.file, tok.line, tok.col, "E3200", "INVALID_VISIBILITY_LOCATION", "keyword 'readonly' is only allowed on prototype fields")
+        );
       }
       if (
-        visibility === "internal" &&
+        (visibility === "internal" || isReadonly) &&
         !this.at("kw", "function") &&
-        !this.at("kw", "const") &&
         !this.at("id") &&
         !(this.at("kw") && ["int", "float", "bool", "byte", "glyph", "string", "list", "map", "slice", "view"].includes(this.t().value))
       ) {
         const tok = this.t();
+        const msg = isReadonly
+          ? "keyword 'readonly' is only allowed on prototype fields"
+          : "keyword 'internal' is only allowed on prototype fields or methods";
         throw new FrontendError(
-          diag(this.file, tok.line, tok.col, "E3200", "INVALID_VISIBILITY_LOCATION", "keyword 'internal' is only allowed on prototype fields or methods")
+          diag(this.file, tok.line, tok.col, "E3200", "INVALID_VISIBILITY_LOCATION", msg)
         );
       }
       if (this.at("kw", "function")) {
@@ -587,11 +622,6 @@ class Parser {
         m.visibility = visibility;
         methods.push(m);
         continue;
-      }
-      let isConst = false;
-      if (this.at("kw", "const")) {
-        this.eat("kw", "const");
-        isConst = true;
       }
       const t = this.parseType();
       const n = this.eat("id");
@@ -601,7 +631,7 @@ class Parser {
         init = this.parseExpr();
       }
       this.eat("sym", ";");
-      fields.push({ kind: "FieldDecl", type: t, name: n.value, init, isConst, visibility, line: n.line, col: n.col });
+      fields.push({ kind: "FieldDecl", type: t, name: n.value, init, isConst, isReadonly, visibility, line: n.line, col: n.col });
     }
     this.eat("sym", "}");
     return { kind: "PrototypeDecl", name, parent, fields, methods, sealed, moduleFile: this.file, line: start.line, col: start.col };
@@ -769,6 +799,12 @@ class Parser {
         diag(this.file, tok.line, tok.col, "E3200", "INVALID_VISIBILITY_LOCATION", "keyword 'internal' is only allowed in prototype members")
       );
     }
+    if (this.at("kw", "readonly")) {
+      const tok = this.t();
+      throw new FrontendError(
+        diag(this.file, tok.line, tok.col, "E3200", "INVALID_VISIBILITY_LOCATION", "keyword 'readonly' is only allowed on prototype fields")
+      );
+    }
     if (this.looksLikeAssignStmt()) return this.parseAssignStmt(true);
     return this.parseExprStmt();
   }
@@ -920,6 +956,12 @@ class Parser {
       const tok = this.t();
       throw new FrontendError(
         diag(this.file, tok.line, tok.col, "E3200", "INVALID_VISIBILITY_LOCATION", "keyword 'internal' is forbidden in group declarations")
+      );
+    }
+    if (this.at("kw", "readonly")) {
+      const tok = this.t();
+      throw new FrontendError(
+        diag(this.file, tok.line, tok.col, "E3200", "INVALID_VISIBILITY_LOCATION", "keyword 'readonly' is forbidden in group declarations")
       );
     }
     const name = this.eat("id");
@@ -1617,6 +1659,30 @@ class Analyzer {
     return false;
   }
 
+  canWriteReadonly(ownerProto) {
+    if (!this.currentProto || !ownerProto) return false;
+    if (this.currentProto === ownerProto) return true;
+    return this.isSubtype({ kind: "NamedType", name: this.currentProto }, { kind: "NamedType", name: ownerProto });
+  }
+
+  reportReadonlyViolation(node, memberName, ownerProto) {
+    const owner = ownerProto || "<unknown>";
+    const caller = this.currentProto || "<global>";
+    this.addDiag(
+      node,
+      "E3203",
+      "READONLY_WRITE_VIOLATION",
+      `cannot assign to readonly field '${memberName}' (declared in prototype '${owner}') from prototype '${caller}'; writes are only allowed from '${owner}' and its descendants`
+    );
+  }
+
+  checkReadonlyWrite(node, memberInfo, memberName) {
+    if (!memberInfo || !memberInfo.isReadonly) return true;
+    if (this.canWriteReadonly(memberInfo.ownerProto)) return true;
+    this.reportReadonlyViolation(node, memberName, memberInfo.ownerProto);
+    return false;
+  }
+
   addDiag(node, code, category, message) {
     this.diags.push(
       createDiagnostic({
@@ -1935,9 +2001,14 @@ class Analyzer {
           this.addDiag(f, "E2001", "UNRESOLVED_NAME", `duplicate field '${f.name}' in prototype '${d.name}'`);
           continue;
         }
+        if ((f.visibility || "public") === "internal" && !!f.isReadonly) {
+          this.addDiag(f, "E3202", "READONLY_INTERNAL_CONFLICT", "keywords 'readonly' and 'internal' are mutually exclusive");
+          continue;
+        }
         fields.set(f.name, {
           type: f.type,
           isConst: !!f.isConst,
+          isReadonly: !!f.isReadonly,
           init: f.init || null,
           visibility: f.visibility || "public",
           ownerProto: d.name,
@@ -2110,7 +2181,7 @@ class Analyzer {
       if (p.fields.has(fieldName)) {
         const raw = p.fields.get(fieldName);
         if (raw && raw.type) return raw;
-        return { type: raw, isConst: false, init: null, visibility: "public", ownerProto: protoName, moduleFile: null, decl: null };
+        return { type: raw, isConst: false, isReadonly: false, init: null, visibility: "public", ownerProto: protoName, moduleFile: null, decl: null };
       }
       if (!p.parent) break;
       p = this.prototypes.get(p.parent);
@@ -2521,6 +2592,9 @@ class Analyzer {
           const targetType = this.typeOfExpr(stmt.target.target, scope);
           if (targetType && targetType.kind === "NamedType" && this.prototypes.has(targetType.name)) {
             const fi = this.resolvePrototypeFieldInfo(targetType.name, stmt.target.name);
+            if (fi && !this.checkReadonlyWrite(stmt, fi, stmt.target.name)) {
+              break;
+            }
             if (fi && fi.isConst) {
               this.addDiag(stmt, "E3130", "CONST_REASSIGNMENT", "cannot assign to const");
               break;
@@ -2769,6 +2843,7 @@ class Analyzer {
             if (targetType && targetType.kind === "NamedType" && this.prototypes.has(targetType.name)) {
               const fi = this.resolvePrototypeFieldInfo(targetType.name, expr.expr.name);
               if (fi && !this.checkMemberVisibility(expr, fi, expr.expr.name)) return t;
+              if (fi && !this.checkReadonlyWrite(expr, fi, expr.expr.name)) return t;
               if (fi && fi.isConst) this.addDiag(expr, "E3130", "CONST_REASSIGNMENT", "cannot modify const");
             }
           }
@@ -2873,6 +2948,7 @@ class Analyzer {
             if (targetType && targetType.kind === "NamedType" && this.prototypes.has(targetType.name)) {
               const fi = this.resolvePrototypeFieldInfo(targetType.name, expr.expr.name);
               if (fi && !this.checkMemberVisibility(expr, fi, expr.expr.name)) return this.typeOfExpr(expr.expr, scope);
+              if (fi && !this.checkReadonlyWrite(expr, fi, expr.expr.name)) return this.typeOfExpr(expr.expr, scope);
               if (fi && fi.isConst) this.addDiag(expr, "E3130", "CONST_REASSIGNMENT", "cannot modify const");
             }
           }

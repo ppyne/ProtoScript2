@@ -4,7 +4,7 @@
 
 Includes reserved keywords, core types, syntax constructs, operators, and core diagnostics.
 
-- Keywords: `prototype`, `sealed`, `function`, `var`, `const`, `internal`, `group`, `int`, `float`, `bool`, `byte`, `glyph`, `string`, `list`, `map`, `slice`, `view`, `void`, `if`, `else`, `for`, `of`, `in`, `while`, `do`, `switch`, `case`, `default`, `break`, `continue`, `return`, `try`, `catch`, `finally`, `throw`, `true`, `false`, `self`, `import`, `as`
+- Keywords: `prototype`, `sealed`, `function`, `var`, `const`, `internal`, `readonly`, `group`, `int`, `float`, `bool`, `byte`, `glyph`, `string`, `list`, `map`, `slice`, `view`, `void`, `if`, `else`, `for`, `of`, `in`, `while`, `do`, `switch`, `case`, `default`, `break`, `continue`, `return`, `try`, `catch`, `finally`, `throw`, `true`, `false`, `self`, `import`, `as`
 - Core types: `bool`, `byte`, `int`, `float`, `glyph`, `string`, `void`, `list`, `map`, `slice`, `view`
 - Syntax constructs: `import_decl`, `prototype_decl`, `sealed_prototype_decl`, `group_decl`, `function_decl`, `var_decl`, `const_decl`, `if_stmt`, `while_stmt`, `do_while_stmt`, `for_stmt`, `switch_stmt`, `try_stmt`, `catch_clause`, `finally_clause`, `throw_stmt`, `return_stmt`, `break_stmt`, `continue_stmt`, `assign_expr`, `conditional_expr`, `cast_expr`, `call_expr`, `member_expr`, `index_expr`, `list_literal`, `map_literal`
 - Operators/tokens: `==` `!=` `<=` `>=` `&&` `||` `<<` `>>` `++` `--` `+=` `-=` `*=` `/=` `{` `}` `(` `)` `[` `]` `;` `,` `:` `.` `?` `+` `-` `*` `/` `%` `&` `|` `^` `~` `!` `=` `<` `>` `...`

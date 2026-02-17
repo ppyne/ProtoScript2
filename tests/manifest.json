@@ -116,6 +116,16 @@
       "valid/visibility_internal/internal_access_child_method",
       "valid/visibility_internal/internal_call_internal_method_via_public"
     ],
+    "invalid/readonly": [
+      "invalid/readonly/write_non_descendant",
+      "invalid/readonly/write_from_global",
+      "invalid/readonly/internal_readonly_conflict",
+      "invalid/readonly/const_readonly_reassign"
+    ],
+    "valid/readonly": [
+      "valid/readonly/write_in_decl_and_descendants",
+      "valid/readonly/internal_non_regression"
+    ],
     "regexp": [
       "regexp/compile_basic",
       "regexp/compile_forbidden_lookahead",

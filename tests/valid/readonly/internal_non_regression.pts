@@ -1,0 +1,21 @@
+import Io;
+
+prototype A {
+    internal int state = 1;
+}
+
+prototype B : A {
+    function bump() : void {
+        self.state = self.state + 1;
+    }
+
+    function read() : int {
+        return self.state;
+    }
+}
+
+function main() : void {
+    B b = B.clone();
+    b.bump();
+    Io.printLine(b.read().toString());
+}

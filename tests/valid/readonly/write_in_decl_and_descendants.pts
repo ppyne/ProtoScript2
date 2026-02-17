@@ -1,0 +1,45 @@
+import Io;
+
+prototype A {
+    readonly int x = 1;
+
+    function set(int v) : void {
+        self.x = v;
+    }
+}
+
+prototype B : A {
+    function bump() : void {
+        self.x = self.x + 1;
+    }
+}
+
+prototype C : B {
+    function bump2() : void {
+        self.x = self.x + 1;
+    }
+}
+
+prototype Reader {
+    function read(A a) : int {
+        return a.x;
+    }
+}
+
+function main() : void {
+    Reader r = Reader.clone();
+
+    A a = A.clone();
+    a.set(5);
+    Io.printLine(r.read(a).toString());
+
+    B b = B.clone();
+    b.bump();
+    Io.printLine(r.read(b).toString());
+
+    C c = C.clone();
+    c.bump2();
+    Io.printLine(r.read(c).toString());
+
+    Io.printLine(r.read(a).toString());
+}

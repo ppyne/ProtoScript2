@@ -1,0 +1,7 @@
+prototype A {
+    const readonly int x = 0;
+
+    function set() : void {
+        self.x = 1;
+    }
+}

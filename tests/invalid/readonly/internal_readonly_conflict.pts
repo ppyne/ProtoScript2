@@ -1,0 +1,3 @@
+prototype A {
+    internal readonly int x = 0;
+}

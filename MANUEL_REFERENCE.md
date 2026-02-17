@@ -1319,6 +1319,44 @@ function main() : void {
 
 ---
 
+### 10.3.3 Champs de prototype `readonly`
+
+`readonly` s'applique uniquement aux champs de prototype.
+
+Regles :
+
+- lecture autorisée partout où le membre est accessible
+- écriture autorisée uniquement depuis :
+  - le prototype déclarant
+  - ses descendants
+- écriture interdite depuis un prototype non descendant
+- écriture interdite depuis une fonction globale
+- `readonly` ne change pas la visibilité (il restreint uniquement l'écriture)
+- `readonly` et `internal` sont mutuellement exclusifs (`E3202 READONLY_INTERNAL_CONFLICT`)
+- `readonly` est compatible avec `const`
+
+Diagnostics associés :
+
+- `E3200 INVALID_VISIBILITY_LOCATION`
+- `E3202 READONLY_INTERNAL_CONFLICT`
+- `E3203 READONLY_WRITE_VIOLATION`
+
+Exemple :
+
+```c
+prototype A {
+    readonly int x = 0;
+}
+
+prototype B : A {
+    function bump() : void {
+        self.x = self.x + 1; // autorisé (descendant)
+    }
+}
+```
+
+---
+
 ### 10.4 Override de méthodes
 
 Une méthode peut être redéfinie dans un prototype enfant **à condition de conserver une signature strictement compatible**.
@@ -2623,10 +2661,10 @@ Notes :
 
 ```c
 prototype PathInfo {
-    /* readonly */ string dirname;
-    /* readonly */ string basename;
-    /* readonly */ string filename;
-    /* readonly */ string extension;
+    readonly string dirname;
+    readonly string basename;
+    readonly string filename;
+    readonly string extension;
 }
 ```
 
@@ -2868,10 +2906,10 @@ Conventions de limite (uniformes) :
 
 ```c
 prototype RegExpMatch {
-    /* readonly */ bool ok;
-    /* readonly */ int start;
-    /* readonly */ int end;
-    /* readonly */ list<string> groups; // groups[0] = match complet
+    readonly bool ok;
+    readonly int start;
+    readonly int end;
+    readonly list<string> groups; // groups[0] = match complet
 }
 ```
 

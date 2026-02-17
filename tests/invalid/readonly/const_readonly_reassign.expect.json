@@ -1,0 +1,11 @@
+{
+  "status": "reject-static",
+  "error_family": "E3xxx",
+  "error_code": "E3130",
+  "category": "CONST_REASSIGNMENT",
+  "position": {
+    "file": "invalid/readonly/const_readonly_reassign.pts",
+    "line": 5,
+    "column": 9
+  }
+}

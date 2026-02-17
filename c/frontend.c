@@ -129,6 +129,7 @@ typedef struct AstNode {
 #define AST_FLAG_CONST  (1 << 0)
 #define AST_FLAG_SEALED (1 << 1)
 #define AST_FLAG_INTERNAL (1 << 2)
+#define AST_FLAG_READONLY (1 << 3)
 
 typedef struct {
   const char *file;
@@ -329,7 +330,7 @@ static char *token_span_text(Parser *p, size_t start, size_t end) {
 
 static int is_keyword(const char *s) {
   static const char *kws[] = {
-      "prototype", "sealed",   "function", "var",    "const",   "internal", "group",  "int",   "float",
+      "prototype", "sealed",   "function", "var",    "const",   "internal", "readonly", "group",  "int",   "float",
       "bool",      "byte",     "glyph",    "string", "list",    "map",    "slice", "view",
       "void",      "if",       "else",     "for",    "of",      "in",     "while", "do",
       "switch",    "case",     "default",  "break",  "continue","return", "try",   "catch",
@@ -1434,6 +1435,12 @@ static int parse_stmt(Parser *p) {
              "keyword 'internal' is only allowed in prototype members");
     return 0;
   }
+  if (p_at(p, TK_KW, "readonly")) {
+    Token *t = p_t(p, 0);
+    set_diag(p->diag, p->file, t->line, t->col, "E3200", "INVALID_VISIBILITY_LOCATION",
+             "keyword 'readonly' is only allowed on prototype fields");
+    return 0;
+  }
   if (p_at(p, TK_KW, "var") || p_at(p, TK_KW, "const") || looks_like_type_start(p)) {
     AstNode *decl = NULL;
     size_t mark = p->i;
@@ -1987,6 +1994,12 @@ static int parse_group_decl(Parser *p) {
         p_ast_pop(p);
         return 0;
       }
+      if (p_at(p, TK_KW, "readonly")) {
+        set_diag(p->diag, p->file, mn->line, mn->col, "E3200", "INVALID_VISIBILITY_LOCATION",
+                 "keyword 'readonly' is forbidden in group declarations");
+        p_ast_pop(p);
+        return 0;
+      }
       if (!p_eat(p, TK_ID, NULL)) {
         p_ast_pop(p);
         return 0;
@@ -2055,11 +2068,38 @@ static int parse_prototype_decl(Parser *p) {
       return 0;
     }
     int is_internal = 0;
-    if (p_at(p, TK_KW, "internal")) {
-      p_eat(p, TK_KW, "internal");
-      is_internal = 1;
+    int is_const = 0;
+    int is_readonly = 0;
+    int saw_modifier = 1;
+    while (saw_modifier) {
+      saw_modifier = 0;
+      if (p_at(p, TK_KW, "internal")) {
+        p_eat(p, TK_KW, "internal");
+        is_internal = 1;
+        saw_modifier = 1;
+        continue;
+      }
+      if (p_at(p, TK_KW, "readonly")) {
+        p_eat(p, TK_KW, "readonly");
+        is_readonly = 1;
+        saw_modifier = 1;
+        continue;
+      }
+      if (p_at(p, TK_KW, "const")) {
+        p_eat(p, TK_KW, "const");
+        is_const = 1;
+        saw_modifier = 1;
+        continue;
+      }
     }
     if (p_at(p, TK_KW, "function")) {
+      if (is_readonly) {
+        Token *t = p_t(p, 0);
+        set_diag(p->diag, p->file, t->line, t->col, "E3200", "INVALID_VISIBILITY_LOCATION",
+                 "keyword 'readonly' is only allowed on prototype fields");
+        p_ast_pop(p);
+        return 0;
+      }
       if (!parse_function_decl(p)) {
         p_ast_pop(p);
         return 0;
@@ -2070,17 +2110,15 @@ static int parse_prototype_decl(Parser *p) {
       }
       continue;
     }
-    if (is_internal && !p_at(p, TK_KW, "const") && !looks_like_type_start(p)) {
+    if ((is_internal || is_readonly) && !looks_like_type_start(p)) {
       Token *t = p_t(p, 0);
+      const char *msg =
+          is_readonly ? "keyword 'readonly' is only allowed on prototype fields"
+                      : "keyword 'internal' is only allowed on prototype fields or methods";
       set_diag(p->diag, p->file, t->line, t->col, "E3200", "INVALID_VISIBILITY_LOCATION",
-               "keyword 'internal' is only allowed on prototype fields or methods");
+               msg);
       p_ast_pop(p);
       return 0;
-    }
-    int is_const = 0;
-    if (p_at(p, TK_KW, "const")) {
-      p_eat(p, TK_KW, "const");
-      is_const = 1;
     }
     size_t type_start = p->i;
     Token *tt = p_t(p, 0);
@@ -2115,6 +2153,7 @@ static int parse_prototype_decl(Parser *p) {
     }
     if (is_const) field->flags |= AST_FLAG_CONST;
     if (is_internal) field->flags |= AST_FLAG_INTERNAL;
+    if (is_readonly) field->flags |= AST_FLAG_READONLY;
     char *type_txt = token_span_text(p, type_start, type_end);
     AstNode *tn = ast_new("Type", type_txt ? type_txt : "", tt->line, tt->col);
     free(type_txt);
@@ -2270,6 +2309,13 @@ static int parse_program(Parser *p) {
       }
       set_diag(p->diag, p->file, t->line, t->col, "E3200", "INVALID_VISIBILITY_LOCATION",
                "keyword 'internal' is only allowed in prototype members");
+      return 0;
+    }
+    if (p_at(p, TK_KW, "readonly")) {
+      Token *t = p_t(p, 0);
+      p_eat(p, TK_KW, "readonly");
+      set_diag(p->diag, p->file, t->line, t->col, "E3200", "INVALID_VISIBILITY_LOCATION",
+               "keyword 'readonly' is only allowed on prototype fields");
       return 0;
     }
     Token *t = p_t(p, 0);
@@ -2543,6 +2589,7 @@ typedef struct ProtoField {
   char *name;
   char *type;
   int is_const;
+  int is_readonly;
   int is_internal;
   AstNode *init_expr;
   int line;
@@ -2823,6 +2870,25 @@ static int check_visibility_or_diag(Analyzer *a, AstNode *node, const char *memb
            "member '%s' is internal to prototype '%s' (access from prototype '%s')",
            member_name ? member_name : "", owner, caller_proto);
   set_diag(a->diag, a->file, node ? node->line : 1, node ? node->col : 1, "E3201", "VISIBILITY_VIOLATION", msg);
+  return 0;
+}
+
+static int can_write_readonly(Analyzer *a, const char *owner_proto) {
+  if (!a || !a->current_proto || !owner_proto) return 0;
+  if (strcmp(a->current_proto, owner_proto) == 0) return 1;
+  return proto_is_subtype(a->protos, a->current_proto, owner_proto);
+}
+
+static int check_readonly_write_or_diag(Analyzer *a, AstNode *node, const char *field_name, int is_readonly, const char *owner_proto) {
+  if (!is_readonly) return 1;
+  if (can_write_readonly(a, owner_proto)) return 1;
+  const char *caller_proto = (a && a->current_proto) ? a->current_proto : "<global>";
+  const char *owner = owner_proto ? owner_proto : "<unknown>";
+  char msg[640];
+  snprintf(msg, sizeof(msg),
+           "cannot assign to readonly field '%s' (declared in prototype '%s') from prototype '%s'; writes are only allowed from '%s' and its descendants",
+           field_name ? field_name : "", owner, caller_proto, owner);
+  set_diag(a->diag, a->file, node ? node->line : 1, node ? node->col : 1, "E3203", "READONLY_WRITE_VIOLATION", msg);
   return 0;
 }
 
@@ -4020,6 +4086,11 @@ static int collect_prototypes(Analyzer *a, AstNode *root) {
             return 0;
           }
         }
+        if ((c->flags & AST_FLAG_INTERNAL) != 0 && (c->flags & AST_FLAG_READONLY) != 0) {
+          set_diag(a->diag, a->file, c->line, c->col, "E3202", "READONLY_INTERNAL_CONFLICT",
+                   "keywords 'readonly' and 'internal' are mutually exclusive");
+          return 0;
+        }
         AstNode *tn = ast_child_kind(c, "Type");
         char *ft = canon_type(tn ? tn->text : "unknown");
         AstNode *init_node = ast_child_kind(c, "FieldInit");
@@ -4029,6 +4100,7 @@ static int collect_prototypes(Analyzer *a, AstNode *root) {
         nf->name = strdup(fname);
         nf->type = ft ? ft : strdup("unknown");
         nf->is_const = (c->flags & AST_FLAG_CONST) != 0;
+        nf->is_readonly = (c->flags & AST_FLAG_READONLY) != 0;
         nf->is_internal = (c->flags & AST_FLAG_INTERNAL) != 0;
         nf->init_expr = init_expr;
         nf->line = c->line;
@@ -5437,6 +5509,12 @@ static char *infer_expr_type(Analyzer *a, AstNode *e, Scope *scope, int *ok) {
               *ok = 0;
               return NULL;
             }
+            if (pf && !check_readonly_write_or_diag(a, e, target->text ? target->text : "", pf->is_readonly,
+                                                    owner ? owner->name : pf->owner_proto)) {
+              free(recv_t);
+              *ok = 0;
+              return NULL;
+            }
             if (pf && pf->is_const) {
               set_diag(a->diag, a->file, e->line, e->col, "E3130", "CONST_REASSIGNMENT", "cannot modify const");
               free(recv_t);
@@ -5911,7 +5989,13 @@ static int analyze_stmt(Analyzer *a, AstNode *st, Scope *scope) {
         return 0;
       }
       if (recv_t && proto_find(a->protos, recv_t)) {
-        ProtoField *pf = proto_find_field(a->protos, recv_t, st->children[0]->text ? st->children[0]->text : "");
+        ProtoInfo *owner = NULL;
+        ProtoField *pf = proto_find_field_ex(a->protos, recv_t, st->children[0]->text ? st->children[0]->text : "", &owner);
+        if (pf && !check_readonly_write_or_diag(a, st, st->children[0]->text ? st->children[0]->text : "", pf->is_readonly,
+                                                owner ? owner->name : pf->owner_proto)) {
+          free(recv_t);
+          return 0;
+        }
         if (pf && pf->is_const) {
           set_diag(a->diag, a->file, st->line, st->col, "E3130", "CONST_REASSIGNMENT", "cannot assign to const");
           free(recv_t);
@@ -9924,7 +10008,9 @@ int ps_emit_ir_json(const char *file, PsDiag *out_diag, FILE *out) {
         char *ftype = json_escape(ft && ft->text ? ft->text : "unknown");
         if (!first_field) fputs(",", out);
         first_field = 0;
-        fprintf(out, "{\"name\":\"%s\",\"type\":{\"kind\":\"IRType\",\"name\":\"%s\"}}", fn ? fn : "", ftype ? ftype : "");
+        fprintf(out, "{\"name\":\"%s\",\"type\":{\"kind\":\"IRType\",\"name\":\"%s\"}", fn ? fn : "", ftype ? ftype : "");
+        if ((fd->flags & AST_FLAG_READONLY) != 0) fputs(",\"readonly\":true", out);
+        fputs("}", out);
         free(fn);
         free(ftype);
       }
@@ -9934,7 +10020,9 @@ int ps_emit_ir_json(const char *file, PsDiag *out_diag, FILE *out) {
         char *ftype = json_escape(f->type ? f->type : "unknown");
         if (!first_field) fputs(",", out);
         first_field = 0;
-        fprintf(out, "{\"name\":\"%s\",\"type\":{\"kind\":\"IRType\",\"name\":\"%s\"}}", fn ? fn : "", ftype ? ftype : "");
+        fprintf(out, "{\"name\":\"%s\",\"type\":{\"kind\":\"IRType\",\"name\":\"%s\"}", fn ? fn : "", ftype ? ftype : "");
+        if (f->is_readonly) fputs(",\"readonly\":true", out);
+        fputs("}", out);
         free(fn);
         free(ftype);
       }

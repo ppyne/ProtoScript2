@@ -1,0 +1,11 @@
+{
+  "status": "reject-static",
+  "error_family": "E3xxx",
+  "error_code": "E3202",
+  "category": "READONLY_INTERNAL_CONFLICT",
+  "position": {
+    "file": "invalid/readonly/internal_readonly_conflict.pts",
+    "line": 2,
+    "column": 27
+  }
+}

@@ -1,0 +1,11 @@
+{
+  "status": "reject-static",
+  "error_family": "E3xxx",
+  "error_code": "E3203",
+  "category": "READONLY_WRITE_VIOLATION",
+  "position": {
+    "file": "invalid/readonly/write_from_global.pts",
+    "line": 6,
+    "column": 5
+  }
+}

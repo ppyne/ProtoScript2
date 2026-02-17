@@ -12,6 +12,7 @@ Source principale: `src/frontend.js` (`KEYWORDS`).
 | `var` |
 | `const` |
 | `internal` |
+| `readonly` |
 | `group` |
 | `int` |
 | `float` |
