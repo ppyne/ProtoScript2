@@ -2135,6 +2135,20 @@ Notes :
 - `Io.print(...)` / `Io.printLine(...)` : si `value` n’est pas une `string`, `toString()` est appelé et doit retourner une `string`, sinon `InvalidArgumentException`.
 - Exceptions Io (toutes `RuntimeException`) : `InvalidModeException`, `FileOpenException`, `FileNotFoundException`, `PermissionDeniedException`, `InvalidPathException`, `FileClosedException`, `InvalidArgumentException`, `InvalidGlyphPositionException`, `ReadFailureException`, `WriteFailureException`, `Utf8DecodeException`, `StandardStreamCloseException`, `IOException`.
 
+**Prototype `TextFile`**
+
+```c
+sealed prototype TextFile {
+    read(size: int): string{}
+    write(text: string): void {}
+    tell(): int {}
+    seek(pos: int): void {}
+    size(): int {}
+    name(): string {}
+    close(): void {}
+}
+```
+
 **Méthodes sur `TextFile`**
 
 | Méthode | Description | Erreurs |
@@ -2146,6 +2160,20 @@ Notes :
 | `TextFile.size() : int` | taille en glyphes | `FileClosedException`, `ReadFailureException` |
 | `TextFile.name() : string` | nom/chemin | `FileClosedException` |
 | `TextFile.close() : void` | ferme le fichier | `StandardStreamCloseException` si stdin/stdout/stderr |
+
+**Prototype `BinaryFile`**
+
+```c
+sealed prototype BinaryFile {
+    read(size: int): list<byte> {}
+    write(bytes: list<byte>): void {}
+    tell(): int {}
+    seek(pos: int): void {}
+    size(): int {}
+    name(): string {}
+    close(): void {}
+}
+```
 
 **Méthodes sur `BinaryFile`**
 
@@ -2380,7 +2408,23 @@ Constructeurs explicites (immutables) :
 | `JSON.array(list<JSONValue>) : JSONValue` | tableau JSON |
 | `JSON.object(map<string, JSONValue>) : JSONValue` | objet JSON |
 
-Méthodes d’accès :
+```c
+sealed prototype JSONValue {
+    function isNull(): bool {}
+    function isBool(): bool {}
+    function isNumber(): bool {}
+    function isString(): bool {}
+    function isArray(): bool {}
+    function isObject(): bool {}
+    function asBool(): bool {}
+    function asNumber(): float {}
+    function asString(): string {}
+    function asArray(): list<JSONValue> {}
+    function asObject(): map<string, JSONValue> {}
+}
+```
+
+Méthodes :
 
 | Méthode | Résultat | Erreurs |
 |---|---|---|
@@ -2480,8 +2524,9 @@ prototype CivilDateTime {
 | `parseISO8601(string s) : int` | parse ISO strict → epoch UTC | `InvalidISOFormatException` |
 | `formatISO8601(int epoch) : string` | format UTC `YYYY-MM-DDTHH:MM:SS.sssZ` | `InvalidDateException` |
 
-**Validation `TimeZone`**
+**Validation de la `TimeZone`**
 
+- c'est une chaîne de type `string`
 - identifiant IANA strict, sensible à la casse ;
 - aucun whitespace (leading/trailing ou interne) ;
 - pas de normalisation de locale ;
@@ -2546,25 +2591,25 @@ Le module `Fs` fournit des primitives synchrones pour le système de fichiers PO
 
 | Fonction | Description | Exceptions |
 |---|---|---|
-| `exists(string path) : bool` | vrai si le chemin existe | `InvalidPathException`, `IOException` |
-| `isFile(string path) : bool` | vrai si fichier régulier | `InvalidPathException`, `IOException` |
-| `isDir(string path) : bool` | vrai si répertoire | `InvalidPathException`, `IOException` |
-| `isSymlink(string path) : bool` | vrai si lien symbolique | `InvalidPathException`, `IOException` |
-| `isReadable(string path) : bool` | vérifie la lisibilité | `InvalidPathException`, `IOException` |
-| `isWritable(string path) : bool` | vérifie l’écriture | `InvalidPathException`, `IOException` |
-| `isExecutable(string path) : bool` | vérifie l’exécution | `InvalidPathException`, `IOException` |
-| `size(string path) : int` | taille en octets d’un fichier | `FileNotFoundException`, `NotAFileException`, `PermissionDeniedException`, `IOException` |
-| `mkdir(string path) : void` | crée un répertoire | `FileNotFoundException`, `NotADirectoryException`, `PermissionDeniedException`, `InvalidPathException`, `IOException` |
-| `rmdir(string path) : void` | supprime un répertoire vide | `FileNotFoundException`, `NotADirectoryException`, `DirectoryNotEmptyException`, `PermissionDeniedException`, `InvalidPathException`, `IOException` |
-| `rm(string path) : void` | supprime un fichier | `FileNotFoundException`, `NotAFileException`, `PermissionDeniedException`, `InvalidPathException`, `IOException` |
-| `cp(string src, string dst) : void` | copie un fichier | `FileNotFoundException`, `NotAFileException`, `PermissionDeniedException`, `InvalidPathException`, `IOException` |
-| `mv(string src, string dst) : void` | déplace un fichier | `FileNotFoundException`, `PermissionDeniedException`, `InvalidPathException`, `IOException` |
-| `chmod(string path, int mode) : void` | change les permissions POSIX | `FileNotFoundException`, `PermissionDeniedException`, `InvalidPathException`, `IOException` |
-| `cwd() : string` | répertoire courant | `IOException` |
-| `cd(string path) : void` | change de répertoire | `FileNotFoundException`, `NotADirectoryException`, `PermissionDeniedException`, `IOException` |
-| `pathInfo(string path) : PathInfo` | découpe un chemin sans normalisation | `InvalidPathException`, `IOException` |
-| `openDir(string path) : Dir` | ouvre un itérateur de répertoire | `FileNotFoundException`, `NotADirectoryException`, `PermissionDeniedException`, `IOException` |
-| `walk(string path, int maxDepth, bool followSymlinks) : Walker` | parcours récursif itératif | `FileNotFoundException`, `NotADirectoryException`, `PermissionDeniedException`, `IOException` |
+| `Fs.exists(string path) : bool` | vrai si le chemin existe | `InvalidPathException`, `IOException` |
+| `Fs.isFile(string path) : bool` | vrai si fichier régulier | `InvalidPathException`, `IOException` |
+| `Fs.isDir(string path) : bool` | vrai si répertoire | `InvalidPathException`, `IOException` |
+| `Fs.isSymlink(string path) : bool` | vrai si lien symbolique | `InvalidPathException`, `IOException` |
+| `Fs.isReadable(string path) : bool` | vérifie la lisibilité | `InvalidPathException`, `IOException` |
+| `Fs.isWritable(string path) : bool` | vérifie l’écriture | `InvalidPathException`, `IOException` |
+| `Fs.isExecutable(string path) : bool` | vérifie l’exécution | `InvalidPathException`, `IOException` |
+| `Fs.size(string path) : int` | taille en octets d’un fichier | `FileNotFoundException`, `NotAFileException`, `PermissionDeniedException`, `IOException` |
+| `Fs.mkdir(string path) : void` | crée un répertoire | `FileNotFoundException`, `NotADirectoryException`, `PermissionDeniedException`, `InvalidPathException`, `IOException` |
+| `Fs.rmdir(string path) : void` | supprime un répertoire vide | `FileNotFoundException`, `NotADirectoryException`, `DirectoryNotEmptyException`, `PermissionDeniedException`, `InvalidPathException`, `IOException` |
+| `Fs.rm(string path) : void` | supprime un fichier | `FileNotFoundException`, `NotAFileException`, `PermissionDeniedException`, `InvalidPathException`, `IOException` |
+| `Fs.cp(string src, string dst) : void` | copie un fichier | `FileNotFoundException`, `NotAFileException`, `PermissionDeniedException`, `InvalidPathException`, `IOException` |
+| `Fs.mv(string src, string dst) : void` | déplace un fichier | `FileNotFoundException`, `PermissionDeniedException`, `InvalidPathException`, `IOException` |
+| `Fs.chmod(string path, int mode) : void` | change les permissions POSIX | `FileNotFoundException`, `PermissionDeniedException`, `InvalidPathException`, `IOException` |
+| `Fs.cwd() : string` | répertoire courant | `IOException` |
+| `Fs.cd(string path) : void` | change de répertoire | `FileNotFoundException`, `NotADirectoryException`, `PermissionDeniedException`, `IOException` |
+| `Fs.pathInfo(string path) : PathInfo` | découpe un chemin sans normalisation | `InvalidPathException`, `IOException` |
+| `Fs.openDir(string path) : Dir` | ouvre un itérateur de répertoire | `FileNotFoundException`, `NotADirectoryException`, `PermissionDeniedException`, `IOException` |
+| `Fs.walk(string path, int maxDepth, bool followSymlinks) : Walker` | parcours récursif itératif | `FileNotFoundException`, `NotADirectoryException`, `PermissionDeniedException`, `IOException` |
 
 Notes :
 
@@ -2576,12 +2621,25 @@ Notes :
 
 **Prototype `PathInfo`** (champs en lecture seule)
 
-- `dirname : string`
-- `basename : string`
-- `filename : string`
-- `extension : string`
+```c
+prototype PathInfo {
+    /* readonly */ string dirname;
+    /* readonly */ string basename;
+    /* readonly */ string filename;
+    /* readonly */ string extension;
+}
+```
 
 **Prototype `Dir`**
+
+```c
+prototype Dir {
+    hasNext(): bool {}
+    next(): string {}
+    close(): void {}
+    reset(): void {}
+}
+```
 
 Méthodes :
 
@@ -2596,6 +2654,14 @@ Les entrées `.` et `..` sont filtrées.
 
 **Prototype `Walker`**
 
+```c
+prototype Walker {
+    function hasNext() : bool {}
+    function next() : bool {}
+    function close() : void {}
+}
+```
+
 Méthodes :
 
 | Méthode | Description | Erreurs |
@@ -2606,12 +2672,16 @@ Méthodes :
 
 **Prototype `PathEntry`** (champs en lecture seule)
 
-- `path : string`
-- `name : string`
-- `depth : int`
-- `isDir : bool`
-- `isFile : bool`
-- `isSymlink : bool`
+```c
+prototype PathEntry {
+    string path; 
+    string name;
+    int depth;
+    bool isDir;
+    bool isFile;
+    bool isSymlink;
+}
+```
 
 Exemple : listing simple
 
@@ -2665,9 +2735,9 @@ Le module `Sys` expose un accès minimal **en lecture seule** à l'environnement
 
 | Fonction | Signature | Description | Exceptions |
 |---|---|---|---|
-| `hasEnv(string name) : bool` | vrai si la variable d'environnement existe | `InvalidEnvironmentNameException`, `EnvironmentAccessException`, `IOException` |
-| `env(string name) : string` | valeur de la variable d'environnement | `InvalidEnvironmentNameException`, `EnvironmentAccessException`, `IOException` |
-| `execute(string program, list<string> args, list<byte> input, bool captureStdout, bool captureStderr) : ProcessResult` | exécution synchrone d'un programme POSIX | `InvalidExecutableException`, `ProcessPermissionException`, `ProcessCreationException`, `ProcessExecutionException`, `InvalidArgumentException`, `IOException` |
+| `Sys.hasEnv(string name) : bool` | vrai si la variable d'environnement existe | `InvalidEnvironmentNameException`, `EnvironmentAccessException`, `IOException` |
+| `Sys.env(string name) : string` | valeur de la variable d'environnement | `InvalidEnvironmentNameException`, `EnvironmentAccessException`, `IOException` |
+| `Sys.execute(string program, list<string> args, list<byte> input, bool captureStdout, bool captureStderr) : ProcessResult` | exécution synchrone d'un programme POSIX | `InvalidExecutableException`, `ProcessPermissionException`, `ProcessCreationException`, `ProcessExecutionException`, `InvalidArgumentException`, `IOException` |
 
 Notes :
 
@@ -2682,13 +2752,21 @@ Notes :
 
 **Prototype `ProcessResult`** (champs en lecture seule)
 
-- `exitCode : int`
-- `events : list<ProcessEvent>`
+```c
+prototype ProcessResult {
+    int exitCode;
+    list<ProcessEvent> events;
+}
+```
 
 **Prototype `ProcessEvent`** (champs en lecture seule)
 
-- `stream : int` (`1` = stdout, `2` = stderr)
-- `data : list<byte>`
+```c
+prototype ProcessEvent {
+    int stream; // 1 = stdout, 2 = stderr
+    list<byte> data;
+}
+```
 
 **Ordonnancement**
 
@@ -2755,6 +2833,21 @@ Fonctions / méthodes principales :
 - `r.pattern() : string`
 - `r.flags() : string`
 
+Remarque : `RegExp` peut désigner le prototype ou le module. Ils portent le même nom. La fonction `compile()` du module `RegExp` permet de construire le prototype suivant :
+
+```c
+prototype RegExp {
+    function test(input: string, start: int): bool {}
+    function find(input: string, start: int): RegExpMatch {}
+    function findAll(input: string, start: int, max: int): list<RegExpMatch> {}
+    function replaceFirst(input: string, replacement: string, start: int): string {}
+    function replaceAll(input: string, replacement: string, start: int, max: int): string {}
+    function split(input: string, start: int, maxParts: int): list<string> {}
+    function pattern(): string {}
+    function flags(): string {}
+}
+```
+
 | Opération | Complexité | Impact énergétique |
 |------------|------------|-------------------|
 | split() | <img src="docs/lettre_C.svg" alt="C" width="24" /> | <img src="docs/lettre_C.svg" alt="C" width="24" /> |
@@ -2771,12 +2864,16 @@ Conventions de limite (uniformes) :
 - `split(..., maxParts = -1)` : illimité
 - seules les valeurs `< -1` lèvent `RegExpRange`
 
-`RegExpMatch` expose (lecture seule) :
+`RegExpMatch` expose (en lecture seule) :
 
-- `ok : bool`
-- `start : int`
-- `end : int`
-- `groups : list<string>` (`groups[0]` = match complet)
+```c
+prototype RegExpMatch {
+    /* readonly */ bool ok;
+    /* readonly */ int start;
+    /* readonly */ int end;
+    /* readonly */ list<string> groups; // groups[0] = match complet
+}
+```
 
 Remplacement (`replaceFirst` / `replaceAll`) :
 
@@ -3069,6 +3166,23 @@ Aucune autre valeur ne peut être levée avec `throw`.
 Les exceptions runtime standard dérivent de `RuntimeException`.
 Vous pouvez définir des prototypes dérivés de `Exception`.
 Les exceptions s’instancient exclusivement via `clone()` ; `Exception(...)` et `RuntimeException(...)` sont interdits.
+
+```c
+prototype Exception {
+    string file;
+    int line;
+    int column;
+    string message;  /* optionnel */
+    Exception cause; /* optionnel, sert au chaînage d’exceptions (cause racine) */
+}
+```
+
+```c
+prototype RuntimeException : Exception {
+    string code;     /* exemple : R1004 */
+    string category; /* exemple RUNTIME_DIVIDE_BY_ZERO */
+}
+```
 
 ### 15.2.1 Codes runtime (résumé)
 
