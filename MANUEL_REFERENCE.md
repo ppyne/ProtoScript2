@@ -2118,13 +2118,13 @@ Le chargeur utilise un registry JSON pour résoudre `import Io`, `import Math`, 
 
 **Fonctions globales**
 
-| Fonction | Signature | Description | Erreurs |
-|---|---|---|---|
-| `Io.openText` | `(string path, string mode) -> TextFile` | ouvre un fichier texte | `InvalidModeException`, `InvalidPathException`, `FileNotFoundException`, `PermissionDeniedException`, `FileOpenException` |
-| `Io.openBinary` | `(string path, string mode) -> BinaryFile` | ouvre un fichier binaire | `InvalidModeException`, `InvalidPathException`, `FileNotFoundException`, `PermissionDeniedException`, `FileOpenException` |
-| `Io.tempPath` | `() -> string` | chemin temporaire unique (non créé) | `IOException` |
-| `Io.print` | `(any value) -> void` | écrit sans fin de ligne | `InvalidArgumentException`, `WriteFailureException` |
-| `Io.printLine` | `(any value) -> void` | écrit + `Io.EOL` | `InvalidArgumentException`, `WriteFailureException` |
+| Fonction | Description | Erreurs |
+|---|---|---|
+| `Io.openText(string path, string mode) : TextFile` | ouvre un fichier texte | `InvalidModeException`, `InvalidPathException`, `FileNotFoundException`, `PermissionDeniedException`, `FileOpenException` |
+| `Io.openBinary(string path, string mode) : BinaryFile` | ouvre un fichier binaire | `InvalidModeException`, `InvalidPathException`, `FileNotFoundException`, `PermissionDeniedException`, `FileOpenException` |
+| `Io.tempPath() : string` | chemin temporaire unique (non créé) | `IOException` |
+| `Io.print(any value) : void` | écrit sans fin de ligne | `InvalidArgumentException`, `WriteFailureException` |
+| `Io.printLine(any value) : void` | écrit + `Io.EOL` | `InvalidArgumentException`, `WriteFailureException` |
 
 Notes :
 
@@ -2137,27 +2137,27 @@ Notes :
 
 **Méthodes sur `TextFile`**
 
-| Méthode | Signature | Description | Erreurs |
-|---|---|---|---|
-| `read(size)` | `(int) -> string` | lit `size` glyphes | `InvalidArgumentException`, `FileClosedException`, `Utf8DecodeException`, `ReadFailureException` |
-| `write(text)` | `(string) -> void` | écrit du texte | `InvalidArgumentException`, `FileClosedException`, `WriteFailureException` |
-| `tell()` | `() -> int` | position en glyphes | `FileClosedException`, `ReadFailureException` |
-| `seek(pos)` | `(int) -> void` | positionne en glyphes | `InvalidArgumentException`, `InvalidGlyphPositionException`, `FileClosedException`, `ReadFailureException` |
-| `size()` | `() -> int` | taille en glyphes | `FileClosedException`, `ReadFailureException` |
-| `name()` | `() -> string` | nom/chemin | `FileClosedException` |
-| `close()` | `() -> void` | ferme le fichier | `StandardStreamCloseException` si stdin/stdout/stderr |
+| Méthode | Description | Erreurs |
+|---|---|---|
+| `TextFile.read(int size) : string` | lit `size` glyphes | `InvalidArgumentException`, `FileClosedException`, `Utf8DecodeException`, `ReadFailureException` |
+| `TextFile.write(string text) : void` | écrit du texte | `InvalidArgumentException`, `FileClosedException`, `WriteFailureException` |
+| `TextFile.tell() :  int` | position en glyphes | `FileClosedException`, `ReadFailureException` |
+| `TextFile.seek(int pos) : void` | positionne en glyphes | `InvalidArgumentException`, `InvalidGlyphPositionException`, `FileClosedException`, `ReadFailureException` |
+| `TextFile.size() : int` | taille en glyphes | `FileClosedException`, `ReadFailureException` |
+| `TextFile.name() : string` | nom/chemin | `FileClosedException` |
+| `TextFile.close() : void` | ferme le fichier | `StandardStreamCloseException` si stdin/stdout/stderr |
 
 **Méthodes sur `BinaryFile`**
 
-| Méthode | Signature | Description | Erreurs |
-|---|---|---|---|
-| `read(size)` | `(int) -> list<byte>` | lit `size` octets | `InvalidArgumentException`, `FileClosedException`, `ReadFailureException` |
-| `write(bytes)` | `(list<byte>) -> void` | écrit des octets | `InvalidArgumentException`, `FileClosedException`, `WriteFailureException` |
-| `tell()` | `() -> int` | position en octets | `FileClosedException`, `ReadFailureException` |
-| `seek(pos)` | `(int) -> void` | positionne en octets | `InvalidArgumentException`, `FileClosedException`, `ReadFailureException` |
-| `size()` | `() -> int` | taille en octets | `FileClosedException`, `ReadFailureException` |
-| `name()` | `() -> string` | nom/chemin | `FileClosedException` |
-| `close()` | `() -> void` | ferme le fichier | `StandardStreamCloseException` si stdin/stdout/stderr |
+| Méthode | Description | Erreurs |
+|---|---|---|
+| `BinaryFile.read(int size) : list<byte>` | lit `size` octets | `InvalidArgumentException`, `FileClosedException`, `ReadFailureException` |
+| `BinaryFile.write(list<byte> bytes) : void` | écrit des octets | `InvalidArgumentException`, `FileClosedException`, `WriteFailureException` |
+| `BinaryFile.tell() : int` | position en octets | `FileClosedException`, `ReadFailureException` |
+| `BinaryFile.seek(int pos) : void` | positionne en octets | `InvalidArgumentException`, `FileClosedException`, `ReadFailureException` |
+| `BinaryFile.size() : int` | taille en octets | `FileClosedException`, `ReadFailureException` |
+| `BinaryFile.name() : string` | nom/chemin | `FileClosedException` |
+| `BinaryFile.close() : void` | ferme le fichier | `StandardStreamCloseException` si stdin/stdout/stderr |
 
 Notes :
 
@@ -2235,43 +2235,43 @@ Ref: EX-082
 
 **Fonctions** (toutes pures, retour `float`)
 
-| Fonction | Signature | Unités / domaine | Résultat / notes |
-|---|---|---|---|
-| `abs` | `abs(float x) -> float` | tout réel | \|x\| |
-| `min` | `min(float a, float b) -> float` | tout réel | plus petit des deux |
-| `max` | `max(float a, float b) -> float` | tout réel | plus grand des deux |
-| `floor` | `floor(float x) -> float` | tout réel | ⌊x⌋ |
-| `ceil` | `ceil(float x) -> float` | tout réel | ⌈x⌉ |
-| `round` | `round(float x) -> float` | tout réel | arrondi au plus proche |
-| `trunc` | `trunc(float x) -> float` | tout réel | troncature vers 0 |
-| `sign` | `sign(float x) -> float` | tout réel (NaN inclus) | −1, +1, 0, −0, NaN (voir contrat) |
-| `fround` | `fround(float x) -> float` | tout réel | arrondi float (IEEE‑754) |
-| `sqrt` | `sqrt(float x) -> float` | x ≥ 0 | √x, sinon NaN |
-| `cbrt` | `cbrt(float x) -> float` | tout réel | ∛x |
-| `pow` | `pow(float a, float b) -> float` | tout réel | a^b (IEEE‑754) |
-| `sin` | `sin(float x) -> float` | radians | sin(x) |
-| `cos` | `cos(float x) -> float` | radians | cos(x) |
-| `tan` | `tan(float x) -> float` | radians | tan(x) |
-| `asin` | `asin(float x) -> float` | x ∈ [−1, 1] | arcsin(x) en radians, sinon NaN |
-| `acos` | `acos(float x) -> float` | x ∈ [−1, 1] | arccos(x) en radians, sinon NaN |
-| `atan` | `atan(float x) -> float` | tout réel | arctan(x) en radians |
-| `atan2` | `atan2(float y, float x) -> float` | tout réel | arctan(y/x) en radians, quadrant correct |
-| `sinh` | `sinh(float x) -> float` | tout réel | sinh(x) |
-| `cosh` | `cosh(float x) -> float` | tout réel | cosh(x) |
-| `tanh` | `tanh(float x) -> float` | tout réel | tanh(x) |
-| `asinh` | `asinh(float x) -> float` | tout réel | asinh(x) |
-| `acosh` | `acosh(float x) -> float` | x ≥ 1 | acosh(x), sinon NaN |
-| `atanh` | `atanh(float x) -> float` | x ∈ (−1, 1) | atanh(x), sinon NaN |
-| `exp` | `exp(float x) -> float` | tout réel | e^x |
-| `expm1` | `expm1(float x) -> float` | tout réel | e^x − 1 |
-| `log` | `log(float x) -> float` | x > 0 | ln(x), sinon NaN |
-| `log1p` | `log1p(float x) -> float` | x > −1 | ln(1 + x), sinon NaN |
-| `log2` | `log2(float x) -> float` | x > 0 | log2(x), sinon NaN |
-| `log10` | `log10(float x) -> float` | x > 0 | log10(x), sinon NaN |
-| `hypot` | `hypot(float a, float b) -> float` | tout réel | √(a² + b²) |
-| `clz32` | `clz32(float x) -> float` | entier 32 bits (float) | count leading zeros (JS‑like) |
-| `imul` | `imul(float a, float b) -> float` | entiers 32 bits (float) | multiplication 32 bits (JS‑like) |
-| `random` | `random() -> float` | — | uniforme dans `[0.0, 1.0)` |
+| Fonction | Unités / domaine | Résultat / notes |
+|---|---|---|
+| `Math.abs(float x) : float` | tout réel | \|x\| |
+| `Math.min(float a, float b) : float` | tout réel | plus petit des deux |
+| `Math.max(float a, float b) : float` | tout réel | plus grand des deux |
+| `Math.floor(float x) : float` | tout réel | ⌊x⌋ |
+| `Math.ceil(float x) : float` | tout réel | ⌈x⌉ |
+| `Math.round(float x) : float` | tout réel | arrondi au plus proche |
+| `Math.trunc(float x) : float` | tout réel | troncature vers 0 |
+| `Math.sign(float x) : float` | tout réel (NaN inclus) | −1, +1, 0, −0, NaN (voir contrat) |
+| `Math.fround(float x) : float` | tout réel | arrondi float (IEEE‑754) |
+| `Math.sqrt(float x) : float` | x ≥ 0 | √x, sinon NaN |
+| `Math.cbrt(float x) : float` | tout réel | ∛x |
+| `Math.pow(float a, float b) : float` | tout réel | a^b (IEEE‑754) |
+| `Math.sin(float x) : float` | radians | sin(x) |
+| `Math.cos(float x) : float` | radians | cos(x) |
+| `Math.tan(float x) : float` | radians | tan(x) |
+| `Math.asin(float x) : float` | x ∈ [−1, 1] | arcsin(x) en radians, sinon NaN |
+| `Math.acos(float x) : float` | x ∈ [−1, 1] | arccos(x) en radians, sinon NaN |
+| `Math.atan(float x) : float` | tout réel | arctan(x) en radians |
+| `Math.atan2(float y, float x) : float` | tout réel | arctan(y/x) en radians, quadrant correct |
+| `Math.sinh(float x) : float` | tout réel | sinh(x) |
+| `Math.cosh(float x) : float` | tout réel | cosh(x) |
+| `Math.tanh(float x) : float` | tout réel | tanh(x) |
+| `Math.asinh(float x) : float` | tout réel | asinh(x) |
+| `Math.acosh(float x) : float` | x ≥ 1 | acosh(x), sinon NaN |
+| `Math.atanh(float x) : float` | x ∈ (−1, 1) | atanh(x), sinon NaN |
+| `Math.exp(float x) : float` | tout réel | e^x |
+| `Math.expm1(float x) : float` | tout réel | e^x − 1 |
+| `Math.log(float x) : float` | x > 0 | ln(x), sinon NaN |
+| `Math.log1p(float x) : float` | x > −1 | ln(1 + x), sinon NaN |
+| `Math.log2(float x) : float` | x > 0 | log2(x), sinon NaN |
+| `Math.log10(float x) : float` | x > 0 | log10(x), sinon NaN |
+| `Math.hypot(float a, float b) : float` | tout réel | √(a² + b²) |
+| `Math.clz32(float x) : float` | entier 32 bits (float) | count leading zeros (JS‑like) |
+| `Math.imul(float a, float b) : float` | entiers 32 bits (float) | multiplication 32 bits (JS‑like) |
+| `Math.random() : float` | — | uniforme dans `[0.0, 1.0)` |
 
 Paramètres :
 
@@ -2349,11 +2349,11 @@ Ref: EX-085
 
 **Fonctions**
 
-| Fonction | Signature | Description | Erreurs |
-|---|---|---|---|
-| `encode` | `(any) -> string` | sérialise | runtime si valeur non sérialisable |
-| `decode` | `(string) -> JSONValue` | parse JSON | runtime si JSON invalide |
-| `isValid` | `(string) -> bool` | valide sans exception | runtime si argument non string |
+| Fonction | Description | Erreurs |
+|---|---|---|
+| `JSON.encode(any) : string` | sérialise | runtime si valeur non sérialisable |
+| `JSON.decode(string) : JSONValue` | parse JSON | runtime si JSON invalide |
+| `JSON.isValid(string) : bool` | valide sans exception | runtime si argument non string |
 
 Notes :
 
@@ -2371,21 +2371,30 @@ Sous‑types : `JsonNull`, `JsonBool`, `JsonNumber`, `JsonString`, `JsonArray`, 
 
 Constructeurs explicites (immutables) :
 
-| Fonction | Signature | Description |
-|---|---|---|
-| `JSON.null` | `() -> JSONValue` | null JSON |
-| `JSON.bool` | `(bool) -> JSONValue` | bool JSON |
-| `JSON.number` | `(float) -> JSONValue` | nombre JSON |
-| `JSON.string` | `(string) -> JSONValue` | chaîne JSON |
-| `JSON.array` | `(list<JSONValue>) -> JSONValue` | tableau JSON |
-| `JSON.object` | `(map<string, JSONValue>) -> JSONValue` | objet JSON |
+| Fonction | Description |
+|---|---|
+| `JSON.null() : JSONValue` | null JSON |
+| `JSON.bool(bool) : JSONValue` | bool JSON |
+| `JSON.number(float) : JSONValue` | nombre JSON |
+| `JSON.string(string) : JSONValue` | chaîne JSON |
+| `JSON.array(list<JSONValue>) : JSONValue` | tableau JSON |
+| `JSON.object(map<string, JSONValue>) : JSONValue` | objet JSON |
 
 Méthodes d’accès :
 
 | Méthode | Résultat | Erreurs |
 |---|---|---|
-| `isNull()/isBool()/isNumber()/isString()/isArray()/isObject()` | `bool` | — |
-| `asBool()/asNumber()/asString()/asArray()/asObject()` | type correspondant | runtime si mauvais type |
+| `JSONValue.isNull()` | `bool` | — |
+| `JSONValue.isBool()` | `bool` | — |
+| `JSONValue.isNumber()` | `bool` | — |
+| `JSONValue.isString()` | `bool` | — |
+| `JSONValue.isArray()` | `bool` | — |
+| `JSONValue.isObject()` | `bool` | — |
+| `JSONValue.asBool()` | type correspondant | runtime si mauvais type |
+| `JSONValue.asNumber()` | type correspondant | runtime si mauvais type |
+| `JSONValue.asString()` | type correspondant | runtime si mauvais type |
+| `JSONValue.asArray()` | type correspondant | runtime si mauvais type |
+| `JSONValue.asObject()` | type correspondant | runtime si mauvais type |
 
 Exemple :
 
@@ -2400,11 +2409,11 @@ Ref: EX-086
 
 **Fonctions**
 
-| Fonction | Signature | Description |
-|---|---|---|
-| `nowEpochMillis` | `() -> int` | epoch UTC en millisecondes (non déterministe) |
-| `nowMonotonicNanos` | `() -> int` | horloge monotone en nanosecondes (non déterministe) |
-| `sleepMillis` | `(int ms) -> void` | suspend l’exécution au moins `ms` millisecondes |
+| Fonction | Description |
+|---|---|
+| `Time.nowEpochMillis() : int` | epoch UTC en millisecondes (non déterministe) |
+| `Time.nowMonotonicNanos() : int` | horloge monotone en nanosecondes (non déterministe) |
+| `Time.sleepMillis(int ms) : void` | suspend l’exécution au moins `ms` millisecondes |
 
 Notes :
 
@@ -2431,10 +2440,17 @@ Ref: EX-087
 
 **Prototype standard : `CivilDateTime`**
 
-Champs (tous `int`) :
-
-- `year`, `month`, `day`
-- `hour`, `minute`, `second`, `millisecond`
+```c
+prototype CivilDateTime {
+    int year;
+    int month;
+    int day;
+    int hour;
+    int minute;
+    int second;
+    int milisecond;
+}
+```
 
 **Constantes DST**
 
@@ -2446,23 +2462,23 @@ Champs (tous `int`) :
 
 **Fonctions**
 
-| Fonction | Signature | Description | Exceptions |
-|---|---|---|---|
-| `fromEpochUTC` | `(int) -> CivilDateTime` | epoch → civil UTC | `InvalidDateException` |
-| `toEpochUTC` | `(CivilDateTime) -> int` | civil UTC → epoch | `InvalidDateException` |
-| `fromEpoch` | `(int, string tz) -> CivilDateTime` | epoch → civil dans `tz` | `InvalidTimeZoneException`, `InvalidDateException` |
-| `toEpoch` | `(CivilDateTime, string tz, int strategy) -> int` | civil → epoch dans `tz` | `InvalidTimeZoneException`, `InvalidDateException`, `DSTNonExistentTimeException`, `DSTAmbiguousTimeException` |
-| `isDST` | `(int, string tz) -> bool` | vrai si offset ≠ standard | `InvalidTimeZoneException`, `InvalidDateException` |
-| `offsetSeconds` | `(int, string tz) -> int` | offset UTC total | `InvalidTimeZoneException`, `InvalidDateException` |
-| `standardOffsetSeconds` | `(string tz) -> int` | offset hors DST | `InvalidTimeZoneException` |
-| `dayOfWeek` | `(int, string tz) -> int` | 1=lundi … 7=dimanche | `InvalidTimeZoneException`, `InvalidDateException` |
-| `dayOfYear` | `(int, string tz) -> int` | 1–365/366 | `InvalidTimeZoneException`, `InvalidDateException` |
-| `weekOfYearISO` | `(int, string tz) -> int` | semaine ISO 8601 | `InvalidTimeZoneException`, `InvalidDateException` |
-| `weekYearISO` | `(int, string tz) -> int` | année ISO 8601 | `InvalidTimeZoneException`, `InvalidDateException` |
-| `isLeapYear` | `(int year) -> bool` | année bissextile | — |
-| `daysInMonth` | `(int year, int month) -> int` | nombre de jours | `InvalidDateException` |
-| `parseISO8601` | `(string s) -> int` | parse ISO strict → epoch UTC | `InvalidISOFormatException` |
-| `formatISO8601` | `(int epoch) -> string` | format UTC `YYYY-MM-DDTHH:MM:SS.sssZ` | `InvalidDateException` |
+| Fonction | Description | Exceptions |
+|----------|-------------|------------|
+| `fromEpochUTC(int) : CivilDateTime` | epoch → civil UTC | `InvalidDateException` |
+| `toEpochUTC(CivilDateTime) : int` | civil UTC → epoch | `InvalidDateException` |
+| `fromEpoch(int, string tz) : CivilDateTime` | epoch → civil dans `tz` | `InvalidTimeZoneException`, `InvalidDateException` |
+| `toEpoch(CivilDateTime, string tz, int strategy) : int` | civil → epoch dans `tz` | `InvalidTimeZoneException`, `InvalidDateException`, `DSTNonExistentTimeException`, `DSTAmbiguousTimeException` |
+| `isDST(int, string tz) : bool` | vrai si offset ≠ standard | `InvalidTimeZoneException`, `InvalidDateException` |
+| `offsetSeconds(int, string tz) : int` | offset UTC total | `InvalidTimeZoneException`, `InvalidDateException` |
+| `standardOffsetSeconds(string tz) : int` | offset hors DST | `InvalidTimeZoneException` |
+| `dayOfWeek(int, string tz) : int` | 1=lundi … 7=dimanche | `InvalidTimeZoneException`, `InvalidDateException` |
+| `dayOfYear(int, string tz) : int` | 1–365/366 | `InvalidTimeZoneException`, `InvalidDateException` |
+| `weekOfYearISO(int, string tz) : int` | semaine ISO 8601 | `InvalidTimeZoneException`, `InvalidDateException` |
+| `weekYearISO(int, string tz) : int` | année ISO 8601 | `InvalidTimeZoneException`, `InvalidDateException` |
+| `isLeapYear(int year) : bool` | année bissextile | — |
+| `daysInMonth(int year, int month) : int` | nombre de jours | `InvalidDateException` |
+| `parseISO8601(string s) : int` | parse ISO strict → epoch UTC | `InvalidISOFormatException` |
+| `formatISO8601(int epoch) : string` | format UTC `YYYY-MM-DDTHH:MM:SS.sssZ` | `InvalidDateException` |
 
 **Validation `TimeZone`**
 
@@ -2528,27 +2544,27 @@ Le module `Fs` fournit des primitives synchrones pour le système de fichiers PO
 
 **Fonctions**
 
-| Fonction | Signature | Description | Exceptions |
-|---|---|---|---|
-| `exists` | `(string path) -> bool` | vrai si le chemin existe | `InvalidPathException`, `IOException` |
-| `isFile` | `(string path) -> bool` | vrai si fichier régulier | `InvalidPathException`, `IOException` |
-| `isDir` | `(string path) -> bool` | vrai si répertoire | `InvalidPathException`, `IOException` |
-| `isSymlink` | `(string path) -> bool` | vrai si lien symbolique | `InvalidPathException`, `IOException` |
-| `isReadable` | `(string path) -> bool` | vérifie la lisibilité | `InvalidPathException`, `IOException` |
-| `isWritable` | `(string path) -> bool` | vérifie l’écriture | `InvalidPathException`, `IOException` |
-| `isExecutable` | `(string path) -> bool` | vérifie l’exécution | `InvalidPathException`, `IOException` |
-| `size` | `(string path) -> int` | taille en octets d’un fichier | `FileNotFoundException`, `NotAFileException`, `PermissionDeniedException`, `IOException` |
-| `mkdir` | `(string path) -> void` | crée un répertoire | `FileNotFoundException`, `NotADirectoryException`, `PermissionDeniedException`, `InvalidPathException`, `IOException` |
-| `rmdir` | `(string path) -> void` | supprime un répertoire vide | `FileNotFoundException`, `NotADirectoryException`, `DirectoryNotEmptyException`, `PermissionDeniedException`, `InvalidPathException`, `IOException` |
-| `rm` | `(string path) -> void` | supprime un fichier | `FileNotFoundException`, `NotAFileException`, `PermissionDeniedException`, `InvalidPathException`, `IOException` |
-| `cp` | `(string src, string dst) -> void` | copie un fichier | `FileNotFoundException`, `NotAFileException`, `PermissionDeniedException`, `InvalidPathException`, `IOException` |
-| `mv` | `(string src, string dst) -> void` | déplace un fichier | `FileNotFoundException`, `PermissionDeniedException`, `InvalidPathException`, `IOException` |
-| `chmod` | `(string path, int mode) -> void` | change les permissions POSIX | `FileNotFoundException`, `PermissionDeniedException`, `InvalidPathException`, `IOException` |
-| `cwd` | `() -> string` | répertoire courant | `IOException` |
-| `cd` | `(string path) -> void` | change de répertoire | `FileNotFoundException`, `NotADirectoryException`, `PermissionDeniedException`, `IOException` |
-| `pathInfo` | `(string path) -> PathInfo` | découpe un chemin sans normalisation | `InvalidPathException`, `IOException` |
-| `openDir` | `(string path) -> Dir` | ouvre un itérateur de répertoire | `FileNotFoundException`, `NotADirectoryException`, `PermissionDeniedException`, `IOException` |
-| `walk` | `(string path, int maxDepth, bool followSymlinks) -> Walker` | parcours récursif itératif | `FileNotFoundException`, `NotADirectoryException`, `PermissionDeniedException`, `IOException` |
+| Fonction | Description | Exceptions |
+|---|---|---|
+| `exists(string path) : bool` | vrai si le chemin existe | `InvalidPathException`, `IOException` |
+| `isFile(string path) : bool` | vrai si fichier régulier | `InvalidPathException`, `IOException` |
+| `isDir(string path) : bool` | vrai si répertoire | `InvalidPathException`, `IOException` |
+| `isSymlink(string path) : bool` | vrai si lien symbolique | `InvalidPathException`, `IOException` |
+| `isReadable(string path) : bool` | vérifie la lisibilité | `InvalidPathException`, `IOException` |
+| `isWritable(string path) : bool` | vérifie l’écriture | `InvalidPathException`, `IOException` |
+| `isExecutable(string path) : bool` | vérifie l’exécution | `InvalidPathException`, `IOException` |
+| `size(string path) : int` | taille en octets d’un fichier | `FileNotFoundException`, `NotAFileException`, `PermissionDeniedException`, `IOException` |
+| `mkdir(string path) : void` | crée un répertoire | `FileNotFoundException`, `NotADirectoryException`, `PermissionDeniedException`, `InvalidPathException`, `IOException` |
+| `rmdir(string path) : void` | supprime un répertoire vide | `FileNotFoundException`, `NotADirectoryException`, `DirectoryNotEmptyException`, `PermissionDeniedException`, `InvalidPathException`, `IOException` |
+| `rm(string path) : void` | supprime un fichier | `FileNotFoundException`, `NotAFileException`, `PermissionDeniedException`, `InvalidPathException`, `IOException` |
+| `cp(string src, string dst) : void` | copie un fichier | `FileNotFoundException`, `NotAFileException`, `PermissionDeniedException`, `InvalidPathException`, `IOException` |
+| `mv(string src, string dst) : void` | déplace un fichier | `FileNotFoundException`, `PermissionDeniedException`, `InvalidPathException`, `IOException` |
+| `chmod(string path, int mode) : void` | change les permissions POSIX | `FileNotFoundException`, `PermissionDeniedException`, `InvalidPathException`, `IOException` |
+| `cwd() : string` | répertoire courant | `IOException` |
+| `cd(string path) : void` | change de répertoire | `FileNotFoundException`, `NotADirectoryException`, `PermissionDeniedException`, `IOException` |
+| `pathInfo(string path) : PathInfo` | découpe un chemin sans normalisation | `InvalidPathException`, `IOException` |
+| `openDir(string path) : Dir` | ouvre un itérateur de répertoire | `FileNotFoundException`, `NotADirectoryException`, `PermissionDeniedException`, `IOException` |
+| `walk(string path, int maxDepth, bool followSymlinks) : Walker` | parcours récursif itératif | `FileNotFoundException`, `NotADirectoryException`, `PermissionDeniedException`, `IOException` |
 
 Notes :
 
@@ -2569,12 +2585,12 @@ Notes :
 
 Méthodes :
 
-| Méthode | Signature | Description | Erreurs |
-|---|---|---|---|
-| `hasNext` | `() -> bool` | vrai si un `next()` est possible | — |
-| `next` | `() -> string` | retourne l’entrée suivante | `IOException` si fin |
-| `close` | `() -> void` | ferme le handle | — |
-| `reset` | `() -> void` | rembobine le flux | `IOException` en cas d’échec |
+| Méthode | Description | Erreurs |
+|---|---|---|
+| `hasNext() : bool` | vrai si un `next()` est possible | — |
+| `next() : string` | retourne l’entrée suivante | `IOException` si fin |
+| `close() : void` | ferme le handle | — |
+| `reset() : void` | rembobine le flux | `IOException` en cas d’échec |
 
 Les entrées `.` et `..` sont filtrées.
 
@@ -2582,11 +2598,11 @@ Les entrées `.` et `..` sont filtrées.
 
 Méthodes :
 
-| Méthode | Signature | Description | Erreurs |
-|---|---|---|---|
-| `hasNext` | `() -> bool` | vrai si une entrée suivante existe | — |
-| `next` | `() -> PathEntry` | entrée suivante | `IOException` si fin |
-| `close` | `() -> void` | libère les ressources | — |
+| Méthode | Description | Erreurs |
+|---|---|---|
+| `hasNext() : bool` | vrai si une entrée suivante existe | — |
+| `next() : PathEntry` | entrée suivante | `IOException` si fin |
+| `close() : void` | libère les ressources | — |
 
 **Prototype `PathEntry`** (champs en lecture seule)
 
@@ -2649,9 +2665,9 @@ Le module `Sys` expose un accès minimal **en lecture seule** à l'environnement
 
 | Fonction | Signature | Description | Exceptions |
 |---|---|---|---|
-| `hasEnv` | `(string name) -> bool` | vrai si la variable d'environnement existe | `InvalidEnvironmentNameException`, `EnvironmentAccessException`, `IOException` |
-| `env` | `(string name) -> string` | valeur de la variable d'environnement | `InvalidEnvironmentNameException`, `EnvironmentAccessException`, `IOException` |
-| `execute` | `(string program, list<string> args, list<byte> input, bool captureStdout, bool captureStderr) -> ProcessResult` | exécution synchrone d'un programme POSIX | `InvalidExecutableException`, `ProcessPermissionException`, `ProcessCreationException`, `ProcessExecutionException`, `InvalidArgumentException`, `IOException` |
+| `hasEnv(string name) : bool` | vrai si la variable d'environnement existe | `InvalidEnvironmentNameException`, `EnvironmentAccessException`, `IOException` |
+| `env(string name) : string` | valeur de la variable d'environnement | `InvalidEnvironmentNameException`, `EnvironmentAccessException`, `IOException` |
+| `execute(string program, list<string> args, list<byte> input, bool captureStdout, bool captureStderr) : ProcessResult` | exécution synchrone d'un programme POSIX | `InvalidExecutableException`, `ProcessPermissionException`, `ProcessCreationException`, `ProcessExecutionException`, `InvalidArgumentException`, `IOException` |
 
 Notes :
 
@@ -2729,15 +2745,15 @@ Restrictions V1 (importantes) :
 
 Fonctions / méthodes principales :
 
-- `RegExp.compile(pattern, flags) -> RegExp`
-- `r.test(input, start) -> bool`
-- `r.find(input, start) -> RegExpMatch`
-- `r.findAll(input, start, max) -> list<RegExpMatch>`
-- `r.replaceFirst(input, replacement, start) -> string`
-- `r.replaceAll(input, replacement, start, max) -> string`
-- `r.split(input, start, maxParts) -> list<string>`
-- `r.pattern() -> string`
-- `r.flags() -> string`
+- `RegExp.compile(pattern, flags) : RegExp`
+- `r.test(input, start) : bool`
+- `r.find(input, start) : RegExpMatch`
+- `r.findAll(input, start, max) : list<RegExpMatch>`
+- `r.replaceFirst(input, replacement, start) : string`
+- `r.replaceAll(input, replacement, start, max) : string`
+- `r.split(input, start, maxParts) : list<string>`
+- `r.pattern() : string`
+- `r.flags() : string`
 
 | Opération | Complexité | Impact énergétique |
 |------------|------------|-------------------|
