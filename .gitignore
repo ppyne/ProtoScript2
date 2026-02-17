@@ -12,3 +12,4 @@ io_*.bin
 memo.txt
 tools/vscode/protoscript2/dist
 tools/vscode/protoscript2/node_modules
+tests/robustness/bin/*
