@@ -2177,13 +2177,13 @@ Notes :
 
 ```c
 sealed prototype TextFile {
-    read(size: int): string{}
-    write(text: string): void {}
-    tell(): int {}
-    seek(pos: int): void {}
-    size(): int {}
-    name(): string {}
-    close(): void {}
+    function read(size: int): string{}
+    function write(text: string): void {}
+    function tell(): int {}
+    function seek(pos: int): void {}
+    pure function size(): int {}
+    pure function name(): string {}
+    function close(): void {}
 }
 ```
 
@@ -2203,13 +2203,13 @@ sealed prototype TextFile {
 
 ```c
 sealed prototype BinaryFile {
-    read(size: int): list<byte> {}
-    write(bytes: list<byte>): void {}
-    tell(): int {}
-    seek(pos: int): void {}
-    size(): int {}
-    name(): string {}
-    close(): void {}
+    function read(size: int): list<byte> {}
+    function write(bytes: list<byte>): void {}
+    function tell(): int {}
+    function seek(pos: int): void {}
+    pure function size(): int {}
+    pure function name(): string {}
+    function close(): void {}
 }
 ```
 
@@ -2448,17 +2448,17 @@ Constructeurs explicites (immutables) :
 
 ```c
 sealed prototype JSONValue {
-    function isNull(): bool {}
-    function isBool(): bool {}
-    function isNumber(): bool {}
-    function isString(): bool {}
-    function isArray(): bool {}
-    function isObject(): bool {}
-    function asBool(): bool {}
-    function asNumber(): float {}
-    function asString(): string {}
-    function asArray(): list<JSONValue> {}
-    function asObject(): map<string, JSONValue> {}
+    pure function isNull(): bool {}
+    pure function isBool(): bool {}
+    pure function isNumber(): bool {}
+    pure function isString(): bool {}
+    pure function isArray(): bool {}
+    pure function isObject(): bool {}
+    pure function asBool(): bool {}
+    pure function asNumber(): float {}
+    pure function asString(): string {}
+    pure function asArray(): list<JSONValue> {}
+    pure function asObject(): map<string, JSONValue> {}
 }
 ```
 
@@ -2672,10 +2672,10 @@ prototype PathInfo {
 
 ```c
 prototype Dir {
-    hasNext(): bool {}
-    next(): string {}
-    close(): void {}
-    reset(): void {}
+    pure function hasNext(): bool {}
+    pure function next(): string {}
+    function close(): void {}
+    function reset(): void {}
 }
 ```
 
@@ -2694,8 +2694,8 @@ Les entrées `.` et `..` sont filtrées.
 
 ```c
 prototype Walker {
-    function hasNext() : bool {}
-    function next() : bool {}
+    pure function hasNext() : bool {}
+    pure function next() : bool {}
     function close() : void {}
 }
 ```
@@ -2712,12 +2712,12 @@ Méthodes :
 
 ```c
 prototype PathEntry {
-    string path; 
-    string name;
-    int depth;
-    bool isDir;
-    bool isFile;
-    bool isSymlink;
+    readonly string path; 
+    readonly string name;
+    readonly int depth;
+    readonly bool isDir;
+    readonly bool isFile;
+    readonly bool isSymlink;
 }
 ```
 
@@ -2792,8 +2792,8 @@ Notes :
 
 ```c
 prototype ProcessResult {
-    int exitCode;
-    list<ProcessEvent> events;
+    readonly int exitCode;
+    readonly list<ProcessEvent> events;
 }
 ```
 
@@ -2801,8 +2801,8 @@ prototype ProcessResult {
 
 ```c
 prototype ProcessEvent {
-    int stream; // 1 = stdout, 2 = stderr
-    list<byte> data;
+    readonly int stream; // 1 = stdout, 2 = stderr
+    readonly list<byte> data;
 }
 ```
 
@@ -2875,14 +2875,14 @@ Remarque : `RegExp` peut désigner le prototype ou le module. Ils portent le mê
 
 ```c
 prototype RegExp {
-    function test(input: string, start: int): bool {}
-    function find(input: string, start: int): RegExpMatch {}
-    function findAll(input: string, start: int, max: int): list<RegExpMatch> {}
-    function replaceFirst(input: string, replacement: string, start: int): string {}
-    function replaceAll(input: string, replacement: string, start: int, max: int): string {}
-    function split(input: string, start: int, maxParts: int): list<string> {}
-    function pattern(): string {}
-    function flags(): string {}
+    pure function test(string input, int start) : bool {}
+    pure function find(string input, int start) : RegExpMatch {}
+    pure function findAll(string input, int start, int max) : list<RegExpMatch> {}
+    pure function replaceFirst(string input, string replacement, int start) : string {}
+    pure function replaceAll(string input, string replacement, int start, int max) : string {}
+    pure function split(string input, int start, int maxParts) : list<string> {}
+    pure function pattern() : string {}
+    pure function flags() : string {}
 }
 ```
 
