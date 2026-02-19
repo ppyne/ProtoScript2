@@ -1,0 +1,12 @@
+{
+  "status": "reject-static",
+  "error_family": "E3xxx",
+  "error_code": "E3211",
+  "category": "SUPER_NO_PARENT",
+  "position": {
+    "file": "invalid/type/super_no_parent.pts",
+    "line": 3,
+    "column": 14
+  },
+  "expected_output": "invalid/type/super_no_parent.pts:3:14 E3211 SUPER_NO_PARENT: super call requires a parent prototype"
+}

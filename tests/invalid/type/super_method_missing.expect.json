@@ -1,0 +1,12 @@
+{
+  "status": "reject-static",
+  "error_family": "E3xxx",
+  "error_code": "E3212",
+  "category": "SUPER_METHOD_NOT_FOUND",
+  "position": {
+    "file": "invalid/type/super_method_missing.pts",
+    "line": 6,
+    "column": 14
+  },
+  "expected_output": "invalid/type/super_method_missing.pts:6:14 E3212 SUPER_METHOD_NOT_FOUND: super.missing not found"
+}

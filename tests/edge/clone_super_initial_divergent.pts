@@ -1,0 +1,55 @@
+import Io;
+
+prototype Root {
+    int order = 0;
+
+    function clone() : Root {
+        Root r = super.clone();
+        r.order = r.order * 10 + 1;
+        return r;
+    }
+
+    function spawnFromRoot() : Root {
+        Root c = self.clone();
+        c.order = c.order * 10 + 4;
+        return c;
+    }
+}
+
+prototype Mid : Root {
+    int midMark = 0;
+
+    function clone() : Mid {
+        Mid m = super.clone();
+        m.order = m.order * 10 + 2;
+        m.midMark = m.midMark + 7;
+        return m;
+    }
+}
+
+prototype Leaf : Mid {
+    int leafMark = 0;
+
+    function clone() : Leaf {
+        Leaf l = super.clone();
+        l.order = l.order * 10 + 3;
+        l.leafMark = l.leafMark + 9;
+        return l;
+    }
+
+    function onlyLeaf() : int {
+        return self.leafMark + 100;
+    }
+}
+
+function main() : void {
+    Leaf direct = Leaf.clone();
+    Leaf specialized = direct.clone();
+    Io.printLine(direct.order.toString());
+    Io.printLine(direct.midMark.toString());
+    Io.printLine(direct.leafMark.toString());
+    Io.printLine(specialized.onlyLeaf().toString());
+
+    Root viaRoot = direct.spawnFromRoot();
+    Io.printLine(viaRoot.order.toString());
+}

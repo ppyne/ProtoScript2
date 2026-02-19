@@ -1,0 +1,43 @@
+import Io;
+
+prototype Root {
+    function signature() : string {
+        return "R";
+    }
+}
+
+prototype Mid : Root {
+    function signature() : string {
+        return super.signature().concat("M");
+    }
+
+    function clone() : Mid {
+        Mid m = super.clone();
+        return m;
+    }
+}
+
+prototype Leaf : Mid {
+    function signature() : string {
+        return super.signature().concat("L").concat(super.signature());
+    }
+
+    function clone() : Leaf {
+        Leaf l = super.clone();
+        return l;
+    }
+
+    function deepSelf() : Leaf {
+        Leaf s1 = self;
+        Leaf s2 = s1;
+        Leaf s3 = s2;
+        return s3.clone();
+    }
+}
+
+function main() : void {
+    Leaf a = Leaf.clone();
+    Leaf b = a.deepSelf();
+    Io.printLine(a.signature());
+    Io.printLine(b.signature());
+}

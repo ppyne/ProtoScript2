@@ -1,0 +1,4 @@
+{
+  "status": "accept-runtime",
+  "expected_stdout": "123\n1\n1123\n"
+}

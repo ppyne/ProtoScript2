@@ -1,0 +1,43 @@
+import Io;
+
+prototype Root {
+    int order = 0;
+
+    function clone() : Root {
+        Root r = super.clone();
+        r.order = r.order * 10 + 1;
+        return r;
+    }
+
+    function rootCallsCloneOrder() : int {
+        Root r = Root.clone();
+        return r.order;
+    }
+}
+
+prototype Mid : Root {
+    function clone() : Mid {
+        Mid m = super.clone();
+        m.order = m.order * 10 + 2;
+        return m;
+    }
+}
+
+prototype Leaf : Mid {
+    function clone() : Leaf {
+        Leaf l = super.clone();
+        l.order = l.order * 10 + 3;
+        return l;
+    }
+
+    function onlyLeaf() : int {
+        return self.order + 1000;
+    }
+}
+
+function main() : void {
+    Leaf direct = Leaf.clone();
+    Io.printLine(direct.order.toString());
+    Io.printLine(direct.rootCallsCloneOrder().toString());
+    Io.printLine(Leaf.clone().onlyLeaf().toString());
+}

@@ -1,0 +1,12 @@
+{
+  "status": "reject-static",
+  "error_family": "E3xxx",
+  "error_code": "E3210",
+  "category": "INVALID_SUPER_USAGE",
+  "position": {
+    "file": "invalid/type/super_outside_method.pts",
+    "line": 2,
+    "column": 10
+  },
+  "expected_output": "invalid/type/super_outside_method.pts:2:10 E3210 INVALID_SUPER_USAGE: super is only valid inside prototype methods"
+}

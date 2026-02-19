@@ -333,7 +333,7 @@ static int is_keyword(const char *s) {
       "bool",      "byte",     "glyph",    "string", "list",    "map",    "slice", "view",
       "void",      "if",       "else",     "for",    "of",      "in",     "while", "do",
       "switch",    "case",     "default",  "break",  "continue","return", "try",   "catch",
-      "finally",   "throw",    "true",     "false",  "self",    "import", "as",    NULL,
+      "finally",   "throw",    "true",     "false",  "self",    "super",  "import", "as", NULL,
   };
   for (int i = 0; kws[i]; i++) {
     if (strcmp(s, kws[i]) == 0) return 1;
@@ -1551,6 +1551,11 @@ static int parse_stmt(Parser *p) {
 
 static int parse_primary_expr(Parser *p, AstNode **out) {
   Token *t = p_t(p, 0);
+  if (t->kind == TK_KW && strcmp(t->text, "super") == 0) {
+    p->i++;
+    if (out) *out = ast_new("SuperExpr", t->text, t->line, t->col);
+    return 1;
+  }
   if (t->kind == TK_NUM || t->kind == TK_STR || t->kind == TK_ID ||
       (t->kind == TK_KW && (strcmp(t->text, "true") == 0 || strcmp(t->text, "false") == 0 || strcmp(t->text, "self") == 0))) {
     p->i++;
@@ -2507,6 +2512,8 @@ typedef struct ImportSymbol {
   char *local;
   char *module;
   char *name;
+  int line;
+  int col;
   struct ImportSymbol *next;
 } ImportSymbol;
 
@@ -3644,6 +3651,8 @@ static int collect_imports(Analyzer *a, AstNode *root) {
             s->local = strdup(local);
             s->module = strdup(um->proto ? um->proto : "");
             s->name = strdup(name);
+            s->line = it->line;
+            s->col = it->col;
             s->next = a->imports;
             a->imports = s;
             if (!add_imported_fn(a, local, um->proto ? um->proto : "unknown", 0, 0, 0)) return 0;
@@ -3698,6 +3707,8 @@ static int collect_imports(Analyzer *a, AstNode *root) {
           s->local = strdup(local);
           s->module = strdup(um->proto ? um->proto : "");
           s->name = strdup(name);
+          s->line = it->line;
+          s->col = it->col;
           s->next = a->imports;
           a->imports = s;
           if (!add_imported_fn(a, local, ret ? ret : "void", pc, variadic, fixed)) {
@@ -3735,6 +3746,8 @@ static int collect_imports(Analyzer *a, AstNode *root) {
           s->local = strdup(local);
           s->module = strdup(mod);
           s->name = strdup(name);
+          s->line = it->line;
+          s->col = it->col;
           s->next = a->imports;
           a->imports = s;
           if (!add_imported_fn(a, local, rf->ret_type, rf->param_count, 0, rf->param_count)) {
@@ -3778,9 +3791,8 @@ static int collect_imports(Analyzer *a, AstNode *root) {
   return 1;
 }
 
-static int proto_same_signature(ProtoMethod *a, ProtoMethod *b) {
+static int proto_same_signature(ProtoInfo *protos, ProtoMethod *a, ProtoMethod *b) {
   if (!a || !b) return 0;
-  if (strcmp(a->ret_type ? a->ret_type : "void", b->ret_type ? b->ret_type : "void") != 0) return 0;
   if (a->param_count != b->param_count) return 0;
   if (a->fixed_count != b->fixed_count) return 0;
   if (a->variadic != b->variadic) return 0;
@@ -3789,6 +3801,12 @@ static int proto_same_signature(ProtoMethod *a, ProtoMethod *b) {
     const char *bt = b->param_types ? b->param_types[i] : NULL;
     if (!at || !bt || strcmp(at, bt) != 0) return 0;
   }
+  if (a->name && b->name && strcmp(a->name, "clone") == 0 && strcmp(b->name, "clone") == 0) {
+    const char *base = a->ret_type ? a->ret_type : "void";
+    const char *override = b->ret_type ? b->ret_type : "void";
+    return proto_is_subtype(protos, override, base);
+  }
+  if (strcmp(a->ret_type ? a->ret_type : "void", b->ret_type ? b->ret_type : "void") != 0) return 0;
   return 1;
 }
 
@@ -4132,7 +4150,7 @@ static int collect_prototypes(Analyzer *a, AstNode *root) {
           set_diag(a->diag, a->file, m->line, m->col, "E3201", "VISIBILITY_VIOLATION", msg);
           return 0;
         }
-        if (pm && !proto_same_signature(pm, m)) {
+        if (pm && !proto_same_signature(a->protos, pm, m)) {
           set_diag(a->diag, a->file, p->line, p->col, "E3001", "TYPE_MISMATCH_ASSIGNMENT", "override signature mismatch");
           return 0;
         }
@@ -5043,6 +5061,47 @@ static char *infer_call_type(Analyzer *a, AstNode *e, Scope *scope, int *ok) {
   }
   if (strcmp(callee->kind, "MemberExpr") == 0 && callee->child_len > 0) {
     AstNode *target = callee->children[0];
+    if (strcmp(target->kind, "SuperExpr") == 0) {
+      const char *mname = callee->text ? callee->text : "";
+      int argc = (int)e->child_len - 1;
+      int super_col = target->col + 5;
+      if (!a->current_proto) {
+        set_diag(a->diag, a->file, target->line, super_col, "E3210", "INVALID_SUPER_USAGE", "super is only valid inside prototype methods");
+        *ok = 0;
+        return NULL;
+      }
+      ProtoInfo *owner_proto = proto_find(a->protos, a->current_proto);
+      if (!owner_proto || !owner_proto->parent) {
+        set_diag(a->diag, a->file, target->line, super_col, "E3211", "SUPER_NO_PARENT", "super call requires a parent prototype");
+        *ok = 0;
+        return NULL;
+      }
+      if (strcmp(mname, "clone") == 0) {
+        if (argc != 0) {
+          set_diag(a->diag, a->file, e->line, e->col, "E1003", "ARITY_MISMATCH", "arity mismatch for 'clone'");
+          *ok = 0;
+          return NULL;
+        }
+        return strdup(a->current_proto);
+      }
+      ProtoInfo *owner = NULL;
+      ProtoMethod *pm = proto_find_method_ex(a->protos, owner_proto->parent, mname, &owner);
+      if (!pm) {
+        char msg[320];
+        snprintf(msg, sizeof(msg), "super.%s not found", mname);
+        set_diag(a->diag, a->file, target->line, super_col, "E3212", "SUPER_METHOD_NOT_FOUND", msg);
+        *ok = 0;
+        return NULL;
+      }
+      int bad = pm->variadic ? (argc < pm->fixed_count) : (argc != pm->param_count);
+      if (bad) {
+        set_diag(a->diag, a->file, e->line, e->col, "E1003", "ARITY_MISMATCH", "arity mismatch");
+        *ok = 0;
+        return NULL;
+      }
+      if (!check_call_args(a, e, scope, ok)) return NULL;
+      return strdup(pm->ret_type ? pm->ret_type : "unknown");
+    }
     if (strcmp(target->kind, "Identifier") == 0) {
       ProtoInfo *proto = proto_find(a->protos, target->text ? target->text : "");
       if (proto) {
@@ -5293,6 +5352,14 @@ static char *infer_call_type(Analyzer *a, AstNode *e, Scope *scope, int *ok) {
 
 static char *infer_expr_type(Analyzer *a, AstNode *e, Scope *scope, int *ok) {
   if (!e) return strdup("unknown");
+  if (strcmp(e->kind, "SuperExpr") == 0) {
+    if (!a->current_proto) {
+      set_diag(a->diag, a->file, e->line, e->col, "E3210", "INVALID_SUPER_USAGE", "super is only valid inside prototype methods");
+      *ok = 0;
+      return NULL;
+    }
+    return strdup(a->current_proto);
+  }
   if (strcmp(e->kind, "Literal") == 0) {
     if (e->text && (strcmp(e->text, "true") == 0 || strcmp(e->text, "false") == 0)) return strdup("bool");
     if (e->text && (is_all_digits(e->text) || is_hex_token(e->text) || is_bin_token(e->text) || is_float_token(e->text)))
@@ -6434,6 +6501,8 @@ typedef struct {
   const char *loc_file;
   int loc_line;
   int loc_col;
+  const char *current_proto;
+  const char *current_method;
 } IrFnCtx;
 
 static void str_vec_free(StrVec *v) {
@@ -7122,7 +7191,7 @@ static char *ir_emit_default_value(IrFnCtx *ctx, const char *type, const char *c
     if (current_proto && strcmp(current_proto, t) == 0) {
       ir_emit(ctx, str_printf("{\"op\":\"make_object\",\"dst\":\"%s\",\"proto\":\"%s\"}", d_esc ? d_esc : "", t));
     } else {
-      char *callee = str_printf("%s.clone", t);
+      char *callee = str_printf("%s.__clone_static", t);
       char *callee_esc = json_escape(callee ? callee : "");
       ir_emit(ctx, str_printf("{\"op\":\"call_static\",\"dst\":\"%s\",\"callee\":\"%s\",\"args\":[],\"variadic\":false}", d_esc ? d_esc : "",
                               callee_esc ? callee_esc : ""));
@@ -7192,12 +7261,73 @@ static char *ir_lower_call(AstNode *e, IrFnCtx *ctx) {
     free(callee_esc);
     free(full);
     free(args_json);
+    if (imp && imp->line > 0) {
+      ctx->loc_file = ctx->file;
+      ctx->loc_line = imp->line;
+      ctx->loc_col = imp->col > 0 ? imp->col : 1;
+    }
     if (!ir_emit(ctx, ins)) {
       free(dst);
       dst = NULL;
     }
   } else if (strcmp(callee->kind, "MemberExpr") == 0 && callee->child_len > 0) {
     AstNode *recv_ast = callee->children[0];
+    if (strcmp(recv_ast->kind, "SuperExpr") == 0) {
+      const char *mname = callee->text ? callee->text : "";
+      ProtoInfo *cur = ctx && ctx->current_proto ? proto_find(ctx->protos, ctx->current_proto) : NULL;
+      ProtoInfo *owner = NULL;
+      ProtoMethod *pm = (cur && cur->parent) ? proto_find_method_ex(ctx->protos, cur->parent, mname, &owner) : NULL;
+      if (pm && owner && owner->name) {
+        char *dst_esc = json_escape(dst);
+        char *args_json = strdup("");
+        const char *self_mapped = ir_scope_lookup(ctx ? ctx->scope : NULL, "self");
+        char *self_esc = json_escape(self_mapped ? self_mapped : "self");
+        char *p0 = args_json;
+        args_json = str_printf("\"%s\"", self_esc ? self_esc : "");
+        free(p0);
+        free(self_esc);
+        for (size_t i = 0; i < argc; i++) {
+          char *arg_esc = json_escape(args[i]);
+          char *prev = args_json;
+          args_json = str_printf("%s,\"%s\"", prev ? prev : "", arg_esc ? arg_esc : "");
+          free(prev);
+          free(arg_esc);
+        }
+        char *callee_full = str_printf("%s.%s", owner->name, mname);
+        char *callee_esc = json_escape(callee_full ? callee_full : "");
+        char *ins = str_printf(
+            "{\"op\":\"call_static\",\"dst\":\"%s\",\"callee\":\"%s\",\"args\":[%s],\"variadic\":false}",
+            dst_esc ? dst_esc : "", callee_esc ? callee_esc : "", args_json ? args_json : "");
+        free(dst_esc);
+        free(callee_full);
+        free(callee_esc);
+        free(args_json);
+        ir_set_loc(ctx, callee);
+        if (!ir_emit(ctx, ins)) {
+          free(dst);
+          dst = NULL;
+        }
+        for (size_t i = 0; i < argc; i++) free(args[i]);
+        free(args);
+        return dst;
+      }
+      if (strcmp(mname, "clone") == 0) {
+        const char *self_mapped = ir_scope_lookup(ctx ? ctx->scope : NULL, "self");
+        char *dst_esc = json_escape(dst);
+        char *self_esc = json_escape(self_mapped ? self_mapped : "self");
+        char *ins = str_printf("{\"op\":\"copy\",\"dst\":\"%s\",\"src\":\"%s\"}", dst_esc ? dst_esc : "", self_esc ? self_esc : "");
+        free(dst_esc);
+        free(self_esc);
+        ir_set_loc(ctx, callee);
+        if (!ir_emit(ctx, ins)) {
+          free(dst);
+          dst = NULL;
+        }
+        for (size_t i = 0; i < argc; i++) free(args[i]);
+        free(args);
+        return dst;
+      }
+    }
     if (strcmp(recv_ast->kind, "Identifier") == 0) {
       ProtoInfo *proto = proto_find(ctx->protos, recv_ast->text ? recv_ast->text : "");
       if (proto) {
@@ -7212,7 +7342,7 @@ static char *ir_lower_call(AstNode *e, IrFnCtx *ctx) {
         }
         char *callee_full = NULL;
           if (strcmp(callee->text ? callee->text : "", "clone") == 0) {
-            callee_full = str_printf("%s.clone", proto->name ? proto->name : "");
+            callee_full = str_printf("%s.__clone_static", proto->name ? proto->name : "");
             char *callee_esc = json_escape(callee_full ? callee_full : "");
             char *ins = str_printf("{\"op\":\"call_static\",\"dst\":\"%s\",\"callee\":\"%s\",\"args\":[],\"variadic\":false}",
                                    dst_esc ? dst_esc : "", callee_esc ? callee_esc : "");
@@ -7305,6 +7435,29 @@ static char *ir_lower_call(AstNode *e, IrFnCtx *ctx) {
       char *method_esc = json_escape(callee->text ? callee->text : "");
       if (recv_type && proto_find(ctx->protos, recv_type) &&
           strcmp(recv_type, "Dir") != 0 && strcmp(recv_type, "Walker") != 0) {
+        if (callee->text && strcmp(callee->text, "clone") == 0) {
+          char *recv_arg = json_escape(recv);
+          char *method_clone = json_escape("clone");
+          char *ins = str_printf(
+              "{\"op\":\"call_method_static\",\"dst\":\"%s\",\"receiver\":\"%s\",\"method\":\"%s\",\"args\":[]}",
+              dst_esc ? dst_esc : "", recv_arg ? recv_arg : "", method_clone ? method_clone : "clone");
+          free(recv_arg);
+          free(method_clone);
+          if (callee->text && strcmp(callee->text, "pop") == 0) ir_set_loc(ctx, recv_ast);
+          else ir_set_loc(ctx, callee);
+          if (!ir_emit(ctx, ins)) {
+            free(dst);
+            dst = NULL;
+          }
+          free(recv_esc);
+          free(dst_esc);
+          free(method_esc);
+          free(recv);
+          free(recv_type);
+          for (size_t i = 0; i < argc; i++) free(args[i]);
+          free(args);
+          return dst;
+        }
         char *args_json = strdup("");
         char *recv_arg = json_escape(recv);
         char *prev = args_json;
@@ -7318,7 +7471,11 @@ static char *ir_lower_call(AstNode *e, IrFnCtx *ctx) {
           free(prev2);
           free(arg_esc);
         }
-        char *callee_full = str_printf("%s.%s", recv_type, callee->text ? callee->text : "");
+        ProtoInfo *owner = NULL;
+        const char *owner_name = recv_type;
+        ProtoMethod *pm = proto_find_method_ex(ctx->protos, recv_type, callee->text ? callee->text : "", &owner);
+        if (pm && owner && owner->name) owner_name = owner->name;
+        char *callee_full = str_printf("%s.%s", owner_name ? owner_name : recv_type, callee->text ? callee->text : "");
         char *callee_esc = json_escape(callee_full ? callee_full : "");
         char *ins = str_printf(
             "{\"op\":\"call_static\",\"dst\":\"%s\",\"callee\":\"%s\",\"args\":[%s],\"variadic\":false}",
@@ -10261,6 +10418,8 @@ int ps_emit_ir_json(const char *file, PsDiag *out_diag, FILE *out) {
       ctx.loc_file = file;
       ctx.loc_line = 1;
       ctx.loc_col = 1;
+      ctx.current_proto = proto_name;
+      ctx.current_method = m->text ? m->text : "";
       IrScope root_scope;
       ir_scope_init(&root_scope, NULL);
       ctx.scope = &root_scope;
@@ -10456,13 +10615,25 @@ int ps_emit_ir_json(const char *file, PsDiag *out_diag, FILE *out) {
     ctx.scope = prev_scope;
     ir_scope_free(&init_scope);
     free(fv.items);
+    ProtoInfo *clone_owner = NULL;
+    ProtoMethod *clone_pm = proto_find_method_ex(a.protos, proto_name, "clone", &clone_owner);
+    if (clone_pm && clone_owner && clone_owner->name) {
+      char *dst_arg_esc = json_escape(dst);
+      char *callee_raw = str_printf("%s.clone", clone_owner->name);
+      char *callee_esc = json_escape(callee_raw ? callee_raw : "");
+      ir_emit(&ctx, str_printf("{\"op\":\"call_static\",\"dst\":\"%s\",\"callee\":\"%s\",\"args\":[\"%s\"],\"variadic\":false}",
+                               dst_arg_esc ? dst_arg_esc : "", callee_esc ? callee_esc : "", dst_arg_esc ? dst_arg_esc : ""));
+      free(dst_arg_esc);
+      free(callee_raw);
+      free(callee_esc);
+    }
     char *dst_esc = json_escape(dst);
     ir_emit(&ctx, str_printf("{\"op\":\"ret\",\"value\":\"%s\",\"type\":{\"kind\":\"IRType\",\"name\":\"%s\"}}", dst_esc ? dst_esc : "",
                              proto_name));
     free(dst_esc);
     free(dst);
 
-    char *clone_name = str_printf("%s.clone", proto_name);
+    char *clone_name = str_printf("%s.__clone_static", proto_name);
     char *fn_name = json_escape(clone_name ? clone_name : "");
     free(clone_name);
     char *ret_esc = json_escape(proto_name);
@@ -10570,13 +10741,25 @@ int ps_emit_ir_json(const char *file, PsDiag *out_diag, FILE *out) {
     ctx.scope = prev_scope;
     ir_scope_free(&init_scope);
     free(fv.items);
+    ProtoInfo *clone_owner = NULL;
+    ProtoMethod *clone_pm = proto_find_method_ex(a.protos, proto_name, "clone", &clone_owner);
+    if (clone_pm && clone_owner && clone_owner->name) {
+      char *dst_arg_esc = json_escape(dst);
+      char *callee_raw = str_printf("%s.clone", clone_owner->name);
+      char *callee_esc = json_escape(callee_raw ? callee_raw : "");
+      ir_emit(&ctx, str_printf("{\"op\":\"call_static\",\"dst\":\"%s\",\"callee\":\"%s\",\"args\":[\"%s\"],\"variadic\":false}",
+                               dst_arg_esc ? dst_arg_esc : "", callee_esc ? callee_esc : "", dst_arg_esc ? dst_arg_esc : ""));
+      free(dst_arg_esc);
+      free(callee_raw);
+      free(callee_esc);
+    }
     char *dst_esc = json_escape(dst);
     ir_emit(&ctx, str_printf("{\"op\":\"ret\",\"value\":\"%s\",\"type\":{\"kind\":\"IRType\",\"name\":\"%s\"}}", dst_esc ? dst_esc : "",
                              proto_name));
     free(dst_esc);
     free(dst);
 
-    char *clone_name = str_printf("%s.clone", proto_name);
+    char *clone_name = str_printf("%s.__clone_static", proto_name);
     char *fn_name = json_escape(clone_name ? clone_name : "");
     free(clone_name);
     char *ret_esc = json_escape(proto_name);

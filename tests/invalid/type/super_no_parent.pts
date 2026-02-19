@@ -1,0 +1,5 @@
+prototype A {
+    function touch() : void {
+        super.clone();
+    }
+}
