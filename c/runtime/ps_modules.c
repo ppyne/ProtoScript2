@@ -123,7 +123,7 @@ PS_Status ps_module_load(PS_Context *ctx, const char *module_name) {
     ctx->module_count += 1;
     return PS_OK;
   }
-  ps_throw_diag(ctx, PS_ERR_IMPORT, "module not found", module_name, "available module");
+  ps_throw_diag(ctx, PS_ERR_IMPORT, "module not found", "module or symbol", "available module/symbol");
   return PS_ERR;
 #else
   if (strcmp(module_name, "Debug") == 0) {
@@ -166,7 +166,7 @@ PS_Status ps_module_load(PS_Context *ctx, const char *module_name) {
   // Fallback: ./modules and ./lib
   if (try_load_from_dir(ctx, module_name, "./modules") == PS_OK) return PS_OK;
   if (try_load_from_dir(ctx, module_name, "./lib") == PS_OK) return PS_OK;
-  ps_throw_diag(ctx, PS_ERR_IMPORT, "module not found", module_name, "available module");
+  ps_throw_diag(ctx, PS_ERR_IMPORT, "module not found", "module or symbol", "available module/symbol");
   return PS_ERR;
 #endif
 }
@@ -181,6 +181,6 @@ const PS_NativeFnDesc *ps_module_find_fn(PS_Context *ctx, const char *module_nam
       if (strcmp(m->fns[j].name, fn_name) == 0) return &m->fns[j];
     }
   }
-  ps_throw_diag(ctx, PS_ERR_IMPORT, "symbol not found", fn_name ? fn_name : "<unknown>", "exported symbol");
+  ps_throw_diag(ctx, PS_ERR_IMPORT, "symbol not found", "module or symbol", "available module/symbol");
   return NULL;
 }

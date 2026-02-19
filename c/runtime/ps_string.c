@@ -156,12 +156,16 @@ PS_Value *ps_string_substring(PS_Context *ctx, PS_Value *s, int64_t start, int64
   size_t byte_start = 0;
   size_t byte_end = 0;
   if (!utf8_advance_glyphs(buf, len, &byte_start, (size_t)start)) {
-    ps_throw_diag(ctx, PS_ERR_RANGE, "index out of bounds", "start/length", "range within string");
+    char got[64];
+    snprintf(got, sizeof(got), "start=%lld, length=%lld", (long long)start, (long long)length);
+    ps_throw_diag(ctx, PS_ERR_RANGE, "index out of bounds", got, "range within string");
     return NULL;
   }
   byte_end = byte_start;
   if (!utf8_advance_glyphs(buf, len, &byte_end, (size_t)length)) {
-    ps_throw_diag(ctx, PS_ERR_RANGE, "index out of bounds", "start/length", "range within string");
+    char got[64];
+    snprintf(got, sizeof(got), "start=%lld, length=%lld", (long long)start, (long long)length);
+    ps_throw_diag(ctx, PS_ERR_RANGE, "index out of bounds", got, "range within string");
     return NULL;
   }
   size_t out_len = byte_end - byte_start;
