@@ -41,6 +41,18 @@ echo "-- strict diagnostics (format + suggestions + JS/C parity)"
 "$ROOT_DIR/tests/run_diagnostics_strict.sh"
 echo
 
+echo "-- CLI autonomy guard (no delegation in c/ps)"
+"$ROOT_DIR/tests/run_cli_autonomy_guard.sh"
+echo
+
+echo "-- WASM runtime parity (Node oracle vs C runtime in WASM)"
+"$ROOT_DIR/tests/run_wasm_runtime_parity.sh"
+echo
+
+echo "-- CLI runtime parity (Node --run vs c/ps run)"
+"$ROOT_DIR/tests/run_cli_runtime_parity.sh"
+echo
+
 echo "-- CLI tests (C)"
 "$ROOT_DIR/tests/run_cli_tests.sh"
 echo

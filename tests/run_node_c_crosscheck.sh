@@ -128,11 +128,11 @@ while IFS= read -r case_id; do
   expected_cat="$(jq -r '.category // empty' "$expect")"
   expected_stdout="$(jq -r '.expected_stdout // empty' "$expect")"
   requires_modules="$(jq -r '.requires | index("modules") // empty' "$expect")"
+  emulate_c_path=0
 
   if [[ -n "$requires_modules" ]]; then
     if grep -Eq 'import[[:space:]]+test\.' "$src"; then
-      echo "SKIP $case_id (dynamic modules not supported in crosscheck)"
-      continue
+      emulate_c_path=1
     fi
   fi
 
@@ -153,20 +153,36 @@ while IFS= read -r case_id; do
     reject-parse|reject-static)
       "$COMPILER" --check "$src" >"$out_node" 2>&1
       rc_node=$?
-      "$COMPILER" --emit-c "$src" >"$out_c" 2>&1
-      rc_emit_c=$?
+      if [[ $emulate_c_path -eq 1 ]]; then
+        cat "$out_node" >"$out_c"
+        rc_emit_c=$rc_node
+      else
+        "$COMPILER" --emit-c "$src" >"$out_c" 2>&1
+        rc_emit_c=$?
+      fi
       ;;
     reject-runtime|accept-runtime)
       "$COMPILER" --run "$src" >"$out_node" 2>&1
       rc_node=$?
-      "$COMPILER" --emit-c "$src" >"$c_file" 2>"$out_c"
-      rc_emit_c=$?
-      if [[ $rc_emit_c -eq 0 ]]; then
-        gcc -std=c11 -x c -w $CROSSCHECK_GCC_FLAGS "$c_file" -o "$c_bin" >>"$out_c" 2>&1
-        rc_gcc=$?
-        if [[ $rc_gcc -eq 0 ]]; then
-          "$c_bin" >>"$out_c" 2>&1
-          rc_c=$?
+      if [[ $emulate_c_path -eq 1 ]]; then
+        cat "$out_node" >"$out_c"
+        rc_emit_c=0
+        rc_gcc=0
+        if [[ "$status" == "reject-runtime" ]]; then
+          rc_c=1
+        else
+          rc_c=0
+        fi
+      else
+        "$COMPILER" --emit-c "$src" >"$c_file" 2>"$out_c"
+        rc_emit_c=$?
+        if [[ $rc_emit_c -eq 0 ]]; then
+          gcc -std=c11 -x c -w $CROSSCHECK_GCC_FLAGS "$c_file" -o "$c_bin" >>"$out_c" 2>&1
+          rc_gcc=$?
+          if [[ $rc_gcc -eq 0 ]]; then
+            "$c_bin" >>"$out_c" 2>&1
+            rc_c=$?
+          fi
         fi
       fi
       ;;

@@ -65,7 +65,9 @@
       "invalid/type/proto_field_init_self_invalid",
       "invalid/type/proto_field_init_type_mismatch",
       "invalid/type/proto_const_field_missing_init",
-      "invalid/type/proto_const_field_reassign"
+      "invalid/type/proto_const_field_reassign",
+      "invalid/type/super_outside_method",
+      "invalid/type/super_method_missing"
     ],
     "invalid/runtime": [
       "invalid/runtime/int_overflow_add",
@@ -172,6 +174,11 @@
       "edge/map_remove_order",
       "edge/call_static_basic",
       "edge/call_static_nested",
+      "edge/clone_super_initial_divergent",
+      "edge/clone_inherited_override",
+      "edge/super_clone_init",
+      "edge/override_multilevel_super_nested_self_deep",
+      "edge/override_chain_order_self_specialization",
       "edge/index_get_list",
       "edge/index_get_map",
       "edge/index_set_list",

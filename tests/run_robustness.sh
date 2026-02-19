@@ -38,6 +38,10 @@ echo "-- crosscheck (Node  C, strict AST + static C, emit-c compiled with ASAN)
 CROSSCHECK_GCC_FLAGS="$ASAN_GCC_FLAGS" "$ROOT_DIR/tests/run_node_c_crosscheck.sh" --strict-ast --strict-static-c
 echo
 
+echo "-- emit-c sanitizer warning policy (ASAN/UBSAN, whitelist explicite)"
+"$ROOT_DIR/tests/robustness/run_asan_ubsan_emitc.sh" "$ROOT_DIR/tests/edge/clone_super_initial_divergent.pts"
+echo
+
 echo "-- CLI tests (C, ASAN)"
 "$ROOT_DIR/tests/run_cli_tests.sh"
 echo

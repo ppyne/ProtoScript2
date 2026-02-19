@@ -166,6 +166,46 @@ expect_no_output() {
   fi
 }
 
+expect_node_c_run_parity() {
+  local desc="$1"
+  local src="$2"
+  local node_bin="$ROOT_DIR/bin/protoscriptc"
+  set +e
+  "$node_bin" --run "$src" >/tmp/ps_cli_node.out 2>&1
+  local rc_node=$?
+  "$PS" run "$src" >/tmp/ps_cli_c.out 2>&1
+  local rc_c=$?
+  set -e
+  if [[ "$rc_node" -eq 0 && "$rc_c" -ne 0 ]]; then
+    echo "FAIL $desc"
+    echo "  node succeeded but c/ps failed"
+    sed -n '1,80p' /tmp/ps_cli_node.out
+    sed -n '1,80p' /tmp/ps_cli_c.out
+    fail=$((fail + 1))
+    return
+  fi
+  if [[ "$rc_node" -ne 0 && "$rc_c" -eq 0 ]]; then
+    echo "FAIL $desc"
+    echo "  node failed but c/ps succeeded"
+    sed -n '1,80p' /tmp/ps_cli_node.out
+    sed -n '1,80p' /tmp/ps_cli_c.out
+    fail=$((fail + 1))
+    return
+  fi
+  if cmp -s /tmp/ps_cli_node.out /tmp/ps_cli_c.out; then
+    echo "PASS $desc"
+    pass=$((pass + 1))
+  else
+    echo "FAIL $desc"
+    echo "  output differs between protoscriptc --run and c/ps run"
+    echo "  node output:"
+    sed -n '1,80p' /tmp/ps_cli_node.out
+    echo "  c/ps output:"
+    sed -n '1,80p' /tmp/ps_cli_c.out
+    fail=$((fail + 1))
+  fi
+}
+
 echo "== ProtoScript CLI Tests =="
 echo "PS: $PS"
 echo
@@ -180,6 +220,7 @@ expect_output_contains "run list concat" "hello world" "$PS" run "$ROOT_DIR/test
 expect_output_contains "run io temp path" "ok" "$PS" run "$ROOT_DIR/tests/cli/io_temp_path.pts"
 expect_output_contains "run proto bool field" "true" "$PS" run "$ROOT_DIR/tests/cli/proto_bool_field.pts"
 expect_output_contains "run control flow continuation" "after_try" "$PS" run "$ROOT_DIR/tests/cli/control_flow_continuation.pts"
+expect_node_c_run_parity "run parity clone inherited throw" "$ROOT_DIR/tests/cli/clone_inherited_throw_parity.pts"
 expect_output_contains "run manual ex008" "1" "$PS" run "$ROOT_DIR/tests/cli/manual_ex008.pts"
 expect_output_contains "run manual ex010" "12" "$PS" run "$ROOT_DIR/tests/cli/manual_ex010.pts"
 expect_output_contains "run manual ex011" "42" "$PS" run "$ROOT_DIR/tests/cli/manual_ex011.pts"
@@ -196,7 +237,7 @@ expect_output_contains "run manual ex007" "json null" "$PS" run "$ROOT_DIR/tests
 expect_exit "run exit code" 100 "$PS" run "$ROOT_DIR/tests/cli/exit_code.pts"
 expect_exit "run static error exit" 2 "$PS" run "$ROOT_DIR/tests/invalid/type/uninitialized_read_call_arg.pts"
 expect_exit "argv passthrough" 0 "$PS" run "$ROOT_DIR/tests/cli/args.pts"
-expect_exit "runtime error exit" 2 "$PS" run "$ROOT_DIR/tests/cli/runtime_error.pts"
+expect_exit "runtime error exit" 1 "$PS" run "$ROOT_DIR/tests/cli/runtime_error.pts"
 expect_error_contains "preprocess mapping" "mapped_file.pts:202:17 R1004 RUNTIME_DIVIDE_BY_ZERO:" "$PS" run "$ROOT_DIR/tests/cli/preprocess_runtime_error.pts"
 
 abs_module_path="$ROOT_DIR/tests/fixtures/datastruct/Stack.pts"
@@ -243,7 +284,7 @@ expect_output_contains "ir outputs" "\"functions\"" "$PS" ir "$ROOT_DIR/tests/cl
 expect_exit "trace enabled" 0 "$PS" run "$ROOT_DIR/tests/cli/hello.pts" --trace
 expect_output_contains "trace-ir enabled" "[ir]" "$PS" run "$ROOT_DIR/tests/cli/hello.pts" --trace-ir
 expect_output_contains "time enabled" "time:" "$PS" run "$ROOT_DIR/tests/cli/hello.pts" --time
-expect_output_contains "emit-c outputs C" "int main" "$PS" emit-c "$ROOT_DIR/tests/cli/exit_code.pts"
+expect_output_contains "pscc emit-c outputs C" "int main" "$ROOT_DIR/c/pscc" --emit-c "$ROOT_DIR/tests/cli/exit_code.pts"
 
 expect_output_exact() {
   local desc="$1"
@@ -303,7 +344,7 @@ for exp in "$ROOT_DIR/tests/invalid/runtime/manual_ex"*.expect.json; do
   [[ -f "$exp" ]] || continue
   case_id="$(basename "$exp" .expect.json)"
   suite_dir="$(dirname "$exp")"
-  expect_exit "run $case_id runtime" 2 "$PS" run "$suite_dir/$case_id.pts"
+  expect_exit "run $case_id runtime" 1 "$PS" run "$suite_dir/$case_id.pts"
 done
 
 # pscc checks for manual examples

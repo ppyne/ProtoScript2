@@ -57,9 +57,27 @@ Runner dédié statique C vs oracle Node (`--check-c-static`): `tests/run_c_stat
 
 Runner dédié comparaison structurelle AST (Node vs C): `tests/run_ast_structural_crosscheck.sh`
 Runner dédié crosscheck IR Node/C (structure + invariants): `tests/run_ir_node_c_crosscheck.sh`
+Runner dédié parité runtime CLI (`protoscriptc --run` vs `c/ps run`) : `tests/run_cli_runtime_parity.sh`
 Runner dédié CLI (C) : `tests/run_cli_tests.sh`
 Runner dédié diagnostics stricts (format exact + suggestions + parité JS/C) : `tests/run_diagnostics_strict.sh`
-Runner complet (build + conformance + crosscheck + CLI) : `tests/run_all.sh`
+Runner complet (build + conformance + crosscheck + parité runtime CLI + CLI) : `tests/run_all.sh`
+Runner robustesse (ASAN + déterminisme + audits mémoire) : `tests/run_robustness.sh`
+
+La conformité inclut explicitement le CLI :
+
+- `c/ps run` fait partie de la chaîne normative principale.
+- Toute divergence (`exit code`, `stdout`, `stderr`) avec `protoscriptc --run` sur les cas runtime du manifest provoque un échec.
+
+### Politique warnings sanitizer (emit-c)
+
+Le contrôle `emit-c` sanitizer est normé par `tests/robustness/run_asan_ubsan_emitc.sh`.
+
+- La compilation de référence utilise `-Wall -Wextra -Wpedantic -fsanitize=address,undefined`.
+- Le build strict impose `-Werror` avec une seule whitelist explicite : `-Wno-unused-function`.
+- Cette whitelist neutralise uniquement le bruit du runtime C monolithique (helpers `static` non référencés selon le cas), et le script échoue si un warning hors whitelist apparaît.
+- Le script vérifie aussi la couverture `_Static_assert` des paires parent/enfant IR.
+- Seules deux paires sont exclues explicitement : `Exception:Object` et `RuntimeException:Exception`.
+- Motif normatif: `Exception`/`RuntimeException` sont manipulés via le handle `ps_exception*` (pas comme structures layoutées de la hiérarchie objet), donc la vérification de layout parent/enfant ne s’y applique pas.
 
 ## Opt Safety
 
