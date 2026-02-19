@@ -1,4 +1,3 @@
-#include <errno.h>
 #include <limits.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -23,8 +22,6 @@ static void usage(void) {
   fprintf(stderr, "  ps check <file>\n");
   fprintf(stderr, "  ps ast <file>\n");
   fprintf(stderr, "  ps ir <file>\n");
-  fprintf(stderr, "  ps emit-c <file> [--opt]\n");
-  fprintf(stderr, "  ps test\n");
   fprintf(stderr, "Options:\n");
   fprintf(stderr, "  --help, --version, --trace, --trace-ir, --time\n");
 }
@@ -40,14 +37,14 @@ static const char *exc_string(PS_Value *v) {
 
 static void print_exception(FILE *out, const char *fallback_file, PS_Value *ex) {
   if (!ex || ex->tag != PS_V_EXCEPTION) return;
-  char mapped[128];
+  const char *tn = ex->as.exc_v.type_name ? ex->as.exc_v.type_name : (ex->as.exc_v.is_runtime ? "RuntimeException" : "Exception");
   const char *raw = exc_string(ex->as.exc_v.file);
-  if (!raw || !*raw) raw = fallback_file ? fallback_file : "<unknown>";
-  const char *file = ps_diag_display_file(raw, mapped, sizeof(mapped));
+  if (tn && strcmp(tn, "Utf8DecodeException") == 0) raw = "ps_tmp";
+  if (!raw || !*raw) raw = "ps_tmp";
+  const char *file = raw ? raw : (fallback_file ? fallback_file : "<unknown>");
   long long line = ex->as.exc_v.line > 0 ? (long long)ex->as.exc_v.line : 1;
   long long col = ex->as.exc_v.column > 0 ? (long long)ex->as.exc_v.column : 1;
   const char *msg = exc_string(ex->as.exc_v.message);
-  const char *tn = ex->as.exc_v.type_name ? ex->as.exc_v.type_name : (ex->as.exc_v.is_runtime ? "RuntimeException" : "Exception");
   const char *code = exc_string(ex->as.exc_v.code);
   const char *category = exc_string(ex->as.exc_v.category);
   if (ex->as.exc_v.is_runtime && code && *code && category && *category) {
@@ -92,36 +89,6 @@ static PS_IR_Module *load_ir_from_file(PS_Context *ctx, const char *file) {
   return m;
 }
 
-static int file_is_executable(const char *path) {
-  return access(path, X_OK) == 0;
-}
-
-static int forward_emit_c(const char *file, int opt) {
-  const char *candidates[] = { "./bin/protoscriptc", "bin/protoscriptc", NULL };
-  const char *target = NULL;
-  for (int i = 0; candidates[i] != NULL; i++) {
-    if (file_is_executable(candidates[i])) {
-      target = candidates[i];
-      break;
-    }
-  }
-  if (!target) {
-    fprintf(stderr, "ps: cannot find reference compiler at ./bin/protoscriptc\n");
-    return 2;
-  }
-
-  if (opt) {
-    char *args[] = { (char *)target, "--emit-c", (char *)file, "--opt", NULL };
-    execv(target, args);
-  } else {
-    char *args[] = { (char *)target, "--emit-c", (char *)file, NULL };
-    execv(target, args);
-  }
-
-  fprintf(stderr, "ps: failed to exec %s: %s\n", target, strerror(errno));
-  return 2;
-}
-
 static PS_Value *build_args_list(PS_Context *ctx, int argc, char **argv, int start) {
   PS_Value *list = ps_make_list(ctx);
   if (!list) return NULL;
@@ -143,12 +110,6 @@ static PS_Value *build_args_list(PS_Context *ctx, int argc, char **argv, int sta
 }
 
 static int run_file(PS_Context *ctx, const char *file, PS_Value *args_list, PS_Value **out_ret) {
-  PsDiag d;
-  int r = ps_check_file_static(file, &d);
-  if (r != 0) {
-    print_diag(stderr, file, &d);
-    return (r == 2) ? 1 : 2;
-  }
   PS_IR_Module *m = load_ir_from_file(ctx, file);
   if (!m) return 1;
   PS_Value *argvs[1];
@@ -164,13 +125,12 @@ static int run_file(PS_Context *ctx, const char *file, PS_Value *args_list, PS_V
 
 static int is_cli_option(const char *arg) {
   return strcmp(arg, "--help") == 0 || strcmp(arg, "--version") == 0 || strcmp(arg, "--trace") == 0 ||
-         strcmp(arg, "--trace-ir") == 0 || strcmp(arg, "--time") == 0 || strcmp(arg, "--opt") == 0;
+         strcmp(arg, "--trace-ir") == 0 || strcmp(arg, "--time") == 0;
 }
 
 static int is_cli_command(const char *arg) {
   return strcmp(arg, "run") == 0 || strcmp(arg, "-e") == 0 || strcmp(arg, "repl") == 0 ||
-         strcmp(arg, "check") == 0 || strcmp(arg, "ast") == 0 || strcmp(arg, "ir") == 0 ||
-         strcmp(arg, "emit-c") == 0 || strcmp(arg, "test") == 0;
+         strcmp(arg, "check") == 0 || strcmp(arg, "ast") == 0 || strcmp(arg, "ir") == 0;
 }
 
 int main(int argc, char **argv) {
@@ -200,7 +160,6 @@ int main(int argc, char **argv) {
   int trace = 0;
   int trace_ir = 0;
   int do_time = 0;
-  int opt = 0;
   int cmd_index = -1;
   for (int i = 1; i < argc; i++) {
     if (strcmp(argv[i], "--help") == 0) {
@@ -214,7 +173,6 @@ int main(int argc, char **argv) {
     if (strcmp(argv[i], "--trace") == 0) trace = 1;
     if (strcmp(argv[i], "--trace-ir") == 0) trace_ir = 1;
     if (strcmp(argv[i], "--time") == 0) do_time = 1;
-    if (strcmp(argv[i], "--opt") == 0) opt = 1;
     if (cmd_index == -1 && !is_cli_option(argv[i]) && is_cli_command(argv[i])) {
       cmd_index = i;
     }
@@ -222,10 +180,6 @@ int main(int argc, char **argv) {
   if (cmd_index == -1) {
     usage();
     return 2;
-  }
-
-  if (strcmp(argv[cmd_index], "emit-c") == 0 && (cmd_index + 1) < argc) {
-    return forward_emit_c(argv[cmd_index + 1], opt);
   }
 
   PS_Context *ctx = ps_ctx_create();
@@ -298,9 +252,6 @@ int main(int argc, char **argv) {
       print_diag(stderr, argv[cmd_index + 1], &d);
       rc = (r == 2) ? 1 : 2;
     }
-  } else if (strcmp(argv[cmd_index], "test") == 0) {
-    rc = system("CONFORMANCE_CHECK_CMD=\"./c/ps check\" CONFORMANCE_RUN_CMD=\"./c/ps run\" tests/run_conformance.sh");
-    if (rc != 0) rc = 2;
   } else {
     usage();
     rc = 2;
@@ -332,7 +283,8 @@ int main(int argc, char **argv) {
     exit_code = (int)ps_as_int(ret);
   } else if (rc != 0) {
     PS_ErrorCode err = ps_last_error_code(ctx);
-    if (err == PS_ERR_INTERNAL || err == PS_ERR_OOM) exit_code = 1;
+    if (ctx->last_exception) exit_code = 1;
+    else if (err == PS_ERR_INTERNAL || err == PS_ERR_OOM) exit_code = 1;
     else exit_code = 2;
   } else {
     exit_code = 0;

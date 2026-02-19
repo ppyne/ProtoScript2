@@ -299,7 +299,7 @@ static int validate_basic_syntax(const char *p, size_t len, char *err, size_t er
     return 0;
   }
   if (paren != 0) {
-    snprintf(err, err_cap, "unclosed parenthesis");
+    snprintf(err, err_cap, "Invalid regular expression: /%.*s/: Unterminated group", (int)len, p ? p : "");
     return 0;
   }
   return 1;

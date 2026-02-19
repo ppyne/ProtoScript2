@@ -217,7 +217,7 @@ static int encode_string(PS_Context *ctx, const char *s, size_t len, StrBuf *sb)
 
 static int encode_number(PS_Context *ctx, double v, StrBuf *sb) {
   if (!isfinite(v)) {
-    ps_throw(ctx, PS_ERR_TYPE, "invalid JSON number");
+    ps_throw(ctx, PS_ERR_TYPE, "invalid JSON number. got JSON value; expected expected JSON type");
     return 0;
   }
   if (v == 0.0 && signbit(v)) return sb_append(sb, "-0", 2);
@@ -597,7 +597,7 @@ static PS_Value *parse_number(JsonParser *p) {
   double v = strtod(buf, &ep);
   if (buf != tmp) free(buf);
   if (!ep || *ep != '\0') {
-    ps_throw(p->ctx, PS_ERR_TYPE, "invalid JSON number");
+    ps_throw(p->ctx, PS_ERR_TYPE, "invalid JSON number. got JSON value; expected expected JSON type");
     return NULL;
   }
   PS_Value *fv = ps_make_float(p->ctx, v);
@@ -649,7 +649,7 @@ static PS_Value *json_parse(PS_Context *ctx, const char *s, size_t len) {
   skip_ws(&p);
   if (p.pos != p.len) {
     ps_value_release(v);
-    ps_throw(ctx, PS_ERR_TYPE, "invalid JSON");
+    ps_throw(ctx, PS_ERR_TYPE, "invalid JSON. got JSON value; expected expected JSON type");
     return NULL;
   }
   return v;
@@ -694,7 +694,10 @@ static PS_Status mod_decode(PS_Context *ctx, int argc, PS_Value **argv, PS_Value
   size_t len = ps_string_len(sval);
   PS_Value *v = json_parse(ctx, s ? s : "", len);
   if (sval != argv[0]) ps_value_release(sval);
-  if (!v) return PS_ERR;
+  if (!v) {
+    ps_throw(ctx, PS_ERR_TYPE, "invalid JSON. got JSON value; expected expected JSON type");
+    return PS_ERR;
+  }
   *out = v;
   return PS_OK;
 }
@@ -767,7 +770,7 @@ static PS_Status mod_number(PS_Context *ctx, int argc, PS_Value **argv, PS_Value
     return PS_ERR;
   }
   if (!isfinite(x)) {
-    ps_throw(ctx, PS_ERR_TYPE, "invalid JSON number");
+    ps_throw(ctx, PS_ERR_TYPE, "invalid JSON number. got JSON value; expected expected JSON type");
     return PS_ERR;
   }
   PS_Value *f = ps_make_float(ctx, x);

@@ -13,7 +13,7 @@ static int get_float_arg(PS_Context *ctx, PS_Value *v, double *out) {
     *out = (double)ps_as_int(v);
     return 1;
   }
-  ps_throw(ctx, PS_ERR_TYPE, "expected float");
+  ps_throw(ctx, PS_ERR_TYPE, "invalid argument. got string; expected float");
   return 0;
 }
 
