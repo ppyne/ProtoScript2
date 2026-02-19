@@ -44,6 +44,7 @@ Source principale: `src/frontend.js` (`KEYWORDS`).
 | `true` |
 | `false` |
 | `self` |
+| `super` |
 | `import` |
 | `as` |
 
@@ -75,6 +76,7 @@ Source principale: `src/frontend.js` (`KEYWORDS`).
 - `JSONValue`
 - `RegExp`, `RegExpMatch`
 - `ProcessResult`, `ProcessEvent` (runtime Node)
+- `Self` (type contextuel normatif, spécialisé au receveur pour `clone()`)
 
 ### 2.4 Numeric Conversions (explicit cast)
 

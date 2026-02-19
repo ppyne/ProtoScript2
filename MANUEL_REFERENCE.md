@@ -1249,7 +1249,7 @@ Cette relation :
 ### 10.3.1 `sealed prototype`
 
 `sealed prototype` interdit **uniquement** l’héritage.
-La création d’objets via `Type.clone()` reste inchangée.
+La création d’objets via `Type.clone()` reste possible (lookup de méthode normal).
 
 Exemple valide :
 
@@ -1394,20 +1394,190 @@ Erreurs attendues :
 
 ---
 
-### 10.5 Absence de `super` et appels hérités
+# 10.5 `clone()` et `super` — Instanciation et héritage cohérents
 
-ProtoScript V2 ne définit **aucun mécanisme `super` implicite**.
+## 10.5.1 Idée fondamentale
 
-Une méthode héritée mais non redéfinie reste disponible dans le prototype enfant.  
-Un appel comme `self.jump()` est valide si `jump()` est défini dans un prototype parent.
+En ProtoScript2, `clone()` est **une méthode normale**.
 
-L’absence de `super` :
+Cela signifie :
 
-- élimine les dépendances implicites à l’implémentation parente
+- elle suit les règles d’héritage,
 
-- renforce l’indépendance des prototypes enfants
+- elle peut être redéfinie,
 
-- garantit une résolution simple et prédictible
+- elle est dispatchée dynamiquement,
+
+- la descendance hérite des redéfinitions.
+
+Il n’existe **aucune primitive spéciale cachée** pour instancier un prototype.
+
+---
+
+## 10.5.2 Prototype racine implicite
+
+Tous les prototypes héritent implicitement d’un prototype racine : `Object`
+
+Ce prototype définit : 
+
+```c
+prototype Object {
+    function clone() : Self {}
+}
+```
+
+C’est l’implémentation par défaut.
+
+---
+
+## 10.5.3 Que fait `Object.clone()` ?
+
+Le comportement par défaut de `clone()` est :
+
+1. Créer un nouvel objet.
+
+2. Le rendre instance du prototype appelant.
+
+3. Initialiser ses champs avec les valeurs par défaut.
+
+Autrement dit :
+
+`A.clone()`
+
+crée un nouvel objet **qui se comporte comme une instance de `A`**.
+
+---
+
+## 10.5.4 Héritage normal
+
+Si un prototype redéfinit `clone()`, la descendance en hérite comme toute méthode.
+
+### Exemple
+
+```c
+prototype MyType {
+    function clone() : MyType {
+        Exception e = Exception.clone();
+        e.message = "forbidden";
+        throw e;
+    } 
+} 
+
+prototype MyNewType : MyType {
+}
+```
+
+Ici : `MyNewType.clone()` appelle **la version définie dans `MyType`**.
+
+C’est un dispatch normal.
+
+Note normative :
+
+- `P.clone()` (appel statique) suit exactement le même lookup d’héritage que toute méthode.
+- un nom interne éventuel de backend (ex. `__clone_static`) n’est qu’un détail d’implémentation et ne doit jamais bypass la résolution normale de `clone()`.
+
+---
+
+## 10.5.5 Pourquoi ce modèle est important
+
+- la syntaxe méthode = sémantique méthode,
+
+- aucune règle cachée,
+
+- cohérence totale du modèle d’héritage.
+
+---
+
+## 10.5.6 Mot-clé `super`
+
+`super` permet d’appeler la version héritée d’une méthode.
+
+Forme :
+
+`super.methodName(args...)`
+
+Règle :
+
+- la recherche commence au **parent direct du prototype qui déclare la méthode courante**,
+
+- le receveur (`self`) reste le même.
+
+---
+
+## 10.5.7 Pattern courant : `super.clone()` + initialisation
+
+C’est maintenant le pattern recommandé pour personnaliser l’instanciation.
+
+```c
+prototype A {    
+    int x = 1; 
+} 
+
+prototype B : A {
+    int y = 2;
+    function clone() : B {
+        B b = super.clone();  // allocation via parent         
+        b.y = 99;             // personnalisation
+        return b;
+    }
+}
+```
+
+`super.clone()` garantit :
+
+- allocation correcte
+
+- respect de la hiérarchie
+
+- extensibilité future
+
+---
+
+## 10.5.8 Type `Self`
+
+`clone()` retourne `Self`.
+
+`Self` signifie :
+
+> le type statique du receveur.
+
+Donc :
+
+`B b = B.clone();   // OK`
+
+Le compilateur spécialise automatiquement le type.
+
+---
+
+## 10.5.9 Erreurs liées à `super`
+
+`super` est valide uniquement dans une méthode.
+
+Erreurs normatives :
+
+| Code  | Situation                              |
+| ----- | -------------------------------------- |
+| E3210 | `super` utilisé hors méthode           |
+| E3211 | prototype sans parent                  |
+| E3212 | méthode inexistante dans la hiérarchie |
+
+Exemple :
+
+`function main() : void {     super.clone(); // E3210 }`
+
+---
+
+## 10.5.10 Résumé conceptuel
+
+- `clone()` est une méthode héritée normale.
+
+- Le dispatch est dynamique.
+
+- `super` permet d’appeler la version parent.
+
+- Aucune primitive spéciale n’existe.
+
+- L’instanciation est cohérente avec le modèle d’héritage.
 
 ---
 
@@ -1507,7 +1677,7 @@ Ce positionnement vise la clarté sémantique, la sûreté et l’efficacité de
 | Mutation des prototypes       | Autorisée              | Autorisée            | Autorisée                  | **Interdite**                   |
 | Lookup des méthodes           | Tardif (runtime)       | Tardif (runtime)     | Tardif (runtime)           | **Compilation**                 |
 | Résolution de `self` / `this` | Dynamique              | Dynamique            | Dynamique et contextuelle  | **Statique (`self`)**           |
-| `super`                       | Non                    | Non                  | Oui (syntaxe class)        | **Absent**                      |
+| Appel parent explicite        | `resend` (dynamique)   | `resend` / forwarding (dynamique) | `super` (runtime) | `super` (résolution statique) |
 | Override                      | Dynamique              | Dynamique            | Dynamique                  | **Statique, signature stricte** |
 | Surcharge                     | Possible dynamiquement | Possible             | Possible                   | **Interdite**                   |
 | RTTI utilisateur              | Présente               | Présente             | Présente                   | **Absente**                     |

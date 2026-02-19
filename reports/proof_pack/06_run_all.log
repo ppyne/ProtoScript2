@@ -1,0 +1,2016 @@
+== ProtoScript V2 Full Test Run ==
+
+-- build C toolchain (pscc + ps)
+/Applications/Xcode.app/Contents/Developer/usr/bin/make -C ../third_party/mcpp clean
+rm -f directive.o eval.o expand.o mcpp_main.o mbchar.o support.o system.o
+rm -rf lib
+/Applications/Xcode.app/Contents/Developer/usr/bin/make -C ../third_party/mcpp CFLAGS="-O2 -Wno-deprecated-declarations -fno-common"
+cc -O2 -Wno-deprecated-declarations -fno-common -mmacosx-version-min=10.9   -c -o directive.o directive.c
+cc -O2 -Wno-deprecated-declarations -fno-common -mmacosx-version-min=10.9   -c -o eval.o eval.c
+cc -O2 -Wno-deprecated-declarations -fno-common -mmacosx-version-min=10.9   -c -o expand.o expand.c
+cc -O2 -Wno-deprecated-declarations -fno-common -mmacosx-version-min=10.9   -c -o mcpp_main.o mcpp_main.c
+cc -O2 -Wno-deprecated-declarations -fno-common -mmacosx-version-min=10.9   -c -o mbchar.o mbchar.c
+cc -O2 -Wno-deprecated-declarations -fno-common -mmacosx-version-min=10.9   -c -o support.o support.c
+cc -O2 -Wno-deprecated-declarations -fno-common -mmacosx-version-min=10.9   -c -o system.o system.c
+mkdir -p lib
+ar rcs lib/libmcpp.a directive.o eval.o expand.o mcpp_main.o mbchar.o support.o system.o
+cc -std=c11 -Wall -Wextra -Werror -O2 -I../include -I. -I../third_party/mcpp pscc.c frontend.c preprocess.c diag.c runtime/ps_json.c ../third_party/mcpp/lib/libmcpp.a -o pscc
+cc -std=c11 -Wall -Wextra -Werror -O2 -I../include -I. -I../third_party/mcpp cli/ps.c frontend.c preprocess.c diag.c runtime/ps_api.c runtime/ps_errors.c runtime/ps_heap.c runtime/ps_value.c runtime/ps_string.c runtime/ps_list.c runtime/ps_object.c runtime/ps_map.c runtime/ps_dynlib_posix.c runtime/ps_json.c runtime/ps_modules.c runtime/ps_vm.c modules/time.o modules/time_civil.o modules_regexp.o modules_debug.o modules_io.o modules_json.o modules_math.o ../third_party/mcpp/lib/libmcpp.a -o ps -ldl
+
+-- conformance (Node, modules enabled)
+== ProtoScript V2 Conformance Runner ==
+Rule: compiler is correct only if 100% normative tests pass.
+Check command: /Users/avialle/dev/ProtoScript2/bin/protoscriptc --check
+Run command:   /Users/avialle/dev/ProtoScript2/bin/protoscriptc --run
+Frontend only: 0
+
+PASS abs import path
+PASS invalid/parse/unexpected_token_comma
+PASS invalid/parse/unclosed_block
+PASS invalid/parse/manual_ex020
+PASS invalid/parse/manual_ex026
+modules built in /var/folders/88/nw43wg1s4xb4dr4z8k09jw100000gn/T//ps_modules_3NbXff
+PASS invalid/parse/manual_ex050
+PASS invalid/parse/manual_ex053
+PASS invalid/parse/manual_ex078
+PASS invalid/type/type_mismatch_assignment
+PASS invalid/type/switch_no_termination
+PASS invalid/type/string_index_write
+PASS invalid/type/view_index_write
+PASS invalid/type/list_pop_empty_static
+PASS invalid/type/arity_string_concat_too_many
+PASS invalid/type/arity_string_substring_too_few
+PASS invalid/type/arity_list_join_too_few
+PASS invalid/type/arity_list_push_too_many
+PASS invalid/type/arity_method_variadic_missing_fixed
+PASS invalid/type/arity_math_pow_too_many
+PASS invalid/type/arity_json_encode_too_few
+PASS invalid/type/arity_file_read_too_few
+PASS invalid/type/arity_textfile_seek_too_few
+PASS invalid/type/arity_textfile_tell_too_many
+PASS invalid/type/empty_list_no_context
+PASS invalid/type/empty_map_no_context
+PASS invalid/type/null_literal
+PASS invalid/type/module_missing
+PASS invalid/type/module_symbol_missing
+PASS invalid/type/module_registry_invalid_type
+PASS invalid/type/module_import_path_missing
+PASS invalid/type/module_import_path_bad_ext
+PASS invalid/type/module_import_path_no_root_proto
+PASS invalid/type/unknown_local_variable
+PASS invalid/type/unknown_group_member
+PASS invalid/type/group_descriptor_as_expression
+PASS invalid/type/prototype_descriptor_as_expression
+PASS invalid/type/manual_ex005
+PASS invalid/type/manual_ex017
+PASS invalid/type/manual_ex028
+PASS invalid/type/manual_ex043
+PASS invalid/type/manual_ex047
+PASS invalid/type/manual_ex048
+PASS invalid/type/manual_ex058
+PASS invalid/type/manual_ex104
+PASS invalid/type/cast_byte_256
+PASS invalid/type/cast_byte_minus1
+PASS invalid/type/cast_int_3_14
+PASS invalid/type/cast_byte_3_5
+PASS invalid/type/cast_byte_int_256
+PASS invalid/type/literal_byte_256
+PASS invalid/type/catch_non_exception
+PASS invalid/type/throw_exception_call
+PASS invalid/type/return_self
+PASS invalid/type/return_self_alias
+PASS invalid/type/list_sort_type_error
+PASS invalid/type/list_sort_missing_compareTo
+PASS invalid/type/list_sort_bad_compareTo_signature
+PASS invalid/type/variadic_mutation_forbidden
+PASS invalid/type/proto_field_init_self_invalid
+PASS invalid/type/proto_field_init_type_mismatch
+PASS invalid/type/proto_const_field_missing_init
+PASS invalid/type/proto_const_field_reassign
+PASS invalid/type/super_outside_method
+PASS invalid/type/super_method_missing
+PASS invalid/runtime/int_overflow_add
+PASS invalid/runtime/div_zero_int
+PASS invalid/runtime/shift_range_int
+PASS invalid/runtime/glyph_add
+PASS invalid/runtime/glyph_unary
+PASS invalid/runtime/list_index_oob
+PASS invalid/runtime/map_missing_key
+PASS invalid/runtime/index_get_string_oob
+PASS invalid/runtime/index_set_list_oob
+PASS invalid/runtime/index_get_string_oob_emoji
+PASS invalid/runtime/index_get_string_oob_combining
+PASS invalid/runtime/list_pop_empty_runtime
+PASS invalid/runtime/int_to_byte_range
+PASS invalid/runtime/string_to_int_invalid
+PASS invalid/runtime/string_to_float_invalid
+PASS invalid/runtime/string_substring_oob
+PASS invalid/runtime/view_oob
+PASS invalid/runtime/view_invalidated_push
+PASS invalid/runtime/slice_invalidated_pop
+PASS invalid/runtime/utf8_invalid_bytes
+PASS invalid/runtime/module_noinit
+PASS invalid/runtime/module_badver
+PASS invalid/runtime/module_nosym
+PASS invalid/runtime/module_not_found
+PASS invalid/runtime/math_type_error
+PASS invalid/runtime/io_invalid_mode
+PASS invalid/runtime/io_read_size_invalid
+PASS invalid/runtime/io_write_type_text
+PASS invalid/runtime/io_write_type_binary
+PASS invalid/runtime/io_close_std
+PASS invalid/runtime/io_after_close
+PASS invalid/runtime/io_utf8_invalid
+PASS invalid/runtime/json_decode_invalid
+PASS invalid/runtime/json_encode_nan
+PASS invalid/runtime/unhandled_exception
+PASS invalid/runtime/manual_ex060
+PASS invalid/runtime/manual_ex063
+PASS invalid/visibility_internal/internal_access_from_global_same_file
+PASS invalid/visibility_internal/internal_access_from_unrelated_prototype_same_file
+PASS invalid/visibility_internal/internal_keyword_outside_prototype
+PASS valid/visibility_internal/internal_access_same_prototype_method
+PASS valid/visibility_internal/internal_access_child_method
+PASS valid/visibility_internal/internal_call_internal_method_via_public
+PASS regexp/compile_basic
+PASS regexp/compile_forbidden_lookahead
+PASS regexp/compile_unclosed_paren
+PASS regexp/find_groups
+PASS regexp/replace_all_backrefs
+PASS regexp/split_basic
+PASS regexp/utf8_indices
+PASS regexp/range_start_invalid
+PASS regexp/range_max_invalid
+PASS regexp/range_replace_max_invalid
+PASS regexp/range_maxparts_invalid
+PASS regexp/findall_empty_anchor
+PASS regexp/findall_unlimited_neg1
+PASS regexp/nested_quantifiers
+PASS regexp/nested_quantifiers_nomatch
+PASS regexp/non_greedy_behavior
+PASS regexp/replace_backrefs
+PASS regexp/replaceall_unlimited_neg1
+PASS regexp/replace_backrefs_out_of_range
+PASS regexp/match_empty_antiloop
+PASS regexp/match_semantics
+PASS regexp/shorthand_classes
+PASS regexp/utf8_glyph_boundaries
+PASS regexp/split_empty_match
+PASS regexp/split_unlimited_neg1
+PASS regexp/flags_im_s
+PASS regexp/invalid_syntax
+PASS edge/overflow_int_add
+PASS edge/oob_list_index
+PASS edge/variadic_empty_call
+PASS edge/method_variadic_empty
+PASS edge/method_variadic_with_args
+PASS edge/method_variadic_fixed_plus
+PASS edge/variadic_view_empty_length
+PASS edge/variadic_view_nonempty_length
+PASS edge/proto_field_init_scalar_const
+PASS edge/proto_field_init_list_literal
+PASS edge/proto_field_init_inheritance
+PASS edge/proto_field_init_override_no_impact
+PASS edge/proto_field_init_clone_repeated
+PASS edge/switch_no_termination
+PASS edge/map_key_present
+PASS edge/map_iteration_in
+PASS edge/map_iteration_of
+PASS edge/map_update_then_lookup
+PASS edge/map_insert_on_set
+PASS edge/map_empty_literal_typed_set
+PASS edge/map_alias_set_updates_original
+PASS edge/map_alias_chain_set_updates_root
+PASS edge/map_methods_basic
+PASS edge/map_remove_order
+PASS edge/call_static_basic
+PASS edge/call_static_nested
+PASS edge/clone_super_initial_divergent
+PASS edge/clone_inherited_override
+PASS edge/super_clone_init
+PASS edge/override_multilevel_super_nested_self_deep
+PASS edge/override_chain_order_self_specialization
+PASS edge/index_get_list
+PASS edge/index_get_map
+PASS edge/index_set_list
+PASS edge/index_set_map
+PASS edge/compound_assign
+PASS edge/group_stress
+PASS edge/exception_derived
+PASS edge/iter_list_of
+PASS edge/iter_list_in
+PASS edge/switch_cfg_case
+PASS edge/switch_cfg_default
+PASS edge/string_length_ascii
+PASS edge/string_length_emoji
+PASS edge/string_length_combining
+PASS edge/string_indexof_emoji
+PASS edge/string_indexof_notfound
+PASS edge/string_starts_ends
+PASS edge/string_split_basic
+PASS edge/string_split_empty
+PASS edge/string_trim_basic
+PASS edge/string_trim_start_end
+PASS edge/string_upper
+PASS edge/string_replace_basic
+PASS edge/string_substring_emoji
+PASS edge/string_utf8_roundtrip
+PASS edge/list_sort_suite
+PASS edge/list_reverse_int
+PASS edge/list_reverse_string
+PASS edge/list_reverse_proto
+PASS edge/list_reverse_empty
+PASS edge/list_reverse_sort_consistency
+PASS edge/glyph_basic
+PASS edge/prototype_basic
+PASS edge/prototype_inherit_static
+PASS edge/prototype_parent_call
+PASS edge/slice_view_list_basic
+PASS edge/view_string_basic
+PASS edge/int_methods
+PASS edge/numeric_cast_valid
+PASS edge/numeric_literal_context
+PASS edge/int_bitwise_ops
+PASS edge/int64_print
+PASS edge/int64_print_io
+PASS edge/int_min_literal
+PASS edge/float_methods
+PASS edge/glyph_methods
+PASS edge/string_to_int_float
+PASS edge/list_join_concat
+PASS edge/if_basic
+PASS edge/control_flow_continuation
+PASS edge/proto_bool_field
+PASS edge/list_methods_basic
+PASS edge/default_values_local
+PASS edge/default_values_proto
+PASS edge/module_import_simple_add
+PASS edge/module_namespace_call
+PASS edge/module_utf8_roundtrip
+PASS edge/module_import_path_basic
+PASS edge/module_import_path_selective
+PASS edge/module_import_name_priority
+PASS edge/module_import_name_search_paths_second
+PASS edge/module_try_catch
+PASS edge/module_try_finally_rethrow
+PASS edge/runtime_exception_filter
+PASS edge/user_exception_filter
+PASS edge/math_abs_min_max
+PASS edge/math_constants
+PASS edge/math_numeric_limits
+PASS edge/math_extended
+PASS edge/math_floor_ceil_round_pow_exp
+PASS edge/math_trig_hyper
+PASS edge/math_domain_no_error
+PASS edge/math_random_range
+PASS edge/math_random_variability
+PASS edge/math_random_loop
+PASS edge/json_encode_basic
+PASS edge/json_decode_basic
+PASS edge/json_decode_object_basic
+PASS edge/json_decode_unicode_escape
+PASS edge/json_isvalid
+PASS edge/json_constructors
+PASS edge/time_timezone_validation
+PASS edge/time_utc_roundtrip
+PASS edge/time_iso_week
+PASS edge/time_iso_parse_format
+PASS edge/time_dst_paris
+PASS edge/io_text_roundtrip
+PASS edge/io_temp_path
+PASS edge/io_text_seek_tell
+PASS edge/io_print
+PASS edge/io_exceptions_basic
+PASS edge/io_stdout_stderr
+PASS edge/io_binary_read_write
+PASS edge/io_eof_length_text
+PASS edge/manual_ex001
+PASS edge/manual_ex002
+PASS edge/manual_ex004
+PASS edge/manual_ex006
+PASS edge/manual_ex007
+PASS edge/manual_ex008
+PASS edge/manual_ex009
+PASS edge/manual_ex010
+PASS edge/manual_ex011
+PASS edge/manual_ex012
+PASS edge/manual_ex013
+PASS edge/manual_ex014
+PASS edge/manual_ex015
+PASS edge/manual_ex016
+PASS edge/manual_ex018
+PASS edge/manual_ex019
+PASS edge/manual_ex021
+PASS edge/manual_ex022
+PASS edge/manual_ex023
+PASS edge/manual_ex024
+PASS edge/manual_ex025
+PASS edge/manual_ex027
+PASS edge/manual_ex029
+PASS edge/manual_ex030
+PASS edge/manual_ex031
+PASS edge/manual_ex032
+PASS edge/manual_ex033
+PASS edge/manual_ex034
+PASS edge/manual_ex035
+PASS edge/manual_ex036
+PASS edge/manual_ex037
+PASS edge/manual_ex038
+PASS edge/manual_ex039
+PASS edge/manual_ex040
+PASS edge/manual_ex041
+PASS edge/manual_ex042
+PASS edge/manual_ex044
+PASS edge/manual_ex045
+PASS edge/manual_ex046
+PASS edge/manual_ex049
+PASS edge/manual_ex051
+PASS edge/manual_ex052
+PASS edge/manual_ex054
+PASS edge/manual_ex055
+PASS edge/manual_ex056
+PASS edge/manual_ex057
+PASS edge/manual_ex059
+PASS edge/manual_ex061
+PASS edge/manual_ex062
+PASS edge/manual_ex064
+PASS edge/manual_ex065
+PASS edge/manual_ex066
+PASS edge/manual_ex067
+PASS edge/manual_ex068
+PASS edge/manual_ex069
+PASS edge/manual_ex070
+PASS edge/manual_ex071
+PASS edge/manual_ex072
+PASS edge/manual_ex073
+PASS edge/manual_ex074
+PASS edge/manual_ex075
+PASS edge/manual_ex076
+PASS edge/manual_ex079
+PASS edge/manual_ex080
+PASS edge/manual_ex081
+PASS edge/manual_ex082
+PASS edge/manual_ex083
+PASS edge/manual_ex084
+PASS edge/manual_ex085
+PASS edge/manual_ex086
+PASS edge/manual_ex087A
+PASS edge/manual_ex087B
+PASS edge/manual_ex087
+PASS edge/manual_ex090
+PASS edge/manual_ex093
+PASS edge/manual_ex094
+PASS edge/manual_ex095
+PASS edge/manual_ex096
+PASS edge/manual_ex097
+PASS edge/manual_ex098
+PASS edge/manual_ex003
+PASS edge/manual_ex077
+PASS edge/manual_ex081A
+PASS edge/manual_ex088
+PASS edge/manual_ex089
+PASS edge/manual_ex091
+PASS edge/manual_ex092
+PASS edge/manual_ex099
+PASS edge/manual_ex100
+PASS edge/manual_ex101
+PASS edge/manual_ex102
+PASS edge/manual_ex103
+PASS edge/manual_ex105
+PASS edge/manual_ex106
+PASS edge/manual_ex107
+PASS edge/manual_ex108
+PASS edge/manual_ex109
+PASS edge/manual_ex110
+PASS edge/manual_ex111
+PASS edge/manual_ex112
+PASS edge/manual_ex113
+PASS edge/manual_ex114
+PASS edge/manual_ex115
+PASS edge/manual_ex116
+PASS edge/manual_ex117
+PASS fs/import_fs
+PASS fs/module_missing
+PASS fs/exceptions
+PASS fs/queries
+PASS fs/size
+PASS fs/mutating
+PASS fs/dir_iterator
+PASS fs/walker
+PASS sys/import_sys
+PASS sys/module_missing
+PASS sys/has_env
+PASS sys/env
+PASS sys_execute/exit_code
+PASS sys_execute/stdout_only
+PASS sys_execute/stderr_only
+PASS sys_execute/both_order
+PASS sys_execute/input_echo
+PASS sys_execute/large_binary_output
+PASS sys_execute/args_variants
+PASS sys_execute/invalid_program
+PASS sys_execute/permission_denied
+PASS sys_execute/exec_failure
+PASS sys_execute/invalid_utf8_output
+
+Summary: PASS=387 FAIL=0 SKIP=0 TOTAL=387
+Conformance PASSED (100%).
+
+-- crosscheck (Node ↔ C, strict AST + static C)
+== Node/C Crosscheck (diagnostics + comportement) ==
+Compiler: /Users/avialle/dev/ProtoScript2/bin/protoscriptc
+C compiler: /Users/avialle/dev/ProtoScript2/c/pscc
+Strict AST: 1
+Strict Static C: 1
+
+PASS invalid/parse/unexpected_token_comma
+PASS invalid/parse/unclosed_block
+PASS invalid/parse/manual_ex020
+PASS invalid/parse/manual_ex026
+PASS invalid/parse/manual_ex050
+PASS invalid/parse/manual_ex053
+PASS invalid/parse/manual_ex078
+PASS invalid/type/type_mismatch_assignment
+PASS invalid/type/switch_no_termination
+PASS invalid/type/string_index_write
+PASS invalid/type/view_index_write
+PASS invalid/type/list_pop_empty_static
+PASS invalid/type/arity_string_concat_too_many
+PASS invalid/type/arity_string_substring_too_few
+PASS invalid/type/arity_list_join_too_few
+PASS invalid/type/arity_list_push_too_many
+PASS invalid/type/arity_method_variadic_missing_fixed
+PASS invalid/type/arity_math_pow_too_many
+PASS invalid/type/arity_json_encode_too_few
+PASS invalid/type/arity_file_read_too_few
+PASS invalid/type/arity_textfile_seek_too_few
+PASS invalid/type/arity_textfile_tell_too_many
+PASS invalid/type/empty_list_no_context
+PASS invalid/type/empty_map_no_context
+PASS invalid/type/null_literal
+PASS invalid/type/module_missing
+PASS invalid/type/module_symbol_missing
+PASS invalid/type/module_registry_invalid_type
+PASS invalid/type/module_import_path_missing
+PASS invalid/type/module_import_path_bad_ext
+PASS invalid/type/module_import_path_no_root_proto
+PASS invalid/type/unknown_local_variable
+PASS invalid/type/unknown_group_member
+PASS invalid/type/group_descriptor_as_expression
+PASS invalid/type/prototype_descriptor_as_expression
+PASS invalid/type/manual_ex005
+PASS invalid/type/manual_ex017
+PASS invalid/type/manual_ex028
+PASS invalid/type/manual_ex043
+PASS invalid/type/manual_ex047
+PASS invalid/type/manual_ex048
+PASS invalid/type/manual_ex058
+PASS invalid/type/manual_ex104
+PASS invalid/type/cast_byte_256
+PASS invalid/type/cast_byte_minus1
+PASS invalid/type/cast_int_3_14
+PASS invalid/type/cast_byte_3_5
+PASS invalid/type/cast_byte_int_256
+PASS invalid/type/literal_byte_256
+PASS invalid/type/catch_non_exception
+PASS invalid/type/throw_exception_call
+PASS invalid/type/return_self
+PASS invalid/type/return_self_alias
+PASS invalid/type/list_sort_type_error
+PASS invalid/type/list_sort_missing_compareTo
+PASS invalid/type/list_sort_bad_compareTo_signature
+PASS invalid/type/variadic_mutation_forbidden
+PASS invalid/type/proto_field_init_self_invalid
+PASS invalid/type/proto_field_init_type_mismatch
+PASS invalid/type/proto_const_field_missing_init
+PASS invalid/type/proto_const_field_reassign
+PASS invalid/type/super_outside_method
+PASS invalid/type/super_method_missing
+PASS invalid/runtime/int_overflow_add
+PASS invalid/runtime/div_zero_int
+PASS invalid/runtime/shift_range_int
+PASS invalid/runtime/glyph_add
+PASS invalid/runtime/glyph_unary
+PASS invalid/runtime/list_index_oob
+PASS invalid/runtime/map_missing_key
+PASS invalid/runtime/index_get_string_oob
+PASS invalid/runtime/index_set_list_oob
+PASS invalid/runtime/index_get_string_oob_emoji
+PASS invalid/runtime/index_get_string_oob_combining
+PASS invalid/runtime/list_pop_empty_runtime
+PASS invalid/runtime/int_to_byte_range
+PASS invalid/runtime/string_to_int_invalid
+PASS invalid/runtime/string_to_float_invalid
+PASS invalid/runtime/string_substring_oob
+PASS invalid/runtime/view_oob
+PASS invalid/runtime/view_invalidated_push
+PASS invalid/runtime/slice_invalidated_pop
+PASS invalid/runtime/utf8_invalid_bytes
+PASS invalid/runtime/module_noinit
+PASS invalid/runtime/module_badver
+PASS invalid/runtime/module_nosym
+PASS invalid/runtime/module_not_found
+PASS invalid/runtime/math_type_error
+PASS invalid/runtime/io_invalid_mode
+PASS invalid/runtime/io_read_size_invalid
+PASS invalid/runtime/io_write_type_text
+PASS invalid/runtime/io_write_type_binary
+PASS invalid/runtime/io_close_std
+PASS invalid/runtime/io_after_close
+PASS invalid/runtime/io_utf8_invalid
+PASS invalid/runtime/json_decode_invalid
+PASS invalid/runtime/json_encode_nan
+PASS invalid/runtime/unhandled_exception
+PASS invalid/runtime/manual_ex060
+PASS invalid/runtime/manual_ex063
+PASS invalid/visibility_internal/internal_access_from_global_same_file
+PASS invalid/visibility_internal/internal_access_from_unrelated_prototype_same_file
+PASS invalid/visibility_internal/internal_keyword_outside_prototype
+PASS valid/visibility_internal/internal_access_same_prototype_method
+PASS valid/visibility_internal/internal_access_child_method
+PASS valid/visibility_internal/internal_call_internal_method_via_public
+PASS regexp/compile_basic
+PASS regexp/compile_forbidden_lookahead
+PASS regexp/compile_unclosed_paren
+PASS regexp/find_groups
+PASS regexp/replace_all_backrefs
+PASS regexp/split_basic
+PASS regexp/utf8_indices
+PASS regexp/range_start_invalid
+PASS regexp/range_max_invalid
+PASS regexp/range_replace_max_invalid
+PASS regexp/range_maxparts_invalid
+PASS regexp/findall_empty_anchor
+PASS regexp/findall_unlimited_neg1
+PASS regexp/nested_quantifiers
+PASS regexp/nested_quantifiers_nomatch
+PASS regexp/non_greedy_behavior
+PASS regexp/replace_backrefs
+PASS regexp/replaceall_unlimited_neg1
+PASS regexp/replace_backrefs_out_of_range
+PASS regexp/match_empty_antiloop
+PASS regexp/match_semantics
+PASS regexp/shorthand_classes
+PASS regexp/utf8_glyph_boundaries
+PASS regexp/split_empty_match
+PASS regexp/split_unlimited_neg1
+PASS regexp/flags_im_s
+PASS regexp/invalid_syntax
+PASS edge/overflow_int_add
+PASS edge/oob_list_index
+PASS edge/variadic_empty_call
+PASS edge/method_variadic_empty
+PASS edge/method_variadic_with_args
+PASS edge/method_variadic_fixed_plus
+PASS edge/variadic_view_empty_length
+PASS edge/variadic_view_nonempty_length
+PASS edge/proto_field_init_scalar_const
+PASS edge/proto_field_init_list_literal
+PASS edge/proto_field_init_inheritance
+PASS edge/proto_field_init_override_no_impact
+PASS edge/proto_field_init_clone_repeated
+PASS edge/switch_no_termination
+PASS edge/map_key_present
+PASS edge/map_iteration_in
+PASS edge/map_iteration_of
+PASS edge/map_update_then_lookup
+PASS edge/map_insert_on_set
+PASS edge/map_empty_literal_typed_set
+PASS edge/map_alias_set_updates_original
+PASS edge/map_alias_chain_set_updates_root
+PASS edge/map_methods_basic
+PASS edge/map_remove_order
+PASS edge/call_static_basic
+PASS edge/call_static_nested
+PASS edge/clone_super_initial_divergent
+PASS edge/clone_inherited_override
+PASS edge/super_clone_init
+PASS edge/override_multilevel_super_nested_self_deep
+PASS edge/override_chain_order_self_specialization
+PASS edge/index_get_list
+PASS edge/index_get_map
+PASS edge/index_set_list
+PASS edge/index_set_map
+PASS edge/compound_assign
+SLOW edge/group_stress 8s
+PASS edge/group_stress
+PASS edge/exception_derived
+PASS edge/iter_list_of
+PASS edge/iter_list_in
+PASS edge/switch_cfg_case
+PASS edge/switch_cfg_default
+PASS edge/string_length_ascii
+PASS edge/string_length_emoji
+PASS edge/string_length_combining
+PASS edge/string_indexof_emoji
+PASS edge/string_indexof_notfound
+PASS edge/string_starts_ends
+PASS edge/string_split_basic
+PASS edge/string_split_empty
+PASS edge/string_trim_basic
+PASS edge/string_trim_start_end
+PASS edge/string_upper
+PASS edge/string_replace_basic
+PASS edge/string_substring_emoji
+PASS edge/string_utf8_roundtrip
+PASS edge/list_sort_suite
+PASS edge/list_reverse_int
+PASS edge/list_reverse_string
+PASS edge/list_reverse_proto
+PASS edge/list_reverse_empty
+PASS edge/list_reverse_sort_consistency
+PASS edge/glyph_basic
+PASS edge/prototype_basic
+PASS edge/prototype_inherit_static
+PASS edge/prototype_parent_call
+PASS edge/slice_view_list_basic
+PASS edge/view_string_basic
+PASS edge/int_methods
+PASS edge/numeric_cast_valid
+PASS edge/numeric_literal_context
+PASS edge/int_bitwise_ops
+PASS edge/int64_print
+PASS edge/int64_print_io
+PASS edge/int_min_literal
+PASS edge/float_methods
+PASS edge/glyph_methods
+PASS edge/string_to_int_float
+PASS edge/list_join_concat
+PASS edge/if_basic
+PASS edge/control_flow_continuation
+PASS edge/proto_bool_field
+PASS edge/list_methods_basic
+PASS edge/default_values_local
+PASS edge/default_values_proto
+PASS edge/module_import_simple_add
+PASS edge/module_namespace_call
+PASS edge/module_utf8_roundtrip
+PASS edge/module_import_path_basic
+PASS edge/module_import_path_selective
+PASS edge/module_import_name_priority
+PASS edge/module_import_name_search_paths_second
+PASS edge/module_try_catch
+PASS edge/module_try_finally_rethrow
+PASS edge/runtime_exception_filter
+PASS edge/user_exception_filter
+PASS edge/math_abs_min_max
+PASS edge/math_constants
+PASS edge/math_numeric_limits
+PASS edge/math_extended
+PASS edge/math_floor_ceil_round_pow_exp
+PASS edge/math_trig_hyper
+PASS edge/math_domain_no_error
+PASS edge/math_random_range
+PASS edge/math_random_variability
+PASS edge/math_random_loop
+PASS edge/json_encode_basic
+PASS edge/json_decode_basic
+PASS edge/json_decode_object_basic
+PASS edge/json_decode_unicode_escape
+PASS edge/json_isvalid
+PASS edge/json_constructors
+PASS edge/time_timezone_validation
+PASS edge/time_utc_roundtrip
+PASS edge/time_iso_week
+PASS edge/time_iso_parse_format
+PASS edge/time_dst_paris
+PASS edge/io_text_roundtrip
+PASS edge/io_temp_path
+PASS edge/io_text_seek_tell
+PASS edge/io_print
+PASS edge/io_exceptions_basic
+PASS edge/io_stdout_stderr
+PASS edge/io_binary_read_write
+PASS edge/io_eof_length_text
+PASS edge/manual_ex001
+PASS edge/manual_ex002
+PASS edge/manual_ex004
+PASS edge/manual_ex006
+PASS edge/manual_ex007
+PASS edge/manual_ex008
+PASS edge/manual_ex009
+PASS edge/manual_ex010
+PASS edge/manual_ex011
+PASS edge/manual_ex012
+PASS edge/manual_ex013
+PASS edge/manual_ex014
+PASS edge/manual_ex015
+PASS edge/manual_ex016
+PASS edge/manual_ex018
+PASS edge/manual_ex019
+PASS edge/manual_ex021
+PASS edge/manual_ex022
+PASS edge/manual_ex023
+PASS edge/manual_ex024
+PASS edge/manual_ex025
+PASS edge/manual_ex027
+PASS edge/manual_ex029
+PASS edge/manual_ex030
+PASS edge/manual_ex031
+PASS edge/manual_ex032
+PASS edge/manual_ex033
+PASS edge/manual_ex034
+PASS edge/manual_ex035
+PASS edge/manual_ex036
+PASS edge/manual_ex037
+PASS edge/manual_ex038
+PASS edge/manual_ex039
+PASS edge/manual_ex040
+PASS edge/manual_ex041
+PASS edge/manual_ex042
+PASS edge/manual_ex044
+PASS edge/manual_ex045
+PASS edge/manual_ex046
+PASS edge/manual_ex049
+PASS edge/manual_ex051
+PASS edge/manual_ex052
+PASS edge/manual_ex054
+PASS edge/manual_ex055
+PASS edge/manual_ex056
+PASS edge/manual_ex057
+PASS edge/manual_ex059
+PASS edge/manual_ex061
+PASS edge/manual_ex062
+PASS edge/manual_ex064
+PASS edge/manual_ex065
+PASS edge/manual_ex066
+PASS edge/manual_ex067
+PASS edge/manual_ex068
+PASS edge/manual_ex069
+PASS edge/manual_ex070
+PASS edge/manual_ex071
+PASS edge/manual_ex072
+PASS edge/manual_ex073
+PASS edge/manual_ex074
+PASS edge/manual_ex075
+PASS edge/manual_ex076
+PASS edge/manual_ex079
+PASS edge/manual_ex080
+PASS edge/manual_ex081
+PASS edge/manual_ex082
+PASS edge/manual_ex083
+PASS edge/manual_ex084
+PASS edge/manual_ex085
+PASS edge/manual_ex086
+PASS edge/manual_ex087A
+PASS edge/manual_ex087B
+PASS edge/manual_ex087
+PASS edge/manual_ex090
+PASS edge/manual_ex093
+PASS edge/manual_ex094
+PASS edge/manual_ex095
+PASS edge/manual_ex096
+PASS edge/manual_ex097
+PASS edge/manual_ex098
+PASS edge/manual_ex003
+PASS edge/manual_ex077
+PASS edge/manual_ex081A
+PASS edge/manual_ex088
+PASS edge/manual_ex089
+PASS edge/manual_ex091
+PASS edge/manual_ex092
+PASS edge/manual_ex099
+PASS edge/manual_ex100
+PASS edge/manual_ex101
+PASS edge/manual_ex102
+PASS edge/manual_ex103
+PASS edge/manual_ex105
+PASS edge/manual_ex106
+PASS edge/manual_ex107
+PASS edge/manual_ex108
+PASS edge/manual_ex109
+PASS edge/manual_ex110
+PASS edge/manual_ex111
+PASS edge/manual_ex112
+PASS edge/manual_ex113
+PASS edge/manual_ex114
+PASS edge/manual_ex115
+PASS edge/manual_ex116
+PASS edge/manual_ex117
+PASS fs/import_fs
+PASS fs/module_missing
+PASS fs/exceptions
+PASS fs/queries
+PASS fs/size
+PASS fs/mutating
+PASS fs/dir_iterator
+PASS fs/walker
+PASS sys/import_sys
+PASS sys/module_missing
+PASS sys/has_env
+PASS sys/env
+PASS sys_execute/exit_code
+PASS sys_execute/stdout_only
+PASS sys_execute/stderr_only
+PASS sys_execute/both_order
+PASS sys_execute/input_echo
+PASS sys_execute/large_binary_output
+PASS sys_execute/args_variants
+PASS sys_execute/invalid_program
+PASS sys_execute/permission_denied
+PASS sys_execute/exec_failure
+PASS sys_execute/invalid_utf8_output
+
+Slow cases (>= 5s):
+  edge/group_stress:8s
+
+Slowest case: edge/group_stress (8s)
+
+Summary: PASS=386 FAIL=0 TOTAL=386
+
+== Strict AST check ==
+== AST Structural Crosscheck (Node AST vs C AST) ==
+Node compiler: /Users/avialle/dev/ProtoScript2/bin/protoscriptc
+C compiler:    /Users/avialle/dev/ProtoScript2/c/pscc
+
+PASS invalid/type/type_mismatch_assignment
+PASS invalid/type/switch_no_termination
+PASS invalid/type/string_index_write
+PASS invalid/type/view_index_write
+PASS invalid/type/list_pop_empty_static
+PASS invalid/type/arity_string_concat_too_many
+PASS invalid/type/arity_string_substring_too_few
+PASS invalid/type/arity_list_join_too_few
+PASS invalid/type/arity_list_push_too_many
+PASS invalid/type/arity_method_variadic_missing_fixed
+PASS invalid/type/arity_math_pow_too_many
+PASS invalid/type/arity_json_encode_too_few
+PASS invalid/type/arity_file_read_too_few
+PASS invalid/type/arity_textfile_seek_too_few
+PASS invalid/type/arity_textfile_tell_too_many
+PASS invalid/type/empty_list_no_context
+PASS invalid/type/empty_map_no_context
+PASS invalid/type/null_literal
+PASS invalid/type/module_missing
+PASS invalid/type/module_symbol_missing
+PASS invalid/type/module_registry_invalid_type
+PASS invalid/type/module_import_path_missing
+PASS invalid/type/module_import_path_bad_ext
+PASS invalid/type/module_import_path_no_root_proto
+PASS invalid/type/unknown_local_variable
+PASS invalid/type/unknown_group_member
+PASS invalid/type/group_descriptor_as_expression
+PASS invalid/type/prototype_descriptor_as_expression
+PASS invalid/type/manual_ex005
+PASS invalid/type/manual_ex017
+PASS invalid/type/manual_ex028
+PASS invalid/type/manual_ex043
+PASS invalid/type/manual_ex047
+PASS invalid/type/manual_ex048
+PASS invalid/type/manual_ex058
+PASS invalid/type/manual_ex104
+PASS invalid/type/cast_byte_256
+PASS invalid/type/cast_byte_minus1
+PASS invalid/type/cast_int_3_14
+PASS invalid/type/cast_byte_3_5
+PASS invalid/type/cast_byte_int_256
+PASS invalid/type/literal_byte_256
+PASS invalid/type/catch_non_exception
+PASS invalid/type/throw_exception_call
+PASS invalid/type/return_self
+PASS invalid/type/return_self_alias
+PASS invalid/type/list_sort_type_error
+PASS invalid/type/list_sort_missing_compareTo
+PASS invalid/type/list_sort_bad_compareTo_signature
+PASS invalid/type/variadic_mutation_forbidden
+PASS invalid/type/proto_field_init_self_invalid
+PASS invalid/type/proto_field_init_type_mismatch
+PASS invalid/type/proto_const_field_missing_init
+PASS invalid/type/proto_const_field_reassign
+PASS invalid/type/super_outside_method
+PASS invalid/type/super_method_missing
+PASS invalid/runtime/int_overflow_add
+PASS invalid/runtime/div_zero_int
+PASS invalid/runtime/shift_range_int
+PASS invalid/runtime/glyph_add
+PASS invalid/runtime/glyph_unary
+PASS invalid/runtime/list_index_oob
+PASS invalid/runtime/map_missing_key
+PASS invalid/runtime/index_get_string_oob
+PASS invalid/runtime/index_set_list_oob
+PASS invalid/runtime/index_get_string_oob_emoji
+PASS invalid/runtime/index_get_string_oob_combining
+PASS invalid/runtime/list_pop_empty_runtime
+PASS invalid/runtime/int_to_byte_range
+PASS invalid/runtime/string_to_int_invalid
+PASS invalid/runtime/string_to_float_invalid
+PASS invalid/runtime/string_substring_oob
+PASS invalid/runtime/view_oob
+PASS invalid/runtime/view_invalidated_push
+PASS invalid/runtime/slice_invalidated_pop
+PASS invalid/runtime/utf8_invalid_bytes
+PASS invalid/runtime/module_noinit
+PASS invalid/runtime/module_badver
+PASS invalid/runtime/module_nosym
+PASS invalid/runtime/module_not_found
+PASS invalid/runtime/math_type_error
+PASS invalid/runtime/io_invalid_mode
+PASS invalid/runtime/io_read_size_invalid
+PASS invalid/runtime/io_write_type_text
+PASS invalid/runtime/io_write_type_binary
+PASS invalid/runtime/io_close_std
+PASS invalid/runtime/io_after_close
+PASS invalid/runtime/io_utf8_invalid
+PASS invalid/runtime/json_decode_invalid
+PASS invalid/runtime/json_encode_nan
+PASS invalid/runtime/unhandled_exception
+PASS invalid/runtime/manual_ex060
+PASS invalid/runtime/manual_ex063
+PASS invalid/visibility_internal/internal_access_from_global_same_file
+PASS invalid/visibility_internal/internal_access_from_unrelated_prototype_same_file
+PASS invalid/visibility_internal/internal_keyword_outside_prototype
+PASS valid/visibility_internal/internal_access_same_prototype_method
+PASS valid/visibility_internal/internal_access_child_method
+PASS valid/visibility_internal/internal_call_internal_method_via_public
+PASS regexp/compile_basic
+PASS regexp/compile_forbidden_lookahead
+PASS regexp/compile_unclosed_paren
+PASS regexp/find_groups
+PASS regexp/replace_all_backrefs
+PASS regexp/split_basic
+PASS regexp/utf8_indices
+PASS regexp/range_start_invalid
+PASS regexp/range_max_invalid
+PASS regexp/range_replace_max_invalid
+PASS regexp/range_maxparts_invalid
+PASS regexp/findall_empty_anchor
+PASS regexp/findall_unlimited_neg1
+PASS regexp/nested_quantifiers
+PASS regexp/nested_quantifiers_nomatch
+PASS regexp/non_greedy_behavior
+PASS regexp/replace_backrefs
+PASS regexp/replaceall_unlimited_neg1
+PASS regexp/replace_backrefs_out_of_range
+PASS regexp/match_empty_antiloop
+PASS regexp/match_semantics
+PASS regexp/shorthand_classes
+PASS regexp/utf8_glyph_boundaries
+PASS regexp/split_empty_match
+PASS regexp/split_unlimited_neg1
+PASS regexp/flags_im_s
+PASS regexp/invalid_syntax
+PASS edge/overflow_int_add
+PASS edge/oob_list_index
+PASS edge/variadic_empty_call
+PASS edge/method_variadic_empty
+PASS edge/method_variadic_with_args
+PASS edge/method_variadic_fixed_plus
+PASS edge/variadic_view_empty_length
+PASS edge/variadic_view_nonempty_length
+PASS edge/proto_field_init_scalar_const
+PASS edge/proto_field_init_list_literal
+PASS edge/proto_field_init_inheritance
+PASS edge/proto_field_init_override_no_impact
+PASS edge/proto_field_init_clone_repeated
+PASS edge/switch_no_termination
+PASS edge/map_key_present
+PASS edge/map_iteration_in
+PASS edge/map_iteration_of
+PASS edge/map_update_then_lookup
+PASS edge/map_insert_on_set
+PASS edge/map_empty_literal_typed_set
+PASS edge/map_alias_set_updates_original
+PASS edge/map_alias_chain_set_updates_root
+PASS edge/map_methods_basic
+PASS edge/map_remove_order
+PASS edge/call_static_basic
+PASS edge/call_static_nested
+PASS edge/clone_super_initial_divergent
+PASS edge/clone_inherited_override
+PASS edge/super_clone_init
+PASS edge/override_multilevel_super_nested_self_deep
+PASS edge/override_chain_order_self_specialization
+PASS edge/index_get_list
+PASS edge/index_get_map
+PASS edge/index_set_list
+PASS edge/index_set_map
+PASS edge/compound_assign
+PASS edge/group_stress
+PASS edge/exception_derived
+PASS edge/iter_list_of
+PASS edge/iter_list_in
+PASS edge/switch_cfg_case
+PASS edge/switch_cfg_default
+PASS edge/string_length_ascii
+PASS edge/string_length_emoji
+PASS edge/string_length_combining
+PASS edge/string_indexof_emoji
+PASS edge/string_indexof_notfound
+PASS edge/string_starts_ends
+PASS edge/string_split_basic
+PASS edge/string_split_empty
+PASS edge/string_trim_basic
+PASS edge/string_trim_start_end
+PASS edge/string_upper
+PASS edge/string_replace_basic
+PASS edge/string_substring_emoji
+PASS edge/string_utf8_roundtrip
+PASS edge/list_sort_suite
+PASS edge/list_reverse_int
+PASS edge/list_reverse_string
+PASS edge/list_reverse_proto
+PASS edge/list_reverse_empty
+PASS edge/list_reverse_sort_consistency
+PASS edge/glyph_basic
+PASS edge/prototype_basic
+PASS edge/prototype_inherit_static
+PASS edge/prototype_parent_call
+PASS edge/slice_view_list_basic
+PASS edge/view_string_basic
+PASS edge/int_methods
+PASS edge/numeric_cast_valid
+PASS edge/numeric_literal_context
+PASS edge/int_bitwise_ops
+PASS edge/int64_print
+PASS edge/int64_print_io
+PASS edge/int_min_literal
+PASS edge/float_methods
+PASS edge/glyph_methods
+PASS edge/string_to_int_float
+PASS edge/list_join_concat
+PASS edge/if_basic
+PASS edge/control_flow_continuation
+PASS edge/proto_bool_field
+PASS edge/list_methods_basic
+PASS edge/default_values_local
+PASS edge/default_values_proto
+PASS edge/module_import_simple_add
+PASS edge/module_namespace_call
+PASS edge/module_utf8_roundtrip
+PASS edge/module_import_path_basic
+PASS edge/module_import_path_selective
+PASS edge/module_import_name_priority
+PASS edge/module_import_name_search_paths_second
+PASS edge/module_try_catch
+PASS edge/module_try_finally_rethrow
+PASS edge/runtime_exception_filter
+PASS edge/user_exception_filter
+PASS edge/math_abs_min_max
+PASS edge/math_constants
+PASS edge/math_numeric_limits
+PASS edge/math_extended
+PASS edge/math_floor_ceil_round_pow_exp
+PASS edge/math_trig_hyper
+PASS edge/math_domain_no_error
+PASS edge/math_random_range
+PASS edge/math_random_variability
+PASS edge/math_random_loop
+PASS edge/json_encode_basic
+PASS edge/json_decode_basic
+PASS edge/json_decode_object_basic
+PASS edge/json_decode_unicode_escape
+PASS edge/json_isvalid
+PASS edge/json_constructors
+PASS edge/time_timezone_validation
+PASS edge/time_utc_roundtrip
+PASS edge/time_iso_week
+PASS edge/time_iso_parse_format
+PASS edge/time_dst_paris
+PASS edge/io_text_roundtrip
+PASS edge/io_temp_path
+PASS edge/io_text_seek_tell
+PASS edge/io_print
+PASS edge/io_exceptions_basic
+PASS edge/io_stdout_stderr
+PASS edge/io_binary_read_write
+PASS edge/io_eof_length_text
+PASS edge/manual_ex001
+PASS edge/manual_ex002
+PASS edge/manual_ex004
+PASS edge/manual_ex006
+PASS edge/manual_ex007
+PASS edge/manual_ex008
+PASS edge/manual_ex009
+PASS edge/manual_ex010
+PASS edge/manual_ex011
+PASS edge/manual_ex012
+PASS edge/manual_ex013
+PASS edge/manual_ex014
+PASS edge/manual_ex015
+PASS edge/manual_ex016
+PASS edge/manual_ex018
+PASS edge/manual_ex019
+PASS edge/manual_ex021
+PASS edge/manual_ex022
+PASS edge/manual_ex023
+PASS edge/manual_ex024
+PASS edge/manual_ex025
+PASS edge/manual_ex027
+PASS edge/manual_ex029
+PASS edge/manual_ex030
+PASS edge/manual_ex031
+PASS edge/manual_ex032
+PASS edge/manual_ex033
+PASS edge/manual_ex034
+PASS edge/manual_ex035
+PASS edge/manual_ex036
+PASS edge/manual_ex037
+PASS edge/manual_ex038
+PASS edge/manual_ex039
+PASS edge/manual_ex040
+PASS edge/manual_ex041
+PASS edge/manual_ex042
+PASS edge/manual_ex044
+PASS edge/manual_ex045
+PASS edge/manual_ex046
+PASS edge/manual_ex049
+PASS edge/manual_ex051
+PASS edge/manual_ex052
+PASS edge/manual_ex054
+PASS edge/manual_ex055
+PASS edge/manual_ex056
+PASS edge/manual_ex057
+PASS edge/manual_ex059
+PASS edge/manual_ex061
+PASS edge/manual_ex062
+PASS edge/manual_ex064
+PASS edge/manual_ex065
+PASS edge/manual_ex066
+PASS edge/manual_ex067
+PASS edge/manual_ex068
+PASS edge/manual_ex069
+PASS edge/manual_ex070
+PASS edge/manual_ex071
+PASS edge/manual_ex072
+PASS edge/manual_ex073
+PASS edge/manual_ex074
+PASS edge/manual_ex075
+PASS edge/manual_ex076
+PASS edge/manual_ex079
+PASS edge/manual_ex080
+PASS edge/manual_ex081
+PASS edge/manual_ex082
+PASS edge/manual_ex083
+PASS edge/manual_ex084
+PASS edge/manual_ex085
+PASS edge/manual_ex086
+PASS edge/manual_ex087A
+PASS edge/manual_ex087B
+PASS edge/manual_ex087
+PASS edge/manual_ex090
+PASS edge/manual_ex093
+PASS edge/manual_ex094
+PASS edge/manual_ex095
+PASS edge/manual_ex096
+PASS edge/manual_ex097
+PASS edge/manual_ex098
+PASS edge/manual_ex003
+PASS edge/manual_ex077
+PASS edge/manual_ex081A
+PASS edge/manual_ex088
+PASS edge/manual_ex089
+PASS edge/manual_ex091
+PASS edge/manual_ex092
+PASS edge/manual_ex099
+PASS edge/manual_ex100
+PASS edge/manual_ex101
+PASS edge/manual_ex102
+PASS edge/manual_ex103
+PASS edge/manual_ex105
+PASS edge/manual_ex106
+PASS edge/manual_ex107
+PASS edge/manual_ex108
+PASS edge/manual_ex109
+PASS edge/manual_ex110
+PASS edge/manual_ex111
+PASS edge/manual_ex112
+PASS edge/manual_ex113
+PASS edge/manual_ex114
+PASS edge/manual_ex115
+PASS edge/manual_ex116
+PASS edge/manual_ex117
+PASS fs/import_fs
+PASS fs/module_missing
+PASS fs/exceptions
+PASS fs/queries
+PASS fs/size
+PASS fs/mutating
+PASS fs/dir_iterator
+PASS fs/walker
+PASS sys/import_sys
+PASS sys/module_missing
+PASS sys/has_env
+PASS sys/env
+PASS sys_execute/exit_code
+PASS sys_execute/stdout_only
+PASS sys_execute/stderr_only
+PASS sys_execute/both_order
+PASS sys_execute/input_echo
+PASS sys_execute/large_binary_output
+PASS sys_execute/args_variants
+PASS sys_execute/invalid_program
+PASS sys_execute/permission_denied
+PASS sys_execute/exec_failure
+PASS sys_execute/invalid_utf8_output
+
+Summary: PASS=379 FAIL=0 TOTAL=379
+AST structural crosscheck PASSED.
+
+== Strict Static C check ==
+== C Static Oracle Crosscheck ==
+Node compiler: /Users/avialle/dev/ProtoScript2/bin/protoscriptc
+C compiler:    /Users/avialle/dev/ProtoScript2/c/pscc
+
+PASS invalid/type/type_mismatch_assignment
+PASS invalid/type/switch_no_termination
+PASS invalid/type/string_index_write
+PASS invalid/type/view_index_write
+PASS invalid/type/list_pop_empty_static
+PASS invalid/type/arity_string_concat_too_many
+PASS invalid/type/arity_string_substring_too_few
+PASS invalid/type/arity_list_join_too_few
+PASS invalid/type/arity_list_push_too_many
+PASS invalid/type/arity_method_variadic_missing_fixed
+PASS invalid/type/arity_math_pow_too_many
+PASS invalid/type/arity_json_encode_too_few
+PASS invalid/type/arity_file_read_too_few
+PASS invalid/type/arity_textfile_seek_too_few
+PASS invalid/type/arity_textfile_tell_too_many
+PASS invalid/type/empty_list_no_context
+PASS invalid/type/empty_map_no_context
+PASS invalid/type/null_literal
+PASS invalid/type/module_missing
+PASS invalid/type/module_symbol_missing
+PASS invalid/type/module_registry_invalid_type
+PASS invalid/type/module_import_path_missing
+PASS invalid/type/module_import_path_bad_ext
+PASS invalid/type/module_import_path_no_root_proto
+PASS invalid/type/unknown_local_variable
+PASS invalid/type/unknown_group_member
+PASS invalid/type/group_descriptor_as_expression
+PASS invalid/type/prototype_descriptor_as_expression
+PASS invalid/type/manual_ex005
+PASS invalid/type/manual_ex017
+PASS invalid/type/manual_ex028
+PASS invalid/type/manual_ex043
+PASS invalid/type/manual_ex047
+PASS invalid/type/manual_ex048
+PASS invalid/type/manual_ex058
+PASS invalid/type/manual_ex104
+PASS invalid/type/cast_byte_256
+PASS invalid/type/cast_byte_minus1
+PASS invalid/type/cast_int_3_14
+PASS invalid/type/cast_byte_3_5
+PASS invalid/type/cast_byte_int_256
+PASS invalid/type/literal_byte_256
+PASS invalid/type/catch_non_exception
+PASS invalid/type/throw_exception_call
+PASS invalid/type/return_self
+PASS invalid/type/return_self_alias
+PASS invalid/type/list_sort_type_error
+PASS invalid/type/list_sort_missing_compareTo
+PASS invalid/type/list_sort_bad_compareTo_signature
+PASS invalid/type/variadic_mutation_forbidden
+PASS invalid/type/proto_field_init_self_invalid
+PASS invalid/type/proto_field_init_type_mismatch
+PASS invalid/type/proto_const_field_missing_init
+PASS invalid/type/proto_const_field_reassign
+PASS invalid/type/super_outside_method
+PASS invalid/type/super_method_missing
+PASS invalid/visibility_internal/internal_access_from_global_same_file
+PASS invalid/visibility_internal/internal_access_from_unrelated_prototype_same_file
+PASS invalid/visibility_internal/internal_keyword_outside_prototype
+PASS edge/switch_no_termination
+PASS fs/module_missing
+PASS sys/module_missing
+
+Summary: PASS=62 FAIL=0 TOTAL=62
+C static oracle crosscheck PASSED.
+Node/C crosscheck PASSED.
+
+-- strict diagnostics (format + suggestions + JS/C parity)
+== Strict Diagnostics (JS/C parity) ==
+Node: /Users/avialle/dev/ProtoScript2/bin/protoscriptc
+C:    /Users/avialle/dev/ProtoScript2/c/pscc
+
+PASS suggestion_ambiguous
+PASS suggestion_none
+PASS suggestion_positive
+PASS suggestion_tie_deterministic
+
+Summary: PASS=4 FAIL=0 TOTAL=4
+
+-- CLI autonomy guard (no delegation in c/ps)
+== CLI Autonomy Guard ==
+file: /Users/avialle/dev/ProtoScript2/c/cli/ps.c
+CLI autonomy guard PASSED.
+
+-- CLI runtime parity (Node --run vs c/ps run)
+== CLI Runtime Parity (protoscriptc --run vs c/ps run) ==
+Node compiler: /Users/avialle/dev/ProtoScript2/bin/protoscriptc
+CLI runtime:   /Users/avialle/dev/ProtoScript2/c/ps
+
+FAIL invalid/runtime/int_overflow_add
+  stderr diverges
+  node rc=1 cli rc=1
+  stderr diff (normalized):
+--- /var/folders/88/nw43wg1s4xb4dr4z8k09jw100000gn/T/tmp.nqswa7eoyr	2026-02-19 01:23:14
++++ /var/folders/88/nw43wg1s4xb4dr4z8k09jw100000gn/T/tmp.c4fNB01KYA	2026-02-19 01:23:14
+@@ -1 +1 @@
+-/Users/avialle/dev/ProtoScript2/tests/invalid/runtime/int_overflow_add.pts:5:13 R1001 RUNTIME_INT_OVERFLOW: int overflow. got value; expected value within int range
++/Users/avialle/dev/ProtoScript2/tests/invalid/runtime/int_overflow_add.pts:5:13 R1001 RUNTIME_INT_OVERFLOW: int overflow. got 9223372036854775807 + 1; expected value within int range
+PASS invalid/runtime/div_zero_int
+PASS invalid/runtime/shift_range_int
+FAIL invalid/runtime/glyph_add
+  stderr diverges
+  node rc=1 cli rc=1
+  stderr diff (normalized):
+--- /var/folders/88/nw43wg1s4xb4dr4z8k09jw100000gn/T/tmp.fVEvfc7BwZ	2026-02-19 01:23:14
++++ /var/folders/88/nw43wg1s4xb4dr4z8k09jw100000gn/T/tmp.XHyhtS4atB	2026-02-19 01:23:14
+@@ -1 +1 @@
+-/Users/avialle/dev/ProtoScript2/tests/invalid/runtime/glyph_add.pts:4:17 R1010 RUNTIME_TYPE_ERROR: invalid glyph operation. got value; expected compatible type
++/Users/avialle/dev/ProtoScript2/tests/invalid/runtime/glyph_add.pts:4:17 R1010 RUNTIME_TYPE_ERROR: invalid operand types. got value + value; expected numeric operands
+FAIL invalid/runtime/glyph_unary
+  stderr diverges
+  node rc=1 cli rc=1
+  stderr diff (normalized):
+--- /var/folders/88/nw43wg1s4xb4dr4z8k09jw100000gn/T/tmp.NuIRqnGR00	2026-02-19 01:23:14
++++ /var/folders/88/nw43wg1s4xb4dr4z8k09jw100000gn/T/tmp.SXVaN2EJd2	2026-02-19 01:23:14
+@@ -1 +1 @@
+-/Users/avialle/dev/ProtoScript2/tests/invalid/runtime/glyph_unary.pts:3:15 R1010 RUNTIME_TYPE_ERROR: invalid glyph operation. got value; expected compatible type
++/Users/avialle/dev/ProtoScript2/tests/invalid/runtime/glyph_unary.pts:3:15 R1010 RUNTIME_TYPE_ERROR: invalid operand type. got value; expected int
+FAIL invalid/runtime/list_index_oob
+  stderr diverges
+  node rc=1 cli rc=1
+  stderr diff (normalized):
+--- /var/folders/88/nw43wg1s4xb4dr4z8k09jw100000gn/T/tmp.ekuwxOc0a8	2026-02-19 01:23:14
++++ /var/folders/88/nw43wg1s4xb4dr4z8k09jw100000gn/T/tmp.JLSoXwM6KW	2026-02-19 01:23:14
+@@ -1 +1 @@
+-/Users/avialle/dev/ProtoScript2/tests/invalid/runtime/list_index_oob.pts:5:13 R1002 RUNTIME_INDEX_OOB: index out of bounds. got 10; expected index within bounds
++/Users/avialle/dev/ProtoScript2/tests/invalid/runtime/list_index_oob.pts:5:13 R1002 RUNTIME_INDEX_OOB: index out of bounds. got 10; expected 0..2
+PASS invalid/runtime/map_missing_key
+FAIL invalid/runtime/index_get_string_oob
+  stderr diverges
+  node rc=1 cli rc=1
+  stderr diff (normalized):
+--- /var/folders/88/nw43wg1s4xb4dr4z8k09jw100000gn/T/tmp.HzM296QbGR	2026-02-19 01:23:15
++++ /var/folders/88/nw43wg1s4xb4dr4z8k09jw100000gn/T/tmp.hPD7jBwCcZ	2026-02-19 01:23:15
+@@ -1 +1 @@
+-/Users/avialle/dev/ProtoScript2/tests/invalid/runtime/index_get_string_oob.pts:5:15 R1002 RUNTIME_INDEX_OOB: index out of bounds. got 2; expected index within bounds
++/Users/avialle/dev/ProtoScript2/tests/invalid/runtime/index_get_string_oob.pts:5:15 R1002 RUNTIME_INDEX_OOB: index out of bounds. got 2; expected 0..1
+FAIL invalid/runtime/index_set_list_oob
+  stderr diverges
+  node rc=1 cli rc=1
+  stderr diff (normalized):
+--- /var/folders/88/nw43wg1s4xb4dr4z8k09jw100000gn/T/tmp.hNqa1xzGDZ	2026-02-19 01:23:15
++++ /var/folders/88/nw43wg1s4xb4dr4z8k09jw100000gn/T/tmp.P10XkUJ8SD	2026-02-19 01:23:15
+@@ -1 +1 @@
+-/Users/avialle/dev/ProtoScript2/tests/invalid/runtime/index_set_list_oob.pts:5:5 R1002 RUNTIME_INDEX_OOB: index out of bounds. got 5; expected index within bounds
++/Users/avialle/dev/ProtoScript2/tests/invalid/runtime/index_set_list_oob.pts:5:5 R1002 RUNTIME_INDEX_OOB: index out of bounds. got 5; expected 0..0
+FAIL invalid/runtime/index_get_string_oob_emoji
+  stderr diverges
+  node rc=1 cli rc=1
+  stderr diff (normalized):
+--- /var/folders/88/nw43wg1s4xb4dr4z8k09jw100000gn/T/tmp.ZzL7sPg6A1	2026-02-19 01:23:15
++++ /var/folders/88/nw43wg1s4xb4dr4z8k09jw100000gn/T/tmp.AFbHuwVErw	2026-02-19 01:23:15
+@@ -1 +1 @@
+-/Users/avialle/dev/ProtoScript2/tests/invalid/runtime/index_get_string_oob_emoji.pts:5:15 R1002 RUNTIME_INDEX_OOB: index out of bounds. got 3; expected index within bounds
++/Users/avialle/dev/ProtoScript2/tests/invalid/runtime/index_get_string_oob_emoji.pts:5:15 R1002 RUNTIME_INDEX_OOB: index out of bounds. got 3; expected 0..2
+FAIL invalid/runtime/index_get_string_oob_combining
+  stderr diverges
+  node rc=1 cli rc=1
+  stderr diff (normalized):
+--- /var/folders/88/nw43wg1s4xb4dr4z8k09jw100000gn/T/tmp.6gXDa4hjF8	2026-02-19 01:23:15
++++ /var/folders/88/nw43wg1s4xb4dr4z8k09jw100000gn/T/tmp.aVWqiDpj7U	2026-02-19 01:23:15
+@@ -1 +1 @@
+-/Users/avialle/dev/ProtoScript2/tests/invalid/runtime/index_get_string_oob_combining.pts:5:15 R1002 RUNTIME_INDEX_OOB: index out of bounds. got 2; expected index within bounds
++/Users/avialle/dev/ProtoScript2/tests/invalid/runtime/index_get_string_oob_combining.pts:5:15 R1002 RUNTIME_INDEX_OOB: index out of bounds. got 2; expected 0..1
+PASS invalid/runtime/list_pop_empty_runtime
+FAIL invalid/runtime/int_to_byte_range
+  stderr diverges
+  node rc=1 cli rc=1
+  stderr diff (normalized):
+--- /var/folders/88/nw43wg1s4xb4dr4z8k09jw100000gn/T/tmp.u7sPktd88e	2026-02-19 01:23:15
++++ /var/folders/88/nw43wg1s4xb4dr4z8k09jw100000gn/T/tmp.RjPqUmX02M	2026-02-19 01:23:15
+@@ -1 +1 @@
+-/Users/avialle/dev/ProtoScript2/tests/invalid/runtime/int_to_byte_range.pts:3:15 R1008 RUNTIME_BYTE_RANGE: byte out of range. got value; expected 0..255
++/Users/avialle/dev/ProtoScript2/tests/invalid/runtime/int_to_byte_range.pts:3:15 R1008 RUNTIME_BYTE_RANGE: byte out of range. got 300; expected 0..255
+FAIL invalid/runtime/string_to_int_invalid
+  stderr diverges
+  node rc=1 cli rc=1
+  stderr diff (normalized):
+--- /var/folders/88/nw43wg1s4xb4dr4z8k09jw100000gn/T/tmp.8dbaBSORiv	2026-02-19 01:23:16
++++ /var/folders/88/nw43wg1s4xb4dr4z8k09jw100000gn/T/tmp.FHZYICK2hm	2026-02-19 01:23:16
+@@ -1 +1 @@
+-/Users/avialle/dev/ProtoScript2/tests/invalid/runtime/string_to_int_invalid.pts:3:14 R1010 RUNTIME_TYPE_ERROR: invalid int format. got string; expected int literal
++/Users/avialle/dev/ProtoScript2/tests/invalid/runtime/string_to_int_invalid.pts:3:14 R1010 RUNTIME_TYPE_ERROR: invalid int format. got abc; expected int literal
+FAIL invalid/runtime/string_to_float_invalid
+  stderr diverges
+  node rc=1 cli rc=1
+  stderr diff (normalized):
+--- /var/folders/88/nw43wg1s4xb4dr4z8k09jw100000gn/T/tmp.euNpGmxbpi	2026-02-19 01:23:16
++++ /var/folders/88/nw43wg1s4xb4dr4z8k09jw100000gn/T/tmp.IiF7tVGgac	2026-02-19 01:23:16
+@@ -1 +1 @@
+-/Users/avialle/dev/ProtoScript2/tests/invalid/runtime/string_to_float_invalid.pts:3:16 R1010 RUNTIME_TYPE_ERROR: invalid float format. got string; expected float literal
++/Users/avialle/dev/ProtoScript2/tests/invalid/runtime/string_to_float_invalid.pts:3:16 R1010 RUNTIME_TYPE_ERROR: invalid float format. got x1; expected float literal
+FAIL invalid/runtime/string_substring_oob
+  stderr diverges
+  node rc=1 cli rc=1
+  stderr diff (normalized):
+--- /var/folders/88/nw43wg1s4xb4dr4z8k09jw100000gn/T/tmp.UkHFDCIBJ7	2026-02-19 01:23:16
++++ /var/folders/88/nw43wg1s4xb4dr4z8k09jw100000gn/T/tmp.2gAKUStWYw	2026-02-19 01:23:16
+@@ -1 +1 @@
+-/Users/avialle/dev/ProtoScript2/tests/invalid/runtime/string_substring_oob.pts:5:17 R1002 RUNTIME_INDEX_OOB: index out of bounds. got start=2, length=2; expected range within string
++/Users/avialle/dev/ProtoScript2/tests/invalid/runtime/string_substring_oob.pts:5:17 R1002 RUNTIME_INDEX_OOB: index out of bounds. got start/length; expected range within string
+FAIL invalid/runtime/view_oob
+  stderr diverges
+  node rc=1 cli rc=1
+  stderr diff (normalized):
+--- /var/folders/88/nw43wg1s4xb4dr4z8k09jw100000gn/T/tmp.gqEXnOzoYf	2026-02-19 01:23:16
++++ /var/folders/88/nw43wg1s4xb4dr4z8k09jw100000gn/T/tmp.Egjd0B3Z9Z	2026-02-19 01:23:16
+@@ -1 +1 @@
+-/Users/avialle/dev/ProtoScript2/tests/invalid/runtime/view_oob.pts:3:21 R1002 RUNTIME_INDEX_OOB: index out of bounds. got offset/length; expected within source
++/Users/avialle/dev/ProtoScript2/tests/invalid/runtime/view_oob.pts:3:21 R1002 RUNTIME_INDEX_OOB: index out of bounds. got offset=2 len=2; expected offset+len <= 3
+PASS invalid/runtime/view_invalidated_push
+PASS invalid/runtime/slice_invalidated_pop
+PASS invalid/runtime/utf8_invalid_bytes
+FAIL invalid/runtime/module_noinit
+  stderr diverges
+  node rc=1 cli rc=1
+  stderr diff (normalized):
+--- /var/folders/88/nw43wg1s4xb4dr4z8k09jw100000gn/T/tmp.m9uEBZGP5g	2026-02-19 01:23:18
++++ /var/folders/88/nw43wg1s4xb4dr4z8k09jw100000gn/T/tmp.OuOkC545Bj	2026-02-19 01:23:18
+@@ -1 +1 @@
+-/Users/avialle/dev/ProtoScript2/tests/invalid/runtime/module_noinit.pts:1:21 R1010 RUNTIME_MODULE_ERROR: module not found. got module or symbol; expected available module/symbol
++/Users/avialle/dev/ProtoScript2/tests/invalid/runtime/module_noinit.pts:4:9 R1010 RUNTIME_MODULE_ERROR: module not found. got test.noinit; expected available module
+FAIL invalid/runtime/module_badver
+  stderr diverges
+  node rc=1 cli rc=1
+  stderr diff (normalized):
+--- /var/folders/88/nw43wg1s4xb4dr4z8k09jw100000gn/T/tmp.Rcsxd3HdIF	2026-02-19 01:23:19
++++ /var/folders/88/nw43wg1s4xb4dr4z8k09jw100000gn/T/tmp.RLP2VxrP1O	2026-02-19 01:23:19
+@@ -1 +1 @@
+-/Users/avialle/dev/ProtoScript2/tests/invalid/runtime/module_badver.pts:1:21 R1010 RUNTIME_MODULE_ERROR: module not found. got module or symbol; expected available module/symbol
++/Users/avialle/dev/ProtoScript2/tests/invalid/runtime/module_badver.pts:4:9 R1010 RUNTIME_MODULE_ERROR: module not found. got test.badver; expected available module
+FAIL invalid/runtime/module_nosym
+  stderr diverges
+  node rc=1 cli rc=1
+  stderr diff (normalized):
+--- /var/folders/88/nw43wg1s4xb4dr4z8k09jw100000gn/T/tmp.SyV8pfH6MW	2026-02-19 01:23:19
++++ /var/folders/88/nw43wg1s4xb4dr4z8k09jw100000gn/T/tmp.61KZEBUjZN	2026-02-19 01:23:19
+@@ -1 +1 @@
+-/Users/avialle/dev/ProtoScript2/tests/invalid/runtime/module_nosym.pts:1:20 R1010 RUNTIME_MODULE_ERROR: symbol not found. got module or symbol; expected available module/symbol
++/Users/avialle/dev/ProtoScript2/tests/invalid/runtime/module_nosym.pts:4:12 R1010 RUNTIME_MODULE_ERROR: symbol not found. got missing; expected exported symbol
+FAIL invalid/runtime/module_not_found
+  stderr diverges
+  node rc=1 cli rc=1
+  stderr diff (normalized):
+--- /var/folders/88/nw43wg1s4xb4dr4z8k09jw100000gn/T/tmp.hlV2cwZpdL	2026-02-19 01:23:19
++++ /var/folders/88/nw43wg1s4xb4dr4z8k09jw100000gn/T/tmp.pQmou7ajwp	2026-02-19 01:23:19
+@@ -1 +1 @@
+-/Users/avialle/dev/ProtoScript2/tests/invalid/runtime/module_not_found.pts:1:22 R1010 RUNTIME_MODULE_ERROR: module not found. got module or symbol; expected available module/symbol
++/Users/avialle/dev/ProtoScript2/tests/invalid/runtime/module_not_found.pts:4:9 R1010 RUNTIME_MODULE_ERROR: module not found. got test.missing; expected available module
+FAIL invalid/runtime/math_type_error
+  stderr diverges
+  node rc=1 cli rc=1
+  stderr diff (normalized):
+--- /var/folders/88/nw43wg1s4xb4dr4z8k09jw100000gn/T/tmp.HHUtM0C0HT	2026-02-19 01:23:20
++++ /var/folders/88/nw43wg1s4xb4dr4z8k09jw100000gn/T/tmp.umGWy4f1DG	2026-02-19 01:23:20
+@@ -1 +1 @@
+-/Users/avialle/dev/ProtoScript2/tests/invalid/runtime/math_type_error.pts:4:9 R1010 RUNTIME_TYPE_ERROR: invalid argument. got string; expected float
++/Users/avialle/dev/ProtoScript2/tests/invalid/runtime/math_type_error.pts:4:9 R1010 RUNTIME_TYPE_ERROR: expected float
+PASS invalid/runtime/io_invalid_mode
+PASS invalid/runtime/io_read_size_invalid
+PASS invalid/runtime/io_write_type_text
+PASS invalid/runtime/io_write_type_binary
+PASS invalid/runtime/io_close_std
+PASS invalid/runtime/io_after_close
+FAIL invalid/runtime/io_utf8_invalid
+  stderr diverges
+  node rc=1 cli rc=1
+  stderr diff (normalized):
+--- /var/folders/88/nw43wg1s4xb4dr4z8k09jw100000gn/T/tmp.N1qj3kbLUK	2026-02-19 01:23:22
++++ /var/folders/88/nw43wg1s4xb4dr4z8k09jw100000gn/T/tmp.MZdPQwJJ9W	2026-02-19 01:23:22
+@@ -1 +1 @@
+-ps_tmp:13:10 R1011 UNHANDLED_EXCEPTION: unhandled exception. got Utf8DecodeException("invalid UTF-8 sequence"); expected matching catch
++/Users/avialle/dev/ProtoScript2/tests/invalid/runtime/io_utf8_invalid.pts:13:10 R1011 UNHANDLED_EXCEPTION: unhandled exception. got Utf8DecodeException("invalid UTF-8"); expected matching catch
+FAIL invalid/runtime/json_decode_invalid
+  stderr diverges
+  node rc=1 cli rc=1
+  stderr diff (normalized):
+--- /var/folders/88/nw43wg1s4xb4dr4z8k09jw100000gn/T/tmp.e7zSf0gySr	2026-02-19 01:23:22
++++ /var/folders/88/nw43wg1s4xb4dr4z8k09jw100000gn/T/tmp.ztXcgIxyul	2026-02-19 01:23:22
+@@ -1 +1 @@
+-/Users/avialle/dev/ProtoScript2/tests/invalid/runtime/json_decode_invalid.pts:4:9 R1010 RUNTIME_JSON_ERROR: invalid JSON. got JSON value; expected expected JSON type
++/Users/avialle/dev/ProtoScript2/tests/invalid/runtime/json_decode_invalid.pts:4:9 R1010 RUNTIME_JSON_ERROR: invalid JSON object
+FAIL invalid/runtime/json_encode_nan
+  stderr diverges
+  node rc=1 cli rc=1
+  stderr diff (normalized):
+--- /var/folders/88/nw43wg1s4xb4dr4z8k09jw100000gn/T/tmp.TJpyT6JEnf	2026-02-19 01:23:22
++++ /var/folders/88/nw43wg1s4xb4dr4z8k09jw100000gn/T/tmp.iYrkJFpnqs	2026-02-19 01:23:22
+@@ -1 +1 @@
+-/Users/avialle/dev/ProtoScript2/tests/invalid/runtime/json_encode_nan.pts:5:9 R1010 RUNTIME_JSON_ERROR: invalid JSON number. got JSON value; expected expected JSON type
++/Users/avialle/dev/ProtoScript2/tests/invalid/runtime/json_encode_nan.pts:5:9 R1010 RUNTIME_JSON_ERROR: invalid JSON number
+PASS invalid/runtime/unhandled_exception
+FAIL invalid/runtime/manual_ex060
+  stderr diverges
+  node rc=1 cli rc=1
+  stderr diff (normalized):
+--- /var/folders/88/nw43wg1s4xb4dr4z8k09jw100000gn/T/tmp.QnJqpzIhkP	2026-02-19 01:23:22
++++ /var/folders/88/nw43wg1s4xb4dr4z8k09jw100000gn/T/tmp.Vq47gGSFzp	2026-02-19 01:23:22
+@@ -1 +1 @@
+-/Users/avialle/dev/ProtoScript2/tests/invalid/runtime/manual_ex060.pts:4:5 R1002 RUNTIME_INDEX_OOB: index out of bounds. got 3; expected index within bounds
++EX-060.pts:4:5 R1002 RUNTIME_INDEX_OOB: index out of bounds. got 3; expected 0..0
+FAIL invalid/runtime/manual_ex063
+  stderr diverges
+  node rc=1 cli rc=1
+  stderr diff (normalized):
+--- /var/folders/88/nw43wg1s4xb4dr4z8k09jw100000gn/T/tmp.vhnY5aXol2	2026-02-19 01:23:23
++++ /var/folders/88/nw43wg1s4xb4dr4z8k09jw100000gn/T/tmp.zc3CmY9dh5	2026-02-19 01:23:23
+@@ -1 +1 @@
+-/Users/avialle/dev/ProtoScript2/tests/invalid/runtime/manual_ex063.pts:5:13 R1003 RUNTIME_MISSING_KEY: missing key. got "absent"; expected present key
++EX-063.pts:5:13 R1003 RUNTIME_MISSING_KEY: missing key. got "absent"; expected present key
+PASS valid/visibility_internal/internal_access_same_prototype_method
+PASS valid/visibility_internal/internal_access_child_method
+PASS valid/visibility_internal/internal_call_internal_method_via_public
+PASS regexp/compile_basic
+FAIL regexp/compile_forbidden_lookahead
+  stderr diverges
+  node rc=1 cli rc=1
+  stderr diff (normalized):
+--- /var/folders/88/nw43wg1s4xb4dr4z8k09jw100000gn/T/tmp.fV3oUjHUIR	2026-02-19 01:23:24
++++ /var/folders/88/nw43wg1s4xb4dr4z8k09jw100000gn/T/tmp.mapZ0FijEt	2026-02-19 01:23:24
+@@ -1 +1 @@
+-/Users/avialle/dev/ProtoScript2/tests/regexp/compile_forbidden_lookahead.pts:4:11 R1010 RUNTIME_MODULE_ERROR: RegExpSyntax: forbidden metasyntax (backreference/lookaround). got module or symbol; expected available module/symbol
++/Users/avialle/dev/ProtoScript2/tests/regexp/compile_forbidden_lookahead.pts:4:11 R1011 UNHANDLED_EXCEPTION: unhandled exception. got RuntimeException("RegExpSyntax: forbidden metasyntax (backreference/lookaround)"); expected matching catch
+FAIL regexp/compile_unclosed_paren
+  stderr diverges
+  node rc=1 cli rc=1
+  stderr diff (normalized):
+--- /var/folders/88/nw43wg1s4xb4dr4z8k09jw100000gn/T/tmp.UStHykmYfy	2026-02-19 01:23:24
++++ /var/folders/88/nw43wg1s4xb4dr4z8k09jw100000gn/T/tmp.TbxjiStOpN	2026-02-19 01:23:24
+@@ -1 +1 @@
+-/Users/avialle/dev/ProtoScript2/tests/regexp/compile_unclosed_paren.pts:4:11 R1010 RUNTIME_MODULE_ERROR: RegExpSyntax: Invalid regular expression: /(abc/: Unterminated group. got module or symbol; expected available module/symbol
++/Users/avialle/dev/ProtoScript2/tests/regexp/compile_unclosed_paren.pts:4:11 R1011 UNHANDLED_EXCEPTION: unhandled exception. got RuntimeException("RegExpSyntax: unclosed parenthesis"); expected matching catch
+PASS regexp/find_groups
+PASS regexp/replace_all_backrefs
+PASS regexp/split_basic
+PASS regexp/utf8_indices
+FAIL regexp/range_start_invalid
+  stderr diverges
+  node rc=1 cli rc=1
+  stderr diff (normalized):
+--- /var/folders/88/nw43wg1s4xb4dr4z8k09jw100000gn/T/tmp.CYirI9oR1R	2026-02-19 01:23:25
++++ /var/folders/88/nw43wg1s4xb4dr4z8k09jw100000gn/T/tmp.Uk0DV3Y9Y3	2026-02-19 01:23:25
+@@ -1 +1 @@
+-/Users/avialle/dev/ProtoScript2/tests/regexp/range_start_invalid.pts:5:6 R1010 RUNTIME_MODULE_ERROR: RegExpRange: start out of range. got module or symbol; expected available module/symbol
++/Users/avialle/dev/ProtoScript2/tests/regexp/range_start_invalid.pts:5:6 R1011 UNHANDLED_EXCEPTION: unhandled exception. got RuntimeException("RegExpRange: start out of range"); expected matching catch
+FAIL regexp/range_max_invalid
+  stderr diverges
+  node rc=1 cli rc=1
+  stderr diff (normalized):
+--- /var/folders/88/nw43wg1s4xb4dr4z8k09jw100000gn/T/tmp.KZVyeMECNo	2026-02-19 01:23:25
++++ /var/folders/88/nw43wg1s4xb4dr4z8k09jw100000gn/T/tmp.tYdeH53HPU	2026-02-19 01:23:25
+@@ -1 +1 @@
+-/Users/avialle/dev/ProtoScript2/tests/regexp/range_max_invalid.pts:5:6 R1010 RUNTIME_MODULE_ERROR: RegExpRange: max out of range. got module or symbol; expected available module/symbol
++/Users/avialle/dev/ProtoScript2/tests/regexp/range_max_invalid.pts:5:6 R1011 UNHANDLED_EXCEPTION: unhandled exception. got RuntimeException("RegExpRange: max out of range"); expected matching catch
+FAIL regexp/range_replace_max_invalid
+  stderr diverges
+  node rc=1 cli rc=1
+  stderr diff (normalized):
+--- /var/folders/88/nw43wg1s4xb4dr4z8k09jw100000gn/T/tmp.cMms9bafGf	2026-02-19 01:23:25
++++ /var/folders/88/nw43wg1s4xb4dr4z8k09jw100000gn/T/tmp.ACqisaGJoL	2026-02-19 01:23:25
+@@ -1 +1 @@
+-/Users/avialle/dev/ProtoScript2/tests/regexp/range_replace_max_invalid.pts:5:6 R1010 RUNTIME_MODULE_ERROR: RegExpRange: max out of range. got module or symbol; expected available module/symbol
++/Users/avialle/dev/ProtoScript2/tests/regexp/range_replace_max_invalid.pts:5:6 R1011 UNHANDLED_EXCEPTION: unhandled exception. got RuntimeException("RegExpRange: max out of range"); expected matching catch
+FAIL regexp/range_maxparts_invalid
+  stderr diverges
+  node rc=1 cli rc=1
+  stderr diff (normalized):
+--- /var/folders/88/nw43wg1s4xb4dr4z8k09jw100000gn/T/tmp.C1nSjUj8wk	2026-02-19 01:23:25
++++ /var/folders/88/nw43wg1s4xb4dr4z8k09jw100000gn/T/tmp.yAapljXmWT	2026-02-19 01:23:25
+@@ -1 +1 @@
+-/Users/avialle/dev/ProtoScript2/tests/regexp/range_maxparts_invalid.pts:5:6 R1010 RUNTIME_MODULE_ERROR: RegExpRange: maxParts out of range. got module or symbol; expected available module/symbol
++/Users/avialle/dev/ProtoScript2/tests/regexp/range_maxparts_invalid.pts:5:6 R1011 UNHANDLED_EXCEPTION: unhandled exception. got RuntimeException("RegExpRange: maxParts out of range"); expected matching catch
+PASS regexp/findall_empty_anchor
+PASS regexp/findall_unlimited_neg1
+PASS regexp/nested_quantifiers
+PASS regexp/nested_quantifiers_nomatch
+PASS regexp/non_greedy_behavior
+PASS regexp/replace_backrefs
+PASS regexp/replaceall_unlimited_neg1
+PASS regexp/replace_backrefs_out_of_range
+PASS regexp/match_empty_antiloop
+PASS regexp/match_semantics
+PASS regexp/shorthand_classes
+PASS regexp/utf8_glyph_boundaries
+PASS regexp/split_empty_match
+PASS regexp/split_unlimited_neg1
+PASS regexp/flags_im_s
+PASS regexp/invalid_syntax
+FAIL edge/overflow_int_add
+  stderr diverges
+  node rc=1 cli rc=1
+  stderr diff (normalized):
+--- /var/folders/88/nw43wg1s4xb4dr4z8k09jw100000gn/T/tmp.lxqDHjVVqk	2026-02-19 01:23:28
++++ /var/folders/88/nw43wg1s4xb4dr4z8k09jw100000gn/T/tmp.Pk7cnjiYPA	2026-02-19 01:23:28
+@@ -1 +1 @@
+-/Users/avialle/dev/ProtoScript2/tests/edge/overflow_int_add.pts:5:13 R1001 RUNTIME_INT_OVERFLOW: int overflow. got value; expected value within int range
++/Users/avialle/dev/ProtoScript2/tests/edge/overflow_int_add.pts:5:13 R1001 RUNTIME_INT_OVERFLOW: int overflow. got 9223372036854775807 + 1; expected value within int range
+FAIL edge/oob_list_index
+  stderr diverges
+  node rc=1 cli rc=1
+  stderr diff (normalized):
+--- /var/folders/88/nw43wg1s4xb4dr4z8k09jw100000gn/T/tmp.MFPEnteRCx	2026-02-19 01:23:28
++++ /var/folders/88/nw43wg1s4xb4dr4z8k09jw100000gn/T/tmp.niirruJUTh	2026-02-19 01:23:28
+@@ -1 +1 @@
+-/Users/avialle/dev/ProtoScript2/tests/edge/oob_list_index.pts:5:13 R1002 RUNTIME_INDEX_OOB: index out of bounds. got 5; expected index within bounds
++/Users/avialle/dev/ProtoScript2/tests/edge/oob_list_index.pts:5:13 R1002 RUNTIME_INDEX_OOB: index out of bounds. got 5; expected 0..2
+PASS edge/variadic_empty_call
+PASS edge/method_variadic_empty
+PASS edge/method_variadic_with_args
+PASS edge/method_variadic_fixed_plus
+PASS edge/variadic_view_empty_length
+PASS edge/variadic_view_nonempty_length
+PASS edge/proto_field_init_scalar_const
+PASS edge/proto_field_init_list_literal
+PASS edge/proto_field_init_inheritance
+PASS edge/proto_field_init_override_no_impact
+PASS edge/proto_field_init_clone_repeated
+PASS edge/map_key_present
+PASS edge/map_iteration_in
+PASS edge/map_iteration_of
+PASS edge/map_update_then_lookup
+PASS edge/map_insert_on_set
+PASS edge/map_empty_literal_typed_set
+PASS edge/map_alias_set_updates_original
+PASS edge/map_alias_chain_set_updates_root
+PASS edge/map_methods_basic
+PASS edge/map_remove_order
+PASS edge/call_static_basic
+PASS edge/call_static_nested
+FAIL edge/clone_super_initial_divergent
+  exit code diverges (0 vs 2)
+  node rc=0 cli rc=2
+  node stdout:
+123
+7
+9
+109
+1234
+  cli stdout:
+  node stderr:
+  cli stderr:
+/Users/avialle/dev/ProtoScript2/tests/edge/clone_super_initial_divergent.pts:30:1 E3001 TYPE_MISMATCH_ASSIGNMENT: override signature mismatch
+PASS edge/clone_inherited_override
+FAIL edge/super_clone_init
+  exit code diverges (0 vs 1)
+  node rc=0 cli rc=1
+  node stdout:
+1
+99
+  cli stdout:
+  node stderr:
+  cli stderr:
+/Users/avialle/dev/ProtoScript2/tests/edge/super_clone_init.pts:11:20 R1011 UNHANDLED_EXCEPTION: unhandled exception. got RuntimeException("runtime error. got missing exception; expected exception or error"); expected matching catch
+FAIL edge/override_multilevel_super_nested_self_deep
+  exit code diverges (0 vs 2)
+  node rc=0 cli rc=2
+  node stdout:
+RMLRM
+RMLRM
+  cli stdout:
+  node stderr:
+  cli stderr:
+/Users/avialle/dev/ProtoScript2/tests/edge/override_multilevel_super_nested_self_deep.pts:20:1 E3001 TYPE_MISMATCH_ASSIGNMENT: override signature mismatch
+FAIL edge/override_chain_order_self_specialization
+  exit code diverges (0 vs 2)
+  node rc=0 cli rc=2
+  node stdout:
+123
+1
+1123
+  cli stdout:
+  node stderr:
+  cli stderr:
+/Users/avialle/dev/ProtoScript2/tests/edge/override_chain_order_self_specialization.pts:26:1 E3001 TYPE_MISMATCH_ASSIGNMENT: override signature mismatch
+PASS edge/index_get_list
+PASS edge/index_get_map
+PASS edge/index_set_list
+PASS edge/index_set_map
+PASS edge/compound_assign
+PASS edge/group_stress
+PASS edge/exception_derived
+PASS edge/iter_list_of
+PASS edge/iter_list_in
+PASS edge/switch_cfg_case
+PASS edge/switch_cfg_default
+PASS edge/string_length_ascii
+PASS edge/string_length_emoji
+PASS edge/string_length_combining
+PASS edge/string_indexof_emoji
+PASS edge/string_indexof_notfound
+PASS edge/string_starts_ends
+PASS edge/string_split_basic
+PASS edge/string_split_empty
+PASS edge/string_trim_basic
+PASS edge/string_trim_start_end
+PASS edge/string_upper
+PASS edge/string_replace_basic
+PASS edge/string_substring_emoji
+PASS edge/string_utf8_roundtrip
+PASS edge/list_sort_suite
+PASS edge/list_reverse_int
+PASS edge/list_reverse_string
+PASS edge/list_reverse_proto
+PASS edge/list_reverse_empty
+PASS edge/list_reverse_sort_consistency
+PASS edge/glyph_basic
+PASS edge/prototype_basic
+PASS edge/prototype_inherit_static
+PASS edge/prototype_parent_call
+PASS edge/slice_view_list_basic
+PASS edge/view_string_basic
+PASS edge/int_methods
+PASS edge/numeric_cast_valid
+PASS edge/numeric_literal_context
+PASS edge/int_bitwise_ops
+PASS edge/int64_print
+PASS edge/int64_print_io
+PASS edge/int_min_literal
+PASS edge/float_methods
+PASS edge/glyph_methods
+PASS edge/string_to_int_float
+PASS edge/list_join_concat
+PASS edge/if_basic
+PASS edge/control_flow_continuation
+PASS edge/proto_bool_field
+PASS edge/list_methods_basic
+PASS edge/default_values_local
+PASS edge/default_values_proto
+PASS edge/module_import_simple_add
+PASS edge/module_namespace_call
+PASS edge/module_utf8_roundtrip
+PASS edge/module_import_path_basic
+PASS edge/module_import_path_selective
+PASS edge/module_import_name_priority
+PASS edge/module_import_name_search_paths_second
+PASS edge/module_try_catch
+PASS edge/module_try_finally_rethrow
+PASS edge/runtime_exception_filter
+PASS edge/user_exception_filter
+PASS edge/math_abs_min_max
+PASS edge/math_constants
+PASS edge/math_numeric_limits
+PASS edge/math_extended
+PASS edge/math_floor_ceil_round_pow_exp
+PASS edge/math_trig_hyper
+PASS edge/math_domain_no_error
+PASS edge/math_random_range
+PASS edge/math_random_variability
+PASS edge/math_random_loop
+PASS edge/json_encode_basic
+PASS edge/json_decode_basic
+PASS edge/json_decode_object_basic
+PASS edge/json_decode_unicode_escape
+PASS edge/json_isvalid
+PASS edge/json_constructors
+PASS edge/time_timezone_validation
+PASS edge/time_utc_roundtrip
+PASS edge/time_iso_week
+PASS edge/time_iso_parse_format
+PASS edge/time_dst_paris
+PASS edge/io_text_roundtrip
+PASS edge/io_temp_path
+PASS edge/io_text_seek_tell
+PASS edge/io_print
+PASS edge/io_exceptions_basic
+PASS edge/io_stdout_stderr
+PASS edge/io_binary_read_write
+PASS edge/io_eof_length_text
+PASS edge/manual_ex001
+PASS edge/manual_ex002
+PASS edge/manual_ex004
+PASS edge/manual_ex006
+PASS edge/manual_ex007
+PASS edge/manual_ex008
+PASS edge/manual_ex009
+PASS edge/manual_ex010
+PASS edge/manual_ex011
+PASS edge/manual_ex012
+PASS edge/manual_ex013
+PASS edge/manual_ex014
+PASS edge/manual_ex015
+PASS edge/manual_ex016
+PASS edge/manual_ex018
+PASS edge/manual_ex019
+PASS edge/manual_ex021
+PASS edge/manual_ex022
+PASS edge/manual_ex023
+PASS edge/manual_ex024
+PASS edge/manual_ex025
+PASS edge/manual_ex027
+PASS edge/manual_ex029
+PASS edge/manual_ex030
+PASS edge/manual_ex031
+PASS edge/manual_ex032
+PASS edge/manual_ex033
+PASS edge/manual_ex034
+PASS edge/manual_ex035
+PASS edge/manual_ex036
+PASS edge/manual_ex037
+PASS edge/manual_ex038
+PASS edge/manual_ex039
+PASS edge/manual_ex040
+PASS edge/manual_ex041
+PASS edge/manual_ex042
+PASS edge/manual_ex044
+PASS edge/manual_ex045
+PASS edge/manual_ex046
+PASS edge/manual_ex049
+PASS edge/manual_ex051
+PASS edge/manual_ex052
+PASS edge/manual_ex054
+PASS edge/manual_ex055
+PASS edge/manual_ex056
+PASS edge/manual_ex057
+PASS edge/manual_ex059
+PASS edge/manual_ex061
+PASS edge/manual_ex062
+PASS edge/manual_ex064
+PASS edge/manual_ex065
+PASS edge/manual_ex066
+PASS edge/manual_ex067
+PASS edge/manual_ex068
+PASS edge/manual_ex069
+PASS edge/manual_ex070
+PASS edge/manual_ex071
+PASS edge/manual_ex072
+PASS edge/manual_ex073
+PASS edge/manual_ex074
+PASS edge/manual_ex075
+PASS edge/manual_ex076
+PASS edge/manual_ex079
+PASS edge/manual_ex080
+PASS edge/manual_ex081
+PASS edge/manual_ex082
+PASS edge/manual_ex083
+PASS edge/manual_ex084
+PASS edge/manual_ex085
+PASS edge/manual_ex086
+PASS edge/manual_ex087A
+PASS edge/manual_ex087B
+PASS edge/manual_ex087
+PASS edge/manual_ex090
+PASS edge/manual_ex093
+PASS edge/manual_ex094
+PASS edge/manual_ex095
+PASS edge/manual_ex096
+PASS edge/manual_ex097
+PASS edge/manual_ex098
+PASS edge/manual_ex003
+PASS edge/manual_ex077
+PASS edge/manual_ex081A
+PASS edge/manual_ex088
+PASS edge/manual_ex089
+PASS edge/manual_ex091
+PASS edge/manual_ex092
+PASS edge/manual_ex099
+PASS edge/manual_ex100
+PASS edge/manual_ex101
+PASS edge/manual_ex102
+PASS edge/manual_ex103
+PASS edge/manual_ex105
+PASS edge/manual_ex106
+PASS edge/manual_ex107
+PASS edge/manual_ex108
+PASS edge/manual_ex109
+PASS edge/manual_ex110
+PASS edge/manual_ex111
+PASS edge/manual_ex112
+PASS edge/manual_ex113
+PASS edge/manual_ex114
+PASS edge/manual_ex115
+PASS edge/manual_ex116
+PASS edge/manual_ex117
+PASS fs/import_fs
+FAIL fs/exceptions
+  exit code diverges (0 vs 2)
+  node rc=0 cli rc=2
+  node stdout:
+FileNotFoundException
+NotADirectoryException
+NotAFileException
+PermissionDeniedException
+DirectoryNotEmptyException
+InvalidPathException
+IOException
+  cli stdout:
+  node stderr:
+  cli stderr:
+/Users/avialle/dev/ProtoScript2/tests/fs/exceptions.pts:24:37 E3001 TYPE_MISMATCH_ASSIGNMENT: catch type must derive from Exception
+PASS fs/queries
+FAIL fs/size
+  exit code diverges (0 vs 2)
+  node rc=0 cli rc=2
+  node stdout:
+4
+NotAFileException
+PermissionDeniedException
+FileNotFoundException
+  cli stdout:
+  node stderr:
+  cli stderr:
+/Users/avialle/dev/ProtoScript2/tests/fs/size.pts:18:32 E3001 TYPE_MISMATCH_ASSIGNMENT: catch type must derive from Exception
+PASS fs/mutating
+PASS fs/dir_iterator
+PASS fs/walker
+PASS sys/import_sys
+FAIL sys/has_env
+  exit code diverges (0 vs 2)
+  node rc=0 cli rc=2
+  node stdout:
+true
+false
+InvalidEnvironmentNameException
+InvalidEnvironmentNameException
+true
+  cli stdout:
+  node stderr:
+  cli stderr:
+/Users/avialle/dev/ProtoScript2/tests/sys/has_env.pts:12:46 E3001 TYPE_MISMATCH_ASSIGNMENT: catch type must derive from Exception
+FAIL sys/env
+  exit code diverges (0 vs 2)
+  node rc=0 cli rc=2
+  node stdout:
+abc
+0
+café
+EnvironmentAccessException
+InvalidEnvironmentNameException
+EnvironmentAccessException
+  cli stdout:
+  node stderr:
+  cli stderr:
+/Users/avialle/dev/ProtoScript2/tests/sys/env.pts:17:41 E3001 TYPE_MISMATCH_ASSIGNMENT: catch type must derive from Exception
+FAIL sys_execute/exit_code
+  exit code diverges (0 vs 2)
+  node rc=0 cli rc=2
+  node stdout:
+true
+  cli stdout:
+  node stderr:
+  cli stderr:
+/Users/avialle/dev/ProtoScript2/tests/sys_execute/exit_code.pts:8:55 E3001 TYPE_MISMATCH_ASSIGNMENT: incompatible operands
+PASS sys_execute/stdout_only
+PASS sys_execute/stderr_only
+FAIL sys_execute/both_order
+  exit code diverges (0 vs 2)
+  node rc=0 cli rc=2
+  node stdout:
+true
+  cli stdout:
+  node stderr:
+  cli stderr:
+/Users/avialle/dev/ProtoScript2/tests/sys_execute/both_order.pts:8:34 E3001 TYPE_MISMATCH_ASSIGNMENT: incompatible operands
+FAIL sys_execute/input_echo
+  exit code diverges (0 vs 2)
+  node rc=0 cli rc=2
+  node stdout:
+true
+  cli stdout:
+  node stderr:
+  cli stderr:
+/Users/avialle/dev/ProtoScript2/tests/sys_execute/input_echo.pts:9:77 E3001 TYPE_MISMATCH_ASSIGNMENT: incompatible operands
+FAIL sys_execute/large_binary_output
+  exit code diverges (0 vs 2)
+  node rc=0 cli rc=2
+  node stdout:
+true
+  cli stdout:
+  node stderr:
+  cli stderr:
+/Users/avialle/dev/ProtoScript2/tests/sys_execute/large_binary_output.pts:14:31 E3001 TYPE_MISMATCH_ASSIGNMENT: incompatible operands
+PASS sys_execute/args_variants
+FAIL sys_execute/invalid_program
+  exit code diverges (0 vs 2)
+  node rc=0 cli rc=2
+  node stdout:
+InvalidExecutableException
+  cli stdout:
+  node stderr:
+  cli stderr:
+/Users/avialle/dev/ProtoScript2/tests/sys_execute/invalid_program.pts:9:41 E3001 TYPE_MISMATCH_ASSIGNMENT: catch type must derive from Exception
+FAIL sys_execute/permission_denied
+  exit code diverges (0 vs 2)
+  node rc=0 cli rc=2
+  node stdout:
+ProcessPermissionException
+  cli stdout:
+  node stderr:
+  cli stderr:
+/Users/avialle/dev/ProtoScript2/tests/sys_execute/permission_denied.pts:16:41 E3001 TYPE_MISMATCH_ASSIGNMENT: catch type must derive from Exception
+FAIL sys_execute/exec_failure
+  exit code diverges (0 vs 2)
+  node rc=0 cli rc=2
+  node stdout:
+ProcessExecutionException
+  cli stdout:
+  node stderr:
+  cli stderr:
+/Users/avialle/dev/ProtoScript2/tests/sys_execute/exec_failure.pts:15:40 E3001 TYPE_MISMATCH_ASSIGNMENT: catch type must derive from Exception
+PASS sys_execute/invalid_utf8_output
+
+Summary: PASS=271 FAIL=46 SKIP=0 TOTAL=317
+RC:1

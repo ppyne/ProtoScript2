@@ -44,6 +44,7 @@ const KEYWORDS = new Set([
   "true",
   "false",
   "self",
+  "super",
   "import",
   "as",
 ]);
@@ -1234,6 +1235,10 @@ class Parser {
       this.i += 1;
       return { kind: "Literal", literalType: "bool", value: tok.value === "true", line: tok.line, col: tok.col };
     }
+    if (tok.type === "kw" && tok.value === "super") {
+      this.i += 1;
+      return { kind: "SuperExpr", line: tok.line, col: tok.col };
+    }
     if (tok.type === "id" || (tok.type === "kw" && tok.value === "self")) {
       this.i += 1;
       return { kind: "Identifier", name: tok.value, line: tok.line, col: tok.col };
@@ -1769,6 +1774,13 @@ class Analyzer {
       _moduleFile: null,
     });
 
+    if (!this.prototypes.has("Object")) {
+      const decl = { line: 1, col: 1 };
+      const methods = new Map();
+      methods.set("clone", makeBuiltinMethod("Object", "clone", [], "Object"));
+      this.prototypes.set("Object", { decl, parent: null, fields: new Map(), methods, moduleFile: null, sealed: false });
+    }
+
     if (!this.prototypes.has("Exception")) {
       const decl = { line: 1, col: 1 };
       const fields = new Map();
@@ -1777,7 +1789,7 @@ class Analyzer {
       fields.set("column", { kind: "PrimitiveType", name: "int" });
       fields.set("message", { kind: "PrimitiveType", name: "string" });
       fields.set("cause", { kind: "NamedType", name: "Exception" });
-      this.prototypes.set("Exception", { decl, parent: null, fields, methods: new Map(), moduleFile: null });
+      this.prototypes.set("Exception", { decl, parent: "Object", fields, methods: new Map(), moduleFile: null });
     }
     if (!this.prototypes.has("RuntimeException")) {
       const decl = { line: 1, col: 1 };
@@ -1796,7 +1808,7 @@ class Analyzer {
       fields.set("minute", { kind: "PrimitiveType", name: "int" });
       fields.set("second", { kind: "PrimitiveType", name: "int" });
       fields.set("millisecond", { kind: "PrimitiveType", name: "int" });
-      this.prototypes.set("CivilDateTime", { decl, parent: null, fields, methods: new Map(), moduleFile: null });
+      this.prototypes.set("CivilDateTime", { decl, parent: "Object", fields, methods: new Map(), moduleFile: null });
     }
     if (!this.prototypes.has("PathInfo")) {
       const decl = { line: 1, col: 1 };
@@ -1805,7 +1817,7 @@ class Analyzer {
       fields.set("basename", { kind: "PrimitiveType", name: "string" });
       fields.set("filename", { kind: "PrimitiveType", name: "string" });
       fields.set("extension", { kind: "PrimitiveType", name: "string" });
-      this.prototypes.set("PathInfo", { decl, parent: null, fields, methods: new Map(), moduleFile: null });
+      this.prototypes.set("PathInfo", { decl, parent: "Object", fields, methods: new Map(), moduleFile: null });
     }
     if (!this.prototypes.has("PathEntry")) {
       const decl = { line: 1, col: 1 };
@@ -1816,21 +1828,21 @@ class Analyzer {
       fields.set("isDir", { kind: "PrimitiveType", name: "bool" });
       fields.set("isFile", { kind: "PrimitiveType", name: "bool" });
       fields.set("isSymlink", { kind: "PrimitiveType", name: "bool" });
-      this.prototypes.set("PathEntry", { decl, parent: null, fields, methods: new Map(), moduleFile: null });
+      this.prototypes.set("PathEntry", { decl, parent: "Object", fields, methods: new Map(), moduleFile: null });
     }
     if (!this.prototypes.has("ProcessEvent")) {
       const decl = { line: 1, col: 1 };
       const fields = new Map();
       fields.set("stream", { kind: "PrimitiveType", name: "int" });
       fields.set("data", { kind: "GenericType", name: "list", args: [{ kind: "PrimitiveType", name: "byte" }] });
-      this.prototypes.set("ProcessEvent", { decl, parent: null, fields, methods: new Map(), moduleFile: null });
+      this.prototypes.set("ProcessEvent", { decl, parent: "Object", fields, methods: new Map(), moduleFile: null });
     }
     if (!this.prototypes.has("ProcessResult")) {
       const decl = { line: 1, col: 1 };
       const fields = new Map();
       fields.set("exitCode", { kind: "PrimitiveType", name: "int" });
       fields.set("events", { kind: "GenericType", name: "list", args: [{ kind: "NamedType", name: "ProcessEvent" }] });
-      this.prototypes.set("ProcessResult", { decl, parent: null, fields, methods: new Map(), moduleFile: null });
+      this.prototypes.set("ProcessResult", { decl, parent: "Object", fields, methods: new Map(), moduleFile: null });
     }
     if (!this.prototypes.has("RegExpMatch")) {
       const decl = { line: 1, col: 1 };
@@ -1839,7 +1851,7 @@ class Analyzer {
       fields.set("start", { kind: "PrimitiveType", name: "int" });
       fields.set("end", { kind: "PrimitiveType", name: "int" });
       fields.set("groups", { kind: "GenericType", name: "list", args: [{ kind: "PrimitiveType", name: "string" }] });
-      this.prototypes.set("RegExpMatch", { decl, parent: null, fields, methods: new Map(), moduleFile: null });
+      this.prototypes.set("RegExpMatch", { decl, parent: "Object", fields, methods: new Map(), moduleFile: null });
     }
     if (!this.prototypes.has("RegExp")) {
       const decl = { line: 1, col: 1 };
@@ -1853,7 +1865,7 @@ class Analyzer {
       methods.set("split", makeBuiltinMethod("RegExp", "split", ["string", "int", "int"], "list<string>"));
       methods.set("pattern", makeBuiltinMethod("RegExp", "pattern", [], "string"));
       methods.set("flags", makeBuiltinMethod("RegExp", "flags", [], "string"));
-      this.prototypes.set("RegExp", { decl, parent: null, fields: new Map(), methods, moduleFile: null });
+      this.prototypes.set("RegExp", { decl, parent: "Object", fields: new Map(), methods, moduleFile: null });
     }
     const timeExceptions = [
       "DSTAmbiguousTimeException",
@@ -1909,6 +1921,7 @@ class Analyzer {
     for (const d of this.ast.decls) {
       if (d.kind !== "PrototypeDecl") continue;
       if (
+        d.name === "Object" ||
         d.name === "Exception" ||
         d.name === "RuntimeException" ||
         d.name === "CivilDateTime" ||
@@ -1958,7 +1971,7 @@ class Analyzer {
       }
       this.prototypes.set(d.name, {
         decl: d,
-        parent: d.parent || null,
+        parent: d.parent || "Object",
         fields,
         methods,
         sealed: !!d.sealed,
@@ -2140,6 +2153,9 @@ class Analyzer {
       if (!sameType(a.params[i].type, b.params[i].type)) return false;
       if (!!a.params[i].variadic !== !!b.params[i].variadic) return false;
     }
+    if (a.name === "clone" && b.name === "clone") {
+      return this.isSubtype(b.retType, a.retType);
+    }
     return sameType(a.retType, b.retType);
   }
 
@@ -2300,21 +2316,11 @@ class Analyzer {
     const addProtoImportItems = (entry, imp) => {
       for (const it of imp.items || []) {
         const local = it.alias || it.name;
-        if (it.name === "clone") {
-          const fn = {
-            kind: "FunctionDecl",
-            name: local,
-            params: [],
-            retType: { kind: "NamedType", name: entry.protoName },
-            body: { kind: "Block", stmts: [] },
-          };
-          this.imported.set(local, { module: entry.protoName, name: it.name, sig: fn, kind: "proto" });
-          this.functions.set(local, fn);
-          continue;
-        }
-        const m = entry.methods.get(it.name);
+        // Path modules are loaded before collectPrototypes(); resolve against the
+        // loaded module entry first, then fall back to global prototype lookup.
+        const m = entry.methods.get(it.name) || this.resolvePrototypeMethod(entry.protoName, it.name);
         if (!m) {
-          this.unresolvedMember(it, it.name, "symbol", `module '${entry.protoName}'`, "member", [...entry.methods.keys(), "clone"]);
+          this.unresolvedMember(it, it.name, "symbol", `module '${entry.protoName}'`, "member", this.collectPrototypeMemberNames(entry.protoName));
           continue;
         }
         if ((m.visibility || "public") === "internal") {
@@ -2726,6 +2732,12 @@ class Analyzer {
     switch (expr.kind) {
       case "Literal":
         return { kind: "PrimitiveType", name: expr.literalType };
+      case "SuperExpr":
+        if (!this.currentProto) {
+          this.addDiag(expr, "E3210", "INVALID_SUPER_USAGE", "super is only valid inside prototype methods");
+          return { kind: "PrimitiveType", name: "unknown" };
+        }
+        return { kind: "NamedType", name: this.currentProto };
       case "CastExpr": {
         const targetType = expr.targetType;
         const targetName = typeToString(targetType);
@@ -2829,6 +2841,10 @@ class Analyzer {
         return null;
       }
       case "MemberExpr":
+        if (expr.target.kind === "SuperExpr") {
+          this.addDiag(expr, "E3210", "INVALID_SUPER_USAGE", "super is only valid in calls like super.method(...)");
+          return null;
+        }
         if (expr.target.kind === "Identifier") {
           const g = this.groups.get(expr.target.name);
           if (g && g.members) {
@@ -3026,15 +3042,28 @@ class Analyzer {
 
     if (expr.callee.kind === "MemberExpr") {
       const member = expr.callee;
+      if (member.target.kind === "SuperExpr") {
+        if (!this.currentProto) {
+          this.addDiag(member, "E3210", "INVALID_SUPER_USAGE", "super is only valid inside prototype methods");
+          return null;
+        }
+        const owner = this.prototypes.get(this.currentProto);
+        if (!owner || !owner.parent) {
+          this.addDiag(member, "E3211", "SUPER_NO_PARENT", "super call requires a parent prototype");
+          return null;
+        }
+        const pm = this.resolvePrototypeMethod(owner.parent, member.name);
+        if (!pm) {
+          this.addDiag(member, "E3212", "SUPER_METHOD_NOT_FOUND", `super.${member.name} not found`);
+          return null;
+        }
+        this.checkPrototypeMethodArity(expr, member.name, pm.params, false);
+        expr._superCall = { fromProto: this.currentProto };
+        if (member.name === "clone") return { kind: "NamedType", name: this.currentProto };
+        return pm.retType;
+      }
       if (member.target.kind === "Identifier" && this.prototypes.has(member.target.name)) {
         const protoName = member.target.name;
-        if (member.name === "clone") {
-          if (expr.args.length !== 0) {
-            this.addDiag(expr, "E1003", "ARITY_MISMATCH", "arity mismatch for 'clone'");
-          }
-          expr._protoClone = protoName;
-          return { kind: "NamedType", name: protoName };
-        }
         const pm = this.resolvePrototypeMethod(protoName, member.name);
         if (!pm) {
           this.unresolvedMember(member, member.name, "method", `prototype '${protoName}'`, "member", this.collectPrototypeMemberNames(protoName));
@@ -3047,9 +3076,10 @@ class Analyzer {
         }, member.name)) {
           return null;
         }
-        const includeSelf = !(protoName === "RegExp" && member.name === "compile");
+        const includeSelf = !((protoName === "RegExp" && member.name === "compile") || member.name === "clone");
         this.checkPrototypeMethodArity(expr, member.name, pm.params, includeSelf);
         expr._protoStatic = protoName;
+        if (member.name === "clone") return { kind: "NamedType", name: protoName };
         return pm.retType;
       }
       if (member.target && member.target.kind === "Identifier") {
@@ -3057,13 +3087,6 @@ class Analyzer {
         if (ns) {
           if (ns.kind === "proto") {
             const protoName = ns.name;
-            if (member.name === "clone") {
-              if (expr.args.length !== 0) {
-                this.addDiag(expr, "E1003", "ARITY_MISMATCH", "arity mismatch for 'clone'");
-              }
-              expr._protoClone = protoName;
-              return { kind: "NamedType", name: protoName };
-            }
             const pm = this.resolvePrototypeMethod(protoName, member.name);
             if (!pm) {
               this.unresolvedMember(member, member.name, "method", `prototype '${protoName}'`, "member", this.collectPrototypeMemberNames(protoName));
@@ -3076,8 +3099,9 @@ class Analyzer {
             }, member.name)) {
               return null;
             }
-            this.checkPrototypeMethodArity(expr, member.name, pm.params, true);
+            this.checkPrototypeMethodArity(expr, member.name, pm.params, member.name === "clone" ? false : true);
             expr._protoStatic = protoName;
+            if (member.name === "clone") return { kind: "NamedType", name: protoName };
             return pm.retType;
           }
           const registry = loadModuleRegistry();
@@ -3124,6 +3148,7 @@ class Analyzer {
         }
         this.checkPrototypeMethodArity(expr, member.name, pm.params, false);
         expr._protoInstance = targetType.name;
+        if (member.name === "clone") return targetType;
         return pm.retType;
       }
       const t = typeToString(targetType);

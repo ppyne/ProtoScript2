@@ -228,6 +228,13 @@ class IRBuilder {
     this.moduleConsts = imports.moduleConsts;
     this.moduleReturns = imports.moduleReturns;
     this.importedReturns = imports.importedReturns;
+    this.currentMethodProto = null;
+    this.currentReceiverProto = null;
+    this.currentMethodName = null;
+    this.outFunctions = null;
+    this.generatedFunctionNames = new Set();
+    this.cloneSpecializationCache = new Map();
+    this.methodSpecializationCache = new Set();
     this.collectGroupConsts();
   }
 
@@ -315,10 +322,19 @@ class IRBuilder {
 
   build() {
     const mod = { kind: "Module", functions: [], prototypes: [], groups: [] };
+    this.outFunctions = mod.functions;
+    this.generatedFunctionNames = new Set();
+    this.cloneSpecializationCache.clear();
+    this.methodSpecializationCache.clear();
     const builtin = [
       {
-        name: "Exception",
+        name: "Object",
         parent: null,
+        fields: [],
+      },
+      {
+        name: "Exception",
+        parent: "Object",
         fields: [
           { name: "file", type: { kind: "PrimitiveType", name: "string" } },
           { name: "line", type: { kind: "PrimitiveType", name: "int" } },
@@ -337,7 +353,7 @@ class IRBuilder {
       },
       {
         name: "CivilDateTime",
-        parent: null,
+        parent: "Object",
         fields: [
           { name: "year", type: { kind: "PrimitiveType", name: "int" } },
           { name: "month", type: { kind: "PrimitiveType", name: "int" } },
@@ -350,7 +366,7 @@ class IRBuilder {
       },
       {
         name: "PathInfo",
-        parent: null,
+        parent: "Object",
         fields: [
           { name: "dirname", type: { kind: "PrimitiveType", name: "string" } },
           { name: "basename", type: { kind: "PrimitiveType", name: "string" } },
@@ -360,7 +376,7 @@ class IRBuilder {
       },
       {
         name: "PathEntry",
-        parent: null,
+        parent: "Object",
         fields: [
           { name: "path", type: { kind: "PrimitiveType", name: "string" } },
           { name: "name", type: { kind: "PrimitiveType", name: "string" } },
@@ -372,7 +388,7 @@ class IRBuilder {
       },
       {
         name: "ProcessEvent",
-        parent: null,
+        parent: "Object",
         fields: [
           { name: "stream", type: { kind: "PrimitiveType", name: "int" } },
           { name: "data", type: { kind: "GenericType", name: "list", args: [{ kind: "PrimitiveType", name: "byte" }] } },
@@ -380,7 +396,7 @@ class IRBuilder {
       },
       {
         name: "ProcessResult",
-        parent: null,
+        parent: "Object",
         fields: [
           { name: "exitCode", type: { kind: "PrimitiveType", name: "int" } },
           { name: "events", type: { kind: "GenericType", name: "list", args: [{ kind: "NamedType", name: "ProcessEvent" }] } },
@@ -388,7 +404,7 @@ class IRBuilder {
       },
       {
         name: "RegExpMatch",
-        parent: null,
+        parent: "Object",
         fields: [
           { name: "ok", type: { kind: "PrimitiveType", name: "bool" } },
           { name: "start", type: { kind: "PrimitiveType", name: "int" } },
@@ -398,7 +414,7 @@ class IRBuilder {
       },
       {
         name: "RegExp",
-        parent: null,
+        parent: "Object",
         fields: [],
       },
       { name: "DSTAmbiguousTimeException", parent: "Exception", fields: [] },
@@ -433,6 +449,15 @@ class IRBuilder {
     for (const b of builtin) {
       if (this.prototypes.has(b.name)) continue;
       const methods = new Map();
+      if (b.name === "Object") {
+        methods.set("clone", {
+          kind: "FunctionDecl",
+          name: "clone",
+          params: [],
+          retType: { kind: "NamedType", name: "Object" },
+          body: { kind: "Block", stmts: [] },
+        });
+      }
       this.prototypes.set(
         b.name,
         { name: b.name, parent: b.parent, fields: b.fields.map((f) => ({ ...f, init: null, isConst: false })), methods }
@@ -455,8 +480,8 @@ class IRBuilder {
             returnType: lowerType(m.retType),
           });
         }
-        this.prototypes.set(d.name, { name: d.name, parent: d.parent || null, fields, methods, sealed: !!d.sealed });
-        mod.prototypes.push({ name: d.name, parent: d.parent || null, fields: fieldsIr, methods: methodsIr, sealed: !!d.sealed });
+        this.prototypes.set(d.name, { name: d.name, parent: d.parent || "Object", fields, methods, sealed: !!d.sealed });
+        mod.prototypes.push({ name: d.name, parent: d.parent || "Object", fields: fieldsIr, methods: methodsIr, sealed: !!d.sealed });
       }
     }
     for (const d of this.ast.decls) {
@@ -466,48 +491,132 @@ class IRBuilder {
       }
     }
     for (const d of this.ast.decls) {
-      if (d.kind === "FunctionDecl") mod.functions.push(this.lowerFunction(d));
+      if (d.kind === "FunctionDecl") this.registerFunction(this.lowerFunction(d));
       if (d.kind === "PrototypeDecl") {
-        mod.functions.push(this.lowerCloneFunction(d.name));
-        for (const m of d.methods || []) mod.functions.push(this.lowerMethod(d.name, m));
+        this.registerFunction(this.lowerCloneDefaultFunction(d.name));
+        for (const m of d.methods || []) {
+          if (m.name === "clone") continue;
+          this.registerFunction(this.lowerMethod(d.name, m, d.name, `${d.name}.${m.name}`));
+        }
       }
     }
     for (const name of builtinNames) {
-      mod.functions.push(this.lowerCloneFunction(name));
+      this.registerFunction(this.lowerCloneDefaultFunction(name));
+    }
+
+    // Specialize inherited non-clone methods with concrete receiver type.
+    for (const receiver of this.prototypes.keys()) {
+      let p = this.prototypes.get(receiver);
+      while (p) {
+        for (const [methodName, methodDecl] of p.methods.entries()) {
+          if (methodName === "clone") continue;
+          if (!methodDecl || !methodDecl.body || p.name === receiver) continue;
+          this.ensureMethodSpecialization(receiver, p.name, methodDecl);
+        }
+        p = p.parent ? this.prototypes.get(p.parent) : null;
+      }
+    }
+
+    // Public clone entrypoints for every prototype.
+    for (const name of this.prototypes.keys()) {
+      this.registerFunction(this.lowerCloneWrapperFunction(name));
     }
     mod.groups = this.buildGroups();
     return mod;
   }
 
-  lowerMethod(protoName, method) {
+  registerFunction(irFn) {
+    if (!irFn || !irFn.name) return;
+    if (this.generatedFunctionNames.has(irFn.name)) return;
+    this.generatedFunctionNames.add(irFn.name);
+    this.outFunctions.push(irFn);
+  }
+
+  ensureMethodSpecialization(receiverProtoName, declaredProtoName, methodDecl) {
+    const key = `${receiverProtoName}|${declaredProtoName}|${methodDecl.name}`;
+    if (this.methodSpecializationCache.has(key)) return;
+    this.methodSpecializationCache.add(key);
+    const fnName = `${receiverProtoName}.${methodDecl.name}`;
+    if (this.generatedFunctionNames.has(fnName)) return;
+    this.registerFunction(this.lowerMethod(receiverProtoName, methodDecl, declaredProtoName, fnName));
+  }
+
+  ensureCloneSpecialization(receiverProtoName, ownerProtoName) {
+    const key = `${receiverProtoName}|${ownerProtoName || "Object"}`;
+    if (this.cloneSpecializationCache.has(key)) return this.cloneSpecializationCache.get(key);
+    const fnName = `${ownerProtoName || "Object"}.__clone_for__${receiverProtoName}`;
+    this.cloneSpecializationCache.set(key, fnName);
+
+    if (!ownerProtoName || ownerProtoName === "Object") {
+      const entry = { kind: "Block", label: "entry", instrs: [] };
+      const irFn = {
+        kind: "Function",
+        name: fnName,
+        params: [],
+        returnType: lowerType({ kind: "NamedType", name: receiverProtoName }),
+        blocks: [entry],
+      };
+      const dst = this.nextTemp();
+      this.emit(entry, { op: "call_static", dst, callee: `${receiverProtoName}.__clone_default`, args: [], variadic: false });
+      this.emit(entry, { op: "ret", value: dst });
+      this.registerFunction(irFn);
+      return fnName;
+    }
+
+    const info = this.resolvePrototypeMethodOwner(ownerProtoName, "clone");
+    if (!info || !info.method || !info.method.body) {
+      const fallback = this.ensureCloneSpecialization(receiverProtoName, null);
+      this.cloneSpecializationCache.set(key, fallback);
+      return fallback;
+    }
+
+    this.registerFunction(this.lowerMethod(receiverProtoName, info.method, ownerProtoName, fnName, {
+      returnProtoName: receiverProtoName,
+      isCloneSpecialization: true,
+    }));
+    return fnName;
+  }
+
+  lowerMethod(protoName, method, declaredProtoName = protoName, functionName = `${protoName}.${method.name}`, opts = null) {
     const entry = { kind: "Block", label: "entry", instrs: [] };
     const params = [];
     const irFn = {
       kind: "Function",
-      name: `${protoName}.${method.name}`,
+      name: functionName,
       params,
-      returnType: lowerType(method.retType),
+      returnType: lowerType((opts && opts.returnProtoName) ? { kind: "NamedType", name: opts.returnProtoName } : method.retType),
       blocks: [entry],
     };
     const scope = new Scope(null);
-    const selfName = this.nextVar("self");
-    scope.define("self", { kind: "NamedType", name: protoName }, selfName);
-    params.push({ name: selfName, type: lowerType({ kind: "NamedType", name: protoName }), variadic: false });
+    if (method.name !== "clone") {
+      const selfName = this.nextVar("self");
+      scope.define("self", { kind: "NamedType", name: protoName }, selfName);
+      params.push({ name: selfName, type: lowerType({ kind: "NamedType", name: protoName }), variadic: false });
+    }
     for (const p of method.params) {
       const irName = this.nextVar(p.name);
       const pType = canonicalVariadicParamType(p);
       scope.define(p.name, pType, irName);
       params.push({ name: irName, type: lowerType(pType), variadic: !!p.variadic });
     }
+    const prevProto = this.currentMethodProto;
+    const prevReceiver = this.currentReceiverProto;
+    const prevMethodName = this.currentMethodName;
+    this.currentMethodProto = declaredProtoName;
+    this.currentReceiverProto = protoName;
+    this.currentMethodName = method.name;
     this.lowerBlock(method.body, entry, irFn, scope);
+    this.currentMethodProto = prevProto;
+    this.currentReceiverProto = prevReceiver;
+    this.currentMethodName = prevMethodName;
     return irFn;
   }
 
-  lowerCloneFunction(protoName) {
+  lowerCloneDefaultFunction(protoName) {
     const entry = { kind: "Block", label: "entry", instrs: [] };
     const irFn = {
       kind: "Function",
-      name: `${protoName}.clone`,
+      name: `${protoName}.__clone_default`,
       params: [],
       returnType: lowerType({ kind: "NamedType", name: protoName }),
       blocks: [entry],
@@ -532,6 +641,24 @@ class IRBuilder {
       cur = targetBlock;
     }
     this.emit(cur, { op: "ret", value: dst });
+    return irFn;
+  }
+
+  lowerCloneWrapperFunction(protoName) {
+    const entry = { kind: "Block", label: "entry", instrs: [] };
+    const irFn = {
+      kind: "Function",
+      name: `${protoName}.clone`,
+      params: [],
+      returnType: lowerType({ kind: "NamedType", name: protoName }),
+      blocks: [entry],
+    };
+    const dst = this.nextTemp();
+    const info = this.resolvePrototypeMethodOwner(protoName, "clone");
+    const owner = info && info.owner && info.owner !== "Object" ? info.owner : null;
+    const callee = this.ensureCloneSpecialization(protoName, owner);
+    this.emit(entry, { op: "call_static", dst, callee, args: [], variadic: false });
+    this.emit(entry, { op: "ret", value: dst });
     return irFn;
   }
 
@@ -607,6 +734,15 @@ class IRBuilder {
     let p = this.prototypes.get(protoName);
     while (p) {
       if (p.methods.has(methodName)) return p.methods.get(methodName);
+      p = p.parent ? this.prototypes.get(p.parent) : null;
+    }
+    return null;
+  }
+
+  resolvePrototypeMethodOwner(protoName, methodName) {
+    let p = this.prototypes.get(protoName);
+    while (p) {
+      if (p.methods.has(methodName)) return { owner: p.name, method: p.methods.get(methodName) };
       p = p.parent ? this.prototypes.get(p.parent) : null;
     }
     return null;
@@ -1117,6 +1253,17 @@ class IRBuilder {
         this.emit(block, { op: "load_var", dst, name: irName, type: lowerType(t) });
         return { value: dst, type: t, block };
       }
+      case "SuperExpr": {
+        const entry = scope.get("self");
+        if (!entry) {
+          const dst = this.nextTemp();
+          this.emit(block, { op: "const", dst, literalType: "int", value: "0" });
+          return { value: dst, type: { kind: "PrimitiveType", name: "unknown" }, block };
+        }
+        const dst = this.nextTemp();
+        this.emit(block, { op: "load_var", dst, name: entry.irName, type: lowerType(entry.type) });
+        return { value: dst, type: entry.type, block };
+      }
       case "UnaryExpr": {
         if (expr.op === "-" && expr.expr && expr.expr.kind === "Literal" && expr.expr.literalType === "int") {
           const v = intLiteralToBigInt(expr.expr.value);
@@ -1348,21 +1495,47 @@ class IRBuilder {
 
     if (expr.callee.kind === "MemberExpr") {
       const method = expr.callee.name;
-      if (expr.callee.target.kind === "Identifier" && this.prototypes.has(expr.callee.target.name)) {
-        const protoName = expr.callee.target.name;
-        if (method === "clone") {
-          const dst = this.nextTemp();
-          this.emit(block, { op: "call_static", dst, callee: `${protoName}.clone`, args: [], variadic: false });
-          return { value: dst, type: { kind: "NamedType", name: protoName }, block };
-        }
-        const m = this.resolvePrototypeMethod(protoName, method);
+      if (expr.callee.target.kind === "SuperExpr") {
+        const selfEntry = scope.get("self");
+        const declProto = this.currentMethodProto || (selfEntry && selfEntry.type && selfEntry.type.kind === "NamedType" ? selfEntry.type.name : null);
+        const recvProto = this.currentReceiverProto || declProto;
+        const parentName = declProto && this.prototypes.has(declProto) ? this.prototypes.get(declProto).parent : null;
+        const info = parentName ? this.resolvePrototypeMethodOwner(parentName, method) : null;
         const lowered = lowerArgs(expr.args, block);
         const args = lowered.args;
         const dst = this.nextTemp();
+        if (method === "clone") {
+          const owner = info && info.owner && info.owner !== "Object" ? info.owner : null;
+          const callee = this.ensureCloneSpecialization(recvProto || declProto || "Object", owner);
+          this.emit(lowered.block, { op: "call_static", dst, callee, args: [], variadic: false });
+          return { value: dst, type: { kind: "NamedType", name: recvProto || declProto || "Object" }, block: lowered.block };
+        }
+        const calleeOwner = info ? info.owner : (parentName || declProto || "Object");
         this.emit(lowered.block, {
           op: "call_static",
           dst,
-          callee: `${protoName}.${method}`,
+          callee: `${calleeOwner}.${method}`,
+          args: [selfEntry ? selfEntry.irName : "self", ...args.map((a) => a.value)],
+          variadic: !!(info && info.method && info.method.params.some((p) => p.variadic)),
+        });
+        return { value: dst, type: info ? info.method.retType : { kind: "PrimitiveType", name: "unknown" }, block: lowered.block };
+      }
+      if (expr.callee.target.kind === "Identifier" && this.prototypes.has(expr.callee.target.name)) {
+        const protoName = expr.callee.target.name;
+        const info = this.resolvePrototypeMethodOwner(protoName, method);
+        const m = info ? info.method : null;
+        const lowered = lowerArgs(expr.args, block);
+        const args = lowered.args;
+        const dst = this.nextTemp();
+        if (method === "clone") {
+          this.emit(lowered.block, { op: "call_static", dst, callee: `${protoName}.clone`, args: [], variadic: false });
+          return { value: dst, type: { kind: "NamedType", name: protoName }, block: lowered.block };
+        }
+        const owner = info ? info.owner : protoName;
+        this.emit(lowered.block, {
+          op: "call_static",
+          dst,
+          callee: `${owner}.${method}`,
           args: args.map((a) => a.value),
           variadic: !!(m && m.params.some((p) => p.variadic)),
         });
@@ -1370,19 +1543,26 @@ class IRBuilder {
       }
       if (expr.callee.target.kind === "Identifier") {
         const ns = this.importNamespaces.get(expr.callee.target.name);
-          if (ns) {
-          let variadic = false;
-          if (this.prototypes.has(ns)) {
-            const m = this.resolvePrototypeMethod(ns, method);
-            variadic = !!(m && m.params.some((p) => p.variadic));
-          }
+        if (ns) {
           const lowered = lowerArgs(expr.args, block);
           const args = lowered.args;
           const dst = this.nextTemp();
+          if (this.prototypes.has(ns) && method === "clone") {
+            this.emit(lowered.block, { op: "call_static", dst, callee: `${ns}.clone`, args: [], variadic: false });
+            return { value: dst, type: { kind: "NamedType", name: ns }, block: lowered.block };
+          }
+          let variadic = false;
+          let calleeOwner = ns;
+          if (this.prototypes.has(ns)) {
+            const info = this.resolvePrototypeMethodOwner(ns, method);
+            const m = info ? info.method : null;
+            calleeOwner = info ? info.owner : ns;
+            variadic = !!(m && m.params.some((p) => p.variadic));
+          }
           this.emit(lowered.block, {
             op: "call_static",
             dst,
-            callee: `${ns}.${method}`,
+            callee: `${calleeOwner}.${method}`,
             args: args.map((a) => a.value),
             variadic,
           });
@@ -1464,12 +1644,19 @@ class IRBuilder {
         }
       }
       if (recv.type && recv.type.kind === "NamedType" && this.prototypes.has(recv.type.name)) {
-        const m = this.resolvePrototypeMethod(recv.type.name, method);
+        const info = this.resolvePrototypeMethodOwner(recv.type.name, method);
+        const m = info ? info.method : null;
+        const owner = info ? info.owner : recv.type.name;
         const dst = this.nextTemp();
+        if (method === "clone") {
+          this.emit(lowered.block, { op: "call_static", dst, callee: `${recv.type.name}.clone`, args: [], variadic: false });
+          return { value: dst, type: recv.type, block: lowered.block };
+        }
+        const callee = `${recv.type.name}.${method}`;
         this.emit(lowered.block, {
           op: "call_static",
           dst,
-          callee: `${recv.type.name}.${method}`,
+          callee,
           args: [recv.value, ...args.map((a) => a.value)],
           variadic: !!(m && m.params.some((p) => p.variadic)),
         });
@@ -1616,6 +1803,10 @@ class IRBuilder {
       const entry = scope.get(expr.name);
       return entry ? entry.type : { kind: "PrimitiveType", name: "unknown" };
     }
+    if (expr.kind === "SuperExpr") {
+      const entry = scope.get("self");
+      return entry ? entry.type : { kind: "PrimitiveType", name: "unknown" };
+    }
     if (expr.kind === "ListLiteral") {
       const e = expr.items.length > 0 ? this.inferExprType(expr.items[0], scope) : { kind: "PrimitiveType", name: "void" };
       return { kind: "GenericType", name: "list", args: [e] };
@@ -1631,6 +1822,17 @@ class IRBuilder {
     }
     if (expr.kind === "CallExpr" && expr.callee.kind === "MemberExpr") {
       const m = expr.callee;
+      if (m.target.kind === "SuperExpr") {
+        const selfType = scope.get("self");
+        const t = selfType ? selfType.type : null;
+        if (t && t.kind === "NamedType" && this.prototypes.has(t.name)) {
+          const p = this.prototypes.get(t.name);
+          const mm = p && p.parent ? this.resolvePrototypeMethod(p.parent, m.name) : null;
+          if (m.name === "clone") return t;
+          return mm ? mm.retType : { kind: "PrimitiveType", name: "unknown" };
+        }
+        return { kind: "PrimitiveType", name: "unknown" };
+      }
       if (m.target.kind === "Identifier") {
         const ns = this.importNamespaces.get(m.target.name);
         if (ns) {

@@ -120,6 +120,9 @@ Justification : ces codes sont inventoriés dans `docs/lexicon.json` et classés
 3. Vérifier `docs/divergence_report.md`.
 4. Mettre à jour le changelog.
 5. Valider le bump de version (`MAJOR|MINOR|PATCH`) selon cette politique.
+6. Exécuter la robustesse sanitizer incluant la politique warnings/layout emit-c :
+   - `tests/run_robustness.sh`
+   - (inclut `tests/robustness/run_asan_ubsan_emitc.sh`)
 
 La release est non conforme si une étape est omise.
 

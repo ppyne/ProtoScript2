@@ -547,6 +547,28 @@ function isRuntimeExceptionProto(protoMap, name) {
   return protoIsSubtype(protoMap, name, "RuntimeException");
 }
 
+function maybeCastExpr(dstType, srcType, expr) {
+  if (!dstType || !srcType || !expr || dstType === srcType) return expr;
+  if (PROTO_MAP.has(dstType) && PROTO_MAP.has(srcType)) {
+    const dstExc = isExceptionProto(PROTO_MAP, dstType);
+    const srcExc = isExceptionProto(PROTO_MAP, srcType);
+    if (dstExc || srcExc) {
+      return expr;
+    }
+    const related =
+      protoIsSubtype(PROTO_MAP, dstType, srcType) || protoIsSubtype(PROTO_MAP, srcType, dstType);
+    if (related) return `(${cTypeFromName(dstType)})${expr}`;
+  }
+  if (
+    PROTO_MAP.has(dstType) &&
+    isExceptionProto(PROTO_MAP, dstType) &&
+    (srcType === "Exception" || srcType === "RuntimeException")
+  ) {
+    return `(${cTypeFromName(dstType)})${expr}`;
+  }
+  return expr;
+}
+
 function collectProtoFields(protoMap, name) {
   const out = [];
   const chain = [];
@@ -713,6 +735,36 @@ function emitTypeDecls(typeNames, protoMap) {
         }
         out.push("};");
       }
+    }
+  }
+  return out;
+}
+
+function emitProtoLayoutAsserts(protoMap) {
+  const out = [];
+  if (!protoMap || protoMap.size === 0) return out;
+  for (const [child, p] of protoMap.entries()) {
+    const parent = p?.parent;
+    if (!parent || !protoMap.has(parent)) continue;
+    if (isExceptionProto(protoMap, child) || isExceptionProto(protoMap, parent)) {
+      if (
+        isExceptionProto(protoMap, child) &&
+        isExceptionProto(protoMap, parent) &&
+        child !== "Exception" &&
+        child !== "RuntimeException"
+      ) {
+        out.push(
+          `_Static_assert(offsetof(${child}, base) == 0, "exception base ${child}.base at offset 0 (parent ${parent})");`
+        );
+      }
+      continue;
+    }
+    out.push(`_Static_assert(sizeof(${child}) >= sizeof(${parent}), "layout size ${child} >= ${parent}");`);
+    const parentFields = collectProtoFields(protoMap, parent);
+    for (const f of parentFields) {
+      out.push(
+        `_Static_assert(offsetof(${child}, ${f.name}) == offsetof(${parent}, ${f.name}), "layout offset ${child}.${f.name} == ${parent}.${f.name}");`
+      );
     }
   }
   return out;
@@ -4096,11 +4148,7 @@ function emitInstr(i, fnInf, state) {
       {
         const dt = t(i.name);
         const st = t(i.src);
-        if (PROTO_MAP.has(dt) && isExceptionProto(PROTO_MAP, dt) && (st === "Exception" || st === "RuntimeException")) {
-          out.push(`${n(i.name)} = (${dt}*)${n(i.src)};`);
-        } else {
-          out.push(`${n(i.name)} = ${n(i.src)};`);
-        }
+        out.push(`${n(i.name)} = ${maybeCastExpr(dt, st, n(i.src))};`);
       }
       break;
     case "check_int_overflow":
@@ -4161,7 +4209,7 @@ function emitInstr(i, fnInf, state) {
       break;
     case "copy":
       setAlias(i.dst, aliasOf(i.src) || null);
-      out.push(`${n(i.dst)} = ${n(i.src)};`);
+      out.push(`${n(i.dst)} = ${maybeCastExpr(t(i.dst), t(i.src), n(i.src))};`);
       break;
     case "postfix_op":
       if (t(i.src) === "glyph" && (i.operator === "++" || i.operator === "--")) {
@@ -4791,7 +4839,7 @@ function emitInstr(i, fnInf, state) {
       }
       break;
     case "ret":
-      out.push(`return ${n(i.value)};`);
+      out.push(`return ${maybeCastExpr(state?.returnType, t(i.value), n(i.value))};`);
       break;
     case "ret_void":
       out.push("return;");
@@ -4900,11 +4948,11 @@ function emitFunctionBody(fn, fnInf) {
   const temps = Array.from(fnInf.tempTypes.entries()).sort((a, b) => a[0].localeCompare(b[0]));
   for (const [name, typeName] of temps) {
     if (typeName === "void") continue;
-    tempDecls.push(`  ${cTypeFromName(typeName)} ${cIdent(name)};`);
+    tempDecls.push(`  ${cTypeFromName(typeName)} ${cIdent(name)} PS_MAYBE_UNUSED;`);
   }
   if (tempDecls.length > 0) out.push(...tempDecls);
 
-  const emitState = { mapAliases: new Map(), mapVarAliases: new Map() };
+  const emitState = { mapAliases: new Map(), mapVarAliases: new Map(), returnType: fn.returnType.name };
   const blocks = fn.blocks.map((b) => ({ label: b.label, instrs: b.instrs.slice() }));
   const terminators = new Set(["jump", "branch_if", "branch_iter_has_next", "return", "rethrow"]);
   const defaultReturnLine = (() => {
@@ -4978,8 +5026,14 @@ function generateC(ir) {
   out.push("#include <fcntl.h>");
   out.push("#include <poll.h>");
   out.push("#include <regex.h>");
+  out.push("#if defined(__GNUC__) || defined(__clang__)");
+  out.push("#define PS_MAYBE_UNUSED __attribute__((unused))");
+  out.push("#else");
+  out.push("#define PS_MAYBE_UNUSED");
+  out.push("#endif");
   out.push("");
   out.push(...emitTypeDecls(typeNames, PROTO_MAP));
+  out.push(...emitProtoLayoutAsserts(PROTO_MAP));
   out.push("");
   out.push(...emitRuntimeHelpers(PROTO_MAP));
   out.push("");

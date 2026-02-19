@@ -1,0 +1,568 @@
+/tmp/ps_edge_clone_super_initial_divergent.c:365:22: warning: unused function 'ps_get_exception' [-Wunused-function]
+  365 | static ps_exception* ps_get_exception(void) {
+      |                      ^~~~~~~~~~~~~~~~
+/tmp/ps_edge_clone_super_initial_divergent.c:402:12: warning: unused function 'ps_exception_is' [-Wunused-function]
+  402 | static int ps_exception_is(ps_exception* ex, const char* type) {
+      |            ^~~~~~~~~~~~~~~
+/tmp/ps_edge_clone_super_initial_divergent.c:427:22: warning: unused function 'ps_exception_new' [-Wunused-function]
+  427 | static ps_exception* ps_exception_new(ps_string message) {
+      |                      ^~~~~~~~~~~~~~~~
+/tmp/ps_edge_clone_super_initial_divergent.c:572:18: warning: unused function 'Io_tempPath' [-Wunused-function]
+  572 | static ps_string Io_tempPath(void) {
+      |                  ^~~~~~~~~~~
+/tmp/ps_edge_clone_super_initial_divergent.c:610:13: warning: unused function 'ps_file_close' [-Wunused-function]
+  610 | static void ps_file_close(ps_file* f) {
+      |             ^~~~~~~~~~~~~
+/tmp/ps_edge_clone_super_initial_divergent.c:616:18: warning: unused function 'ps_file_name' [-Wunused-function]
+  616 | static ps_string ps_file_name(ps_file* f) {
+      |                  ^~~~~~~~~~~~
+/tmp/ps_edge_clone_super_initial_divergent.c:620:13: warning: unused function 'ps_file_write_text' [-Wunused-function]
+  620 | static void ps_file_write_text(ps_file* f, ps_string s) {
+      |             ^~~~~~~~~~~~~~~~~~
+/tmp/ps_edge_clone_super_initial_divergent.c:635:13: warning: unused function 'ps_file_write_bytes' [-Wunused-function]
+  635 | static void ps_file_write_bytes(ps_file* f, ps_list_byte b) {
+      |             ^~~~~~~~~~~~~~~~~~~
+/tmp/ps_edge_clone_super_initial_divergent.c:690:18: warning: unused function 'ps_file_read_size_glyphs' [-Wunused-function]
+  690 | static ps_string ps_file_read_size_glyphs(ps_file* f, int64_t size) {
+      |                  ^~~~~~~~~~~~~~~~~~~~~~~~
+/tmp/ps_edge_clone_super_initial_divergent.c:719:21: warning: unused function 'ps_file_read_size_bytes' [-Wunused-function]
+  719 | static ps_list_byte ps_file_read_size_bytes(ps_file* f, int64_t size) {
+      |                     ^~~~~~~~~~~~~~~~~~~~~~~
+/tmp/ps_edge_clone_super_initial_divergent.c:743:16: warning: unused function 'ps_file_tell_bytes' [-Wunused-function]
+  743 | static int64_t ps_file_tell_bytes(ps_file* f) {
+      |                ^~~~~~~~~~~~~~~~~~
+/tmp/ps_edge_clone_super_initial_divergent.c:749:13: warning: unused function 'ps_file_seek_bytes' [-Wunused-function]
+  749 | static void ps_file_seek_bytes(ps_file* f, int64_t pos) {
+      |             ^~~~~~~~~~~~~~~~~~
+/tmp/ps_edge_clone_super_initial_divergent.c:756:16: warning: unused function 'ps_file_size_glyphs' [-Wunused-function]
+  756 | static int64_t ps_file_size_glyphs(ps_file* f) {
+      |                ^~~~~~~~~~~~~~~~~~~
+/tmp/ps_edge_clone_super_initial_divergent.c:772:16: warning: unused function 'ps_file_tell_glyphs' [-Wunused-function]
+  772 | static int64_t ps_file_tell_glyphs(ps_file* f) {
+      |                ^~~~~~~~~~~~~~~~~~~
+/tmp/ps_edge_clone_super_initial_divergent.c:795:13: warning: unused function 'ps_file_seek_glyphs' [-Wunused-function]
+  795 | static void ps_file_seek_glyphs(ps_file* f, int64_t pos) {
+      |             ^~~~~~~~~~~~~~~~~~~
+/tmp/ps_edge_clone_super_initial_divergent.c:816:17: warning: unused function 'Io_openText' [-Wunused-function]
+  816 | static ps_file* Io_openText(ps_string path, ps_string mode) {
+      |                 ^~~~~~~~~~~
+/tmp/ps_edge_clone_super_initial_divergent.c:819:17: warning: unused function 'Io_openBinary' [-Wunused-function]
+  819 | static ps_file* Io_openBinary(ps_string path, ps_string mode) {
+      |                 ^~~~~~~~~~~~~
+/tmp/ps_edge_clone_super_initial_divergent.c:822:13: warning: unused function 'Io_print' [-Wunused-function]
+  822 | static void Io_print(ps_string s) {
+      |             ^~~~~~~~
+/tmp/ps_edge_clone_super_initial_divergent.c:880:13: warning: unused function 'ps_json_is_null' [-Wunused-function]
+  880 | static bool ps_json_is_null(ps_jsonvalue v) { return v.kind == PS_JSON_NULL; }
+      |             ^~~~~~~~~~~~~~~
+/tmp/ps_edge_clone_super_initial_divergent.c:881:13: warning: unused function 'ps_json_is_bool' [-Wunused-function]
+  881 | static bool ps_json_is_bool(ps_jsonvalue v) { return v.kind == PS_JSON_BOOL; }
+      |             ^~~~~~~~~~~~~~~
+/tmp/ps_edge_clone_super_initial_divergent.c:882:13: warning: unused function 'ps_json_is_number' [-Wunused-function]
+  882 | static bool ps_json_is_number(ps_jsonvalue v) { return v.kind == PS_JSON_NUMBER; }
+      |             ^~~~~~~~~~~~~~~~~
+/tmp/ps_edge_clone_super_initial_divergent.c:883:13: warning: unused function 'ps_json_is_string' [-Wunused-function]
+  883 | static bool ps_json_is_string(ps_jsonvalue v) { return v.kind == PS_JSON_STRING; }
+      |             ^~~~~~~~~~~~~~~~~
+/tmp/ps_edge_clone_super_initial_divergent.c:884:13: warning: unused function 'ps_json_is_array' [-Wunused-function]
+  884 | static bool ps_json_is_array(ps_jsonvalue v) { return v.kind == PS_JSON_ARRAY; }
+      |             ^~~~~~~~~~~~~~~~
+/tmp/ps_edge_clone_super_initial_divergent.c:885:13: warning: unused function 'ps_json_is_object' [-Wunused-function]
+  885 | static bool ps_json_is_object(ps_jsonvalue v) { return v.kind == PS_JSON_OBJECT; }
+      |             ^~~~~~~~~~~~~~~~~
+/tmp/ps_edge_clone_super_initial_divergent.c:886:13: warning: unused function 'ps_json_as_bool' [-Wunused-function]
+  886 | static bool ps_json_as_bool(ps_jsonvalue v) { if (v.kind != PS_JSON_BOOL) ps_panic("R1010", "RUNTIME_TYPE_ERROR", "not a bool"); return v.b; }
+      |             ^~~~~~~~~~~~~~~
+/tmp/ps_edge_clone_super_initial_divergent.c:887:15: warning: unused function 'ps_json_as_number' [-Wunused-function]
+  887 | static double ps_json_as_number(ps_jsonvalue v) { if (v.kind != PS_JSON_NUMBER) ps_panic("R1010", "RUNTIME_TYPE_ERROR", "not a number"); return v.num; }
+      |               ^~~~~~~~~~~~~~~~~
+/tmp/ps_edge_clone_super_initial_divergent.c:889:26: warning: unused function 'ps_json_as_array' [-Wunused-function]
+  889 | static ps_list_JSONValue ps_json_as_array(ps_jsonvalue v) { if (v.kind != PS_JSON_ARRAY) ps_panic("R1010", "RUNTIME_TYPE_ERROR", "not an array"); return v.arr; }
+      |                          ^~~~~~~~~~~~~~~~
+/tmp/ps_edge_clone_super_initial_divergent.c:890:32: warning: unused function 'ps_json_as_object' [-Wunused-function]
+  890 | static ps_map_string_JSONValue ps_json_as_object(ps_jsonvalue v) { if (v.kind != PS_JSON_OBJECT) ps_panic("R1010", "RUNTIME_TYPE_ERROR", "not an object"); return v.obj; }
+      |                                ^~~~~~~~~~~~~~~~~
+/tmp/ps_edge_clone_super_initial_divergent.c:1080:21: warning: unused function 'JSON_decode' [-Wunused-function]
+ 1080 | static ps_jsonvalue JSON_decode(ps_string s) {
+      |                     ^~~~~~~~~~~
+/tmp/ps_edge_clone_super_initial_divergent.c:1088:13: warning: unused function 'JSON_isValid' [-Wunused-function]
+ 1088 | static bool JSON_isValid(ps_string s) {
+      |             ^~~~~~~~~~~~
+/tmp/ps_edge_clone_super_initial_divergent.c:1160:18: warning: unused function 'JSON_encode_bool' [-Wunused-function]
+ 1160 | static ps_string JSON_encode_bool(bool b) { return JSON_encode(JSON_bool(b)); }
+      |                  ^~~~~~~~~~~~~~~~
+/tmp/ps_edge_clone_super_initial_divergent.c:1161:18: warning: unused function 'JSON_encode_number' [-Wunused-function]
+ 1161 | static ps_string JSON_encode_number(double n) { return JSON_encode(JSON_number(n)); }
+      |                  ^~~~~~~~~~~~~~~~~~
+/tmp/ps_edge_clone_super_initial_divergent.c:1162:18: warning: unused function 'JSON_encode_string' [-Wunused-function]
+ 1162 | static ps_string JSON_encode_string(ps_string s) { return JSON_encode(JSON_string(s)); }
+      |                  ^~~~~~~~~~~~~~~~~~
+/tmp/ps_edge_clone_super_initial_divergent.c:1163:18: warning: unused function 'JSON_encode_list_int' [-Wunused-function]
+ 1163 | static ps_string JSON_encode_list_int(ps_list_int v) {
+      |                  ^~~~~~~~~~~~~~~~~~~~
+/tmp/ps_edge_clone_super_initial_divergent.c:1173:18: warning: unused function 'JSON_encode_list_JSONValue' [-Wunused-function]
+ 1173 | static ps_string JSON_encode_list_JSONValue(ps_list_JSONValue v) { return JSON_encode(JSON_array(v)); }
+      |                  ^~~~~~~~~~~~~~~~~~~~~~~~~~
+/tmp/ps_edge_clone_super_initial_divergent.c:1174:18: warning: unused function 'JSON_encode_map_string_int' [-Wunused-function]
+ 1174 | static ps_string JSON_encode_map_string_int(ps_map_string_int m) {
+      |                  ^~~~~~~~~~~~~~~~~~~~~~~~~~
+/tmp/ps_edge_clone_super_initial_divergent.c:1188:18: warning: unused function 'JSON_encode_map_string_JSONValue' [-Wunused-function]
+ 1188 | static ps_string JSON_encode_map_string_JSONValue(ps_map_string_JSONValue m) {
+      |                  ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+/tmp/ps_edge_clone_super_initial_divergent.c:1193:15: warning: unused function 'Math_abs' [-Wunused-function]
+ 1193 | static double Math_abs(double x) { return fabs(x); }
+      |               ^~~~~~~~
+/tmp/ps_edge_clone_super_initial_divergent.c:1194:15: warning: unused function 'Math_min' [-Wunused-function]
+ 1194 | static double Math_min(double a, double b) { return fmin(a, b); }
+      |               ^~~~~~~~
+/tmp/ps_edge_clone_super_initial_divergent.c:1195:15: warning: unused function 'Math_max' [-Wunused-function]
+ 1195 | static double Math_max(double a, double b) { return fmax(a, b); }
+      |               ^~~~~~~~
+/tmp/ps_edge_clone_super_initial_divergent.c:1196:15: warning: unused function 'Math_floor' [-Wunused-function]
+ 1196 | static double Math_floor(double x) { return floor(x); }
+      |               ^~~~~~~~~~
+/tmp/ps_edge_clone_super_initial_divergent.c:1197:15: warning: unused function 'Math_ceil' [-Wunused-function]
+ 1197 | static double Math_ceil(double x) { return ceil(x); }
+      |               ^~~~~~~~~
+/tmp/ps_edge_clone_super_initial_divergent.c:1198:15: warning: unused function 'Math_round' [-Wunused-function]
+ 1198 | static double Math_round(double x) { return round(x); }
+      |               ^~~~~~~~~~
+/tmp/ps_edge_clone_super_initial_divergent.c:1199:15: warning: unused function 'Math_sqrt' [-Wunused-function]
+ 1199 | static double Math_sqrt(double x) { return sqrt(x); }
+      |               ^~~~~~~~~
+/tmp/ps_edge_clone_super_initial_divergent.c:1200:15: warning: unused function 'Math_pow' [-Wunused-function]
+ 1200 | static double Math_pow(double a, double b) { return pow(a, b); }
+      |               ^~~~~~~~
+/tmp/ps_edge_clone_super_initial_divergent.c:1201:15: warning: unused function 'Math_sin' [-Wunused-function]
+ 1201 | static double Math_sin(double x) { return sin(x); }
+      |               ^~~~~~~~
+/tmp/ps_edge_clone_super_initial_divergent.c:1202:15: warning: unused function 'Math_cos' [-Wunused-function]
+ 1202 | static double Math_cos(double x) { return cos(x); }
+      |               ^~~~~~~~
+/tmp/ps_edge_clone_super_initial_divergent.c:1203:15: warning: unused function 'Math_tan' [-Wunused-function]
+ 1203 | static double Math_tan(double x) { return tan(x); }
+      |               ^~~~~~~~
+/tmp/ps_edge_clone_super_initial_divergent.c:1204:15: warning: unused function 'Math_asin' [-Wunused-function]
+ 1204 | static double Math_asin(double x) { return asin(x); }
+      |               ^~~~~~~~~
+/tmp/ps_edge_clone_super_initial_divergent.c:1205:15: warning: unused function 'Math_acos' [-Wunused-function]
+ 1205 | static double Math_acos(double x) { return acos(x); }
+      |               ^~~~~~~~~
+/tmp/ps_edge_clone_super_initial_divergent.c:1206:15: warning: unused function 'Math_atan' [-Wunused-function]
+ 1206 | static double Math_atan(double x) { return atan(x); }
+      |               ^~~~~~~~~
+/tmp/ps_edge_clone_super_initial_divergent.c:1207:15: warning: unused function 'Math_atan2' [-Wunused-function]
+ 1207 | static double Math_atan2(double y, double x) { return atan2(y, x); }
+      |               ^~~~~~~~~~
+/tmp/ps_edge_clone_super_initial_divergent.c:1208:15: warning: unused function 'Math_sinh' [-Wunused-function]
+ 1208 | static double Math_sinh(double x) { return sinh(x); }
+      |               ^~~~~~~~~
+/tmp/ps_edge_clone_super_initial_divergent.c:1209:15: warning: unused function 'Math_cosh' [-Wunused-function]
+ 1209 | static double Math_cosh(double x) { return cosh(x); }
+      |               ^~~~~~~~~
+/tmp/ps_edge_clone_super_initial_divergent.c:1210:15: warning: unused function 'Math_tanh' [-Wunused-function]
+ 1210 | static double Math_tanh(double x) { return tanh(x); }
+      |               ^~~~~~~~~
+/tmp/ps_edge_clone_super_initial_divergent.c:1211:15: warning: unused function 'Math_asinh' [-Wunused-function]
+ 1211 | static double Math_asinh(double x) { return asinh(x); }
+      |               ^~~~~~~~~~
+/tmp/ps_edge_clone_super_initial_divergent.c:1212:15: warning: unused function 'Math_acosh' [-Wunused-function]
+ 1212 | static double Math_acosh(double x) { return acosh(x); }
+      |               ^~~~~~~~~~
+/tmp/ps_edge_clone_super_initial_divergent.c:1213:15: warning: unused function 'Math_atanh' [-Wunused-function]
+ 1213 | static double Math_atanh(double x) { return atanh(x); }
+      |               ^~~~~~~~~~
+/tmp/ps_edge_clone_super_initial_divergent.c:1214:15: warning: unused function 'Math_exp' [-Wunused-function]
+ 1214 | static double Math_exp(double x) { return exp(x); }
+      |               ^~~~~~~~
+/tmp/ps_edge_clone_super_initial_divergent.c:1215:15: warning: unused function 'Math_expm1' [-Wunused-function]
+ 1215 | static double Math_expm1(double x) { return expm1(x); }
+      |               ^~~~~~~~~~
+/tmp/ps_edge_clone_super_initial_divergent.c:1216:15: warning: unused function 'Math_log' [-Wunused-function]
+ 1216 | static double Math_log(double x) { return log(x); }
+      |               ^~~~~~~~
+/tmp/ps_edge_clone_super_initial_divergent.c:1217:15: warning: unused function 'Math_log1p' [-Wunused-function]
+ 1217 | static double Math_log1p(double x) { return log1p(x); }
+      |               ^~~~~~~~~~
+/tmp/ps_edge_clone_super_initial_divergent.c:1218:15: warning: unused function 'Math_log2' [-Wunused-function]
+ 1218 | static double Math_log2(double x) { return log2(x); }
+      |               ^~~~~~~~~
+/tmp/ps_edge_clone_super_initial_divergent.c:1219:15: warning: unused function 'Math_log10' [-Wunused-function]
+ 1219 | static double Math_log10(double x) { return log10(x); }
+      |               ^~~~~~~~~~
+/tmp/ps_edge_clone_super_initial_divergent.c:1220:15: warning: unused function 'Math_cbrt' [-Wunused-function]
+ 1220 | static double Math_cbrt(double x) { return cbrt(x); }
+      |               ^~~~~~~~~
+/tmp/ps_edge_clone_super_initial_divergent.c:1221:15: warning: unused function 'Math_hypot' [-Wunused-function]
+ 1221 | static double Math_hypot(double a, double b) { return hypot(a, b); }
+      |               ^~~~~~~~~~
+/tmp/ps_edge_clone_super_initial_divergent.c:1222:15: warning: unused function 'Math_trunc' [-Wunused-function]
+ 1222 | static double Math_trunc(double x) { return trunc(x); }
+      |               ^~~~~~~~~~
+/tmp/ps_edge_clone_super_initial_divergent.c:1223:15: warning: unused function 'Math_sign' [-Wunused-function]
+ 1223 | static double Math_sign(double x) {
+      |               ^~~~~~~~~
+/tmp/ps_edge_clone_super_initial_divergent.c:1228:15: warning: unused function 'Math_fround' [-Wunused-function]
+ 1228 | static double Math_fround(double x) { float f = (float)x; return (double)f; }
+      |               ^~~~~~~~~~~
+/tmp/ps_edge_clone_super_initial_divergent.c:1229:15: warning: unused function 'Math_clz32' [-Wunused-function]
+ 1229 | static double Math_clz32(double x) {
+      |               ^~~~~~~~~~
+/tmp/ps_edge_clone_super_initial_divergent.c:1234:15: warning: unused function 'Math_imul' [-Wunused-function]
+ 1234 | static double Math_imul(double a, double b) {
+      |               ^~~~~~~~~
+/tmp/ps_edge_clone_super_initial_divergent.c:1240:15: warning: unused function 'Math_random' [-Wunused-function]
+ 1240 | static double Math_random(void) {
+      |               ^~~~~~~~~~~
+/tmp/ps_edge_clone_super_initial_divergent.c:1382:16: warning: unused function 'Time_nowEpochMillis' [-Wunused-function]
+ 1382 | static int64_t Time_nowEpochMillis(void) {
+      |                ^~~~~~~~~~~~~~~~~~~
+/tmp/ps_edge_clone_super_initial_divergent.c:1387:16: warning: unused function 'Time_nowMonotonicNanos' [-Wunused-function]
+ 1387 | static int64_t Time_nowMonotonicNanos(void) {
+      |                ^~~~~~~~~~~~~~~~~~~~~~
+/tmp/ps_edge_clone_super_initial_divergent.c:1392:13: warning: unused function 'Time_sleepMillis' [-Wunused-function]
+ 1392 | static void Time_sleepMillis(int64_t ms) {
+      |             ^~~~~~~~~~~~~~~~
+/tmp/ps_edge_clone_super_initial_divergent.c:1399:23: warning: unused function 'TimeCivil_fromEpochUTC' [-Wunused-function]
+ 1399 | static CivilDateTime* TimeCivil_fromEpochUTC(int64_t epoch_ms) {
+      |                       ^~~~~~~~~~~~~~~~~~~~~~
+/tmp/ps_edge_clone_super_initial_divergent.c:1415:16: warning: unused function 'TimeCivil_toEpochUTC' [-Wunused-function]
+ 1415 | static int64_t TimeCivil_toEpochUTC(CivilDateTime* dt) {
+      |                ^~~~~~~~~~~~~~~~~~~~
+/tmp/ps_edge_clone_super_initial_divergent.c:1429:23: warning: unused function 'TimeCivil_fromEpoch' [-Wunused-function]
+ 1429 | static CivilDateTime* TimeCivil_fromEpoch(int64_t epoch_ms, ps_string tz) {
+      |                       ^~~~~~~~~~~~~~~~~~~
+/tmp/ps_edge_clone_super_initial_divergent.c:1475:16: warning: unused function 'TimeCivil_toEpoch' [-Wunused-function]
+ 1475 | static int64_t TimeCivil_toEpoch(CivilDateTime* dt, ps_string tz, int64_t strategy) {
+      |                ^~~~~~~~~~~~~~~~~
+/tmp/ps_edge_clone_super_initial_divergent.c:1502:13: warning: unused function 'TimeCivil_isDST' [-Wunused-function]
+ 1502 | static bool TimeCivil_isDST(int64_t epoch_ms, ps_string tz) {
+      |             ^~~~~~~~~~~~~~~
+/tmp/ps_edge_clone_super_initial_divergent.c:1512:16: warning: unused function 'TimeCivil_offsetSeconds' [-Wunused-function]
+ 1512 | static int64_t TimeCivil_offsetSeconds(int64_t epoch_ms, ps_string tz) {
+      |                ^~~~~~~~~~~~~~~~~~~~~~~
+/tmp/ps_edge_clone_super_initial_divergent.c:1516:16: warning: unused function 'TimeCivil_standardOffsetSeconds' [-Wunused-function]
+ 1516 | static int64_t TimeCivil_standardOffsetSeconds(ps_string tz) {
+      |                ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+/tmp/ps_edge_clone_super_initial_divergent.c:1524:16: warning: unused function 'TimeCivil_dayOfWeek' [-Wunused-function]
+ 1524 | static int64_t TimeCivil_dayOfWeek(int64_t epoch_ms, ps_string tz) {
+      |                ^~~~~~~~~~~~~~~~~~~
+/tmp/ps_edge_clone_super_initial_divergent.c:1536:16: warning: unused function 'TimeCivil_dayOfYear' [-Wunused-function]
+ 1536 | static int64_t TimeCivil_dayOfYear(int64_t epoch_ms, ps_string tz) {
+      |                ^~~~~~~~~~~~~~~~~~~
+/tmp/ps_edge_clone_super_initial_divergent.c:1548:16: warning: unused function 'TimeCivil_weekOfYearISO' [-Wunused-function]
+ 1548 | static int64_t TimeCivil_weekOfYearISO(int64_t epoch_ms, ps_string tz) {
+      |                ^~~~~~~~~~~~~~~~~~~~~~~
+/tmp/ps_edge_clone_super_initial_divergent.c:1562:16: warning: unused function 'TimeCivil_weekYearISO' [-Wunused-function]
+ 1562 | static int64_t TimeCivil_weekYearISO(int64_t epoch_ms, ps_string tz) {
+      |                ^~~~~~~~~~~~~~~~~~~~~
+/tmp/ps_edge_clone_super_initial_divergent.c:1576:13: warning: unused function 'TimeCivil_isLeapYear' [-Wunused-function]
+ 1576 | static bool TimeCivil_isLeapYear(int64_t y) { return ps_is_leap_year(y); }
+      |             ^~~~~~~~~~~~~~~~~~~~
+/tmp/ps_edge_clone_super_initial_divergent.c:1577:16: warning: unused function 'TimeCivil_daysInMonth' [-Wunused-function]
+ 1577 | static int64_t TimeCivil_daysInMonth(int64_t y, int64_t m) {
+      |                ^~~~~~~~~~~~~~~~~~~~~
+/tmp/ps_edge_clone_super_initial_divergent.c:1581:16: warning: unused function 'TimeCivil_parseISO8601' [-Wunused-function]
+ 1581 | static int64_t TimeCivil_parseISO8601(ps_string s) {
+      |                ^~~~~~~~~~~~~~~~~~~~~~
+/tmp/ps_edge_clone_super_initial_divergent.c:1641:18: warning: unused function 'TimeCivil_formatISO8601' [-Wunused-function]
+ 1641 | static ps_string TimeCivil_formatISO8601(int64_t epoch_ms) {
+      |                  ^~~~~~~~~~~~~~~~~~~~~~~
+/tmp/ps_edge_clone_super_initial_divergent.c:1674:13: warning: unused function 'Sys_hasEnv' [-Wunused-function]
+ 1674 | static bool Sys_hasEnv(ps_string name) {
+      |             ^~~~~~~~~~
+/tmp/ps_edge_clone_super_initial_divergent.c:1681:18: warning: unused function 'Sys_env' [-Wunused-function]
+ 1681 | static ps_string Sys_env(ps_string name) {
+      |                  ^~~~~~~
+/tmp/ps_edge_clone_super_initial_divergent.c:1695:13: warning: unused function 'test_env_set' [-Wunused-function]
+ 1695 | static void test_env_set(ps_string name, ps_string value) {
+      |             ^~~~~~~~~~~~
+/tmp/ps_edge_clone_super_initial_divergent.c:1703:13: warning: unused function 'test_env_setInvalidUtf8' [-Wunused-function]
+ 1703 | static void test_env_setInvalidUtf8(ps_string name) {
+      |             ^~~~~~~~~~~~~~~~~~~~~~~
+/tmp/ps_edge_clone_super_initial_divergent.c:1711:16: warning: unused function 'test_simple_add' [-Wunused-function]
+ 1711 | static int64_t test_simple_add(int64_t a, int64_t b) { return a + b; }
+      |                ^~~~~~~~~~~~~~~
+/tmp/ps_edge_clone_super_initial_divergent.c:1712:18: warning: unused function 'test_utf8_roundtrip' [-Wunused-function]
+ 1712 | static ps_string test_utf8_roundtrip(ps_string s) { return s; }
+      |                  ^~~~~~~~~~~~~~~~~~~
+/tmp/ps_edge_clone_super_initial_divergent.c:1713:13: warning: unused function 'test_throw_fail' [-Wunused-function]
+ 1713 | static void test_throw_fail(void) { ps_panic("R1010", "RUNTIME_MODULE_ERROR", "module not found"); }
+      |             ^~~~~~~~~~~~~~~
+/tmp/ps_edge_clone_super_initial_divergent.c:1714:16: warning: unused function 'test_noinit_ping' [-Wunused-function]
+ 1714 | static int64_t test_noinit_ping(void) { ps_panic("R1010", "RUNTIME_MODULE_ERROR", "module not found"); return 0; }
+      |                ^~~~~~~~~~~~~~~~
+/tmp/ps_edge_clone_super_initial_divergent.c:1715:16: warning: unused function 'test_badver_ping' [-Wunused-function]
+ 1715 | static int64_t test_badver_ping(void) { ps_panic("R1010", "RUNTIME_MODULE_ERROR", "module not found"); return 0; }
+      |                ^~~~~~~~~~~~~~~~
+/tmp/ps_edge_clone_super_initial_divergent.c:1716:16: warning: unused function 'test_missing_ping' [-Wunused-function]
+ 1716 | static int64_t test_missing_ping(void) { ps_panic("R1010", "RUNTIME_MODULE_ERROR", "module not found"); return 0; }
+      |                ^~~~~~~~~~~~~~~~~
+/tmp/ps_edge_clone_super_initial_divergent.c:1717:16: warning: unused function 'test_nosym_missing' [-Wunused-function]
+ 1717 | static int64_t test_nosym_missing(void) { ps_panic("R1010", "RUNTIME_MODULE_ERROR", "symbol not found"); return 0; }
+      |                ^~~~~~~~~~~~~~~~~~
+/tmp/ps_edge_clone_super_initial_divergent.c:1723:13: warning: unused function 'ps_check_int_overflow_sub' [-Wunused-function]
+ 1723 | static void ps_check_int_overflow_sub(int64_t a, int64_t b) {
+      |             ^~~~~~~~~~~~~~~~~~~~~~~~~
+/tmp/ps_edge_clone_super_initial_divergent.c:1731:13: warning: unused function 'ps_check_div_zero_int' [-Wunused-function]
+ 1731 | static void ps_check_div_zero_int(int64_t d) {
+      |             ^~~~~~~~~~~~~~~~~~~~~
+/tmp/ps_edge_clone_super_initial_divergent.c:1734:13: warning: unused function 'ps_check_shift_range' [-Wunused-function]
+ 1734 | static void ps_check_shift_range(int64_t s, int width) {
+      |             ^~~~~~~~~~~~~~~~~~~~
+/tmp/ps_edge_clone_super_initial_divergent.c:1737:13: warning: unused function 'ps_check_index_bounds' [-Wunused-function]
+ 1737 | static void ps_check_index_bounds(size_t len, int64_t idx) {
+      |             ^~~~~~~~~~~~~~~~~~~~~
+/tmp/ps_edge_clone_super_initial_divergent.c:1740:13: warning: unused function 'ps_check_view_bounds' [-Wunused-function]
+ 1740 | static void ps_check_view_bounds(size_t len, int64_t offset, int64_t view_len) {
+      |             ^~~~~~~~~~~~~~~~~~~~
+/tmp/ps_edge_clone_super_initial_divergent.c:1745:13: warning: unused function 'ps_check_view_valid' [-Wunused-function]
+ 1745 | static void ps_check_view_valid(const uint64_t* version_ptr, uint64_t version) {
+      |             ^~~~~~~~~~~~~~~~~~~
+/tmp/ps_edge_clone_super_initial_divergent.c:1750:13: warning: unused function 'ps_check_map_has_key' [-Wunused-function]
+ 1750 | static void ps_check_map_has_key(int has_key) {
+      |             ^~~~~~~~~~~~~~~~~~~~
+/tmp/ps_edge_clone_super_initial_divergent.c:1825:17: warning: unused function 'ps_view_glyph_get' [-Wunused-function]
+ 1825 | static uint32_t ps_view_glyph_get(ps_view_glyph v, int64_t idx) {
+      |                 ^~~~~~~~~~~~~~~~~
+/tmp/ps_edge_clone_super_initial_divergent.c:1830:18: warning: unused function 'ps_string_substring' [-Wunused-function]
+ 1830 | static ps_string ps_string_substring(ps_string s, int64_t start, int64_t length) {
+      |                  ^~~~~~~~~~~~~~~~~~~
+/tmp/ps_edge_clone_super_initial_divergent.c:1866:13: warning: unused function 'ps_string_contains' [-Wunused-function]
+ 1866 | static bool ps_string_contains(ps_string s, ps_string needle) {
+      |             ^~~~~~~~~~~~~~~~~~
+/tmp/ps_edge_clone_super_initial_divergent.c:1869:16: warning: unused function 'ps_string_last_index_of' [-Wunused-function]
+ 1869 | static int64_t ps_string_last_index_of(ps_string s, ps_string needle) {
+      |                ^~~~~~~~~~~~~~~~~~~~~~~
+/tmp/ps_edge_clone_super_initial_divergent.c:1884:13: warning: unused function 'ps_string_starts_with' [-Wunused-function]
+ 1884 | static bool ps_string_starts_with(ps_string s, ps_string prefix) {
+      |             ^~~~~~~~~~~~~~~~~~~~~
+/tmp/ps_edge_clone_super_initial_divergent.c:1888:13: warning: unused function 'ps_string_ends_with' [-Wunused-function]
+ 1888 | static bool ps_string_ends_with(ps_string s, ps_string suffix) {
+      |             ^~~~~~~~~~~~~~~~~~~
+/tmp/ps_edge_clone_super_initial_divergent.c:1892:18: warning: unused function 'ps_string_trim' [-Wunused-function]
+ 1892 | static ps_string ps_string_trim(ps_string s, int mode) {
+      |                  ^~~~~~~~~~~~~~
+/tmp/ps_edge_clone_super_initial_divergent.c:1915:18: warning: unused function 'ps_string_replace' [-Wunused-function]
+ 1915 | static ps_string ps_string_replace(ps_string s, ps_string oldv, ps_string newv) {
+      |                  ^~~~~~~~~~~~~~~~~
+/tmp/ps_edge_clone_super_initial_divergent.c:1936:18: warning: unused function 'ps_string_replace_all' [-Wunused-function]
+ 1936 | static ps_string ps_string_replace_all(ps_string s, ps_string oldv, ps_string newv) {
+      |                  ^~~~~~~~~~~~~~~~~~~~~
+/tmp/ps_edge_clone_super_initial_divergent.c:1977:17: warning: unused function 'ps_string_glyph_at' [-Wunused-function]
+ 1977 | static uint32_t ps_string_glyph_at(ps_string s, int64_t idx) {
+      |                 ^~~~~~~~~~~~~~~~~~
+/tmp/ps_edge_clone_super_initial_divergent.c:1981:18: warning: unused function 'ps_string_repeat' [-Wunused-function]
+ 1981 | static ps_string ps_string_repeat(ps_string s, int64_t count) {
+      |                  ^~~~~~~~~~~~~~~~
+/tmp/ps_edge_clone_super_initial_divergent.c:2038:18: warning: unused function 'ps_string_pad_start' [-Wunused-function]
+ 2038 | static ps_string ps_string_pad_start(ps_string s, int64_t target_len, ps_string pad) {
+      |                  ^~~~~~~~~~~~~~~~~~~
+/tmp/ps_edge_clone_super_initial_divergent.c:2041:18: warning: unused function 'ps_string_pad_end' [-Wunused-function]
+ 2041 | static ps_string ps_string_pad_end(ps_string s, int64_t target_len, ps_string pad) {
+      |                  ^~~~~~~~~~~~~~~~~
+/tmp/ps_edge_clone_super_initial_divergent.c:2044:18: warning: unused function 'ps_string_concat' [-Wunused-function]
+ 2044 | static ps_string ps_string_concat(ps_string a, ps_string b) {
+      |                  ^~~~~~~~~~~~~~~~
+/tmp/ps_edge_clone_super_initial_divergent.c:2082:18: warning: unused function 'ps_list_string_concat' [-Wunused-function]
+ 2082 | static ps_string ps_list_string_concat(ps_list_string l) {
+      |                  ^~~~~~~~~~~~~~~~~~~~~
+/tmp/ps_edge_clone_super_initial_divergent.c:2086:18: warning: unused function 'ps_string_to_upper' [-Wunused-function]
+ 2086 | static ps_string ps_string_to_upper(ps_string s) {
+      |                  ^~~~~~~~~~~~~~~~~~
+/tmp/ps_edge_clone_super_initial_divergent.c:2098:18: warning: unused function 'ps_string_to_lower' [-Wunused-function]
+ 2098 | static ps_string ps_string_to_lower(ps_string s) {
+      |                  ^~~~~~~~~~~~~~~~~~
+/tmp/ps_edge_clone_super_initial_divergent.c:2110:13: warning: unused function 'ps_string_eq' [-Wunused-function]
+ 2110 | static bool ps_string_eq(ps_string a, ps_string b) {
+      |             ^~~~~~~~~~~~
+/tmp/ps_edge_clone_super_initial_divergent.c:2125:23: warning: unused function 'ps_string_split' [-Wunused-function]
+ 2125 | static ps_list_string ps_string_split(ps_string s, ps_string sep) {
+      |                       ^~~~~~~~~~~~~~~
+/tmp/ps_edge_clone_super_initial_divergent.c:2172:21: warning: unused function 'ps_string_to_utf8_bytes' [-Wunused-function]
+ 2172 | static ps_list_byte ps_string_to_utf8_bytes(ps_string s) {
+      |                     ^~~~~~~~~~~~~~~~~~~~~~~
+/tmp/ps_edge_clone_super_initial_divergent.c:2214:18: warning: unused function 'ps_list_byte_to_utf8_string' [-Wunused-function]
+ 2214 | static ps_string ps_list_byte_to_utf8_string(ps_list_byte b) {
+      |                  ^~~~~~~~~~~~~~~~~~~~~~~~~~~
+/tmp/ps_edge_clone_super_initial_divergent.c:2223:16: warning: unused function 'ps_int_abs' [-Wunused-function]
+ 2223 | static int64_t ps_int_abs(int64_t v) {
+      |                ^~~~~~~~~~
+/tmp/ps_edge_clone_super_initial_divergent.c:2227:16: warning: unused function 'ps_int_sign' [-Wunused-function]
+ 2227 | static int64_t ps_int_sign(int64_t v) {
+      |                ^~~~~~~~~~~
+/tmp/ps_edge_clone_super_initial_divergent.c:2231:21: warning: unused function 'ps_i64_to_bytes' [-Wunused-function]
+ 2231 | static ps_list_byte ps_i64_to_bytes(int64_t v) {
+      |                     ^~~~~~~~~~~~~~~
+/tmp/ps_edge_clone_super_initial_divergent.c:2242:21: warning: unused function 'ps_f64_to_bytes' [-Wunused-function]
+ 2242 | static ps_list_byte ps_f64_to_bytes(double v) {
+      |                     ^~~~~~~~~~~~~~~
+/tmp/ps_edge_clone_super_initial_divergent.c:2253:16: warning: unused function 'ps_float_to_int' [-Wunused-function]
+ 2253 | static int64_t ps_float_to_int(double v) {
+      |                ^~~~~~~~~~~~~~~
+/tmp/ps_edge_clone_super_initial_divergent.c:2258:16: warning: unused function 'ps_string_to_int' [-Wunused-function]
+ 2258 | static int64_t ps_string_to_int(ps_string s) {
+      |                ^~~~~~~~~~~~~~~~
+/tmp/ps_edge_clone_super_initial_divergent.c:2272:15: warning: unused function 'ps_string_to_float' [-Wunused-function]
+ 2272 | static double ps_string_to_float(ps_string s) {
+      |               ^~~~~~~~~~~~~~~~~~
+/tmp/ps_edge_clone_super_initial_divergent.c:2286:13: warning: unused function 'ps_glyph_is_letter' [-Wunused-function]
+ 2286 | static bool ps_glyph_is_letter(uint32_t g) {
+      |             ^~~~~~~~~~~~~~~~~~
+/tmp/ps_edge_clone_super_initial_divergent.c:2289:13: warning: unused function 'ps_glyph_is_digit' [-Wunused-function]
+ 2289 | static bool ps_glyph_is_digit(uint32_t g) {
+      |             ^~~~~~~~~~~~~~~~~
+/tmp/ps_edge_clone_super_initial_divergent.c:2292:13: warning: unused function 'ps_glyph_is_whitespace' [-Wunused-function]
+ 2292 | static bool ps_glyph_is_whitespace(uint32_t g) {
+      |             ^~~~~~~~~~~~~~~~~~~~~~
+/tmp/ps_edge_clone_super_initial_divergent.c:2295:13: warning: unused function 'ps_glyph_is_upper' [-Wunused-function]
+ 2295 | static bool ps_glyph_is_upper(uint32_t g) {
+      |             ^~~~~~~~~~~~~~~~~
+/tmp/ps_edge_clone_super_initial_divergent.c:2298:13: warning: unused function 'ps_glyph_is_lower' [-Wunused-function]
+ 2298 | static bool ps_glyph_is_lower(uint32_t g) {
+      |             ^~~~~~~~~~~~~~~~~
+/tmp/ps_edge_clone_super_initial_divergent.c:2301:17: warning: unused function 'ps_glyph_to_upper' [-Wunused-function]
+ 2301 | static uint32_t ps_glyph_to_upper(uint32_t g) {
+      |                 ^~~~~~~~~~~~~~~~~
+/tmp/ps_edge_clone_super_initial_divergent.c:2304:17: warning: unused function 'ps_glyph_to_lower' [-Wunused-function]
+ 2304 | static uint32_t ps_glyph_to_lower(uint32_t g) {
+      |                 ^~~~~~~~~~~~~~~~~
+/tmp/ps_edge_clone_super_initial_divergent.c:2307:18: warning: unused function 'ps_glyph_to_string' [-Wunused-function]
+ 2307 | static ps_string ps_glyph_to_string(uint32_t g) {
+      |                  ^~~~~~~~~~~~~~~~~~
+/tmp/ps_edge_clone_super_initial_divergent.c:2325:18: warning: unused function 'ps_u32_to_string' [-Wunused-function]
+ 2325 | static ps_string ps_u32_to_string(uint32_t v) {
+      |                  ^~~~~~~~~~~~~~~~
+/tmp/ps_edge_clone_super_initial_divergent.c:2334:18: warning: unused function 'ps_f64_to_string' [-Wunused-function]
+ 2334 | static ps_string ps_f64_to_string(double v) {
+      |                  ^~~~~~~~~~~~~~~~
+/tmp/ps_edge_clone_super_initial_divergent.c:2457:13: warning: unused function 'Fs_exists' [-Wunused-function]
+ 2457 | static bool Fs_exists(ps_string path) {
+      |             ^~~~~~~~~
+/tmp/ps_edge_clone_super_initial_divergent.c:2470:13: warning: unused function 'Fs_isFile' [-Wunused-function]
+ 2470 | static bool Fs_isFile(ps_string path) {
+      |             ^~~~~~~~~
+/tmp/ps_edge_clone_super_initial_divergent.c:2483:13: warning: unused function 'Fs_isDir' [-Wunused-function]
+ 2483 | static bool Fs_isDir(ps_string path) {
+      |             ^~~~~~~~
+/tmp/ps_edge_clone_super_initial_divergent.c:2496:13: warning: unused function 'Fs_isSymlink' [-Wunused-function]
+ 2496 | static bool Fs_isSymlink(ps_string path) {
+      |             ^~~~~~~~~~~~
+/tmp/ps_edge_clone_super_initial_divergent.c:2509:13: warning: unused function 'Fs_isReadable' [-Wunused-function]
+ 2509 | static bool Fs_isReadable(ps_string path) {
+      |             ^~~~~~~~~~~~~
+/tmp/ps_edge_clone_super_initial_divergent.c:2521:13: warning: unused function 'Fs_isWritable' [-Wunused-function]
+ 2521 | static bool Fs_isWritable(ps_string path) {
+      |             ^~~~~~~~~~~~~
+/tmp/ps_edge_clone_super_initial_divergent.c:2533:13: warning: unused function 'Fs_isExecutable' [-Wunused-function]
+ 2533 | static bool Fs_isExecutable(ps_string path) {
+      |             ^~~~~~~~~~~~~~~
+/tmp/ps_edge_clone_super_initial_divergent.c:2545:16: warning: unused function 'Fs_size' [-Wunused-function]
+ 2545 | static int64_t Fs_size(ps_string path) {
+      |                ^~~~~~~
+/tmp/ps_edge_clone_super_initial_divergent.c:2558:13: warning: unused function 'Fs_mkdir' [-Wunused-function]
+ 2558 | static void Fs_mkdir(ps_string path) {
+      |             ^~~~~~~~
+/tmp/ps_edge_clone_super_initial_divergent.c:2573:13: warning: unused function 'Fs_rmdir' [-Wunused-function]
+ 2573 | static void Fs_rmdir(ps_string path) {
+      |             ^~~~~~~~
+/tmp/ps_edge_clone_super_initial_divergent.c:2583:13: warning: unused function 'Fs_rm' [-Wunused-function]
+ 2583 | static void Fs_rm(ps_string path) {
+      |             ^~~~~
+/tmp/ps_edge_clone_super_initial_divergent.c:2593:13: warning: unused function 'Fs_cp' [-Wunused-function]
+ 2593 | static void Fs_cp(ps_string src, ps_string dst) {
+      |             ^~~~~
+/tmp/ps_edge_clone_super_initial_divergent.c:2685:13: warning: unused function 'Fs_mv' [-Wunused-function]
+ 2685 | static void Fs_mv(ps_string src, ps_string dst) {
+      |             ^~~~~
+/tmp/ps_edge_clone_super_initial_divergent.c:2699:13: warning: unused function 'Fs_chmod' [-Wunused-function]
+ 2699 | static void Fs_chmod(ps_string path, int64_t mode) {
+      |             ^~~~~~~~
+/tmp/ps_edge_clone_super_initial_divergent.c:2709:18: warning: unused function 'Fs_cwd' [-Wunused-function]
+ 2709 | static ps_string Fs_cwd(void) {
+      |                  ^~~~~~
+/tmp/ps_edge_clone_super_initial_divergent.c:2714:13: warning: unused function 'Fs_cd' [-Wunused-function]
+ 2714 | static void Fs_cd(ps_string path) {
+      |             ^~~~~
+/tmp/ps_edge_clone_super_initial_divergent.c:2728:18: warning: unused function 'Fs_pathInfo' [-Wunused-function]
+ 2728 | static PathInfo* Fs_pathInfo(ps_string path) {
+      |                  ^~~~~~~~~~~
+/tmp/ps_edge_clone_super_initial_divergent.c:2763:19: warning: unused function 'Fs_openDir' [-Wunused-function]
+ 2763 | static ps_fs_dir* Fs_openDir(ps_string path) {
+      |                   ^~~~~~~~~~
+/tmp/ps_edge_clone_super_initial_divergent.c:2798:18: warning: unused function 'Fs___dir_next' [-Wunused-function]
+ 2798 | static ps_string Fs___dir_next(ps_fs_dir* d) {
+      |                  ^~~~~~~~~~~~~
+/tmp/ps_edge_clone_super_initial_divergent.c:2807:13: warning: unused function 'Fs___dir_close' [-Wunused-function]
+ 2807 | static void Fs___dir_close(ps_fs_dir* d) {
+      |             ^~~~~~~~~~~~~~
+/tmp/ps_edge_clone_super_initial_divergent.c:2816:13: warning: unused function 'Fs___dir_reset' [-Wunused-function]
+ 2816 | static void Fs___dir_reset(ps_fs_dir* d) {
+      |             ^~~~~~~~~~~~~~
+/tmp/ps_edge_clone_super_initial_divergent.c:2924:19: warning: unused function 'Fs___walker_next' [-Wunused-function]
+ 2924 | static PathEntry* Fs___walker_next(ps_fs_walker* w) {
+      |                   ^~~~~~~~~~~~~~~~
+/tmp/ps_edge_clone_super_initial_divergent.c:2938:13: warning: unused function 'Fs___walker_close' [-Wunused-function]
+ 2938 | static void Fs___walker_close(ps_fs_walker* w) {
+      |             ^~~~~~~~~~~~~~~~~
+/tmp/ps_edge_clone_super_initial_divergent.c:2945:22: warning: unused function 'Fs_walk' [-Wunused-function]
+ 2945 | static ps_fs_walker* Fs_walk(ps_string path, int64_t max_depth, bool follow_symlinks) {
+      |                      ^~~~~~~
+/tmp/ps_edge_clone_super_initial_divergent.c:3013:23: warning: unused function 'Sys_execute' [-Wunused-function]
+ 3013 | static ProcessResult* Sys_execute(ps_string program, ps_list_string args, ps_list_byte input, bool capture_stdout, bool capture_stderr) {
+      |                       ^~~~~~~~~~~
+/tmp/ps_edge_clone_super_initial_divergent.c:3304:16: warning: unused function 'RegExp_compile' [-Wunused-function]
+ 3304 | static RegExp* RegExp_compile(ps_string pattern, ps_string flags) {
+      |                ^~~~~~~~~~~~~~
+/tmp/ps_edge_clone_super_initial_divergent.c:3381:13: warning: unused function 'RegExp_test' [-Wunused-function]
+ 3381 | static bool RegExp_test(RegExp* self, ps_string input, int64_t start) {
+      |             ^~~~~~~~~~~
+/tmp/ps_edge_clone_super_initial_divergent.c:3459:18: warning: unused function 'RegExp_replaceFirst' [-Wunused-function]
+ 3459 | static ps_string RegExp_replaceFirst(RegExp* self, ps_string input, ps_string replacement, int64_t start) {
+      |                  ^~~~~~~~~~~~~~~~~~~
+/tmp/ps_edge_clone_super_initial_divergent.c:3462:28: warning: unused function 'RegExp_findAll' [-Wunused-function]
+ 3462 | static ps_list_RegExpMatch RegExp_findAll(RegExp* self, ps_string input, int64_t start, int64_t max) {
+      |                            ^~~~~~~~~~~~~~
+/tmp/ps_edge_clone_super_initial_divergent.c:3481:23: warning: unused function 'RegExp_split' [-Wunused-function]
+ 3481 | static ps_list_string RegExp_split(RegExp* self, ps_string input, int64_t start, int64_t maxParts) {
+      |                       ^~~~~~~~~~~~
+/tmp/ps_edge_clone_super_initial_divergent.c:3505:18: warning: unused function 'RegExp_pattern' [-Wunused-function]
+ 3505 | static ps_string RegExp_pattern(RegExp* self) {
+      |                  ^~~~~~~~~~~~~~
+/tmp/ps_edge_clone_super_initial_divergent.c:3510:18: warning: unused function 'RegExp_flags' [-Wunused-function]
+ 3510 | static ps_string RegExp_flags(RegExp* self) {
+      |                  ^~~~~~~~~~~~
+/tmp/ps_edge_clone_super_initial_divergent.c:3525:13: warning: unused function 'ps_map_has_key_string_int' [-Wunused-function]
+ 3525 | static bool ps_map_has_key_string_int(const ps_map_string_int* m, ps_string key) {
+      |             ^~~~~~~~~~~~~~~~~~~~~~~~~
+/tmp/ps_edge_clone_super_initial_divergent.c:3528:16: warning: unused function 'ps_map_get_string_int' [-Wunused-function]
+ 3528 | static int64_t ps_map_get_string_int(const ps_map_string_int* m, ps_string key) {
+      |                ^~~~~~~~~~~~~~~~~~~~~
+/tmp/ps_edge_clone_super_initial_divergent.c:3534:13: warning: unused function 'ps_map_set_string_int' [-Wunused-function]
+ 3534 | static void ps_map_set_string_int(ps_map_string_int* m, ps_string key, int64_t value) {
+      |             ^~~~~~~~~~~~~~~~~~~~~
+/tmp/ps_edge_clone_super_initial_divergent.c:3551:13: warning: unused function 'ps_map_remove_string_int' [-Wunused-function]
+ 3551 | static bool ps_map_remove_string_int(ps_map_string_int* m, ps_string key) {
+      |             ^~~~~~~~~~~~~~~~~~~~~~~~
+/tmp/ps_edge_clone_super_initial_divergent.c:3561:23: warning: unused function 'ps_map_keys_string_int' [-Wunused-function]
+ 3561 | static ps_list_string ps_map_keys_string_int(const ps_map_string_int* m) {
+      |                       ^~~~~~~~~~~~~~~~~~~~~~
+/tmp/ps_edge_clone_super_initial_divergent.c:3571:20: warning: unused function 'ps_map_values_string_int' [-Wunused-function]
+ 3571 | static ps_list_int ps_map_values_string_int(const ps_map_string_int* m) {
+      |                    ^~~~~~~~~~~~~~~~~~~~~~~~
+/tmp/ps_edge_clone_super_initial_divergent.c:3590:13: warning: unused function 'ps_map_has_key_string_JSONValue' [-Wunused-function]
+ 3590 | static bool ps_map_has_key_string_JSONValue(const ps_map_string_JSONValue* m, ps_string key) {
+      |             ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+/tmp/ps_edge_clone_super_initial_divergent.c:3593:21: warning: unused function 'ps_map_get_string_JSONValue' [-Wunused-function]
+ 3593 | static ps_jsonvalue ps_map_get_string_JSONValue(const ps_map_string_JSONValue* m, ps_string key) {
+      |                     ^~~~~~~~~~~~~~~~~~~~~~~~~~~
+/tmp/ps_edge_clone_super_initial_divergent.c:3616:13: warning: unused function 'ps_map_remove_string_JSONValue' [-Wunused-function]
+ 3616 | static bool ps_map_remove_string_JSONValue(ps_map_string_JSONValue* m, ps_string key) {
+      |             ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+/tmp/ps_edge_clone_super_initial_divergent.c:3626:23: warning: unused function 'ps_map_keys_string_JSONValue' [-Wunused-function]
+ 3626 | static ps_list_string ps_map_keys_string_JSONValue(const ps_map_string_JSONValue* m) {
+      |                       ^~~~~~~~~~~~~~~~~~~~~~~~~~~~
+/tmp/ps_edge_clone_super_initial_divergent.c:3636:26: warning: unused function 'ps_map_values_string_JSONValue' [-Wunused-function]
+ 3636 | static ps_list_JSONValue ps_map_values_string_JSONValue(const ps_map_string_JSONValue* m) {
+      |                          ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+189 warnings generated.

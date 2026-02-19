@@ -66,6 +66,20 @@ ProtoScript V2 est guidé par un principe central :
 
 Toute fonctionnalité qui améliorerait artificiellement le confort d’écriture au détriment de la lisibilité, de l’analyse statique ou des performances est volontairement exclue.
 
+## Runtime Authority and Execution Independence
+
+Règles normatives :
+
+- le runtime C de ProtoScript2 est l’implémentation normative d’exécution ;
+- le CLI runtime (`c/ps run`) doit être autonome et exécuter localement via le runtime C ;
+- le CLI runtime ne doit déléguer ni directement ni indirectement vers un compilateur/référence externe ;
+- les mécanismes de délégation de type `exec`, `system`, `popen` ou l’invocation d’un runtime Node.js sont interdits pour l’exécution de `c/ps run`.
+
+Cadre de conformité :
+
+- Node.js peut être utilisé pour la génération d’IR, la génération C et le crosscheck/oracle de conformité ;
+- la parité Node ↔ C doit être validée par les tests, jamais obtenue par redirection d’exécution.
+
 # 2. Types scalaires fondamentaux
 
 ProtoScript V2 définit un ensemble restreint de **types scalaires fondamentaux**, dont la sémantique est fixe, explicite et exploitable statiquement.
@@ -1028,15 +1042,30 @@ p.y = 20;
 
 Règles :
 
-- `clone()` effectue une copie structurale de l’objet
-- aucune allocation implicite autre que l’instance clonée
-- le type statique de l’objet est celui du prototype
+- Tous les prototypes héritent implicitement d’un prototype racine `Object`.
+- `clone()` est une méthode normale résolue par lookup d’héritage.
+- `Object.clone()` est la définition par défaut.
+- `Self` pour `clone()` se spécialise au type statique du receveur.
 
 ---
 
 ## 4.3.1 Clarification `clone()` (normatif)
 
-La sémantique existante de `clone()` n’est **pas modifiée**.
+`clone()` n’est pas une primitive spéciale.
+
+Règles normatives :
+
+1. `P.clone()` est un appel de méthode normal sur un receveur prototype.
+2. `p.clone()` est un appel de méthode normal sur un receveur instance.
+3. La résolution suit la chaîne d’héritage (lookup normal).
+4. Si un ancêtre redéfinit `clone()` et qu’aucun descendant ne redéfinit, cette redéfinition s’applique.
+5. `Object.clone()` alloue un objet `o` et fixe :
+   - `o.__proto = P` si receveur prototype `P`
+   - `o.__proto = p.__proto` si receveur instance `p`
+6. Aucune logique implicite supplémentaire n’est autorisée.
+7. Toute forme interne de lowering (ex. `__clone_static`) est un détail d’implémentation :
+   - elle ne doit jamais contourner le lookup d’héritage de `clone()`,
+   - elle ne peut pas modifier l’owner effectivement résolu pour `clone()`.
 
 Un module natif ProtoScript en C peut restreindre l’accès à certains prototypes non exportés.
 
@@ -1159,21 +1188,26 @@ Règles :
 
 ---
 
-### Accès au parent
+### Accès au parent (`super`)
 
-ProtoScript V2 **ne définit pas d’appel implicite au parent** (`super`).
-
-Un appel explicite peut être autorisé sous une forme contrôlée (à spécifier), par exemple :
+ProtoScript V2 définit `super` pour l’appel explicite au parent :
 
 ```c
-Point.move(self, dx, dy);
+super.methodName(args...);
 ```
 
-Ce mécanisme :
+Règles normatives :
 
-- est explicite
-- est résolu statiquement
-- n’introduit aucun coût dynamique
+1. `super` n’est valide que dans le corps d’une méthode.
+2. `super` est lié au prototype déclarant la méthode courante.
+3. La résolution de `super.m` commence au parent direct du prototype déclarant.
+4. Le receveur effectif reste le même `self` que la méthode courante.
+
+Diagnostics associés :
+
+- `E3210` — `INVALID_SUPER_USAGE`
+- `E3211` — `SUPER_NO_PARENT`
+- `E3212` — `SUPER_METHOD_NOT_FOUND`
 
 ---
 
@@ -3963,7 +3997,7 @@ Catégories :
 
 ## A.4 Mots-clés réservés
 
-`prototype`, `sealed`, `function`, `var`, `const`, `internal`, `group`, `int`, `float`, `bool`, `byte`, `glyph`, `string`, `list`, `map`, `slice`, `view`, `void`, `if`, `else`, `for`, `of`, `in`, `while`, `do`, `switch`, `case`, `default`, `break`, `continue`, `return`, `try`, `catch`, `finally`, `throw`, `true`, `false`, `self`
+`prototype`, `sealed`, `function`, `var`, `const`, `internal`, `group`, `int`, `float`, `bool`, `byte`, `glyph`, `string`, `list`, `map`, `slice`, `view`, `void`, `if`, `else`, `for`, `of`, `in`, `while`, `do`, `switch`, `case`, `default`, `break`, `continue`, `return`, `try`, `catch`, `finally`, `throw`, `true`, `false`, `self`, `super`
 
 ## A.5 Littéraux
 
@@ -4090,6 +4124,7 @@ ArgList          = Expr { "," Expr } ;
 PrimaryExpr      = Literal
                  | Identifier
                  | "self"
+                 | "super"
                  | "(" Expr ")"
                  | ListLiteral
                  | MapLiteral ;

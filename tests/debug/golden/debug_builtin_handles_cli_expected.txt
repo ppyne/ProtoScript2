@@ -1,5 +1,5 @@
 object<TextFile> {
-  delegation: sealed TextFile
+  delegation: sealed TextFile -> Object
   native: TextFile(closed=false, std=true, path="stdout")
   fields:
   methods:
@@ -10,9 +10,10 @@ object<TextFile> {
     [TextFile] size() : int
     [TextFile] name() : string
     [TextFile] close() : void
+    [Object] clone() : Object
 }
 object<BinaryFile> {
-  delegation: sealed BinaryFile
+  delegation: sealed BinaryFile -> Object
   native: BinaryFile(closed=false, std=false, path="/tmp/ps_debug_builtin_handles_cli.bin")
   fields:
   methods:
@@ -23,4 +24,5 @@ object<BinaryFile> {
     [BinaryFile] size() : int
     [BinaryFile] name() : string
     [BinaryFile] close() : void
+    [Object] clone() : Object
 }

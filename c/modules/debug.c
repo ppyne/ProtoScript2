@@ -245,9 +245,21 @@ static const PS_ProtoMethodDesc DEBUG_TEXT_METHODS[] = {
   { .name = "name", .params = NULL, .param_count = 0, .ret_type = "string" },
   { .name = "close", .params = NULL, .param_count = 0, .ret_type = "void" },
 };
+static const PS_ProtoMethodDesc DEBUG_OBJECT_METHODS[] = {
+  { .name = "clone", .params = NULL, .param_count = 0, .ret_type = "Object" },
+};
+static const PS_ProtoDesc DEBUG_OBJECT_PROTO = {
+  .name = "Object",
+  .parent = NULL,
+  .fields = NULL,
+  .field_count = 0,
+  .methods = DEBUG_OBJECT_METHODS,
+  .method_count = sizeof(DEBUG_OBJECT_METHODS) / sizeof(DEBUG_OBJECT_METHODS[0]),
+  .is_sealed = 0,
+};
 static const PS_ProtoDesc DEBUG_TEXTFILE_PROTO = {
   .name = "TextFile",
-  .parent = NULL,
+  .parent = "Object",
   .fields = NULL,
   .field_count = 0,
   .methods = DEBUG_TEXT_METHODS,
@@ -275,7 +287,7 @@ static const PS_ProtoMethodDesc DEBUG_BINARY_METHODS[] = {
 };
 static const PS_ProtoDesc DEBUG_BINARYFILE_PROTO = {
   .name = "BinaryFile",
-  .parent = NULL,
+  .parent = "Object",
   .fields = NULL,
   .field_count = 0,
   .methods = DEBUG_BINARY_METHODS,
@@ -311,6 +323,7 @@ static DebugProto debug_proto_from_native(const PS_ProtoDesc *p) {
 
 static const PS_ProtoDesc *debug_builtin_proto_by_name(const char *name) {
   if (!name) return NULL;
+  if (strcmp(name, "Object") == 0) return &DEBUG_OBJECT_PROTO;
   if (strcmp(name, "TextFile") == 0) return &DEBUG_TEXTFILE_PROTO;
   if (strcmp(name, "BinaryFile") == 0) return &DEBUG_BINARYFILE_PROTO;
   return NULL;

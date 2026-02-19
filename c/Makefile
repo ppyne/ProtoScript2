@@ -4,7 +4,7 @@ CFLAGS ?= -std=c11 -Wall -Wextra -Werror -O2 -I../include -I.
 MCPP_DIR := ../third_party/mcpp
 MCPP_LIB := $(MCPP_DIR)/lib/libmcpp.a
 MCPP_INC := -I$(MCPP_DIR)
-MCPP_CFLAGS := -O2 -Wno-deprecated-declarations
+MCPP_CFLAGS := -O2 -Wno-deprecated-declarations -fno-common
 
 TARGET = pscc
 TARGET_PS = ps

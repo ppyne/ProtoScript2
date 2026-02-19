@@ -1,6 +1,6 @@
 -- builtin handles c --
 object<TextFile> {
-  delegation: sealed TextFile
+  delegation: sealed TextFile -> Object
   native: TextFile(closed=false, std=false, path="/tmp/ps_debug_c_text.txt")
   fields:
   methods:
@@ -11,9 +11,10 @@ object<TextFile> {
     [TextFile] size() : int
     [TextFile] name() : string
     [TextFile] close() : void
+    [Object] clone() : Object
 }
 object<BinaryFile> {
-  delegation: sealed BinaryFile
+  delegation: sealed BinaryFile -> Object
   native: BinaryFile(closed=false, std=false, path="/tmp/ps_debug_c_binary.bin")
   fields:
   methods:
@@ -24,6 +25,7 @@ object<BinaryFile> {
     [BinaryFile] size() : int
     [BinaryFile] name() : string
     [BinaryFile] close() : void
+    [Object] clone() : Object
 }
 object<Dir> {
   delegation: Dir

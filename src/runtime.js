@@ -23,9 +23,18 @@ function isObjectInstance(v) {
 
 function buildPrototypeEnv(ast) {
   const protos = new Map();
+  protos.set("Object", {
+    name: "Object",
+    parent: null,
+    sealed: false,
+    fields: [],
+    methods: new Map([
+      ["clone", { name: "clone", params: [], retType: { kind: "NamedType", name: "Object" } }],
+    ]),
+  });
   protos.set("Exception", {
     name: "Exception",
-    parent: null,
+    parent: "Object",
     sealed: false,
     fields: [
       { name: "file", type: { kind: "PrimitiveType", name: "string" } },
@@ -48,7 +57,7 @@ function buildPrototypeEnv(ast) {
   });
   protos.set("CivilDateTime", {
     name: "CivilDateTime",
-    parent: null,
+    parent: "Object",
     sealed: false,
     fields: [
       { name: "year", type: { kind: "PrimitiveType", name: "int" } },
@@ -63,7 +72,7 @@ function buildPrototypeEnv(ast) {
   });
   protos.set("PathInfo", {
     name: "PathInfo",
-    parent: null,
+    parent: "Object",
     sealed: false,
     fields: [
       { name: "dirname", type: { kind: "PrimitiveType", name: "string" } },
@@ -75,7 +84,7 @@ function buildPrototypeEnv(ast) {
   });
   protos.set("PathEntry", {
     name: "PathEntry",
-    parent: null,
+    parent: "Object",
     sealed: false,
     fields: [
       { name: "path", type: { kind: "PrimitiveType", name: "string" } },
@@ -89,7 +98,7 @@ function buildPrototypeEnv(ast) {
   });
   protos.set("TextFile", {
     name: "TextFile",
-    parent: null,
+    parent: "Object",
     sealed: true,
     fields: [],
     methods: new Map([
@@ -104,7 +113,7 @@ function buildPrototypeEnv(ast) {
   });
   protos.set("BinaryFile", {
     name: "BinaryFile",
-    parent: null,
+    parent: "Object",
     sealed: true,
     fields: [],
     methods: new Map([
@@ -119,7 +128,7 @@ function buildPrototypeEnv(ast) {
   });
   protos.set("Dir", {
     name: "Dir",
-    parent: null,
+    parent: "Object",
     sealed: false,
     fields: [],
     methods: new Map([
@@ -131,7 +140,7 @@ function buildPrototypeEnv(ast) {
   });
   protos.set("Walker", {
     name: "Walker",
-    parent: null,
+    parent: "Object",
     sealed: false,
     fields: [],
     methods: new Map([
@@ -142,7 +151,7 @@ function buildPrototypeEnv(ast) {
   });
   protos.set("ProcessEvent", {
     name: "ProcessEvent",
-    parent: null,
+    parent: "Object",
     sealed: false,
     fields: [
       { name: "stream", type: { kind: "PrimitiveType", name: "int" } },
@@ -152,7 +161,7 @@ function buildPrototypeEnv(ast) {
   });
   protos.set("ProcessResult", {
     name: "ProcessResult",
-    parent: null,
+    parent: "Object",
     sealed: false,
     fields: [
       { name: "exitCode", type: { kind: "PrimitiveType", name: "int" } },
@@ -162,7 +171,7 @@ function buildPrototypeEnv(ast) {
   });
   protos.set("RegExpMatch", {
     name: "RegExpMatch",
-    parent: null,
+    parent: "Object",
     sealed: false,
     fields: [
       { name: "ok", type: { kind: "PrimitiveType", name: "bool" } },
@@ -174,7 +183,7 @@ function buildPrototypeEnv(ast) {
   });
   protos.set("RegExp", {
     name: "RegExp",
-    parent: null,
+    parent: "Object",
     sealed: false,
     fields: [],
     methods: new Map([
@@ -191,7 +200,7 @@ function buildPrototypeEnv(ast) {
   });
   protos.set("JSONValue", {
     name: "JSONValue",
-    parent: null,
+    parent: "Object",
     sealed: true,
     fields: [],
     methods: new Map([
@@ -256,7 +265,7 @@ function buildPrototypeEnv(ast) {
     for (const f of d.fields || []) fields.push({ name: f.name, type: f.type, init: f.init || null, isConst: !!f.isConst });
     const methods = new Map();
     for (const m of d.methods || []) methods.set(m.name, m);
-    protos.set(d.name, { name: d.name, parent: d.parent || null, fields, methods, sealed: !!d.sealed });
+    protos.set(d.name, { name: d.name, parent: d.parent || "Object", fields, methods, sealed: !!d.sealed });
   }
   return protos;
 }
@@ -380,6 +389,19 @@ function clonePrototype(protos, name, hooks = null) {
     if (f.isConst) obj.__constFields.add(f.name);
   }
   return obj;
+}
+
+function objectCloneDefault(protos, receiver, hooks = null) {
+  let protoName = null;
+  if (receiver && receiver.__proto_desc && typeof receiver.name === "string") {
+    protoName = receiver.name;
+  } else if (isObjectInstance(receiver) && typeof receiver.__proto === "string") {
+    protoName = receiver.__proto;
+  }
+  if (!protoName || !protos.has(protoName)) {
+    throw new RuntimeError(rdiag(hooks && hooks.file ? hooks.file : "<runtime>", null, "R1010", "RUNTIME_TYPE_ERROR", "clone expects prototype or instance receiver"));
+  }
+  return clonePrototype(protos, protoName, hooks);
 }
 
 function resolveProtoMethodRuntime(protos, name, method) {
@@ -2877,6 +2899,7 @@ function runProgram(ast, file, argv) {
     let argIndex = 0;
     if (fn.__protoOwner) {
       scope.define("self", args[0]);
+      scope.define("__declProto", fn.__protoOwner);
       argIndex = 1;
     }
     for (let i = 0; i < fn.params.length; i += 1) {
@@ -3178,7 +3201,10 @@ function evalExpr(expr, scope, functions, moduleEnv, protoEnv, file, callFunctio
         const g = moduleEnv.groups.get(expr.name);
         return g && g.descriptor ? g.descriptor : { __group_desc: true, name: expr.name };
       }
+      if (protoEnv && protoEnv.has(expr.name)) return { __proto_desc: true, name: expr.name };
       return scope.get(expr.name);
+    case "SuperExpr":
+      return { __super: true };
     case "UnaryExpr": {
       if (expr.op === "++" || expr.op === "--") {
         const ref = lvalueRef(expr.expr, scope, functions, moduleEnv, protoEnv, file, callFunction);
@@ -3607,18 +3633,18 @@ function evalCall(expr, scope, functions, moduleEnv, protoEnv, file, callFunctio
     if (!fn && moduleEnv && moduleEnv.importedFunctions.has(expr.callee.name)) {
       const info = moduleEnv.importedFunctions.get(expr.callee.name);
       if (info.kind === "proto") {
+        const fn = functions.get(`${info.proto}.${info.name}`);
+        if (fn) {
+          const args = expr.args.map((a) => evalExpr(a, scope, functions, moduleEnv, protoEnv, file, callFunction));
+          return callFunction(fn, args);
+        }
         if (info.name === "clone") {
           if (!protoEnv || !protoEnv.has(info.proto)) {
             throw new RuntimeError(rdiag(file, info.node, "R1010", "RUNTIME_TYPE_ERROR", "unknown prototype"));
           }
-          return clonePrototype(protoEnv, info.proto, { scope, functions, moduleEnv, protoEnv, file, callFunction });
+          return objectCloneDefault(protoEnv, { __proto_desc: true, name: info.proto }, { scope, functions, moduleEnv, protoEnv, file, callFunction });
         }
-        const fn = functions.get(`${info.proto}.${info.name}`);
-        if (!fn) {
-          throw new RuntimeError(rdiag(file, info.node, "R1010", "RUNTIME_TYPE_ERROR", "missing method"));
-        }
-        const args = expr.args.map((a) => evalExpr(a, scope, functions, moduleEnv, protoEnv, file, callFunction));
-        return callFunction(fn, args);
+        throw new RuntimeError(rdiag(file, info.node, "R1010", "RUNTIME_TYPE_ERROR", "missing method"));
       }
       const mod = moduleEnv.modules.get(info.module);
       if (!mod) {
@@ -3645,36 +3671,65 @@ function evalCall(expr, scope, functions, moduleEnv, protoEnv, file, callFunctio
     const target = evalExpr(m.target, scope, functions, moduleEnv, protoEnv, file, callFunction);
     const args = expr.args.map((a) => evalExpr(a, scope, functions, moduleEnv, protoEnv, file, callFunction));
 
-    if (protoEnv && (expr._protoClone || (m.target.kind === "Identifier" && protoEnv.has(m.target.name) && m.name === "clone"))) {
-      const pname = expr._protoClone || m.target.name;
-      if (!protoEnv.has(pname)) {
-        throw new RuntimeError(rdiag(file, m, "R1010", "RUNTIME_TYPE_ERROR", "unknown prototype"));
+    if (protoEnv && expr._superCall) {
+      const declProto = scope.has("__declProto") ? scope.get("__declProto") : null;
+      if (!declProto) {
+        throw new RuntimeError(rdiag(file, m, "R1010", "RUNTIME_TYPE_ERROR", "super outside method"));
       }
-      return clonePrototype(protoEnv, pname, { scope, functions, moduleEnv, protoEnv, file, callFunction });
+      const owner = protoEnv.get(declProto);
+      if (!owner || !owner.parent) {
+        throw new RuntimeError(rdiag(file, m, "R1010", "RUNTIME_TYPE_ERROR", "super has no parent"));
+      }
+      const info = resolveProtoMethodRuntime(protoEnv, owner.parent, m.name);
+      if (!info) {
+        throw new RuntimeError(rdiag(file, m, "R1010", "RUNTIME_TYPE_ERROR", "super method not found"));
+      }
+      const receiver = scope.get("self");
+      const fn = functions.get(`${info.proto}.${m.name}`);
+      if (fn) return callFunction(fn, [receiver, ...args]);
+      if (m.name === "clone") {
+        return objectCloneDefault(protoEnv, receiver, { scope, functions, moduleEnv, protoEnv, file, callFunction });
+      }
+      const mod = moduleEnv.modules.get(info.proto);
+      const impl = mod && !mod.error ? mod.functions.get(m.name) : null;
+      if (impl) return impl(receiver, ...args, m);
+      throw new RuntimeError(rdiag(file, m, "R1010", "RUNTIME_TYPE_ERROR", "missing method"));
     }
     if (protoEnv && expr._protoStatic) {
       const info = resolveProtoMethodRuntime(protoEnv, expr._protoStatic, m.name);
       if (!info) throw new RuntimeError(rdiag(file, m, "R1010", "RUNTIME_TYPE_ERROR", "unknown prototype method"));
       const fn = functions.get(`${info.proto}.${m.name}`);
-      if (!fn) {
-        const mod = moduleEnv.modules.get(info.proto);
-        const impl = mod && !mod.error ? mod.functions.get(m.name) : null;
-        if (impl) return impl(...args, m);
-        throw new RuntimeError(rdiag(file, m, "R1010", "RUNTIME_TYPE_ERROR", "missing method"));
+      const staticReceiver = target || { __proto_desc: true, name: expr._protoStatic };
+      if (fn) {
+        // Keep historical static-call semantics: explicit self for regular methods,
+        // implicit receiver only for clone() (and arity-matched static helper cases).
+        const implicitReceiver = m.name === "clone" || args.length === fn.params.length;
+        const recvArg = implicitReceiver ? [staticReceiver] : [];
+        return callFunction(fn, [...recvArg, ...args]);
       }
-      return callFunction(fn, args);
+      if (m.name === "clone") {
+        return objectCloneDefault(protoEnv, staticReceiver, { scope, functions, moduleEnv, protoEnv, file, callFunction });
+      }
+      const mod = moduleEnv.modules.get(info.proto);
+      const impl = mod && !mod.error ? mod.functions.get(m.name) : null;
+      if (impl) return impl(...args, m);
+      throw new RuntimeError(rdiag(file, m, "R1010", "RUNTIME_TYPE_ERROR", "missing method"));
     }
     if (protoEnv && expr._protoInstance) {
-      const info = resolveProtoMethodRuntime(protoEnv, expr._protoInstance, m.name);
+      const dispatchProto = m.name === "clone" && isObjectInstance(target) ? target.__proto : expr._protoInstance;
+      const info = resolveProtoMethodRuntime(protoEnv, dispatchProto, m.name);
       if (!info) throw new RuntimeError(rdiag(file, m, "R1010", "RUNTIME_TYPE_ERROR", "unknown prototype method"));
       const fn = functions.get(`${info.proto}.${m.name}`);
-      if (!fn) {
-        const mod = moduleEnv.modules.get(info.proto);
-        const impl = mod && !mod.error ? mod.functions.get(m.name) : null;
-        if (impl) return impl(target, ...args, m);
-        throw new RuntimeError(rdiag(file, m, "R1010", "RUNTIME_TYPE_ERROR", "missing method"));
+      if (fn) {
+        return callFunction(fn, [target, ...args]);
       }
-      return callFunction(fn, [target, ...args]);
+      if (m.name === "clone") {
+        return objectCloneDefault(protoEnv, target, { scope, functions, moduleEnv, protoEnv, file, callFunction });
+      }
+      const mod = moduleEnv.modules.get(info.proto);
+      const impl = mod && !mod.error ? mod.functions.get(m.name) : null;
+      if (impl) return impl(target, ...args, m);
+      throw new RuntimeError(rdiag(file, m, "R1010", "RUNTIME_TYPE_ERROR", "missing method"));
     }
 
     const fsThrowEval = (type, message) => {

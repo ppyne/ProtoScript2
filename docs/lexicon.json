@@ -5118,6 +5118,21 @@
     "notes": ""
   },
   {
+    "symbol": "Self",
+    "category": "type",
+    "status": "CORE",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "SPECIFICATION.md:1034",
+      "MANUEL_REFERENCE.md:1531"
+    ],
+    "doc": "Contextual core type symbol specialized to receiver type for clone semantics.",
+    "notes": "Not a reserved keyword; contextual type in prototype method typing."
+  },
+  {
     "symbol": "sealed",
     "category": "keyword",
     "status": "CORE",
@@ -5159,6 +5174,21 @@
     ],
     "doc": "Reserved keyword.",
     "notes": ""
+  },
+  {
+    "symbol": "super",
+    "category": "keyword",
+    "status": "CORE",
+    "frontends": {
+      "c": true,
+      "node": true
+    },
+    "locations": [
+      "src/frontend.js:47",
+      "c/frontend.c:336"
+    ],
+    "doc": "Reserved keyword.",
+    "notes": "Valid only in prototype method scope for parent dispatch."
   },
   {
     "symbol": "slice",

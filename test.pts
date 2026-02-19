@@ -1,0 +1,15 @@
+prototype MyType {
+    function clone() : MyType {
+        Exception e = Exception.clone();
+        e.message = "forbidden";
+        throw e;
+    }
+}
+
+prototype MyNewType : MyType {
+  
+}
+
+function main() : void {
+    MyType mt = MyNewType.clone();
+}
