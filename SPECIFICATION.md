@@ -80,6 +80,70 @@ Cadre de conformité :
 - Node.js peut être utilisé pour la génération d’IR, la génération C et le crosscheck/oracle de conformité ;
 - la parité Node ↔ C doit être validée par les tests, jamais obtenue par redirection d’exécution.
 
+## Runtime Model and Backend Authority
+
+Règles normatives :
+
+1. La VM C est l’implémentation normative de ProtoScript2.
+2. La cible WASM est la VM C compilée (mêmes sources C).
+3. La cible emit-C doit reproduire exactement la sémantique de la VM C.
+4. Aucun backend ne définit la sémantique du langage.
+5. Toute divergence backend vs VM C est un bug.
+6. Un correctif backend ne doit jamais modifier :
+   - le lookup de `clone`,
+   - la résolution de `super`,
+   - la spécialisation de `Self`,
+   - la hiérarchie prototype,
+   - le modèle d’erreur.
+7. Toute allocation spécifique backend doit être :
+   - purement technique,
+   - confinée au codegen/backend concerné,
+   - documentée explicitement comme non-sémantique.
+
+## Builtin Design Process and Conformance Requirements
+
+Règles normatives pour toute nouvelle structure builtin :
+
+1. Définir une surface canonique en ProtoScript :
+   - prototype,
+   - méthodes publiques,
+   - signature de `clone()`,
+   - comportement `super`,
+   - règles `Self`,
+   - erreurs normatives.
+   - La surface publique d’un builtin doit être décrivable en ProtoScript (prototype + méthodes),
+     sans champ magique requis côté utilisateur.
+   - Toute représentation interne (handle natif, struct C, layout backend) est opaque et non normative.
+2. Vérifier structurellement :
+   - lookup `clone`,
+   - dispatch,
+   - override,
+   - invariants de type et d’héritage.
+3. Classifier explicitement le builtin :
+   - `Data type` clonable :
+     - `clone/super/Self` suivent les règles normales du langage ;
+     - les conteneurs exposés (`list`/`map`) doivent préserver la stabilité observable :
+       au minimum, copie défensive à l’entrée ; au retour, snapshot recommandé.
+   - `Native handle` non clonable (`R1013 RUNTIME_CLONE_NOT_SUPPORTED` obligatoire) :
+     - instanciation contrôlée par API/module ;
+     - aucun clone implicite, aucune duplication best-effort.
+     - le prototype builtin handle DOIT être `sealed` par défaut ;
+     - un runtime/backend NE DOIT PAS autoriser l’héritage d’un handle non explicitement déscellé par règle normative ;
+     - `clone()` sur un handle DOIT échouer avec `R1013 RUNTIME_CLONE_NOT_SUPPORTED`.
+4. Tests obligatoires :
+   - `clone()`,
+   - `super.clone()`,
+   - override + signature,
+   - mapping des erreurs runtime,
+   - parité VM C native / VM C WASM / emit-C.
+5. Interdictions :
+   - backend-first design,
+   - champs publics implicites,
+   - sémantique cachée côté C/runtime.
+6. Cohérence sous-typage/runtime :
+   - si le typage statique accepte les sous-types d’un builtin, le runtime doit accepter ces sous-types ;
+   - sinon le builtin doit être explicitement `sealed`.
+
 # 2. Types scalaires fondamentaux
 
 ProtoScript V2 définit un ensemble restreint de **types scalaires fondamentaux**, dont la sémantique est fixe, explicite et exploitable statiquement.
@@ -3942,7 +4006,7 @@ Méthodes d’accès (sur `JSONValue`) :
 
 `asX()` déclenche une erreur runtime si le type ne correspond pas.
 
-### Constructeurs explicites (immutables)
+### Constructeurs explicites
 
 Le module fournit des constructeurs explicites pour produire des valeurs JSON :
 
@@ -3952,6 +4016,11 @@ Le module fournit des constructeurs explicites pour produire des valeurs JSON :
 - `JSON.string(string s)` → `JSONValue`
 - `JSON.array(list<JSONValue> items)` → `JSONValue`
 - `JSON.object(map<string, JSONValue> members)` → `JSONValue`
+
+Règle snapshot normative :
+
+- `JSON.array` et `JSON.object` capturent un snapshot de leurs entrées.
+- `JSONValue.asArray()` et `JSONValue.asObject()` ne doivent pas invalider la stabilité observée du `JSONValue`.
 
 ### Fonctions
 

@@ -36,9 +36,9 @@ Sous‑types normatifs :
 
 ---
 
-## 3. Constructeurs explicites (immutables)
+## 3. Constructeurs explicites
 
-Le module fournit des constructeurs explicites (immutables) :
+Le module fournit des constructeurs explicites :
 
 - `JSON.null() -> JSONValue`
 - `JSON.bool(bool b) -> JSONValue`
@@ -51,6 +51,7 @@ Règles :
 
 - promotion implicite `int → float` autorisée pour `JSON.number`.
 - `JSON.number` rejette `NaN`, `+Infinity`, `-Infinity`.
+- `JSON.array` et `JSON.object` prennent un snapshot de leur entrée.
 
 ---
 
@@ -71,6 +72,7 @@ Accès typé :
 Règle :
 
 - `asX()` lève une erreur runtime si le type ne correspond pas.
+- `asArray()` et `asObject()` doivent préserver la stabilité observée de la valeur JSON.
 
 ---
 
@@ -91,7 +93,7 @@ Contraintes :
 - `NaN`, `+Infinity`, `-Infinity` sont **interdits** → erreur runtime.
 - `-0` est préservé.
 
-### 5.2 `JSON.decode(text: string) -> JSONValue`
+### 5.2 `JSON.decode(string text) -> JSONValue`
 
 Parse un JSON strict et retourne un arbre `JSONValue`.
 
@@ -100,7 +102,7 @@ Erreurs :
 - JSON invalide → erreur runtime.
 - UTF‑8 invalide → erreur runtime.
 
-### 5.3 `JSON.isValid(text: string) -> bool`
+### 5.3 `JSON.isValid(string text) -> bool`
 
 Retourne `true` si `text` est un JSON valide, `false` sinon.  
 Ne lève pas d’exception pour un JSON invalide.  
@@ -150,4 +152,3 @@ if (v.isObject()) {
     }
 }
 ```
-

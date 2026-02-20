@@ -28,7 +28,7 @@ object<BinaryFile> {
     [Object] clone() : Object
 }
 object<Dir> {
-  delegation: Dir
+  delegation: sealed Dir
   native: Dir(closed=false, done=false, path=".")
   fields:
   methods:
@@ -38,7 +38,7 @@ object<Dir> {
     [Dir] reset() : void
 }
 object<Walker> {
-  delegation: Walker
+  delegation: sealed Walker
   native: Walker(closed=false, maxDepth=-1, followSymlinks=false, root=".")
   fields:
   methods:

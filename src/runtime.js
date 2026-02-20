@@ -68,7 +68,22 @@ function buildPrototypeEnv(ast) {
       { name: "second", type: { kind: "PrimitiveType", name: "int" } },
       { name: "millisecond", type: { kind: "PrimitiveType", name: "int" } },
     ],
-    methods: new Map(),
+    methods: new Map([
+      ["year", { name: "year", params: [], retType: { kind: "PrimitiveType", name: "int" } }],
+      ["month", { name: "month", params: [], retType: { kind: "PrimitiveType", name: "int" } }],
+      ["day", { name: "day", params: [], retType: { kind: "PrimitiveType", name: "int" } }],
+      ["hour", { name: "hour", params: [], retType: { kind: "PrimitiveType", name: "int" } }],
+      ["minute", { name: "minute", params: [], retType: { kind: "PrimitiveType", name: "int" } }],
+      ["second", { name: "second", params: [], retType: { kind: "PrimitiveType", name: "int" } }],
+      ["millisecond", { name: "millisecond", params: [], retType: { kind: "PrimitiveType", name: "int" } }],
+      ["setYear", { name: "setYear", params: [{ type: { kind: "PrimitiveType", name: "int" } }], retType: { kind: "PrimitiveType", name: "void" } }],
+      ["setMonth", { name: "setMonth", params: [{ type: { kind: "PrimitiveType", name: "int" } }], retType: { kind: "PrimitiveType", name: "void" } }],
+      ["setDay", { name: "setDay", params: [{ type: { kind: "PrimitiveType", name: "int" } }], retType: { kind: "PrimitiveType", name: "void" } }],
+      ["setHour", { name: "setHour", params: [{ type: { kind: "PrimitiveType", name: "int" } }], retType: { kind: "PrimitiveType", name: "void" } }],
+      ["setMinute", { name: "setMinute", params: [{ type: { kind: "PrimitiveType", name: "int" } }], retType: { kind: "PrimitiveType", name: "void" } }],
+      ["setSecond", { name: "setSecond", params: [{ type: { kind: "PrimitiveType", name: "int" } }], retType: { kind: "PrimitiveType", name: "void" } }],
+      ["setMillisecond", { name: "setMillisecond", params: [{ type: { kind: "PrimitiveType", name: "int" } }], retType: { kind: "PrimitiveType", name: "void" } }],
+    ]),
   });
   protos.set("PathInfo", {
     name: "PathInfo",
@@ -80,7 +95,12 @@ function buildPrototypeEnv(ast) {
       { name: "filename", type: { kind: "PrimitiveType", name: "string" } },
       { name: "extension", type: { kind: "PrimitiveType", name: "string" } },
     ],
-    methods: new Map(),
+    methods: new Map([
+      ["dirname", { name: "dirname", params: [], retType: { kind: "PrimitiveType", name: "string" } }],
+      ["basename", { name: "basename", params: [], retType: { kind: "PrimitiveType", name: "string" } }],
+      ["filename", { name: "filename", params: [], retType: { kind: "PrimitiveType", name: "string" } }],
+      ["extension", { name: "extension", params: [], retType: { kind: "PrimitiveType", name: "string" } }],
+    ]),
   });
   protos.set("PathEntry", {
     name: "PathEntry",
@@ -94,7 +114,14 @@ function buildPrototypeEnv(ast) {
       { name: "isFile", type: { kind: "PrimitiveType", name: "bool" } },
       { name: "isSymlink", type: { kind: "PrimitiveType", name: "bool" } },
     ],
-    methods: new Map(),
+    methods: new Map([
+      ["path", { name: "path", params: [], retType: { kind: "PrimitiveType", name: "string" } }],
+      ["name", { name: "name", params: [], retType: { kind: "PrimitiveType", name: "string" } }],
+      ["depth", { name: "depth", params: [], retType: { kind: "PrimitiveType", name: "int" } }],
+      ["isDir", { name: "isDir", params: [], retType: { kind: "PrimitiveType", name: "bool" } }],
+      ["isFile", { name: "isFile", params: [], retType: { kind: "PrimitiveType", name: "bool" } }],
+      ["isSymlink", { name: "isSymlink", params: [], retType: { kind: "PrimitiveType", name: "bool" } }],
+    ]),
   });
   protos.set("TextFile", {
     name: "TextFile",
@@ -129,7 +156,7 @@ function buildPrototypeEnv(ast) {
   protos.set("Dir", {
     name: "Dir",
     parent: "Object",
-    sealed: false,
+    sealed: true,
     fields: [],
     methods: new Map([
       ["hasNext", { name: "hasNext", params: [], retType: { kind: "PrimitiveType", name: "bool" } }],
@@ -141,7 +168,7 @@ function buildPrototypeEnv(ast) {
   protos.set("Walker", {
     name: "Walker",
     parent: "Object",
-    sealed: false,
+    sealed: true,
     fields: [],
     methods: new Map([
       ["hasNext", { name: "hasNext", params: [], retType: { kind: "PrimitiveType", name: "bool" } }],
@@ -157,7 +184,10 @@ function buildPrototypeEnv(ast) {
       { name: "stream", type: { kind: "PrimitiveType", name: "int" } },
       { name: "data", type: { kind: "GenericType", name: "list", args: [{ kind: "PrimitiveType", name: "byte" }] } },
     ],
-    methods: new Map(),
+    methods: new Map([
+      ["stream", { name: "stream", params: [], retType: { kind: "PrimitiveType", name: "int" } }],
+      ["data", { name: "data", params: [], retType: { kind: "GenericType", name: "list", args: [{ kind: "PrimitiveType", name: "byte" }] } }],
+    ]),
   });
   protos.set("ProcessResult", {
     name: "ProcessResult",
@@ -167,7 +197,10 @@ function buildPrototypeEnv(ast) {
       { name: "exitCode", type: { kind: "PrimitiveType", name: "int" } },
       { name: "events", type: { kind: "GenericType", name: "list", args: [{ kind: "NamedType", name: "ProcessEvent" }] } },
     ],
-    methods: new Map(),
+    methods: new Map([
+      ["exitCode", { name: "exitCode", params: [], retType: { kind: "PrimitiveType", name: "int" } }],
+      ["events", { name: "events", params: [], retType: { kind: "GenericType", name: "list", args: [{ kind: "NamedType", name: "ProcessEvent" }] } }],
+    ]),
   });
   protos.set("RegExpMatch", {
     name: "RegExpMatch",
@@ -179,12 +212,17 @@ function buildPrototypeEnv(ast) {
       { name: "end", type: { kind: "PrimitiveType", name: "int" } },
       { name: "groups", type: { kind: "GenericType", name: "list", args: [{ kind: "PrimitiveType", name: "string" }] } },
     ],
-    methods: new Map(),
+    methods: new Map([
+      ["ok", { name: "ok", params: [], retType: { kind: "PrimitiveType", name: "bool" } }],
+      ["start", { name: "start", params: [], retType: { kind: "PrimitiveType", name: "int" } }],
+      ["end", { name: "end", params: [], retType: { kind: "PrimitiveType", name: "int" } }],
+      ["groups", { name: "groups", params: [], retType: { kind: "GenericType", name: "list", args: [{ kind: "PrimitiveType", name: "string" }] } }],
+    ]),
   });
   protos.set("RegExp", {
     name: "RegExp",
     parent: "Object",
-    sealed: false,
+    sealed: true,
     fields: [],
     methods: new Map([
       ["compile", { name: "compile", params: [{ type: { kind: "PrimitiveType", name: "string" } }, { type: { kind: "PrimitiveType", name: "string" } }], retType: { kind: "NamedType", name: "RegExp" } }],
@@ -399,7 +437,28 @@ function objectCloneDefault(protos, receiver, hooks = null) {
     protoName = receiver.__proto;
   }
   if (!protoName || !protos.has(protoName)) {
-    throw new RuntimeError(rdiag(hooks && hooks.file ? hooks.file : "<runtime>", null, "R1010", "RUNTIME_TYPE_ERROR", "clone expects prototype or instance receiver"));
+    throw new RuntimeError(
+      rdiag(
+        hooks && hooks.file ? hooks.file : "<runtime>",
+        hooks && hooks.node ? hooks.node : null,
+        "R1010",
+        "RUNTIME_TYPE_ERROR",
+        "clone expects prototype or instance receiver"
+      )
+    );
+  }
+  const nonCloneableHandles = ["TextFile", "BinaryFile", "Dir", "Walker", "RegExp"];
+  const handleBase = nonCloneableHandles.find((base) => isProtoSubtype(protos, protoName, base));
+  if (handleBase) {
+    throw new RuntimeError(
+      rdiag(
+        hooks && hooks.file ? hooks.file : "<runtime>",
+        hooks && hooks.node ? hooks.node : null,
+        "R1013",
+        "RUNTIME_CLONE_NOT_SUPPORTED",
+        `clone not supported for builtin handle ${handleBase}`
+      )
+    );
   }
   return clonePrototype(protos, protoName, hooks);
 }
@@ -518,6 +577,18 @@ function makeJsonValue(type, value) {
 
 function isJsonValue(v) {
   return v && v.__json === true;
+}
+
+function jsonArraySnapshot(items) {
+  return makeList(Array.isArray(items) ? items.slice() : []);
+}
+
+function jsonObjectSnapshot(members) {
+  const out = new Map();
+  if (members instanceof Map) {
+    for (const [k, v] of members.entries()) out.set(k, v);
+  }
+  return out;
 }
 
 function defaultDiagParts(category) {
@@ -1863,7 +1934,7 @@ function buildModuleEnv(ast, file, hooks = null) {
     for (const it of items) {
       if (!isJsonValue(it)) jsonError(node, "array expects list<JSONValue>");
     }
-    return makeJsonValue("array", items);
+    return makeJsonValue("array", jsonArraySnapshot(items));
   });
   jsonMod.functions.set("object", (members, node) => {
     if (!(members instanceof Map)) jsonError(node, "object expects map<string,JSONValue>");
@@ -1872,7 +1943,7 @@ function buildModuleEnv(ast, file, hooks = null) {
       if (typeof key !== "string") jsonError(node, "object expects map<string,JSONValue>");
       if (!isJsonValue(v)) jsonError(node, "object expects map<string,JSONValue>");
     }
-    return makeJsonValue("object", members);
+    return makeJsonValue("object", jsonObjectSnapshot(members));
   });
 
   const timeError = (type, node, message) => {
@@ -3642,7 +3713,7 @@ function evalCall(expr, scope, functions, moduleEnv, protoEnv, file, callFunctio
           if (!protoEnv || !protoEnv.has(info.proto)) {
             throw new RuntimeError(rdiag(file, info.node, "R1010", "RUNTIME_TYPE_ERROR", "unknown prototype"));
           }
-          return objectCloneDefault(protoEnv, { __proto_desc: true, name: info.proto }, { scope, functions, moduleEnv, protoEnv, file, callFunction });
+          return objectCloneDefault(protoEnv, { __proto_desc: true, name: info.proto }, { scope, functions, moduleEnv, protoEnv, file, callFunction, node: info.node });
         }
         throw new RuntimeError(rdiag(file, info.node, "R1010", "RUNTIME_TYPE_ERROR", "missing method"));
       }
@@ -3688,7 +3759,7 @@ function evalCall(expr, scope, functions, moduleEnv, protoEnv, file, callFunctio
       const fn = functions.get(`${info.proto}.${m.name}`);
       if (fn) return callFunction(fn, [receiver, ...args]);
       if (m.name === "clone") {
-        return objectCloneDefault(protoEnv, receiver, { scope, functions, moduleEnv, protoEnv, file, callFunction });
+        return objectCloneDefault(protoEnv, receiver, { scope, functions, moduleEnv, protoEnv, file, callFunction, node: m });
       }
       const mod = moduleEnv.modules.get(info.proto);
       const impl = mod && !mod.error ? mod.functions.get(m.name) : null;
@@ -3708,7 +3779,7 @@ function evalCall(expr, scope, functions, moduleEnv, protoEnv, file, callFunctio
         return callFunction(fn, [...recvArg, ...args]);
       }
       if (m.name === "clone") {
-        return objectCloneDefault(protoEnv, staticReceiver, { scope, functions, moduleEnv, protoEnv, file, callFunction });
+        return objectCloneDefault(protoEnv, staticReceiver, { scope, functions, moduleEnv, protoEnv, file, callFunction, node: m });
       }
       const mod = moduleEnv.modules.get(info.proto);
       const impl = mod && !mod.error ? mod.functions.get(m.name) : null;
@@ -3724,7 +3795,80 @@ function evalCall(expr, scope, functions, moduleEnv, protoEnv, file, callFunctio
         return callFunction(fn, [target, ...args]);
       }
       if (m.name === "clone") {
-        return objectCloneDefault(protoEnv, target, { scope, functions, moduleEnv, protoEnv, file, callFunction });
+        return objectCloneDefault(protoEnv, target, { scope, functions, moduleEnv, protoEnv, file, callFunction, node: m });
+      }
+      if (isObjectInstance(target) && target.__fields) {
+        const proto = target.__proto || "";
+        const getter = (name) => target.__fields[name];
+        if (proto === "ProcessResult") {
+          if (m.name === "exitCode") return getter("exitCode");
+          if (m.name === "events") return getter("events");
+        } else if (proto === "ProcessEvent") {
+          if (m.name === "stream") return getter("stream");
+          if (m.name === "data") return getter("data");
+        } else if (proto === "RegExpMatch") {
+          if (m.name === "ok") return getter("ok");
+          if (m.name === "start") return getter("start");
+          if (m.name === "end") return getter("end");
+          if (m.name === "groups") return getter("groups");
+        } else if (proto === "PathInfo") {
+          if (m.name === "dirname") return getter("dirname");
+          if (m.name === "basename") return getter("basename");
+          if (m.name === "filename") return getter("filename");
+          if (m.name === "extension") return getter("extension");
+        } else if (proto === "PathEntry") {
+          if (m.name === "path") return getter("path");
+          if (m.name === "name") return getter("name");
+          if (m.name === "depth") return getter("depth");
+          if (m.name === "isDir") return getter("isDir");
+          if (m.name === "isFile") return getter("isFile");
+          if (m.name === "isSymlink") return getter("isSymlink");
+        } else if (proto === "CivilDateTime") {
+          const civilIntArg = () => {
+            const v = args[0];
+            if (typeof v !== "bigint") {
+              throw new RuntimeError(
+                rdiag(file, m, "R1010", "RUNTIME_TYPE_ERROR", diagMsg("invalid argument", valueType(v), "int"))
+              );
+            }
+            return v;
+          };
+          if (m.name === "year") return getter("year");
+          if (m.name === "month") return getter("month");
+          if (m.name === "day") return getter("day");
+          if (m.name === "hour") return getter("hour");
+          if (m.name === "minute") return getter("minute");
+          if (m.name === "second") return getter("second");
+          if (m.name === "millisecond") return getter("millisecond");
+          if (m.name === "setYear") {
+            target.__fields.year = civilIntArg();
+            return null;
+          }
+          if (m.name === "setMonth") {
+            target.__fields.month = civilIntArg();
+            return null;
+          }
+          if (m.name === "setDay") {
+            target.__fields.day = civilIntArg();
+            return null;
+          }
+          if (m.name === "setHour") {
+            target.__fields.hour = civilIntArg();
+            return null;
+          }
+          if (m.name === "setMinute") {
+            target.__fields.minute = civilIntArg();
+            return null;
+          }
+          if (m.name === "setSecond") {
+            target.__fields.second = civilIntArg();
+            return null;
+          }
+          if (m.name === "setMillisecond") {
+            target.__fields.millisecond = civilIntArg();
+            return null;
+          }
+        }
       }
       const mod = moduleEnv.modules.get(info.proto);
       const impl = mod && !mod.error ? mod.functions.get(m.name) : null;
@@ -3896,6 +4040,80 @@ function evalCall(expr, scope, functions, moduleEnv, protoEnv, file, callFunctio
       }
     }
 
+    if (isObjectInstance(target) && target.__fields) {
+      const proto = target.__proto || "";
+      const getter = (name) => target.__fields[name];
+      if (proto === "ProcessResult") {
+        if (m.name === "exitCode") return getter("exitCode");
+        if (m.name === "events") return getter("events");
+      } else if (proto === "ProcessEvent") {
+        if (m.name === "stream") return getter("stream");
+        if (m.name === "data") return getter("data");
+      } else if (proto === "RegExpMatch") {
+        if (m.name === "ok") return getter("ok");
+        if (m.name === "start") return getter("start");
+        if (m.name === "end") return getter("end");
+        if (m.name === "groups") return getter("groups");
+      } else if (proto === "PathInfo") {
+        if (m.name === "dirname") return getter("dirname");
+        if (m.name === "basename") return getter("basename");
+        if (m.name === "filename") return getter("filename");
+        if (m.name === "extension") return getter("extension");
+      } else if (proto === "PathEntry") {
+        if (m.name === "path") return getter("path");
+        if (m.name === "name") return getter("name");
+        if (m.name === "depth") return getter("depth");
+        if (m.name === "isDir") return getter("isDir");
+        if (m.name === "isFile") return getter("isFile");
+        if (m.name === "isSymlink") return getter("isSymlink");
+      } else if (proto === "CivilDateTime") {
+        const civilIntArg = () => {
+          const v = args[0];
+          if (typeof v !== "bigint") {
+            throw new RuntimeError(
+              rdiag(file, m, "R1010", "RUNTIME_TYPE_ERROR", diagMsg("invalid argument", valueType(v), "int"))
+            );
+          }
+          return v;
+        };
+        if (m.name === "year") return getter("year");
+        if (m.name === "month") return getter("month");
+        if (m.name === "day") return getter("day");
+        if (m.name === "hour") return getter("hour");
+        if (m.name === "minute") return getter("minute");
+        if (m.name === "second") return getter("second");
+        if (m.name === "millisecond") return getter("millisecond");
+        if (m.name === "setYear") {
+          target.__fields.year = civilIntArg();
+          return null;
+        }
+        if (m.name === "setMonth") {
+          target.__fields.month = civilIntArg();
+          return null;
+        }
+        if (m.name === "setDay") {
+          target.__fields.day = civilIntArg();
+          return null;
+        }
+        if (m.name === "setHour") {
+          target.__fields.hour = civilIntArg();
+          return null;
+        }
+        if (m.name === "setMinute") {
+          target.__fields.minute = civilIntArg();
+          return null;
+        }
+        if (m.name === "setSecond") {
+          target.__fields.second = civilIntArg();
+          return null;
+        }
+        if (m.name === "setMillisecond") {
+          target.__fields.millisecond = civilIntArg();
+          return null;
+        }
+      }
+    }
+
     if (isJsonValue(target)) {
       const t = target.type;
       if (m.name === "isNull") return t === "null";
@@ -3934,7 +4152,7 @@ function evalCall(expr, scope, functions, moduleEnv, protoEnv, file, callFunctio
             rdiag(file, m, "R1010", "RUNTIME_JSON_ERROR", diagMsg("invalid JsonArray access", t || "unknown", "JsonArray"))
           );
         }
-        return target.value;
+        return jsonArraySnapshot(target.value);
       }
       if (m.name === "asObject") {
         if (t !== "object") {
@@ -3942,7 +4160,7 @@ function evalCall(expr, scope, functions, moduleEnv, protoEnv, file, callFunctio
             rdiag(file, m, "R1010", "RUNTIME_JSON_ERROR", diagMsg("invalid JsonObject access", t || "unknown", "JsonObject"))
           );
         }
-        return target.value;
+        return jsonObjectSnapshot(target.value);
       }
     }
 

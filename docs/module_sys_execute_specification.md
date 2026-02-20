@@ -28,11 +28,11 @@ The API provides controlled execution of a child process with explicit argument 
 
 ```
 Sys.execute(
-    program: string,
-    args: list<string>,
-    input: list<byte>,
-    captureStdout: bool,
-    captureStderr: bool
+    string program,
+    list<string> args,
+    list<byte> input,
+    bool captureStdout,
+    bool captureStderr
 ) : ProcessResult
 ```
 
@@ -87,8 +87,8 @@ Captured output MUST be recorded chronologically as described in section 5.
 
 ```
 prototype ProcessResult {
-    exitCode : int
-    events   : list<ProcessEvent>
+    function exitCode() : int {}
+    function events() : list<ProcessEvent> {}
 }
 ```
 
@@ -109,8 +109,8 @@ A chronologically ordered list of output events.
 
 ```
 prototype ProcessEvent {
-    stream : int
-    data   : list<byte>
+    function stream() : int {}
+    function data() : list<byte> {}
 }
 ```
 
@@ -204,7 +204,7 @@ function main() : void {
         true
     );
 
-    for (ProcessEvent e in r.events) {
+    for (ProcessEvent e in r.events()) {
         // explicit decoding if needed
     }
 }

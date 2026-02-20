@@ -53,7 +53,7 @@ Le module expose deux prototypes :
 
 ### 3.1 Construction
 
-`RegExp.compile(pattern: string, flags: string) : RegExp`
+`RegExp.compile(string pattern, string flags) : RegExp`
 
 - Compile `pattern` avec `flags`.
 - `flags` est une chaîne contenant zéro ou plusieurs caractères (ordre indifférent, doublons ignorés).
@@ -85,21 +85,21 @@ Sémantique commune :
 
 #### `test`
 
-`RegExp.test(input: string, start: int) : bool`
+`RegExp.test(string input, int start) : bool`
 
 - Retourne `true` si une occurrence existe dans `input` à partir de `start` (en glyphes).
 - `start` doit être dans `[0..input.length()]`.
 
 #### `find`
 
-`RegExp.find(input: string, start: int) : RegExpMatch`
+`RegExp.find(string input, int start) : RegExpMatch`
 
 - Retourne le **premier** match à partir de `start`.
 - Si aucun match, retourne un `RegExpMatch` avec `ok=false`.
 
 #### `findAll`
 
-`RegExp.findAll(input: string, start: int, max: int) : list<RegExpMatch>`
+`RegExp.findAll(string input, int start, int max) : list<RegExpMatch>`
 
 - Retourne une liste de matches **non chevauchants**, de gauche à droite.
 - Le paramètre `max` suit la règle unifiée (3.2.1).
@@ -111,14 +111,14 @@ Règle anti‑boucle pour match vide :
 
 #### `replaceFirst`
 
-`RegExp.replaceFirst(input: string, replacement: string, start: int) : string`
+`RegExp.replaceFirst(string input, string replacement, int start) : string`
 
 - Remplace la première occurrence trouvée à partir de `start`.
 - Si aucun match, retourne `input` inchangée.
 
 #### `replaceAll`
 
-`RegExp.replaceAll(input: string, replacement: string, start: int, max: int) : string`
+`RegExp.replaceAll(string input, string replacement, int start, int max) : string`
 
 - Remplace toutes les occurrences (non chevauchantes) à partir de `start`, limitées à `max` si `max > 0`.
 - Le paramètre `max` suit la règle unifiée (3.2.1).
@@ -126,7 +126,7 @@ Règle anti‑boucle pour match vide :
 
 #### `split`
 
-`RegExp.split(input: string, start: int, maxParts: int) : list<string>`
+`RegExp.split(string input, int start, int maxParts) : list<string>`
 
 - Découpe `input` selon les matches.
 - Le paramètre `maxParts` suit la règle unifiée (3.2.1).
@@ -152,19 +152,19 @@ Règle match vide : identique à `findAll` (avance d’un glyphe pour éviter bo
 
 ## 4. Prototype `RegExpMatch`
 
-### 4.1 Champs
+### 4.1 Méthodes
 
-`RegExpMatch` expose les champs suivants (lecture seule) :
+`RegExpMatch` expose les méthodes suivantes :
 
-- `ok: bool`
-- `start: int` (index en glyphes dans `input`, 0 si `ok=false`)
-- `end: int` (index en glyphes, 0 si `ok=false`)
-- `groups: list<string>`
+- `ok() : bool`
+- `start() : int` (index en glyphes dans `input`, 0 si `ok=false`)
+- `end() : int` (index en glyphes, 0 si `ok=false`)
+- `groups() : list<string>`
 
 ### 4.2 Sémantique des groupes
 
-- `groups[0]` est **toujours** la sous‑chaîne matchée (le match complet) si `ok=true`.
-- `groups[i]` (i>=1) correspond au i‑ème groupe capturant.
+- `groups()[0]` est **toujours** la sous‑chaîne matchée (le match complet) si `ok=true`.
+- `groups()[i]` (i>=1) correspond au i‑ème groupe capturant.
 - Un groupe optionnel non matché doit produire une chaîne vide `""`.
 
 > Note : cette V1 ne fournit pas les offsets des captures. Seuls les substrings sont exposés (simples, stables, faciles à utiliser). Une V2 pourra ajouter offsets sans casser l’existant.

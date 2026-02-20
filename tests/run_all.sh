@@ -29,6 +29,10 @@ fi
 make -C "$ROOT_DIR/c"
 echo
 
+echo "-- docs ProtoScript syntax lint"
+"$ROOT_DIR/tests/run_docs_proto_lint.sh"
+echo
+
 echo "-- conformance (Node, modules enabled)"
 CONFORMANCE_MODULES=1 "$ROOT_DIR/tests/run_conformance.sh"
 echo
@@ -45,12 +49,20 @@ echo "-- CLI autonomy guard (no delegation in c/ps)"
 "$ROOT_DIR/tests/run_cli_autonomy_guard.sh"
 echo
 
+echo "-- builtin contract guard (sealed handles + R1013)"
+"$ROOT_DIR/tests/run_builtin_contract_guard.sh"
+echo
+
 echo "-- WASM runtime parity (Node oracle vs C runtime in WASM)"
 "$ROOT_DIR/tests/run_wasm_runtime_parity.sh"
 echo
 
 echo "-- CLI runtime parity (Node --run vs c/ps run)"
 "$ROOT_DIR/tests/run_cli_runtime_parity.sh"
+echo
+
+echo "-- runtime triangle parity (VM C native ↔ WASM ↔ emit-C)"
+"$ROOT_DIR/tests/run_runtime_triangle_parity.sh"
 echo
 
 echo "-- CLI tests (C)"

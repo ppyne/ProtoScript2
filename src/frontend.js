@@ -1800,58 +1800,106 @@ class Analyzer {
     }
     if (!this.prototypes.has("CivilDateTime")) {
       const decl = { line: 1, col: 1 };
-      const fields = new Map();
-      fields.set("year", { kind: "PrimitiveType", name: "int" });
-      fields.set("month", { kind: "PrimitiveType", name: "int" });
-      fields.set("day", { kind: "PrimitiveType", name: "int" });
-      fields.set("hour", { kind: "PrimitiveType", name: "int" });
-      fields.set("minute", { kind: "PrimitiveType", name: "int" });
-      fields.set("second", { kind: "PrimitiveType", name: "int" });
-      fields.set("millisecond", { kind: "PrimitiveType", name: "int" });
-      this.prototypes.set("CivilDateTime", { decl, parent: "Object", fields, methods: new Map(), moduleFile: null });
+      const methods = new Map();
+      methods.set("year", makeBuiltinMethod("CivilDateTime", "year", [], "int"));
+      methods.set("month", makeBuiltinMethod("CivilDateTime", "month", [], "int"));
+      methods.set("day", makeBuiltinMethod("CivilDateTime", "day", [], "int"));
+      methods.set("hour", makeBuiltinMethod("CivilDateTime", "hour", [], "int"));
+      methods.set("minute", makeBuiltinMethod("CivilDateTime", "minute", [], "int"));
+      methods.set("second", makeBuiltinMethod("CivilDateTime", "second", [], "int"));
+      methods.set("millisecond", makeBuiltinMethod("CivilDateTime", "millisecond", [], "int"));
+      methods.set("setYear", makeBuiltinMethod("CivilDateTime", "setYear", ["int"], "void"));
+      methods.set("setMonth", makeBuiltinMethod("CivilDateTime", "setMonth", ["int"], "void"));
+      methods.set("setDay", makeBuiltinMethod("CivilDateTime", "setDay", ["int"], "void"));
+      methods.set("setHour", makeBuiltinMethod("CivilDateTime", "setHour", ["int"], "void"));
+      methods.set("setMinute", makeBuiltinMethod("CivilDateTime", "setMinute", ["int"], "void"));
+      methods.set("setSecond", makeBuiltinMethod("CivilDateTime", "setSecond", ["int"], "void"));
+      methods.set("setMillisecond", makeBuiltinMethod("CivilDateTime", "setMillisecond", ["int"], "void"));
+      this.prototypes.set("CivilDateTime", { decl, parent: "Object", fields: new Map(), methods, moduleFile: null });
     }
     if (!this.prototypes.has("PathInfo")) {
       const decl = { line: 1, col: 1 };
-      const fields = new Map();
-      fields.set("dirname", { kind: "PrimitiveType", name: "string" });
-      fields.set("basename", { kind: "PrimitiveType", name: "string" });
-      fields.set("filename", { kind: "PrimitiveType", name: "string" });
-      fields.set("extension", { kind: "PrimitiveType", name: "string" });
-      this.prototypes.set("PathInfo", { decl, parent: "Object", fields, methods: new Map(), moduleFile: null });
+      const methods = new Map();
+      methods.set("dirname", makeBuiltinMethod("PathInfo", "dirname", [], "string"));
+      methods.set("basename", makeBuiltinMethod("PathInfo", "basename", [], "string"));
+      methods.set("filename", makeBuiltinMethod("PathInfo", "filename", [], "string"));
+      methods.set("extension", makeBuiltinMethod("PathInfo", "extension", [], "string"));
+      this.prototypes.set("PathInfo", { decl, parent: "Object", fields: new Map(), methods, moduleFile: null });
     }
     if (!this.prototypes.has("PathEntry")) {
       const decl = { line: 1, col: 1 };
-      const fields = new Map();
-      fields.set("path", { kind: "PrimitiveType", name: "string" });
-      fields.set("name", { kind: "PrimitiveType", name: "string" });
-      fields.set("depth", { kind: "PrimitiveType", name: "int" });
-      fields.set("isDir", { kind: "PrimitiveType", name: "bool" });
-      fields.set("isFile", { kind: "PrimitiveType", name: "bool" });
-      fields.set("isSymlink", { kind: "PrimitiveType", name: "bool" });
-      this.prototypes.set("PathEntry", { decl, parent: "Object", fields, methods: new Map(), moduleFile: null });
+      const methods = new Map();
+      methods.set("path", makeBuiltinMethod("PathEntry", "path", [], "string"));
+      methods.set("name", makeBuiltinMethod("PathEntry", "name", [], "string"));
+      methods.set("depth", makeBuiltinMethod("PathEntry", "depth", [], "int"));
+      methods.set("isDir", makeBuiltinMethod("PathEntry", "isDir", [], "bool"));
+      methods.set("isFile", makeBuiltinMethod("PathEntry", "isFile", [], "bool"));
+      methods.set("isSymlink", makeBuiltinMethod("PathEntry", "isSymlink", [], "bool"));
+      this.prototypes.set("PathEntry", { decl, parent: "Object", fields: new Map(), methods, moduleFile: null });
+    }
+    if (!this.prototypes.has("TextFile")) {
+      const decl = { line: 1, col: 1 };
+      const methods = new Map();
+      methods.set("read", makeBuiltinMethod("TextFile", "read", ["int"], "string"));
+      methods.set("write", makeBuiltinMethod("TextFile", "write", ["string"], "void"));
+      methods.set("tell", makeBuiltinMethod("TextFile", "tell", [], "int"));
+      methods.set("seek", makeBuiltinMethod("TextFile", "seek", ["int"], "void"));
+      methods.set("size", makeBuiltinMethod("TextFile", "size", [], "int"));
+      methods.set("name", makeBuiltinMethod("TextFile", "name", [], "string"));
+      methods.set("close", makeBuiltinMethod("TextFile", "close", [], "void"));
+      this.prototypes.set("TextFile", { decl, parent: "Object", fields: new Map(), methods, moduleFile: null, sealed: true });
+    }
+    if (!this.prototypes.has("BinaryFile")) {
+      const decl = { line: 1, col: 1 };
+      const methods = new Map();
+      methods.set("read", makeBuiltinMethod("BinaryFile", "read", ["int"], "list<byte>"));
+      methods.set("write", makeBuiltinMethod("BinaryFile", "write", ["list<byte>"], "void"));
+      methods.set("tell", makeBuiltinMethod("BinaryFile", "tell", [], "int"));
+      methods.set("seek", makeBuiltinMethod("BinaryFile", "seek", ["int"], "void"));
+      methods.set("size", makeBuiltinMethod("BinaryFile", "size", [], "int"));
+      methods.set("name", makeBuiltinMethod("BinaryFile", "name", [], "string"));
+      methods.set("close", makeBuiltinMethod("BinaryFile", "close", [], "void"));
+      this.prototypes.set("BinaryFile", { decl, parent: "Object", fields: new Map(), methods, moduleFile: null, sealed: true });
+    }
+    if (!this.prototypes.has("Dir")) {
+      const decl = { line: 1, col: 1 };
+      const methods = new Map();
+      methods.set("hasNext", makeBuiltinMethod("Dir", "hasNext", [], "bool"));
+      methods.set("next", makeBuiltinMethod("Dir", "next", [], "string"));
+      methods.set("close", makeBuiltinMethod("Dir", "close", [], "void"));
+      methods.set("reset", makeBuiltinMethod("Dir", "reset", [], "void"));
+      this.prototypes.set("Dir", { decl, parent: "Object", fields: new Map(), methods, moduleFile: null, sealed: true });
+    }
+    if (!this.prototypes.has("Walker")) {
+      const decl = { line: 1, col: 1 };
+      const methods = new Map();
+      methods.set("hasNext", makeBuiltinMethod("Walker", "hasNext", [], "bool"));
+      methods.set("next", makeBuiltinMethod("Walker", "next", [], "PathEntry"));
+      methods.set("close", makeBuiltinMethod("Walker", "close", [], "void"));
+      this.prototypes.set("Walker", { decl, parent: "Object", fields: new Map(), methods, moduleFile: null, sealed: true });
     }
     if (!this.prototypes.has("ProcessEvent")) {
       const decl = { line: 1, col: 1 };
-      const fields = new Map();
-      fields.set("stream", { kind: "PrimitiveType", name: "int" });
-      fields.set("data", { kind: "GenericType", name: "list", args: [{ kind: "PrimitiveType", name: "byte" }] });
-      this.prototypes.set("ProcessEvent", { decl, parent: "Object", fields, methods: new Map(), moduleFile: null });
+      const methods = new Map();
+      methods.set("stream", makeBuiltinMethod("ProcessEvent", "stream", [], "int"));
+      methods.set("data", makeBuiltinMethod("ProcessEvent", "data", [], "list<byte>"));
+      this.prototypes.set("ProcessEvent", { decl, parent: "Object", fields: new Map(), methods, moduleFile: null });
     }
     if (!this.prototypes.has("ProcessResult")) {
       const decl = { line: 1, col: 1 };
-      const fields = new Map();
-      fields.set("exitCode", { kind: "PrimitiveType", name: "int" });
-      fields.set("events", { kind: "GenericType", name: "list", args: [{ kind: "NamedType", name: "ProcessEvent" }] });
-      this.prototypes.set("ProcessResult", { decl, parent: "Object", fields, methods: new Map(), moduleFile: null });
+      const methods = new Map();
+      methods.set("exitCode", makeBuiltinMethod("ProcessResult", "exitCode", [], "int"));
+      methods.set("events", makeBuiltinMethod("ProcessResult", "events", [], "list<ProcessEvent>"));
+      this.prototypes.set("ProcessResult", { decl, parent: "Object", fields: new Map(), methods, moduleFile: null });
     }
     if (!this.prototypes.has("RegExpMatch")) {
       const decl = { line: 1, col: 1 };
-      const fields = new Map();
-      fields.set("ok", { kind: "PrimitiveType", name: "bool" });
-      fields.set("start", { kind: "PrimitiveType", name: "int" });
-      fields.set("end", { kind: "PrimitiveType", name: "int" });
-      fields.set("groups", { kind: "GenericType", name: "list", args: [{ kind: "PrimitiveType", name: "string" }] });
-      this.prototypes.set("RegExpMatch", { decl, parent: "Object", fields, methods: new Map(), moduleFile: null });
+      const methods = new Map();
+      methods.set("ok", makeBuiltinMethod("RegExpMatch", "ok", [], "bool"));
+      methods.set("start", makeBuiltinMethod("RegExpMatch", "start", [], "int"));
+      methods.set("end", makeBuiltinMethod("RegExpMatch", "end", [], "int"));
+      methods.set("groups", makeBuiltinMethod("RegExpMatch", "groups", [], "list<string>"));
+      this.prototypes.set("RegExpMatch", { decl, parent: "Object", fields: new Map(), methods, moduleFile: null });
     }
     if (!this.prototypes.has("RegExp")) {
       const decl = { line: 1, col: 1 };
@@ -1865,7 +1913,7 @@ class Analyzer {
       methods.set("split", makeBuiltinMethod("RegExp", "split", ["string", "int", "int"], "list<string>"));
       methods.set("pattern", makeBuiltinMethod("RegExp", "pattern", [], "string"));
       methods.set("flags", makeBuiltinMethod("RegExp", "flags", [], "string"));
-      this.prototypes.set("RegExp", { decl, parent: "Object", fields: new Map(), methods, moduleFile: null });
+      this.prototypes.set("RegExp", { decl, parent: "Object", fields: new Map(), methods, moduleFile: null, sealed: true });
     }
     const timeExceptions = [
       "DSTAmbiguousTimeException",
@@ -1990,7 +2038,8 @@ class Analyzer {
       const parent = this.prototypes.get(p.parent);
       if (parent) {
         if (parent.sealed) {
-          this.addDiag(p.decl, "E3140", "SEALED_INHERITANCE", `cannot inherit from sealed prototype '${parent.decl.name}'`);
+          const parentName = parent.decl && parent.decl.name ? parent.decl.name : p.parent;
+          this.addDiag(p.decl, "E3140", "SEALED_INHERITANCE", `cannot inherit from sealed prototype '${parentName}'`);
         }
         for (const fieldName of p.fields.keys()) {
           if (this.resolvePrototypeField(p.parent, fieldName)) {
@@ -3133,7 +3182,13 @@ class Analyzer {
           if (name === "close") return prim("void");
         }
       }
-      if (targetType.kind === "NamedType" && this.prototypes.has(targetType.name)) {
+      if (
+        targetType.kind === "NamedType" &&
+        this.prototypes.has(targetType.name) &&
+        targetType.name !== "TextFile" &&
+        targetType.name !== "BinaryFile" &&
+        targetType.name !== "JSONValue"
+      ) {
         const pm = this.resolvePrototypeMethod(targetType.name, member.name);
         if (!pm) {
           this.unresolvedMember(member, member.name, "method", `prototype '${targetType.name}'`, "member", this.collectPrototypeMemberNames(targetType.name));

@@ -1724,12 +1724,12 @@ Méthodes disponibles :
 | --- | --- | --- | --- | --- |
 | `length() : int` | Lit la taille courante sans muter la liste. | — | Taille courante `>= 0`. | — |
 | `isEmpty() : bool` | Teste la vacuité sans effet de bord. | — | `true` si la taille vaut `0`, sinon `false`. | — |
-| `push(element: T) : int` | Ajoute un élément en fin de liste et mute la liste. | `element`: valeur de type `T` compatible statiquement avec la liste. | Nouvelle taille après insertion. | Erreur statique si type incompatible. |
+| `push(T element) : int` | Ajoute un élément en fin de liste et mute la liste. | `element`: valeur de type `T` compatible statiquement avec la liste. | Nouvelle taille après insertion. | Erreur statique si type incompatible. |
 | `pop() : T` | Retire et retourne le dernier élément ; mutation en place. | — | Élément précédemment en fin de liste. | Erreur statique `STATIC_EMPTY_POP` si vacuité prouvée ; sinon exception runtime `RUNTIME_EMPTY_POP` si vide à l’exécution. |
-| `contains(element: T) : bool` | Recherche séquentielle d’un élément. | `element`: valeur de type `T` comparable avec les éléments de la liste. | `true` si présent, sinon `false`. | Erreur statique si type incompatible. |
+| `contains(T element) : bool` | Recherche séquentielle d’un élément. | `element`: valeur de type `T` comparable avec les éléments de la liste. | `true` si présent, sinon `false`. | Erreur statique si type incompatible. |
 | `sort() : int` | Trie la liste en place ; ordre stable et déterministe. | — | Taille de la liste après tri (égale à la taille avant tri). | Erreur statique si `T` non comparable ou si `compareTo(T other) : int` est absent/invalide. |
 | `reverse() : int` | Inverse l’ordre des éléments en place. | — | Taille de la liste après inversion. | — |
-| `join(separator: string) : string` | Méthode conditionnelle (`T == string`) ; concatène les éléments avec séparateur. | `separator`: chaîne insérée entre deux éléments voisins. | Chaîne résultante ; peut être vide si liste vide. | Erreur statique si `T != string`. |
+| `join(string separator) : string` | Méthode conditionnelle (`T == string`) ; concatène les éléments avec séparateur. | `separator`: chaîne insérée entre deux éléments voisins. | Chaîne résultante ; peut être vide si liste vide. | Erreur statique si `T != string`. |
 | `concat() : string` | Méthode conditionnelle (`T == string`) ; concatène sans séparateur. | — | Chaîne résultante ; peut être vide si liste vide. | Erreur statique si `T != string`. |
 | `toUtf8String() : string` | Méthode conditionnelle (`T == byte`) ; décode la liste comme UTF-8 strict. | — | Chaîne décodée en UTF-8. | Erreur statique si `T != byte` ; exception runtime `RUNTIME_INVALID_UTF8` si séquence invalide. |
 
@@ -1848,8 +1848,8 @@ Ref: EX-063
 | --- | --- | --- | --- | --- |
 | `length() : int` | Lit le nombre d’entrées sans muter la map. | — | Nombre d’entrées `>= 0`. | — |
 | `isEmpty() : bool` | Teste la vacuité. | — | `true` si aucune entrée, sinon `false`. | — |
-| `containsKey(k: K) : bool` | Vérifie la présence d’une clé. | `k`: clé de type `K`. | `true` si la clé existe. | Erreur statique si type de clé incompatible. |
-| `remove(k: K) : bool` | Supprime l’entrée de clé `k` si elle existe. | `k`: clé de type `K`. | `true` si suppression effective, sinon `false`. | Erreur statique si type de clé incompatible. |
+| `containsKey(K k) : bool` | Vérifie la présence d’une clé. | `k`: clé de type `K`. | `true` si la clé existe. | Erreur statique si type de clé incompatible. |
+| `remove(K k) : bool` | Supprime l’entrée de clé `k` si elle existe. | `k`: clé de type `K`. | `true` si suppression effective, sinon `false`. | Erreur statique si type de clé incompatible. |
 | `keys() : list<K>` | Extrait les clés dans l’ordre d’insertion courant. | — | Liste de clés ; peut être vide. | — |
 | `values() : list<V>` | Extrait les valeurs dans l’ordre d’insertion courant. | — | Liste de valeurs ; peut être vide. | — |
 
@@ -2086,23 +2086,23 @@ Supposer que `string[i]` modifie la chaîne. Toute mutation indexée de `string`
 | `toString() : string` | Retourne la chaîne elle-même (identité). | — | Même valeur texte. | — |
 | `toInt() : int` | Parse la chaîne comme entier. | — | Valeur entière convertie. | Exception runtime lorsque format invalide ou hors bornes. |
 | `toFloat() : float` | Parse la chaîne comme flottant. | — | Valeur flottante convertie. | Exception runtime lorsque format invalide. |
-| `concat(s: string) : string` | Concatène la chaîne courante avec `s`. | `s`: suffixe de type `string`. | Nouvelle chaîne concaténée. | Erreur statique si argument non `string`. |
-| `subString(start: int, length: int) : string` | Extrait une sous-chaîne en unités glyphiques. | `start`: index glyphique de départ ; `length`: nombre de glyphes à extraire. | Nouvelle chaîne (copie), sans vue partagée. | Exception runtime `RUNTIME_INDEX_OOB` si bornes invalides. |
-| `indexOf(needle: string) : int` | Cherche la première occurrence de `needle`. | `needle`: sous-chaîne recherchée. | Index glyphique de la première occurrence, `-1` sinon. | Erreur statique si argument non `string`. |
-| `contains(needle: string) : bool` | Teste la présence d’une sous-chaîne. | `needle`: sous-chaîne recherchée. | `true` si occurrence trouvée. | Erreur statique si argument non `string`. |
-| `lastIndexOf(needle: string) : int` | Cherche la dernière occurrence de `needle`. | `needle`: sous-chaîne recherchée. | Index glyphique de la dernière occurrence, `-1` sinon. | Erreur statique si argument non `string`. |
-| `startsWith(prefix: string) : bool` | Vérifie le préfixe. | `prefix`: préfixe attendu. | `true` si la chaîne commence par `prefix`. | Erreur statique si argument non `string`. |
-| `endsWith(suffix: string) : bool` | Vérifie le suffixe. | `suffix`: suffixe attendu. | `true` si la chaîne finit par `suffix`. | Erreur statique si argument non `string`. |
-| `split(sep: string) : list<string>` | Découpe la chaîne selon un séparateur littéral (pas regex). | `sep`: séparateur textuel. | Liste ordonnée des segments. | Erreur statique si argument non `string`. |
+| `concat(string s) : string` | Concatène la chaîne courante avec `s`. | `s`: suffixe de type `string`. | Nouvelle chaîne concaténée. | Erreur statique si argument non `string`. |
+| `subString(int start, int length) : string` | Extrait une sous-chaîne en unités glyphiques. | `start`: index glyphique de départ ; `length`: nombre de glyphes à extraire. | Nouvelle chaîne (copie), sans vue partagée. | Exception runtime `RUNTIME_INDEX_OOB` si bornes invalides. |
+| `indexOf(string needle) : int` | Cherche la première occurrence de `needle`. | `needle`: sous-chaîne recherchée. | Index glyphique de la première occurrence, `-1` sinon. | Erreur statique si argument non `string`. |
+| `contains(string needle) : bool` | Teste la présence d’une sous-chaîne. | `needle`: sous-chaîne recherchée. | `true` si occurrence trouvée. | Erreur statique si argument non `string`. |
+| `lastIndexOf(string needle) : int` | Cherche la dernière occurrence de `needle`. | `needle`: sous-chaîne recherchée. | Index glyphique de la dernière occurrence, `-1` sinon. | Erreur statique si argument non `string`. |
+| `startsWith(string prefix) : bool` | Vérifie le préfixe. | `prefix`: préfixe attendu. | `true` si la chaîne commence par `prefix`. | Erreur statique si argument non `string`. |
+| `endsWith(string suffix) : bool` | Vérifie le suffixe. | `suffix`: suffixe attendu. | `true` si la chaîne finit par `suffix`. | Erreur statique si argument non `string`. |
+| `split(string sep) : list<string>` | Découpe la chaîne selon un séparateur littéral (pas regex). | `sep`: séparateur textuel. | Liste ordonnée des segments. | Erreur statique si argument non `string`. |
 | `trim() : string` | Retire les espaces ASCII en tête et en fin. | — | Nouvelle chaîne nettoyée. | — |
 | `trimStart() : string` | Retire les espaces ASCII en tête. | — | Nouvelle chaîne nettoyée en tête. | — |
 | `trimEnd() : string` | Retire les espaces ASCII en fin. | — | Nouvelle chaîne nettoyée en fin. | — |
-| `replace(old: string, new: string) : string` | Remplace la première occurrence de `old` par `new`. | `old`: motif littéral ; `new`: remplacement littéral. | Nouvelle chaîne modifiée. | Erreur statique si argument non `string`. |
-| `replaceAll(old: string, new: string) : string` | Remplace toutes les occurrences non chevauchantes de `old`. | `old`: motif littéral ; `new`: remplacement littéral. | Nouvelle chaîne modifiée. | Erreur statique si argument non `string` ; exception runtime `RUNTIME_INVALID_ARGUMENT` si `old == ""`. |
-| `glyphAt(index: int) : glyph` | Retourne le glyphe à l’index donné. | `index`: position glyphique. | Valeur `glyph` extraite. | Exception runtime `RUNTIME_INDEX_OOB` si hors bornes. |
-| `repeat(count: int) : string` | Répète la chaîne `count` fois. | `count`: nombre de répétitions. | Nouvelle chaîne répétée (éventuellement vide). | Exception runtime `RUNTIME_INVALID_ARGUMENT` si `count < 0`. |
-| `padStart(targetLength: int, pad: string) : string` | Complète à gauche jusqu’à `targetLength`. | `targetLength`: longueur cible en glyphes ; `pad`: motif de remplissage. | Nouvelle chaîne paddée à gauche. | Exception runtime `RUNTIME_INVALID_ARGUMENT` si padding requis et `pad == ""`. |
-| `padEnd(targetLength: int, pad: string) : string` | Complète à droite jusqu’à `targetLength`. | `targetLength`: longueur cible en glyphes ; `pad`: motif de remplissage. | Nouvelle chaîne paddée à droite. | Exception runtime `RUNTIME_INVALID_ARGUMENT` si padding requis et `pad == ""`. |
+| `replace(string old, string new) : string` | Remplace la première occurrence de `old` par `new`. | `old`: motif littéral ; `new`: remplacement littéral. | Nouvelle chaîne modifiée. | Erreur statique si argument non `string`. |
+| `replaceAll(string old, string new) : string` | Remplace toutes les occurrences non chevauchantes de `old`. | `old`: motif littéral ; `new`: remplacement littéral. | Nouvelle chaîne modifiée. | Erreur statique si argument non `string` ; exception runtime `RUNTIME_INVALID_ARGUMENT` si `old == ""`. |
+| `glyphAt(int index) : glyph` | Retourne le glyphe à l’index donné. | `index`: position glyphique. | Valeur `glyph` extraite. | Exception runtime `RUNTIME_INDEX_OOB` si hors bornes. |
+| `repeat(int count) : string` | Répète la chaîne `count` fois. | `count`: nombre de répétitions. | Nouvelle chaîne répétée (éventuellement vide). | Exception runtime `RUNTIME_INVALID_ARGUMENT` si `count < 0`. |
+| `padStart(int targetLength, string pad) : string` | Complète à gauche jusqu’à `targetLength`. | `targetLength`: longueur cible en glyphes ; `pad`: motif de remplissage. | Nouvelle chaîne paddée à gauche. | Exception runtime `RUNTIME_INVALID_ARGUMENT` si padding requis et `pad == ""`. |
+| `padEnd(int targetLength, string pad) : string` | Complète à droite jusqu’à `targetLength`. | `targetLength`: longueur cible en glyphes ; `pad`: motif de remplissage. | Nouvelle chaîne paddée à droite. | Exception runtime `RUNTIME_INVALID_ARGUMENT` si padding requis et `pad == ""`. |
 | `toUpper() : string` | Convertit vers une forme majuscule. | — | Nouvelle chaîne en majuscules. | — |
 | `toLower() : string` | Convertit vers une forme minuscule. | — | Nouvelle chaîne en minuscules. | — |
 | `toUtf8Bytes() : list<byte>` | Encode la chaîne en UTF-8 strict. | — | Liste d’octets UTF-8, ordre conservé. | — |
@@ -2261,6 +2261,36 @@ Note :
 un prototype **non exporté** par un module natif est simplement **inaccessible** depuis l’extérieur.
 Cela ne modifie pas le mécanisme d’instanciation par `Type.clone()`.
 
+### 14.4.0 Builtins : types données vs handles natifs
+
+- Les builtins sont décrits comme des prototypes ProtoScript.
+- La surface observable (méthodes, erreurs, règles de dispatch) est normative.
+- L’implémentation interne peut utiliser des structures runtime spécifiques, sans effet sémantique.
+
+Règle clone :
+
+- builtins de type **donnée** : `clone()` suit les règles normales (`lookup`, `super`, `Self`).
+- builtins de type **handle natif** : `clone()` est interdit et lève :
+  `R1013 RUNTIME_CLONE_NOT_SUPPORTED`.
+
+Exemple (handle non clonable) :
+
+```c
+function main() : void {
+    RegExp.clone(); // R1013 RUNTIME_CLONE_NOT_SUPPORTED
+}
+```
+
+Encadré normatif :
+
+> Les builtins sont décrits comme des prototypes ProtoScript.  
+> L’implémentation interne peut différer, mais la surface observable est normative.
+
+Surfaces canoniques (résumé) :
+
+- Handles natifs non clonables : `TextFile`, `BinaryFile`, `Dir`, `Walker`, `RegExp`.
+- Données clonables : `CivilDateTime`, `PathInfo`, `PathEntry`, `JSONValue`, `RegExpMatch`, `ProcessEvent`, `ProcessResult`.
+
 ### 14.5 Registry des modules standards
 
 Le chargeur utilise un registry JSON pour résoudre `import Io`, `import Math`, `import JSON`.
@@ -2309,13 +2339,13 @@ Notes :
 
 ```c
 sealed prototype TextFile {
-    read(size: int): string{}
-    write(text: string): void {}
-    tell(): int {}
-    seek(pos: int): void {}
-    size(): int {}
-    name(): string {}
-    close(): void {}
+    function read(int size): string{}
+    function write(string text): void {}
+    function tell(): int {}
+    function seek(int pos): void {}
+    function size(): int {}
+    function name(): string {}
+    function close(): void {}
 }
 ```
 
@@ -2335,13 +2365,13 @@ sealed prototype TextFile {
 
 ```c
 sealed prototype BinaryFile {
-    read(size: int): list<byte> {}
-    write(bytes: list<byte>): void {}
-    tell(): int {}
-    seek(pos: int): void {}
-    size(): int {}
-    name(): string {}
-    close(): void {}
+    function read(int size): list<byte> {}
+    function write(list<byte> bytes): void {}
+    function tell(): int {}
+    function seek(int pos): void {}
+    function size(): int {}
+    function name(): string {}
+    function close(): void {}
 }
 ```
 
@@ -2567,7 +2597,7 @@ Il ne peut pas être étendu par l’utilisateur.
 
 Sous‑types : `JsonNull`, `JsonBool`, `JsonNumber`, `JsonString`, `JsonArray`, `JsonObject`.
 
-Constructeurs explicites (immutables) :
+Constructeurs explicites :
 
 | Fonction | Description |
 |---|---|
@@ -2577,6 +2607,12 @@ Constructeurs explicites (immutables) :
 | `JSON.string(string) : JSONValue` | chaîne JSON |
 | `JSON.array(list<JSONValue>) : JSONValue` | tableau JSON |
 | `JSON.object(map<string, JSONValue>) : JSONValue` | objet JSON |
+
+Règle snapshot (normative côté surface observable) :
+
+- `JSON.array` et `JSON.object` prennent un snapshot de leur entrée.
+- Une mutation ultérieure du conteneur source n’altère pas la valeur JSON stockée.
+- `asArray()` / `asObject()` doivent préserver la stabilité observée de la valeur JSON.
 
 ```c
 sealed prototype JSONValue {
@@ -2656,13 +2692,20 @@ Ref: EX-087
 
 ```c
 prototype CivilDateTime {
-    int year;
-    int month;
-    int day;
-    int hour;
-    int minute;
-    int second;
-    int milisecond;
+    function year(): int {}
+    function month(): int {}
+    function day(): int {}
+    function hour(): int {}
+    function minute(): int {}
+    function second(): int {}
+    function millisecond(): int {}
+    function setYear(int y): void {}
+    function setMonth(int m): void {}
+    function setDay(int d): void {}
+    function setHour(int h): void {}
+    function setMinute(int m): void {}
+    function setSecond(int s): void {}
+    function setMillisecond(int ms): void {}
 }
 ```
 
@@ -2789,14 +2832,14 @@ Notes :
 - Les liens symboliques cassés : `exists` retourne `true`, `isFile` et `isDir` retournent `false`.
 - Le module Fs.walk fournit un itérateur récursif streaming de l’arborescence des fichiers. Comparé à une implémentation récursive côté utilisateur, il évite les débordements de pile et gère efficacement les arborescences profondes, tout en restant synchrone, déterministe et sans allocation massive.
 
-**Prototype `PathInfo`** (champs en lecture seule)
+**Prototype `PathInfo`**
 
 ```c
 prototype PathInfo {
-    /* readonly */ string dirname;
-    /* readonly */ string basename;
-    /* readonly */ string filename;
-    /* readonly */ string extension;
+    function dirname(): string {}
+    function basename(): string {}
+    function filename(): string {}
+    function extension(): string {}
 }
 ```
 
@@ -2804,10 +2847,10 @@ prototype PathInfo {
 
 ```c
 prototype Dir {
-    hasNext(): bool {}
-    next(): string {}
-    close(): void {}
-    reset(): void {}
+    function hasNext(): bool {}
+    function next(): string {}
+    function close(): void {}
+    function reset(): void {}
 }
 ```
 
@@ -2827,7 +2870,7 @@ Les entrées `.` et `..` sont filtrées.
 ```c
 prototype Walker {
     function hasNext() : bool {}
-    function next() : bool {}
+    function next() : PathEntry {}
     function close() : void {}
 }
 ```
@@ -2840,16 +2883,16 @@ Méthodes :
 | `next() : PathEntry` | entrée suivante | `IOException` si fin |
 | `close() : void` | libère les ressources | — |
 
-**Prototype `PathEntry`** (champs en lecture seule)
+**Prototype `PathEntry`**
 
 ```c
 prototype PathEntry {
-    string path; 
-    string name;
-    int depth;
-    bool isDir;
-    bool isFile;
-    bool isSymlink;
+    function path(): string {}
+    function name(): string {}
+    function depth(): int {}
+    function isDir(): bool {}
+    function isFile(): bool {}
+    function isSymlink(): bool {}
 }
 ```
 
@@ -2879,7 +2922,7 @@ function main() : void {
     Walker w = Fs.walk(".", -1, false);
     while (w.hasNext()) {
         PathEntry e = w.next();
-        Io.printLine(e.path);
+        Io.printLine(e.path());
     }
     w.close();
 }
@@ -2920,21 +2963,21 @@ Notes :
 - `input` est écrit intégralement sur stdin puis stdin est fermé (EOF).
 - Si `captureStdout`/`captureStderr` est `false`, le flux hérite du processus parent.
 
-**Prototype `ProcessResult`** (champs en lecture seule)
+**Prototype `ProcessResult`**
 
 ```c
 prototype ProcessResult {
-    int exitCode;
-    list<ProcessEvent> events;
+    function exitCode(): int {}
+    function events(): list<ProcessEvent> {}
 }
 ```
 
-**Prototype `ProcessEvent`** (champs en lecture seule)
+**Prototype `ProcessEvent`**
 
 ```c
 prototype ProcessEvent {
-    int stream; // 1 = stdout, 2 = stderr
-    list<byte> data;
+    function stream(): int {} // 1 = stdout, 2 = stderr
+    function data(): list<byte> {}
 }
 ```
 
@@ -2966,9 +3009,9 @@ import Io;
 
 function main() : void {
     ProcessResult r = Sys.execute("/bin/echo", ["hello"], [], true, true);
-    for (ProcessEvent e in r.events) {
-        if (e.stream == 1) {
-            Io.printLine(e.data.toUtf8String());
+    for (ProcessEvent e in r.events()) {
+        if (e.stream() == 1) {
+            Io.printLine(e.data().toUtf8String());
         }
     }
 }
@@ -3006,13 +3049,13 @@ Fonctions / méthodes principales :
 Remarque : `RegExp` peut désigner le prototype ou le module. Ils portent le même nom. La fonction `compile()` du module `RegExp` permet de construire le prototype suivant :
 
 ```c
-prototype RegExp {
-    function test(input: string, start: int): bool {}
-    function find(input: string, start: int): RegExpMatch {}
-    function findAll(input: string, start: int, max: int): list<RegExpMatch> {}
-    function replaceFirst(input: string, replacement: string, start: int): string {}
-    function replaceAll(input: string, replacement: string, start: int, max: int): string {}
-    function split(input: string, start: int, maxParts: int): list<string> {}
+sealed prototype RegExp {
+    function test(string input, int start): bool {}
+    function find(string input, int start): RegExpMatch {}
+    function findAll(string input, int start, int max): list<RegExpMatch> {}
+    function replaceFirst(string input, string replacement, int start): string {}
+    function replaceAll(string input, string replacement, int start, int max): string {}
+    function split(string input, int start, int maxParts): list<string> {}
     function pattern(): string {}
     function flags(): string {}
 }
@@ -3034,14 +3077,14 @@ Conventions de limite (uniformes) :
 - `split(..., maxParts = -1)` : illimité
 - seules les valeurs `< -1` lèvent `RegExpRange`
 
-`RegExpMatch` expose (en lecture seule) :
+`RegExpMatch` expose :
 
 ```c
 prototype RegExpMatch {
-    /* readonly */ bool ok;
-    /* readonly */ int start;
-    /* readonly */ int end;
-    /* readonly */ list<string> groups; // groups[0] = match complet
+    function ok(): bool {}
+    function start(): int {}
+    function end(): int {}
+    function groups(): list<string> {} // groups()[0] = match complet
 }
 ```
 
@@ -3224,7 +3267,7 @@ C’est volontaire et cohérent avec le choix d'implémentation retenue par Prot
 ```c
 RegExp numbers = RegExp.compile("\\d+", "");
 
-list<RegExpMatch> matches = numbers.findAll("Prix: 10€, taxe: 2€, total: 12€", 0, -1);
+list<RegExpMatch> matches = numbers.findAll("Prix: 10€, 2€ taxe, 12€" total, 0, -1);
 for (int i = 0; i < matches.length(); i++)
     Io.printLine(matches[i].groups[0]);
 ```

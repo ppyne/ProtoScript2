@@ -2562,6 +2562,7 @@ typedef struct ProtoField {
 typedef struct ProtoMethod {
   char *name;
   char *ret_type;
+  char **param_names;
   char **param_types;
   int param_count;
   int fixed_count;
@@ -2688,6 +2689,10 @@ static void free_protos(ProtoInfo *p) {
       ProtoMethod *mn = m->next;
       free(m->name);
       free(m->ret_type);
+      if (m->param_names) {
+        for (int i = 0; i < m->param_count; i++) free(m->param_names[i]);
+      }
+      free(m->param_names);
       if (m->param_types) {
         for (int i = 0; i < m->param_count; i++) free(m->param_types[i]);
       }
@@ -3869,7 +3874,75 @@ static int proto_add_method0(ProtoInfo *p, const char *name, const char *ret_typ
   return 1;
 }
 
+static int proto_add_method_ex(ProtoInfo *p, const char *name, const char *ret_type, int param_count,
+                               const char **param_names, const char **param_types) {
+  if (!p || !name || !ret_type || param_count < 0) return 0;
+  ProtoMethod *nm = (ProtoMethod *)calloc(1, sizeof(ProtoMethod));
+  if (!nm) return 0;
+  nm->name = strdup(name);
+  nm->ret_type = strdup(ret_type);
+  nm->param_count = param_count;
+  nm->fixed_count = param_count;
+  nm->variadic = 0;
+  nm->is_internal = 0;
+  nm->owner_proto = p->name;
+  nm->module_path = p->module_path;
+  if (!nm->name || !nm->ret_type) {
+    free(nm->name);
+    free(nm->ret_type);
+    free(nm);
+    return 0;
+  }
+  if (param_count > 0) {
+    nm->param_names = (char **)calloc((size_t)param_count, sizeof(char *));
+    nm->param_types = (char **)calloc((size_t)param_count, sizeof(char *));
+    if (!nm->param_names || !nm->param_types) {
+      free(nm->param_names);
+      free(nm->param_types);
+      free(nm->name);
+      free(nm->ret_type);
+      free(nm);
+      return 0;
+    }
+    for (int i = 0; i < param_count; i++) {
+      const char *pn = (param_names && param_names[i]) ? param_names[i] : "";
+      const char *pt = (param_types && param_types[i]) ? param_types[i] : "unknown";
+      nm->param_names[i] = strdup(pn);
+      nm->param_types[i] = strdup(pt);
+      if (!nm->param_names[i] || !nm->param_types[i]) {
+        for (int j = 0; j <= i; j++) free(nm->param_names[j]);
+        for (int j = 0; j < i; j++) free(nm->param_types[j]);
+        free(nm->param_names);
+        free(nm->param_types);
+        free(nm->name);
+        free(nm->ret_type);
+        free(nm);
+        return 0;
+      }
+    }
+  }
+  nm->next = NULL;
+  if (!p->methods) {
+    p->methods = nm;
+  } else {
+    ProtoMethod *tail = p->methods;
+    while (tail->next) tail = tail->next;
+    tail->next = nm;
+  }
+  return 1;
+}
+
 static int add_builtin_exception_protos(Analyzer *a) {
+  ProtoInfo *obj = proto_find(a->protos, "Object");
+  if (!obj) {
+    obj = proto_append(a, "Object", NULL);
+    if (!obj) return 0;
+  }
+  obj->builtin = 1;
+  if (!proto_find_method(a->protos, "Object", "clone")) {
+    if (!proto_add_method0(obj, "clone", "Object")) return 0;
+  }
+
   if (proto_find(a->protos, "Exception")) return 1;
   ProtoInfo *ex = proto_append(a, "Exception", NULL);
   if (!ex) return 0;
@@ -3891,36 +3964,87 @@ static int add_builtin_exception_protos(Analyzer *a) {
     ProtoInfo *dt = proto_append(a, "CivilDateTime", NULL);
     if (!dt) return 0;
     dt->builtin = 1;
-    if (!proto_add_field(dt, "year", "int")) return 0;
-    if (!proto_add_field(dt, "month", "int")) return 0;
-    if (!proto_add_field(dt, "day", "int")) return 0;
-    if (!proto_add_field(dt, "hour", "int")) return 0;
-    if (!proto_add_field(dt, "minute", "int")) return 0;
-    if (!proto_add_field(dt, "second", "int")) return 0;
-    if (!proto_add_field(dt, "millisecond", "int")) return 0;
+    const char *arg_name_value[] = {"value"};
+    const char *arg_type_int[] = {"int"};
+    if (!proto_add_method0(dt, "year", "int")) return 0;
+    if (!proto_add_method0(dt, "month", "int")) return 0;
+    if (!proto_add_method0(dt, "day", "int")) return 0;
+    if (!proto_add_method0(dt, "hour", "int")) return 0;
+    if (!proto_add_method0(dt, "minute", "int")) return 0;
+    if (!proto_add_method0(dt, "second", "int")) return 0;
+    if (!proto_add_method0(dt, "millisecond", "int")) return 0;
+    if (!proto_add_method_ex(dt, "setYear", "void", 1, arg_name_value, arg_type_int)) return 0;
+    if (!proto_add_method_ex(dt, "setMonth", "void", 1, arg_name_value, arg_type_int)) return 0;
+    if (!proto_add_method_ex(dt, "setDay", "void", 1, arg_name_value, arg_type_int)) return 0;
+    if (!proto_add_method_ex(dt, "setHour", "void", 1, arg_name_value, arg_type_int)) return 0;
+    if (!proto_add_method_ex(dt, "setMinute", "void", 1, arg_name_value, arg_type_int)) return 0;
+    if (!proto_add_method_ex(dt, "setSecond", "void", 1, arg_name_value, arg_type_int)) return 0;
+    if (!proto_add_method_ex(dt, "setMillisecond", "void", 1, arg_name_value, arg_type_int)) return 0;
   }
 
   if (!proto_find(a->protos, "PathInfo")) {
     ProtoInfo *pi = proto_append(a, "PathInfo", NULL);
     if (!pi) return 0;
     pi->builtin = 1;
-    if (!proto_add_field(pi, "dirname", "string")) return 0;
-    if (!proto_add_field(pi, "basename", "string")) return 0;
-    if (!proto_add_field(pi, "filename", "string")) return 0;
-    if (!proto_add_field(pi, "extension", "string")) return 0;
+    if (!proto_add_method0(pi, "dirname", "string")) return 0;
+    if (!proto_add_method0(pi, "basename", "string")) return 0;
+    if (!proto_add_method0(pi, "filename", "string")) return 0;
+    if (!proto_add_method0(pi, "extension", "string")) return 0;
   }
 
   if (!proto_find(a->protos, "PathEntry")) {
     ProtoInfo *pe = proto_append(a, "PathEntry", NULL);
     if (!pe) return 0;
     pe->builtin = 1;
-    if (!proto_add_field(pe, "path", "string")) return 0;
-    if (!proto_add_field(pe, "name", "string")) return 0;
-    if (!proto_add_field(pe, "depth", "int")) return 0;
-    if (!proto_add_field(pe, "isDir", "bool")) return 0;
-    if (!proto_add_field(pe, "isFile", "bool")) return 0;
-    if (!proto_add_field(pe, "isSymlink", "bool")) return 0;
+    if (!proto_add_method0(pe, "path", "string")) return 0;
+    if (!proto_add_method0(pe, "name", "string")) return 0;
+    if (!proto_add_method0(pe, "depth", "int")) return 0;
+    if (!proto_add_method0(pe, "isDir", "bool")) return 0;
+    if (!proto_add_method0(pe, "isFile", "bool")) return 0;
+    if (!proto_add_method0(pe, "isSymlink", "bool")) return 0;
   }
+
+  ProtoInfo *tf = proto_find(a->protos, "TextFile");
+  if (!tf) {
+    tf = proto_append(a, "TextFile", "Object");
+    if (!tf) return 0;
+    tf->builtin = 1;
+    const char *arg_int[] = {"int"};
+    const char *arg_string[] = {"string"};
+    const char *arg_size[] = {"size"};
+    const char *arg_text[] = {"text"};
+    const char *arg_pos[] = {"pos"};
+    if (!proto_add_method_ex(tf, "read", "string", 1, arg_size, arg_int)) return 0;
+    if (!proto_add_method_ex(tf, "write", "void", 1, arg_text, arg_string)) return 0;
+    if (!proto_add_method0(tf, "tell", "int")) return 0;
+    if (!proto_add_method_ex(tf, "seek", "void", 1, arg_pos, arg_int)) return 0;
+    if (!proto_add_method0(tf, "size", "int")) return 0;
+    if (!proto_add_method0(tf, "name", "string")) return 0;
+    if (!proto_add_method0(tf, "close", "void")) return 0;
+  }
+  tf->builtin = 1;
+  tf->sealed = 1;
+
+  ProtoInfo *bf = proto_find(a->protos, "BinaryFile");
+  if (!bf) {
+    bf = proto_append(a, "BinaryFile", "Object");
+    if (!bf) return 0;
+    bf->builtin = 1;
+    const char *arg_int[] = {"int"};
+    const char *arg_bytes[] = {"list<byte>"};
+    const char *arg_size[] = {"size"};
+    const char *arg_data[] = {"bytes"};
+    const char *arg_pos[] = {"pos"};
+    if (!proto_add_method_ex(bf, "read", "list<byte>", 1, arg_size, arg_int)) return 0;
+    if (!proto_add_method_ex(bf, "write", "void", 1, arg_data, arg_bytes)) return 0;
+    if (!proto_add_method0(bf, "tell", "int")) return 0;
+    if (!proto_add_method_ex(bf, "seek", "void", 1, arg_pos, arg_int)) return 0;
+    if (!proto_add_method0(bf, "size", "int")) return 0;
+    if (!proto_add_method0(bf, "name", "string")) return 0;
+    if (!proto_add_method0(bf, "close", "void")) return 0;
+  }
+  bf->builtin = 1;
+  bf->sealed = 1;
 
   if (!proto_find(a->protos, "Dir")) {
     ProtoInfo *dir = proto_append(a, "Dir", NULL);
@@ -3931,6 +4055,13 @@ static int add_builtin_exception_protos(Analyzer *a) {
     if (!proto_add_method0(dir, "close", "void")) return 0;
     if (!proto_add_method0(dir, "reset", "void")) return 0;
   }
+  {
+    ProtoInfo *dir = proto_find(a->protos, "Dir");
+    if (dir) {
+      dir->builtin = 1;
+      dir->sealed = 1;
+    }
+  }
 
   if (!proto_find(a->protos, "Walker")) {
     ProtoInfo *wk = proto_append(a, "Walker", NULL);
@@ -3940,15 +4071,77 @@ static int add_builtin_exception_protos(Analyzer *a) {
     if (!proto_add_method0(wk, "next", "PathEntry")) return 0;
     if (!proto_add_method0(wk, "close", "void")) return 0;
   }
+  {
+    ProtoInfo *wk = proto_find(a->protos, "Walker");
+    if (wk) {
+      wk->builtin = 1;
+      wk->sealed = 1;
+    }
+  }
 
   if (!proto_find(a->protos, "RegExpMatch")) {
     ProtoInfo *rm = proto_append(a, "RegExpMatch", NULL);
     if (!rm) return 0;
     rm->builtin = 1;
-    if (!proto_add_field(rm, "ok", "bool")) return 0;
-    if (!proto_add_field(rm, "start", "int")) return 0;
-    if (!proto_add_field(rm, "end", "int")) return 0;
-    if (!proto_add_field(rm, "groups", "list<string>")) return 0;
+    if (!proto_add_method0(rm, "ok", "bool")) return 0;
+    if (!proto_add_method0(rm, "start", "int")) return 0;
+    if (!proto_add_method0(rm, "end", "int")) return 0;
+    if (!proto_add_method0(rm, "groups", "list<string>")) return 0;
+  }
+
+  if (!proto_find(a->protos, "ProcessEvent")) {
+    ProtoInfo *ev = proto_append(a, "ProcessEvent", NULL);
+    if (!ev) return 0;
+    ev->builtin = 1;
+    if (!proto_add_method0(ev, "stream", "int")) return 0;
+    if (!proto_add_method0(ev, "data", "list<byte>")) return 0;
+  }
+
+  if (!proto_find(a->protos, "ProcessResult")) {
+    ProtoInfo *pr = proto_append(a, "ProcessResult", NULL);
+    if (!pr) return 0;
+    pr->builtin = 1;
+    if (!proto_add_method0(pr, "exitCode", "int")) return 0;
+    if (!proto_add_method0(pr, "events", "list<ProcessEvent>")) return 0;
+  }
+
+  if (!proto_find(a->protos, "JSONValue")) {
+    ProtoInfo *jv = proto_append(a, "JSONValue", NULL);
+    if (!jv) return 0;
+    jv->builtin = 1;
+    if (!proto_add_method0(jv, "isNull", "bool")) return 0;
+    if (!proto_add_method0(jv, "isBool", "bool")) return 0;
+    if (!proto_add_method0(jv, "isNumber", "bool")) return 0;
+    if (!proto_add_method0(jv, "isString", "bool")) return 0;
+    if (!proto_add_method0(jv, "isArray", "bool")) return 0;
+    if (!proto_add_method0(jv, "isObject", "bool")) return 0;
+    if (!proto_add_method0(jv, "asBool", "bool")) return 0;
+    if (!proto_add_method0(jv, "asNumber", "float")) return 0;
+    if (!proto_add_method0(jv, "asString", "string")) return 0;
+    if (!proto_add_method0(jv, "asArray", "list<JSONValue>")) return 0;
+    if (!proto_add_method0(jv, "asObject", "map<string,JSONValue>")) return 0;
+  }
+
+  if (!proto_find(a->protos, "RegExp")) {
+    ProtoInfo *rx = proto_append(a, "RegExp", NULL);
+    if (!rx) return 0;
+    rx->builtin = 1;
+    if (!proto_add_method0(rx, "compile", "RegExp")) return 0;
+    if (!proto_add_method0(rx, "test", "bool")) return 0;
+    if (!proto_add_method0(rx, "find", "RegExpMatch")) return 0;
+    if (!proto_add_method0(rx, "findAll", "list<RegExpMatch>")) return 0;
+    if (!proto_add_method0(rx, "replaceFirst", "string")) return 0;
+    if (!proto_add_method0(rx, "replaceAll", "string")) return 0;
+    if (!proto_add_method0(rx, "split", "list<string>")) return 0;
+    if (!proto_add_method0(rx, "pattern", "string")) return 0;
+    if (!proto_add_method0(rx, "flags", "string")) return 0;
+  }
+  {
+    ProtoInfo *rx = proto_find(a->protos, "RegExp");
+    if (rx) {
+      rx->builtin = 1;
+      rx->sealed = 1;
+    }
   }
 
   const char *time_exceptions[] = {
@@ -5978,7 +6171,15 @@ static int analyze_stmt(Analyzer *a, AstNode *st, Scope *scope) {
         return 0;
       }
       if (recv_t && proto_find(a->protos, recv_t)) {
-        ProtoField *pf = proto_find_field(a->protos, recv_t, st->children[0]->text ? st->children[0]->text : "");
+        const char *field_name = st->children[0]->text ? st->children[0]->text : "";
+        ProtoField *pf = proto_find_field(a->protos, recv_t, field_name);
+        if (!pf) {
+          char msg[320];
+          snprintf(msg, sizeof(msg), "unknown field '%s' in prototype '%s' (expected member)", field_name, recv_t);
+          set_diag(a->diag, a->file, st->children[0]->line, st->children[0]->col, "E2001", "UNRESOLVED_NAME", msg);
+          free(recv_t);
+          return 0;
+        }
         if (pf && pf->is_const) {
           set_diag(a->diag, a->file, st->line, st->col, "E3130", "CONST_REASSIGNMENT", "cannot assign to const");
           free(recv_t);
@@ -7274,6 +7475,31 @@ static char *ir_lower_call(AstNode *e, IrFnCtx *ctx) {
     AstNode *recv_ast = callee->children[0];
     if (strcmp(recv_ast->kind, "SuperExpr") == 0) {
       const char *mname = callee->text ? callee->text : "";
+      if (strcmp(mname, "clone") == 0 && ctx && ctx->current_proto &&
+          (proto_is_subtype(ctx->protos, ctx->current_proto, "TextFile") ||
+           proto_is_subtype(ctx->protos, ctx->current_proto, "BinaryFile") ||
+           proto_is_subtype(ctx->protos, ctx->current_proto, "Dir") ||
+           proto_is_subtype(ctx->protos, ctx->current_proto, "Walker") ||
+           proto_is_subtype(ctx->protos, ctx->current_proto, "RegExp"))) {
+        const char *self_mapped = ir_scope_lookup(ctx ? ctx->scope : NULL, "self");
+        char *dst_esc = json_escape(dst);
+        char *self_esc = json_escape(self_mapped ? self_mapped : "self");
+        char *method_clone = json_escape("clone");
+        char *ins = str_printf(
+            "{\"op\":\"call_method_static\",\"dst\":\"%s\",\"receiver\":\"%s\",\"method\":\"%s\",\"args\":[]}",
+            dst_esc ? dst_esc : "", self_esc ? self_esc : "", method_clone ? method_clone : "clone");
+        free(dst_esc);
+        free(self_esc);
+        free(method_clone);
+        ir_set_loc(ctx, callee);
+        if (!ir_emit(ctx, ins)) {
+          free(dst);
+          dst = NULL;
+        }
+        for (size_t i = 0; i < argc; i++) free(args[i]);
+        free(args);
+        return dst;
+      }
       ProtoInfo *cur = ctx && ctx->current_proto ? proto_find(ctx->protos, ctx->current_proto) : NULL;
       ProtoInfo *owner = NULL;
       ProtoMethod *pm = (cur && cur->parent) ? proto_find_method_ex(ctx->protos, cur->parent, mname, &owner) : NULL;
@@ -7312,16 +7538,44 @@ static char *ir_lower_call(AstNode *e, IrFnCtx *ctx) {
         return dst;
       }
       if (strcmp(mname, "clone") == 0) {
-        const char *self_mapped = ir_scope_lookup(ctx ? ctx->scope : NULL, "self");
-        char *dst_esc = json_escape(dst);
-        char *self_esc = json_escape(self_mapped ? self_mapped : "self");
-        char *ins = str_printf("{\"op\":\"copy\",\"dst\":\"%s\",\"src\":\"%s\"}", dst_esc ? dst_esc : "", self_esc ? self_esc : "");
-        free(dst_esc);
-        free(self_esc);
-        ir_set_loc(ctx, callee);
-        if (!ir_emit(ctx, ins)) {
-          free(dst);
-          dst = NULL;
+        int must_runtime_clone = 0;
+        if (ctx && ctx->current_proto) {
+          if (proto_is_subtype(ctx->protos, ctx->current_proto, "TextFile") ||
+              proto_is_subtype(ctx->protos, ctx->current_proto, "BinaryFile") ||
+              proto_is_subtype(ctx->protos, ctx->current_proto, "Dir") ||
+              proto_is_subtype(ctx->protos, ctx->current_proto, "Walker") ||
+              proto_is_subtype(ctx->protos, ctx->current_proto, "RegExp")) {
+            must_runtime_clone = 1;
+          }
+        }
+        if (must_runtime_clone) {
+          const char *self_mapped = ir_scope_lookup(ctx ? ctx->scope : NULL, "self");
+          char *dst_esc = json_escape(dst);
+          char *self_esc = json_escape(self_mapped ? self_mapped : "self");
+          char *method_clone = json_escape("clone");
+          char *ins = str_printf(
+              "{\"op\":\"call_method_static\",\"dst\":\"%s\",\"receiver\":\"%s\",\"method\":\"%s\",\"args\":[]}",
+              dst_esc ? dst_esc : "", self_esc ? self_esc : "", method_clone ? method_clone : "clone");
+          free(dst_esc);
+          free(self_esc);
+          free(method_clone);
+          ir_set_loc(ctx, callee);
+          if (!ir_emit(ctx, ins)) {
+            free(dst);
+            dst = NULL;
+          }
+        } else {
+          const char *self_mapped = ir_scope_lookup(ctx ? ctx->scope : NULL, "self");
+          char *dst_esc = json_escape(dst);
+          char *self_esc = json_escape(self_mapped ? self_mapped : "self");
+          char *ins = str_printf("{\"op\":\"copy\",\"dst\":\"%s\",\"src\":\"%s\"}", dst_esc ? dst_esc : "", self_esc ? self_esc : "");
+          free(dst_esc);
+          free(self_esc);
+          ir_set_loc(ctx, callee);
+          if (!ir_emit(ctx, ins)) {
+            free(dst);
+            dst = NULL;
+          }
         }
         for (size_t i = 0; i < argc; i++) free(args[i]);
         free(args);
@@ -7434,7 +7688,15 @@ static char *ir_lower_call(AstNode *e, IrFnCtx *ctx) {
       char *dst_esc = json_escape(dst);
       char *method_esc = json_escape(callee->text ? callee->text : "");
       if (recv_type && proto_find(ctx->protos, recv_type) &&
-          strcmp(recv_type, "Dir") != 0 && strcmp(recv_type, "Walker") != 0) {
+          strcmp(recv_type, "Dir") != 0 && strcmp(recv_type, "Walker") != 0 &&
+          strcmp(recv_type, "TextFile") != 0 && strcmp(recv_type, "BinaryFile") != 0 &&
+          strcmp(recv_type, "JSONValue") != 0 && strcmp(recv_type, "RegExp") != 0 &&
+          strcmp(recv_type, "CivilDateTime") != 0 &&
+          strcmp(recv_type, "PathInfo") != 0 &&
+          strcmp(recv_type, "PathEntry") != 0 &&
+          strcmp(recv_type, "RegExpMatch") != 0 &&
+          strcmp(recv_type, "ProcessEvent") != 0 &&
+          strcmp(recv_type, "ProcessResult") != 0) {
         if (callee->text && strcmp(callee->text, "clone") == 0) {
           char *recv_arg = json_escape(recv);
           char *method_clone = json_escape("clone");
@@ -10138,8 +10400,10 @@ int ps_emit_ir_json(const char *file, PsDiag *out_diag, FILE *out) {
         fprintf(out, "{\"name\":\"%s\",\"params\":[", mn ? mn : "");
         for (int pi = 0; pi < m->param_count; pi++) {
           if (pi > 0) fputs(",", out);
+          char *pname = json_escape(m->param_names && m->param_names[pi] ? m->param_names[pi] : "");
           char *ptype = json_escape(m->param_types && m->param_types[pi] ? m->param_types[pi] : "unknown");
-          fprintf(out, "{\"name\":\"\",\"type\":{\"kind\":\"IRType\",\"name\":\"%s\"}}", ptype ? ptype : "");
+          fprintf(out, "{\"name\":\"%s\",\"type\":{\"kind\":\"IRType\",\"name\":\"%s\"}}", pname ? pname : "", ptype ? ptype : "");
+          free(pname);
           free(ptype);
         }
         fprintf(out, "],\"returnType\":{\"kind\":\"IRType\",\"name\":\"%s\"}}", mret ? mret : "void");

@@ -1016,14 +1016,14 @@ static const PS_ProtoDesc FS_PROTOS[] = {
       .field_count = 0,
       .methods = FS_DIR_METHODS,
       .method_count = sizeof(FS_DIR_METHODS) / sizeof(FS_DIR_METHODS[0]),
-      .is_sealed = 0 },
+      .is_sealed = 1 },
     { .name = "Walker",
       .parent = NULL,
       .fields = NULL,
       .field_count = 0,
       .methods = FS_WALKER_METHODS,
       .method_count = sizeof(FS_WALKER_METHODS) / sizeof(FS_WALKER_METHODS[0]),
-      .is_sealed = 0 },
+      .is_sealed = 1 },
 };
 
 PS_Status ps_module_init(PS_Context *ctx, PS_Module *out) {

@@ -135,6 +135,10 @@ These functions SHALL NOT depend on timezone databases.
 ```
 TimeCivil.fromEpoch(int epochMillis, TimeZone tz) : CivilDateTime
 TimeCivil.toEpoch(CivilDateTime dt, TimeZone tz, int strategy) : int
+
+Conformance note:
+- Runtime accepts `CivilDateTime` and its subtypes for `toEpochUTC` / `toEpoch`.
+- If this acceptance is removed, `CivilDateTime` must be explicitly sealed at spec level.
 ```
 
 ### Rules
@@ -317,4 +321,3 @@ Exceptions SHALL be deterministic and reproducible.
 ---
 
 # End of Normative Specification
-

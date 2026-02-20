@@ -81,31 +81,31 @@ Filesystem state must never be partially modified if an exception is thrown.
 
 These functions answer state questions and never throw for normal negative results.
 
-## Fs.exists(path: string) : bool
+## Fs.exists(string path) : bool
 
 Returns `true` if the path exists.
 
-## Fs.isFile(path: string) : bool
+## Fs.isFile(string path) : bool
 
 Returns `true` if path is a regular file.
 
-## Fs.isDir(path: string) : bool
+## Fs.isDir(string path) : bool
 
 Returns `true` if path is a directory.
 
-## Fs.isSymlink(path: string) : bool
+## Fs.isSymlink(string path) : bool
 
 Returns `true` if path is a symbolic link.
 
-## Fs.isReadable(path: string) : bool
+## Fs.isReadable(string path) : bool
 
 Returns `true` if the file or directory is readable by the effective user of the current process.
 
-## Fs.isWritable(path: string) : bool
+## Fs.isWritable(string path) : bool
 
 Returns `true` if the file or directory is writable by the effective user of the current process.
 
-## Fs.isExecutable(path: string) : bool
+## Fs.isExecutable(string path) : bool
 
 Returns `true` if the file is executable by the effective user of the current process.
 
@@ -122,7 +122,7 @@ Exceptional OS failures must throw `IOException` or `InvalidPathException`.
 
 # 4. Value-Returning Operations (Throw on Failure)
 
-## Fs.size(path: string) : int
+## Fs.size(string path) : int
 
 Returns file size in bytes.
 
@@ -141,17 +141,17 @@ No sentinel values are used.
 
 All mutating operations throw on failure.
 
-## Fs.mkdir(path: string) : void
+## Fs.mkdir(string path) : void
 
-## Fs.rmdir(path: string) : void
+## Fs.rmdir(string path) : void
 
-## Fs.rm(path: string) : void
+## Fs.rm(string path) : void
 
-## Fs.cp(source: string, destination: string) : void
+## Fs.cp(string source, string destination) : void
 
-## Fs.mv(source: string, destination: string) : void
+## Fs.mv(string source, string destination) : void
 
-## Fs.chmod(path: string, mode: int) : void
+## Fs.chmod(string path, int mode) : void
 
 These operations throw one of:
 
@@ -180,7 +180,7 @@ Returns current working directory.
 
 Throws `IOException` on OS failure.
 
-## Fs.cd(path: string) : void
+## Fs.cd(string path) : void
 
 Throws:
 
@@ -193,7 +193,7 @@ Throws:
 
 # 7. Path Analysis
 
-## Fs.pathInfo(path: string) : PathInfo
+## Fs.pathInfo(string path) : PathInfo
 
 Returns a `PathInfo` prototype instance.
 
@@ -206,14 +206,14 @@ Throws:
 
 # Prototype PathInfo
 
-`PathInfo` is a native prototype with fixed layout.
+`PathInfo` is a native prototype with fixed API.
 
-Fields (read-only):
+Methods:
 
-- dirname : string
-- basename : string
-- filename : string
-- extension : string
+- `dirname() : string`
+- `basename() : string`
+- `filename() : string`
+- `extension() : string`
 
 No normalization is performed.
 
@@ -224,13 +224,13 @@ The field set is closed and cannot be extended.
 ## Example
 
 ```
-var path = "/path/to/the/file.tar.gz";
-var pi = Fs.pathInfo(path);
+string path = "/path/to/the/file.tar.gz";
+PathInfo pi = Fs.pathInfo(path);
 
-pi.dirname   = "/path/to/the";
-pi.basename  = "file.tar.gz";
-pi.filename  = "file.tar";
-pi.extension = "gz";
+string a = pi.dirname();
+string b = pi.basename();
+string c = pi.filename();
+string d = pi.extension();
 ```
 
 ---
@@ -246,7 +246,7 @@ Directory traversal uses a strict streaming iterator.
 # 9. Fs.openDir
 
 ```
-Fs.openDir(path: string) : Dir
+Fs.openDir(string path) : Dir
 ```
 
 Throws:
@@ -297,7 +297,7 @@ Rewinds the directory stream.
 ## Simple Directory Listing Example
 
 ```
-function list(path: string) : void {
+function list(string path) : void {
     Dir d = Fs.openDir(path);
 
     while (d.hasNext()) {
@@ -316,7 +316,7 @@ list(".");
 # 11. Recursive Traversal Example
 
 ```
-function walk(path: string) : void {
+function walk(string path) : void {
     Dir d = Fs.openDir(path);
 
     while (d.hasNext()) {
@@ -338,7 +338,7 @@ function walk(path: string) : void {
 # 12. Optional Walker Prototype
 
 ```
-Fs.walk(path: string, maxDepth: int, followSymlinks: bool) : Walker
+Fs.walk(string path, int maxDepth, bool followSymlinks) : Walker
 ```
 
 Prototype Walker:
@@ -349,14 +349,14 @@ Walker.next() : PathEntry
 Walker.close() : void
 ```
 
-Prototype PathEntry fields:
+Prototype PathEntry methods:
 
-- path : string
-- name : string
-- depth : int
-- isDir : bool
-- isFile : bool
-- isSymlink : bool
+- `path() : string`
+- `name() : string`
+- `depth() : int`
+- `isDir() : bool`
+- `isFile() : bool`
+- `isSymlink() : bool`
 
 Traversal must be implemented iteratively.
 
@@ -399,4 +399,3 @@ The module must remain mechanically predictable.
 ---
 
 # End of Specification
-
