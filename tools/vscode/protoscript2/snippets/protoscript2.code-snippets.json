@@ -1,21 +1,67 @@
 {
+  "hello world": {
+    "prefix": [
+      "!",
+      "hello"
+    ],
+    "body": [
+      "import Io;",
+      "",
+      "function main() : void {",
+      "  Io.printLine(\"Hello, world!\");",
+      "}"
+    ],
+    "description": "Hello World program"
+  },
   "prototype": {
     "prefix": "prototype",
     "body": [
-      "prototype ${1:name}(${2:args}) {",
+      "prototype ${1:Name} {",
       "  $0",
       "}"
     ],
     "description": "Prototype block"
   },
+  "sealed prototype": {
+    "prefix": "sealedproto",
+    "body": [
+      "sealed prototype ${1:Name} {",
+      "  $0",
+      "}"
+    ],
+    "description": "Sealed prototype block"
+  },
+  "prototype inherit": {
+    "prefix": "protoext",
+    "body": [
+      "prototype ${1:Child} : ${2:Parent} {",
+      "  $0",
+      "}"
+    ],
+    "description": "Prototype with parent"
+  },
   "function": {
     "prefix": "function",
     "body": [
-      "function ${1:name}(${2:args}) {",
+      "function ${1:name}(${2}) : ${3:void} {",
       "  $0",
       "}"
     ],
     "description": "Function block"
+  },
+  "typed variable": {
+    "prefix": "let",
+    "body": [
+      "${1:int} ${2:name} = ${3:0};"
+    ],
+    "description": "Typed variable declaration"
+  },
+  "const variable": {
+    "prefix": "const",
+    "body": [
+      "const ${1:int} ${2:name} = ${3:0};"
+    ],
+    "description": "Const declaration"
   },
   "if/else": {
     "prefix": "if",
@@ -28,6 +74,33 @@
     ],
     "description": "If/else block"
   },
+  "for": {
+    "prefix": "for",
+    "body": [
+      "for (${1:int i = 0}; ${2:i < n}; ${3:i = i + 1}) {",
+      "  $0",
+      "}"
+    ],
+    "description": "Classic for loop"
+  },
+  "for of": {
+    "prefix": "forof",
+    "body": [
+      "for (${1:int v} of ${2:values}) {",
+      "  $0",
+      "}"
+    ],
+    "description": "for-of loop"
+  },
+  "for in": {
+    "prefix": "forin",
+    "body": [
+      "for (${1:string k} in ${2:items}) {",
+      "  $0",
+      "}"
+    ],
+    "description": "for-in loop"
+  },
   "while": {
     "prefix": "while",
     "body": [
@@ -36,6 +109,50 @@
       "}"
     ],
     "description": "While loop"
+  },
+  "switch": {
+    "prefix": "switch",
+    "body": [
+      "switch (${1:value}) {",
+      "  case ${2:cond}: {",
+      "    $0",
+      "    break;",
+      "  }",
+      "  default: {",
+      "    break;",
+      "  }",
+      "}"
+    ],
+    "description": "Switch statement"
+  },
+  "try catch finally": {
+    "prefix": "try",
+    "body": [
+      "try {",
+      "  $0",
+      "} catch (${1:Exception} ${2:e}) {",
+      "}",
+      "finally {",
+      "}"
+    ],
+    "description": "Try/catch/finally statement"
+  },
+  "group": {
+    "prefix": "group",
+    "body": [
+      "${1:int} group ${2:Name} {",
+      "  ${3:ITEM} = ${4:1},",
+      "  ${5:OTHER} = ${6:2}",
+      "}"
+    ],
+    "description": "Group declaration"
+  },
+  "import module": {
+    "prefix": "import",
+    "body": [
+      "import ${1:Io};"
+    ],
+    "description": "Import module"
   },
   "preprocessor include": {
     "prefix": "#include",

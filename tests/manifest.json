@@ -37,6 +37,8 @@
       "invalid/type/module_import_path_bad_ext",
       "invalid/type/module_import_path_no_root_proto",
       "invalid/type/unknown_local_variable",
+      "invalid/type/multiple_static_errors",
+      "invalid/type/redeclaration_same_scope",
       "invalid/type/unknown_group_member",
       "invalid/type/group_descriptor_as_expression",
       "invalid/type/prototype_descriptor_as_expression",

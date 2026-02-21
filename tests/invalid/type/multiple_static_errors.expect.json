@@ -1,0 +1,11 @@
+{
+  "status": "reject-static",
+  "error_family": "E3xxx",
+  "error_code": "E3131",
+  "category": "REDECLARATION",
+  "position": {
+    "file": "invalid/type/multiple_static_errors.pts",
+    "line": 5,
+    "column": 14
+  }
+}

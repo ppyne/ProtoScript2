@@ -72,6 +72,8 @@ Règles normatives :
 
 - le runtime C de ProtoScript2 est l’implémentation normative d’exécution ;
 - le CLI runtime (`c/ps run`) doit être autonome et exécuter localement via le runtime C ;
+- la commande `c/ps run` DOIT exécuter le même pipeline frontend que `check` (parse + analyse sémantique + diagnostics) avant toute exécution ;
+- si des erreurs statiques sont présentes, `c/ps run` DOIT s’arrêter immédiatement, retourner `EXIT_FAILURE`, et NE DOIT PAS invoquer le runtime ni poursuivre la génération ;
 - le CLI runtime ne doit déléguer ni directement ni indirectement vers un compilateur/référence externe ;
 - les mécanismes de délégation de type `exec`, `system`, `popen` ou l’invocation d’un runtime Node.js sont interdits pour l’exécution de `c/ps run`.
 
@@ -3462,6 +3464,36 @@ Règles :
 - un paramètre ne peut pas être redéclaré dans le même bloc
 - deux déclarations homonymes dans le même bloc sont interdites
 - un champ de prototype peut être masqué localement, mais l’accès au champ doit alors être explicite via `self.<field>`
+
+Règle normative complémentaire :
+
+- À l’intérieur d’un même bloc, un identificateur ne peut faire l’objet que d’une seule déclaration.
+- Une violation DOIT produire un diagnostic statique `E3131 REDECLARATION`.
+- Cette règle évite les ambiguïtés d’initialisation (ex: auto-référence lors d’une redéclaration) et garantit une sémantique identique entre backends JS et C.
+
+Exemple INVALID :
+
+```c
+import Io;
+
+function main(): void {
+    string t = Io.tempPath();
+    TextFile t = Io.openText(t, "w"); // E3131 REDECLARATION
+}
+```
+
+Exemple VALID (shadowing dans un bloc enfant) :
+
+```c
+import Io;
+
+function main(): void {
+    string t = Io.tempPath();
+    {
+        TextFile t = Io.openText(t, "w");
+    }
+}
+```
 
 ## 15.3 Initialisation implicite et valeurs par défaut
 

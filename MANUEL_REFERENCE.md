@@ -503,6 +503,36 @@ function main() : void {
 ```
 Ref: EX-021
 
+Règle normative :
+
+- Dans un même bloc de portée, un identifiant local ne peut être déclaré qu’une seule fois.
+- Violation: `E3131 REDECLARATION`.
+- Cette règle supprime les ambiguïtés d’initialisation et garantit le même comportement entre backends JS et C.
+
+Exemple INVALID :
+
+```c
+import Io;
+
+function main(): void {
+    string t = Io.tempPath();
+    TextFile t = Io.openText(t, "w"); // E3131 REDECLARATION
+}
+```
+
+Exemple VALID (shadowing en bloc interne) :
+
+```c
+import Io;
+
+function main(): void {
+    string t = Io.tempPath();
+    {
+        TextFile t = Io.openText(t, "w");
+    }
+}
+```
+
 ### 5.3 Initialisation implicite et valeurs par défaut
 
 Dans ProtoScript2, une variable est toujours initialisée à une valeur par défaut déterministe au moment de sa création.
@@ -3595,6 +3625,12 @@ Détails des commandes :
 - `ps ir fichier.pts` : affiche l’IR (intermédiaire) en JSON stable pour inspection.
 - `ps emit-c fichier.pts` : génère du C via l’oracle `protoscriptc` (Node).
 - `ps test` : lance la suite de conformité (tests normatifs).
+
+Règle normative CLI :
+
+- La commande `run` DOIT effectuer la validation statique avant toute exécution runtime.
+- Si des erreurs statiques sont présentes, `run` DOIT s’arrêter immédiatement, afficher les diagnostics, et NE DOIT PAS invoquer le runtime.
+- Cette règle reste vraie avec `--trace` et `--trace-ir` : aucun log runtime/IR ne doit apparaître quand des erreurs statiques existent.
 
 Détails des options :
 

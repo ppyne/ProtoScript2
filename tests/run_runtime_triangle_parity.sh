@@ -154,9 +154,11 @@ while IFS= read -r case_id; do
   out_emit_norm="$(mktemp)"
   err_emit_norm="$(mktemp)"
 
-  tmp_c="$(mktemp "${TMPDIR:-/tmp}/ps_triangle_emitc_XXXXXX.c")"
-  tmp_bin="$(mktemp "${TMPDIR:-/tmp}/ps_triangle_emitc_XXXXXX.bin")"
-  rm -f "$tmp_bin"
+  # BSD mktemp (macOS) does not support suffixes in templates portably.
+  tmp_emit_base="$(mktemp "${TMPDIR:-/tmp}/ps_triangle_emitc_XXXXXX")"
+  tmp_c="${tmp_emit_base}.c"
+  tmp_bin="${tmp_emit_base}.bin"
+  rm -f "$tmp_c" "$tmp_bin"
 
   set +e
   "$PS" run "$src" >"$out_cli" 2>"$err_cli"

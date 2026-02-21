@@ -1,0 +1,123 @@
+#include "config.h"
+#define PS_BUILD 1
+
+import Io;
+import Fs;
+import RegExp;
+import TimeCivil;
+
+int group Color {
+    RED = 1,
+    GREEN = 2,
+    BLUE = 3
+}
+
+prototype Base {
+    internal int state;
+
+    function setState(int value) : void {
+        self.state = value;
+    }
+
+    function getState() : int {
+        return self.state;
+    }
+}
+
+sealed prototype Final : Base {
+    function compute(int a, int b, list<int> rest...) : int {
+        int x = 0;
+        float y = 3.14;
+        bool ok = true;
+        byte bb = 0x2A;
+        string s = "hello";
+        list<int> xs = [1, 2, 3];
+        map<string, int> m = {"k": 1};
+        slice<int> sl = xs.slice(0, 2);
+        view<int> vw = xs.view(0, 2);
+
+        x = x + a - b * 2 / 1 % 7;
+        x += 1;
+        x -= 1;
+        x *= 2;
+        x /= 2;
+
+        bool rel = (a < b) || (a <= b) || (a > b) || (a >= b) || (a == b) || (a != b);
+        int bits = (a & b) | (a ^ b);
+        bits = bits << 1;
+        bits = bits >> 1;
+        bits = ~bits;
+        bool notOk = !ok;
+        int sign = rel ? 1 : 0;
+
+        if (ok && !notOk) {
+            x = x + 1;
+        } else {
+            x = x - 1;
+        }
+
+        while (x < 10) {
+            x = x + 1;
+            if (x == 8) {
+                continue;
+            }
+            if (x == 9) {
+                break;
+            }
+        }
+
+        do {
+            x = x - 1;
+        } while (x > 5);
+
+        for (int i = 0; i < 3; i = i + 1) {
+            x = x + i;
+        }
+
+        for (int v of xs) {
+            x = x + v;
+        }
+
+        for (string k in m) {
+            x = x + m[k];
+        }
+
+        switch (x) {
+            case 0:
+                x = 1;
+                break;
+            default:
+                x = x;
+                break;
+        }
+
+        try {
+            super.setState(x);
+            self.setState(x);
+            string p = Io.tempPath();
+            bool ex = Fs.exists(p);
+            RegExp r = RegExp.compile("a+", "i");
+            bool t = r.test("aaa", 0);
+            if (ex || t || (x > 0)) {
+                Io.printLine("ok");
+            }
+        } catch (Exception e) {
+            throw e;
+        } finally {
+            x = x;
+        }
+
+        return x;
+    }
+}
+
+function helper(int a, int b) : int {
+    return a + b;
+}
+
+function main() : void {
+    Final f = Final.clone();
+    int out = f.compute(1, 2, [3, 4]);
+    Io.printLine(out.toString());
+    Io.printLine(Color.RED.toString());
+}

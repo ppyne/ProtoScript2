@@ -410,7 +410,7 @@ Detected in `src/frontend.js` and `c/frontend.c`:
 - `E2001`, `E2002`, `E2003`, `E2004`
 - `E3001`, `E3003`, `E3004`, `E3005`, `E3006`, `E3007`
 - `E3120`, `E3121`, `E3122`
-- `E3130`, `E3140`, `E3150`, `E3151`
+- `E3130`, `E3131`, `E3140`, `E3150`, `E3151`
 - `E3200`, `E3201`
 
 Representative categories observed in tests:
@@ -548,7 +548,7 @@ Parser recognizes:
 | Built-in named types | `Exception, RuntimeException, CivilDateTime, TextFile, BinaryFile, PathInfo, PathEntry, Dir, Walker, JSONValue, RegExp, RegExpMatch, ProcessEvent, ProcessResult` |
 | Standard native modules | `Math, Debug, Io, Fs, Sys, JSON, Time, TimeCivil, RegExp` |
 | Test-only modules in registry | `test.simple, test.utf8, test.env, test.throw, test.noinit, test.badver, test.nosym, test.missing, test.invalid` |
-| Static error codes | `E0001,E0002,E0003,E1001,E1002,E1003,E2001,E2002,E2003,E2004,E3001,E3003,E3004,E3005,E3006,E3007,E3120,E3121,E3122,E3130,E3140,E3150,E3151,E3200,E3201` |
+| Static error codes | `E0001,E0002,E0003,E1001,E1002,E1003,E2001,E2002,E2003,E2004,E3001,E3003,E3004,E3005,E3006,E3007,E3120,E3121,E3122,E3130,E3131,E3140,E3150,E3151,E3200,E3201` |
 | Runtime error codes | `R1001,R1002,R1003,R1004,R1005,R1006,R1007,R1008,R1010,R1011,R1012` |
 | Internal runtime-only ops | `call_builtin_print, call_builtin_tostring, pop_handler` |
 

@@ -358,6 +358,7 @@ static void append_trunc(char *dst, size_t dst_sz, const char *src, size_t max_l
 }
 
 static void set_diag(PsDiag *d, const char *file, int line, int col, const char *code, const char *category, const char *message);
+static void set_expected_kind(PsDiag *d, const char *expected);
 
 static void format_token_desc(Token *t, char *out, size_t out_sz) {
   if (!out || out_sz == 0) return;
@@ -420,6 +421,7 @@ static char l_advance(Lexer *l) {
 }
 
 static void set_diag(PsDiag *d, const char *file, int line, int col, const char *code, const char *category, const char *message) {
+  if (!d) return;
   const PreprocessLineMap *map = preprocess_map_lookup(file);
   if (map && line > 0 && (size_t)line <= map->len) {
     const char *mf = map->files[line - 1];
@@ -428,17 +430,41 @@ static void set_diag(PsDiag *d, const char *file, int line, int col, const char 
     if (ml > 0) line = ml;
   }
   ps_diag_normalize_loc(&line, &col);
-  d->file = file;
-  d->line = line;
-  d->col = col;
-  d->code = code;
-  d->name = category;
-  d->category = category;
-  d->expected_kind = NULL;
-  d->actual_kind = NULL;
-  d->suggestion_count = 0;
-  for (int i = 0; i < 3; i++) d->suggestions[i][0] = '\0';
-  snprintf(d->message, sizeof(d->message), "%s", message);
+  int idx = d->count < PS_DIAG_MAX_ITEMS ? d->count : (PS_DIAG_MAX_ITEMS - 1);
+  if (d->count < PS_DIAG_MAX_ITEMS) d->count += 1;
+  PsDiagItem *it = &d->items[idx];
+  it->file = file;
+  it->line = line;
+  it->col = col;
+  it->code = code;
+  it->name = category;
+  it->category = category;
+  it->expected_kind = NULL;
+  it->actual_kind = NULL;
+  it->suggestion_count = 0;
+  for (int i = 0; i < 3; i++) it->suggestions[i][0] = '\0';
+  snprintf(it->message, sizeof(it->message), "%s", message ? message : "");
+
+  d->file = it->file;
+  d->line = it->line;
+  d->col = it->col;
+  d->code = it->code;
+  d->name = it->name;
+  d->category = it->category;
+  d->expected_kind = it->expected_kind;
+  d->actual_kind = it->actual_kind;
+  d->suggestion_count = it->suggestion_count;
+  for (int i = 0; i < 3; i++) snprintf(d->suggestions[i], sizeof(d->suggestions[i]), "%s", it->suggestions[i]);
+  snprintf(d->message, sizeof(d->message), "%s", it->message);
+}
+
+static void set_expected_kind(PsDiag *d, const char *expected) {
+  if (!d) return;
+  d->expected_kind = expected;
+  if (d->count <= 0) return;
+  int idx = d->count - 1;
+  if (idx >= PS_DIAG_MAX_ITEMS) idx = PS_DIAG_MAX_ITEMS - 1;
+  d->items[idx].expected_kind = expected;
 }
 
 static int lex_add(Lexer *l, TokenKind kind, const char *text, int line, int col) {
@@ -1438,12 +1464,8 @@ static int parse_stmt(Parser *p) {
     AstNode *decl = NULL;
     size_t mark = p->i;
     int commit_decl = p_at(p, TK_KW, "var") || (p_t(p, 0)->kind == TK_KW);
-    const char *prev_code = p->diag ? p->diag->code : NULL;
-    const char *prev_category = p->diag ? p->diag->category : NULL;
-    int prev_line = p->diag ? p->diag->line : 1;
-    int prev_col = p->diag ? p->diag->col : 1;
-    char prev_msg[256];
-    if (p->diag) snprintf(prev_msg, sizeof(prev_msg), "%s", p->diag->message);
+    PsDiag prev_diag;
+    if (p->diag) prev_diag = *p->diag;
     if (parse_var_decl(p, &decl) && p_eat(p, TK_SYM, ";")) {
       AstNode *parent = p_ast_parent(p);
       if (!parent || !ast_add_child(parent, decl)) {
@@ -1452,21 +1474,15 @@ static int parse_stmt(Parser *p) {
       }
       return 1;
     }
-    if (commit_decl && p->diag && prev_msg[0] != '\0' && strcmp(p->diag->message, prev_msg) != 0) {
+    if (commit_decl && p->diag && prev_diag.message[0] != '\0' && strcmp(p->diag->message, prev_diag.message) != 0) {
       ast_free(decl);
       return 0;
     }
-    if (commit_decl && p->diag && p->diag->message[0] != '\0' && prev_msg[0] == '\0') {
+    if (commit_decl && p->diag && p->diag->message[0] != '\0' && prev_diag.message[0] == '\0') {
       ast_free(decl);
       return 0;
     }
-    if (p->diag) {
-      p->diag->code = prev_code;
-      p->diag->category = prev_category;
-      p->diag->line = prev_line;
-      p->diag->col = prev_col;
-      snprintf(p->diag->message, sizeof(p->diag->message), "%s", prev_msg);
-    }
+    if (p->diag) *p->diag = prev_diag;
     ast_free(decl);
     p->i = mark;
   }
@@ -3156,6 +3172,13 @@ static int scope_define(Scope *s, const char *name, const char *type, int known_
   return scope_define_alias(s, name, type, known_list_len, initialized, 0, 0);
 }
 
+static int scope_has_local(Scope *s, const char *name) {
+  for (Sym *e = s ? s->syms : NULL; e; e = e->next) {
+    if (strcmp(e->name, name ? name : "") == 0) return 1;
+  }
+  return 0;
+}
+
 static Sym *scope_lookup_sym(Scope *s, const char *name) {
   for (Scope *cur = s; cur; cur = cur->parent) {
     for (Sym *e = cur->syms; e; e = e->next) {
@@ -3228,6 +3251,12 @@ static void diag_fill_suggestions(PsDiag *d, const char *query, NameVec *cands) 
   int n = ps_diag_pick_suggestions(query, cands->items, cands->len, out, 3);
   d->suggestion_count = n;
   for (int i = 0; i < n; i++) snprintf(d->suggestions[i], sizeof(d->suggestions[i]), "%s", out[i]);
+  if (d->count > 0) {
+    int idx = d->count - 1;
+    if (idx >= PS_DIAG_MAX_ITEMS) idx = PS_DIAG_MAX_ITEMS - 1;
+    d->items[idx].suggestion_count = n;
+    for (int i = 0; i < n; i++) snprintf(d->items[idx].suggestions[i], sizeof(d->items[idx].suggestions[i]), "%s", out[i]);
+  }
 }
 
 static void collect_scope_names(Scope *scope, NameVec *out) {
@@ -3284,7 +3313,7 @@ static void diag_unresolved_expected(Analyzer *a, AstNode *n, const char *name, 
   if (detail && detail[0]) snprintf(msg, sizeof(msg), "%s (expected %s)", detail, expected);
   else snprintf(msg, sizeof(msg), "unknown identifier '%s' (expected %s)", name, expected);
   set_diag(a->diag, a->file, n ? n->line : 1, n ? n->col : 1, "E2001", "UNRESOLVED_NAME", msg);
-  a->diag->expected_kind = expected;
+  set_expected_kind(a->diag, expected);
 }
 
 static int add_imported_fn(Analyzer *a, const char *local, const char *ret_type, int param_count, int variadic, int fixed_count) {
@@ -3583,7 +3612,7 @@ static int collect_imports(Analyzer *a, AstNode *root) {
         char msg[320];
         snprintf(msg, sizeof(msg), "unknown module '%s' (expected module)", mod);
         set_diag(a->diag, a->file, imp->line, imp->col, "E2001", "UNRESOLVED_NAME", msg);
-        a->diag->expected_kind = "module";
+        set_expected_kind(a->diag, "module");
         if (a->registry) {
           NameVec cands = {0};
           for (RegMod *cand = a->registry->mods; cand; cand = cand->next) name_vec_push(&cands, cand->name);
@@ -3668,7 +3697,7 @@ static int collect_imports(Analyzer *a, AstNode *root) {
             char msg[320];
             snprintf(msg, sizeof(msg), "unknown symbol '%s' in module '%s' (expected member)", name, um->proto ? um->proto : mod);
             set_diag(a->diag, a->file, it->line, it->col, "E2001", "UNRESOLVED_NAME", msg);
-            a->diag->expected_kind = "member";
+            set_expected_kind(a->diag, "member");
             NameVec cands = {0};
             name_vec_push(&cands, "clone");
             for (AstNode *mn = um->proto_node ? ast_child_kind(um->proto_node, "Methods") : NULL; mn; mn = NULL) {
@@ -3728,7 +3757,7 @@ static int collect_imports(Analyzer *a, AstNode *root) {
             char msg[320];
             snprintf(msg, sizeof(msg), "unknown symbol '%s' in module '%s' (expected member)", name, mod);
             set_diag(a->diag, a->file, it->line, it->col, "E2001", "UNRESOLVED_NAME", msg);
-            a->diag->expected_kind = "member";
+            set_expected_kind(a->diag, "member");
             NameVec cands = {0};
             collect_module_export_names(a, mod, &cands);
             diag_fill_suggestions(a->diag, name, &cands);
@@ -4161,13 +4190,37 @@ static int add_builtin_exception_protos(Analyzer *a) {
     ProtoInfo *rx = proto_append(a, "RegExp", NULL);
     if (!rx) return 0;
     rx->builtin = 1;
-    if (!proto_add_method0(rx, "compile", "RegExp")) return 0;
-    if (!proto_add_method0(rx, "test", "bool")) return 0;
-    if (!proto_add_method0(rx, "find", "RegExpMatch")) return 0;
-    if (!proto_add_method0(rx, "findAll", "list<RegExpMatch>")) return 0;
-    if (!proto_add_method0(rx, "replaceFirst", "string")) return 0;
-    if (!proto_add_method0(rx, "replaceAll", "string")) return 0;
-    if (!proto_add_method0(rx, "split", "list<string>")) return 0;
+    {
+      const char *pn[] = {"pattern", "flags"};
+      const char *pt[] = {"string", "string"};
+      if (!proto_add_method_ex(rx, "compile", "RegExp", 2, pn, pt)) return 0;
+    }
+    {
+      const char *pn[] = {"input", "start"};
+      const char *pt[] = {"string", "int"};
+      if (!proto_add_method_ex(rx, "test", "bool", 2, pn, pt)) return 0;
+      if (!proto_add_method_ex(rx, "find", "RegExpMatch", 2, pn, pt)) return 0;
+    }
+    {
+      const char *pn[] = {"input", "start", "max"};
+      const char *pt[] = {"string", "int", "int"};
+      if (!proto_add_method_ex(rx, "findAll", "list<RegExpMatch>", 3, pn, pt)) return 0;
+    }
+    {
+      const char *pn[] = {"input", "replacement", "start"};
+      const char *pt[] = {"string", "string", "int"};
+      if (!proto_add_method_ex(rx, "replaceFirst", "string", 3, pn, pt)) return 0;
+    }
+    {
+      const char *pn[] = {"input", "replacement", "start", "max"};
+      const char *pt[] = {"string", "string", "int", "int"};
+      if (!proto_add_method_ex(rx, "replaceAll", "string", 4, pn, pt)) return 0;
+    }
+    {
+      const char *pn[] = {"input", "start", "maxParts"};
+      const char *pt[] = {"string", "int", "int"};
+      if (!proto_add_method_ex(rx, "split", "list<string>", 3, pn, pt)) return 0;
+    }
     if (!proto_add_method0(rx, "pattern", "string")) return 0;
     if (!proto_add_method0(rx, "flags", "string")) return 0;
   }
@@ -4201,6 +4254,12 @@ static int add_builtin_exception_protos(Analyzer *a) {
       "InvalidPathException",
       "FileClosedException",
       "InvalidArgumentException",
+      "ProcessCreationException",
+      "ProcessExecutionException",
+      "ProcessPermissionException",
+      "InvalidExecutableException",
+      "EnvironmentAccessException",
+      "InvalidEnvironmentNameException",
       "InvalidGlyphPositionException",
       "ReadFailureException",
       "WriteFailureException",
@@ -4214,6 +4273,18 @@ static int add_builtin_exception_protos(Analyzer *a) {
     ProtoInfo *iex = proto_append(a, name, "RuntimeException");
     if (!iex) return 0;
     iex->builtin = 1;
+  }
+  const char *fs_exceptions[] = {
+      "NotADirectoryException",
+      "NotAFileException",
+      "DirectoryNotEmptyException",
+  };
+  for (size_t i = 0; i < sizeof(fs_exceptions) / sizeof(fs_exceptions[0]); i += 1) {
+    const char *name = fs_exceptions[i];
+    if (proto_find(a->protos, name)) continue;
+    ProtoInfo *fex = proto_append(a, name, "RuntimeException");
+    if (!fex) return 0;
+    fex->builtin = 1;
   }
   return 1;
 }
@@ -4232,10 +4303,14 @@ static int collect_prototypes(Analyzer *a, AstNode *root) {
         strcmp(name, "InvalidModeException") == 0 || strcmp(name, "FileOpenException") == 0 ||
         strcmp(name, "FileNotFoundException") == 0 || strcmp(name, "PermissionDeniedException") == 0 ||
         strcmp(name, "InvalidPathException") == 0 || strcmp(name, "FileClosedException") == 0 ||
-        strcmp(name, "InvalidArgumentException") == 0 || strcmp(name, "InvalidGlyphPositionException") == 0 ||
+        strcmp(name, "InvalidArgumentException") == 0 || strcmp(name, "ProcessCreationException") == 0 ||
+        strcmp(name, "ProcessExecutionException") == 0 || strcmp(name, "ProcessPermissionException") == 0 ||
+        strcmp(name, "InvalidExecutableException") == 0 || strcmp(name, "EnvironmentAccessException") == 0 ||
+        strcmp(name, "InvalidEnvironmentNameException") == 0 || strcmp(name, "InvalidGlyphPositionException") == 0 ||
         strcmp(name, "ReadFailureException") == 0 || strcmp(name, "WriteFailureException") == 0 ||
         strcmp(name, "Utf8DecodeException") == 0 || strcmp(name, "StandardStreamCloseException") == 0 ||
-        strcmp(name, "IOException") == 0) {
+        strcmp(name, "IOException") == 0 || strcmp(name, "NotADirectoryException") == 0 ||
+        strcmp(name, "NotAFileException") == 0 || strcmp(name, "DirectoryNotEmptyException") == 0) {
       set_diag(a->diag, a->file, pd->line, pd->col, "E2001", "UNRESOLVED_NAME", "reserved prototype name");
       return 0;
     }
@@ -4340,18 +4415,10 @@ static int collect_prototypes(Analyzer *a, AstNode *root) {
     }
   }
 
-  int missing_parent = 0;
-  int min_line = 0;
-  int min_col = 0;
-  const char *missing_parent_name = NULL;
+  int had_error = 0;
   for (ProtoInfo *p = a->protos; p; p = p->next) {
     if (p->parent && !proto_find(a->protos, p->parent)) {
-      if (!missing_parent || p->line < min_line || (p->line == min_line && p->col < min_col)) {
-        min_line = p->line;
-        min_col = p->col;
-        missing_parent_name = p->parent;
-      }
-      missing_parent = 1;
+      had_error = 1;
       continue;
     }
     if (p->parent) {
@@ -4360,14 +4427,16 @@ static int collect_prototypes(Analyzer *a, AstNode *root) {
         char msg[256];
         snprintf(msg, sizeof(msg), "cannot inherit from sealed prototype '%s'", pp->name ? pp->name : "");
         set_diag(a->diag, a->file, p->line, p->col, "E3140", "SEALED_INHERITANCE", msg);
-        return 0;
+        had_error = 1;
+        continue;
       }
     }
     if (p->parent) {
       for (ProtoField *f = p->fields; f; f = f->next) {
         if (proto_find_field(a->protos, p->parent, f->name)) {
           set_diag(a->diag, a->file, p->line, p->col, "E3001", "TYPE_MISMATCH_ASSIGNMENT", "field already defined in parent");
-          return 0;
+          had_error = 1;
+          break;
         }
       }
       for (ProtoMethod *m = p->methods; m; m = m->next) {
@@ -4376,24 +4445,27 @@ static int collect_prototypes(Analyzer *a, AstNode *root) {
           char msg[320];
           snprintf(msg, sizeof(msg), "cannot override public method '%s' with internal visibility", m->name ? m->name : "");
           set_diag(a->diag, a->file, m->line, m->col, "E3201", "VISIBILITY_VIOLATION", msg);
-          return 0;
+          had_error = 1;
+          break;
         }
         if (pm && !proto_same_signature(a->protos, pm, m)) {
           set_diag(a->diag, a->file, p->line, p->col, "E3001", "TYPE_MISMATCH_ASSIGNMENT", "override signature mismatch");
-          return 0;
+          had_error = 1;
+          break;
         }
       }
     }
   }
-  if (missing_parent) {
-    {
-      char msg[320];
-      snprintf(msg, sizeof(msg), "unknown parent prototype '%s' (expected prototype)", missing_parent_name ? missing_parent_name : "");
-      set_diag(a->diag, a->file, min_line, min_col, "E2001", "UNRESOLVED_NAME", msg);
-    }
-    return 0;
+  for (size_t i = 0; i < root->child_len; i++) {
+    AstNode *pd = root->children[i];
+    if (!pd || strcmp(pd->kind, "PrototypeDecl") != 0) continue;
+    ProtoInfo *p = proto_find(a->protos, pd->text ? pd->text : "");
+    if (!p || !p->parent || proto_find(a->protos, p->parent)) continue;
+    char msg[320];
+    snprintf(msg, sizeof(msg), "unknown parent prototype '%s' (expected prototype)", p->parent ? p->parent : "");
+    set_diag(a->diag, a->file, pd->line, pd->col, "E2001", "UNRESOLVED_NAME", msg);
   }
-  return 1;
+  return had_error ? 0 : 1;
 }
 
 static int is_scalar_type_name(const char *t);
@@ -5259,8 +5331,8 @@ static char *infer_call_type(Analyzer *a, AstNode *e, Scope *scope, int *ok) {
       const char *name = callee->text ? callee->text : "";
       char msg[320];
       snprintf(msg, sizeof(msg), "unknown function '%s' (expected function)", name);
-      set_diag(a->diag, a->file, e->line, e->col, "E2001", "UNRESOLVED_NAME", msg);
-      a->diag->expected_kind = "function";
+      set_diag(a->diag, a->file, callee->line, callee->col, "E2001", "UNRESOLVED_NAME", msg);
+      set_expected_kind(a->diag, "function");
       {
         NameVec cands = {0};
         for (FnSig *it = a->fns; it; it = it->next) name_vec_push(&cands, it->name);
@@ -5298,12 +5370,6 @@ static char *infer_call_type(Analyzer *a, AstNode *e, Scope *scope, int *ok) {
         *ok = 0;
         return NULL;
       }
-      ProtoInfo *owner_proto = proto_find(a->protos, a->current_proto);
-      if (!owner_proto || !owner_proto->parent) {
-        set_diag(a->diag, a->file, target->line, super_col, "E3211", "SUPER_NO_PARENT", "super call requires a parent prototype");
-        *ok = 0;
-        return NULL;
-      }
       if (strcmp(mname, "clone") == 0) {
         if (argc != 0) {
           set_diag(a->diag, a->file, e->line, e->col, "E1003", "ARITY_MISMATCH", "arity mismatch for 'clone'");
@@ -5311,6 +5377,12 @@ static char *infer_call_type(Analyzer *a, AstNode *e, Scope *scope, int *ok) {
           return NULL;
         }
         return strdup(a->current_proto);
+      }
+      ProtoInfo *owner_proto = proto_find(a->protos, a->current_proto);
+      if (!owner_proto || !owner_proto->parent) {
+        set_diag(a->diag, a->file, target->line, super_col, "E3211", "SUPER_NO_PARENT", "super call requires a parent prototype");
+        *ok = 0;
+        return NULL;
       }
       ProtoInfo *owner = NULL;
       ProtoMethod *pm = proto_find_method_ex(a->protos, owner_proto->parent, mname, &owner);
@@ -5349,7 +5421,7 @@ static char *infer_call_type(Analyzer *a, AstNode *e, Scope *scope, int *ok) {
           char msg[320];
           snprintf(msg, sizeof(msg), "unknown method '%s' in prototype '%s' (expected member)", mname, proto->name ? proto->name : "");
           set_diag(a->diag, a->file, e->line, e->col, "E2001", "UNRESOLVED_NAME", msg);
-          a->diag->expected_kind = "member";
+          set_expected_kind(a->diag, "member");
           {
             NameVec cands = {0};
             collect_prototype_member_names(a, proto->name ? proto->name : "", &cands);
@@ -5364,8 +5436,9 @@ static char *infer_call_type(Analyzer *a, AstNode *e, Scope *scope, int *ok) {
           *ok = 0;
           return NULL;
         }
-        int min_arity = pm->fixed_count + 1;
-        int bad = pm->variadic ? (argc < min_arity) : (argc != (pm->param_count + 1));
+        int static_factory = (proto->name && strcmp(proto->name, "RegExp") == 0 && strcmp(mname, "compile") == 0);
+        int min_arity = pm->fixed_count + (static_factory ? 0 : 1);
+        int bad = pm->variadic ? (argc < min_arity) : (argc != (pm->param_count + (static_factory ? 0 : 1)));
         if (bad) {
           set_diag(a->diag, a->file, e->line, e->col, "E1003", "ARITY_MISMATCH", "arity mismatch");
           *ok = 0;
@@ -5401,7 +5474,7 @@ static char *infer_call_type(Analyzer *a, AstNode *e, Scope *scope, int *ok) {
             char msg[320];
             snprintf(msg, sizeof(msg), "unknown method '%s' in prototype '%s' (expected member)", mname, proto->name ? proto->name : "");
             set_diag(a->diag, a->file, e->line, e->col, "E2001", "UNRESOLVED_NAME", msg);
-            a->diag->expected_kind = "member";
+            set_expected_kind(a->diag, "member");
             {
               NameVec cands = {0};
               collect_prototype_member_names(a, proto->name ? proto->name : "", &cands);
@@ -5416,8 +5489,9 @@ static char *infer_call_type(Analyzer *a, AstNode *e, Scope *scope, int *ok) {
             *ok = 0;
             return NULL;
           }
-          int min_arity = pm->fixed_count + 1;
-          int bad = pm->variadic ? (argc < min_arity) : (argc != (pm->param_count + 1));
+          int static_factory = (proto->name && strcmp(proto->name, "RegExp") == 0 && strcmp(mname, "compile") == 0);
+          int min_arity = pm->fixed_count + (static_factory ? 0 : 1);
+          int bad = pm->variadic ? (argc < min_arity) : (argc != (pm->param_count + (static_factory ? 0 : 1)));
           if (bad) {
             set_diag(a->diag, a->file, e->line, e->col, "E1003", "ARITY_MISMATCH", "arity mismatch");
             *ok = 0;
@@ -5433,7 +5507,7 @@ static char *infer_call_type(Analyzer *a, AstNode *e, Scope *scope, int *ok) {
               msg, sizeof(msg), "unknown symbol '%s' in module '%s' (expected member)", callee->text ? callee->text : "",
               ns->module ? ns->module : "");
           set_diag(a->diag, a->file, e->line, e->col, "E2001", "UNRESOLVED_NAME", msg);
-          a->diag->expected_kind = "member";
+          set_expected_kind(a->diag, "member");
           {
             NameVec cands = {0};
             collect_module_export_names(a, ns->module ? ns->module : "", &cands);
@@ -5464,7 +5538,7 @@ static char *infer_call_type(Analyzer *a, AstNode *e, Scope *scope, int *ok) {
             char msg[320];
             snprintf(msg, sizeof(msg), "unknown method '%s' in prototype '%s' (expected member)", callee->text, tt);
             set_diag(a->diag, a->file, e->line, e->col, "E2001", "UNRESOLVED_NAME", msg);
-            a->diag->expected_kind = "member";
+            set_expected_kind(a->diag, "member");
             {
               NameVec cands = {0};
               collect_prototype_member_names(a, tt, &cands);
@@ -5557,7 +5631,7 @@ static char *infer_call_type(Analyzer *a, AstNode *e, Scope *scope, int *ok) {
           char msg[320];
           snprintf(msg, sizeof(msg), "unknown method '%s' in type '%s' (expected member)", callee->text ? callee->text : "", tt);
           set_diag(a->diag, a->file, e->line, e->col, "E2001", "UNRESOLVED_NAME", msg);
-          a->diag->expected_kind = "member";
+          set_expected_kind(a->diag, "member");
           {
             NameVec cands = {0};
             name_vec_push(&cands, "length");
@@ -5761,7 +5835,7 @@ static char *infer_expr_type(Analyzer *a, AstNode *e, Scope *scope, int *ok) {
                 msg, sizeof(msg), "unknown group member '%s' in group '%s' (expected member)", e->text ? e->text : "",
                 target->text ? target->text : "");
             set_diag(a->diag, a->file, e->line, e->col, "E2001", "UNRESOLVED_NAME", msg);
-            a->diag->expected_kind = "member";
+            set_expected_kind(a->diag, "member");
             NameVec cands = {0};
             for (GroupMemberConst *gm = g->members; gm; gm = gm->next) name_vec_push(&cands, gm->name);
             diag_fill_suggestions(a->diag, e->text ? e->text : "", &cands);
@@ -5806,7 +5880,7 @@ static char *infer_expr_type(Analyzer *a, AstNode *e, Scope *scope, int *ok) {
           char msg[320];
           snprintf(msg, sizeof(msg), "unknown field '%s' in prototype '%s' (expected member)", e->text ? e->text : "", tt);
           set_diag(a->diag, a->file, e->line, e->col, "E2001", "UNRESOLVED_NAME", msg);
-          a->diag->expected_kind = "member";
+          set_expected_kind(a->diag, "member");
           NameVec cands = {0};
           collect_prototype_member_names(a, tt, &cands);
           diag_fill_suggestions(a->diag, e->text ? e->text : "", &cands);
@@ -6005,6 +6079,7 @@ static int expr_contains_self_ref(AstNode *e) {
 
 static int analyze_prototype_field_initializers(Analyzer *a) {
   if (!a) return 1;
+  int had_error = 0;
   for (ProtoInfo *p = a->protos; p; p = p->next) {
     const char *prev_module = a->current_module_path;
     const char *prev_proto = a->current_proto;
@@ -6013,18 +6088,21 @@ static int analyze_prototype_field_initializers(Analyzer *a) {
     for (ProtoField *f = p->fields; f; f = f->next) {
       if (f->is_const && !is_scalar_type_name(f->type)) {
         set_diag(a->diag, a->file, f->line, f->col, "E3001", "TYPE_MISMATCH_ASSIGNMENT", "const requires a scalar fundamental type");
-        return 0;
+        had_error = 1;
+        continue;
       }
       if (f->is_const && !f->init_expr) {
         set_diag(a->diag, a->file, f->line, f->col, "E3151", "CONST_FIELD_MISSING_INITIALIZER",
                  "const field requires an explicit initializer");
-        return 0;
+        had_error = 1;
+        continue;
       }
       if (!f->init_expr) continue;
       if (expr_contains_self_ref(f->init_expr)) {
         set_diag(a->diag, a->file, f->init_expr->line, f->init_expr->col, "E3150", "INVALID_FIELD_INITIALIZER",
                  "field initializer cannot reference 'self'");
-        return 0;
+        had_error = 1;
+        continue;
       }
       Scope s;
       memset(&s, 0, sizeof(s));
@@ -6033,7 +6111,8 @@ static int analyze_prototype_field_initializers(Analyzer *a) {
       if (!ok) {
         free(rhs);
         free_syms(s.syms);
-        return 0;
+        had_error = 1;
+        continue;
       }
       const char *lhs = f->type ? f->type : "unknown";
       if (rhs && strcmp(lhs, rhs) != 0 && strcmp(rhs, "unknown") != 0) {
@@ -6050,7 +6129,8 @@ static int analyze_prototype_field_initializers(Analyzer *a) {
           set_diag(a->diag, a->file, f->line, f->col, "E3001", "TYPE_MISMATCH_ASSIGNMENT", msg);
           free(rhs);
           free_syms(s.syms);
-          return 0;
+          had_error = 1;
+          continue;
         }
       }
       free(rhs);
@@ -6059,7 +6139,7 @@ static int analyze_prototype_field_initializers(Analyzer *a) {
     a->current_module_path = prev_module;
     a->current_proto = prev_proto;
   }
-  return 1;
+  return had_error ? 0 : 1;
 }
 
 static int analyze_stmt(Analyzer *a, AstNode *st, Scope *scope);
@@ -6068,37 +6148,45 @@ static int analyze_block(Analyzer *a, AstNode *blk, Scope *parent) {
   Scope local;
   memset(&local, 0, sizeof(local));
   local.parent = parent;
+  int had_error = 0;
   for (size_t i = 0; i < blk->child_len; i++) {
     if (!analyze_stmt(a, blk->children[i], &local)) {
-      free_syms(local.syms);
-      return 0;
+      had_error = 1;
     }
   }
   free_syms(local.syms);
-  return 1;
+  return had_error ? 0 : 1;
 }
 
 static int analyze_switch_termination(Analyzer *a, AstNode *sw) {
+  int had_error = 0;
   for (size_t i = 0; i < sw->child_len; i++) {
     AstNode *c = sw->children[i];
     if (strcmp(c->kind, "CaseClause") != 0 && strcmp(c->kind, "DefaultClause") != 0) continue;
     size_t start = (strcmp(c->kind, "CaseClause") == 0 && c->child_len > 0) ? 1 : 0;
     if (c->child_len <= start) {
       set_diag(a->diag, a->file, c->line, c->col, "E3003", "SWITCH_CASE_NO_TERMINATION", "case without explicit termination");
-      return 0;
+      had_error = 1;
+      continue;
     }
     AstNode *last = c->children[c->child_len - 1];
     if (!ast_is_terminator(last)) {
       set_diag(a->diag, a->file, c->line, c->col, "E3003", "SWITCH_CASE_NO_TERMINATION", "case without explicit termination");
-      return 0;
+      had_error = 1;
     }
   }
-  return 1;
+  return had_error ? 0 : 1;
 }
 
 static int analyze_stmt(Analyzer *a, AstNode *st, Scope *scope) {
   if (strcmp(st->kind, "Block") == 0) return analyze_block(a, st, scope);
   if (strcmp(st->kind, "VarDecl") == 0) {
+    if (scope_has_local(scope, st->text ? st->text : "")) {
+      char msg[256];
+      snprintf(msg, sizeof(msg), "redeclaration of local '%s' in the same scope", st->text ? st->text : "");
+      set_diag(a->diag, a->file, st->line, st->col, "E3131", "REDECLARATION", msg);
+      return 0;
+    }
     int is_const = (st->flags & AST_FLAG_CONST) != 0;
     AstNode *tn = ast_child_kind(st, "Type");
     AstNode *init = ast_last_child(st);
@@ -6304,15 +6392,13 @@ static int analyze_stmt(Analyzer *a, AstNode *st, Scope *scope) {
     AstNode *else_st = (st->child_len > 2) ? st->children[2] : NULL;
     int ok = 1;
     char *ct = cond ? infer_expr_type(a, cond, scope, &ok) : NULL;
+    int had_error = 0;
     if (!ok) {
-      free(ct);
-      return 0;
-    }
-    if (ct && strcmp(ct, "bool") != 0) {
+      had_error = 1;
+    } else if (ct && strcmp(ct, "bool") != 0) {
       set_diag(a->diag, a->file, cond ? cond->line : st->line, cond ? cond->col : st->col,
                "E3001", "TYPE_MISMATCH_ASSIGNMENT", "condition must be bool");
-      free(ct);
-      return 0;
+      had_error = 1;
     }
     free(ct);
     if (then_st) {
@@ -6320,8 +6406,7 @@ static int analyze_stmt(Analyzer *a, AstNode *st, Scope *scope) {
       memset(&s_then, 0, sizeof(s_then));
       s_then.parent = scope;
       if (!analyze_stmt(a, then_st, &s_then)) {
-        free_syms(s_then.syms);
-        return 0;
+        had_error = 1;
       }
       free_syms(s_then.syms);
     }
@@ -6330,27 +6415,24 @@ static int analyze_stmt(Analyzer *a, AstNode *st, Scope *scope) {
       memset(&s_else, 0, sizeof(s_else));
       s_else.parent = scope;
       if (!analyze_stmt(a, else_st, &s_else)) {
-        free_syms(s_else.syms);
-        return 0;
+        had_error = 1;
       }
       free_syms(s_else.syms);
     }
-    return 1;
+    return had_error ? 0 : 1;
   }
   if (strcmp(st->kind, "WhileStmt") == 0) {
     AstNode *cond = (st->child_len > 0) ? st->children[0] : NULL;
     AstNode *body = (st->child_len > 1) ? st->children[1] : NULL;
     int ok = 1;
     char *ct = cond ? infer_expr_type(a, cond, scope, &ok) : NULL;
+    int had_error = 0;
     if (!ok) {
-      free(ct);
-      return 0;
-    }
-    if (ct && strcmp(ct, "bool") != 0) {
+      had_error = 1;
+    } else if (ct && strcmp(ct, "bool") != 0) {
       set_diag(a->diag, a->file, cond ? cond->line : st->line, cond ? cond->col : st->col,
                "E3001", "TYPE_MISMATCH_ASSIGNMENT", "condition must be bool");
-      free(ct);
-      return 0;
+      had_error = 1;
     }
     free(ct);
     if (body) {
@@ -6359,24 +6441,22 @@ static int analyze_stmt(Analyzer *a, AstNode *st, Scope *scope) {
       s_body.parent = scope;
       int okb = analyze_stmt(a, body, &s_body);
       free_syms(s_body.syms);
-      return okb;
+      if (!okb) had_error = 1;
     }
-    return 1;
+    return had_error ? 0 : 1;
   }
   if (strcmp(st->kind, "DoWhileStmt") == 0) {
     AstNode *cond = (st->child_len > 0) ? st->children[0] : NULL;
     AstNode *body = (st->child_len > 1) ? st->children[1] : NULL;
     int ok = 1;
     char *ct = cond ? infer_expr_type(a, cond, scope, &ok) : NULL;
+    int had_error = 0;
     if (!ok) {
-      free(ct);
-      return 0;
-    }
-    if (ct && strcmp(ct, "bool") != 0) {
+      had_error = 1;
+    } else if (ct && strcmp(ct, "bool") != 0) {
       set_diag(a->diag, a->file, cond ? cond->line : st->line, cond ? cond->col : st->col,
                "E3001", "TYPE_MISMATCH_ASSIGNMENT", "condition must be bool");
-      free(ct);
-      return 0;
+      had_error = 1;
     }
     free(ct);
     if (body) {
@@ -6385,9 +6465,9 @@ static int analyze_stmt(Analyzer *a, AstNode *st, Scope *scope) {
       s_body.parent = scope;
       int okb = analyze_stmt(a, body, &s_body);
       free_syms(s_body.syms);
-      return okb;
+      if (!okb) had_error = 1;
     }
-    return 1;
+    return had_error ? 0 : 1;
   }
   if (strcmp(st->kind, "ReturnStmt") == 0 && st->child_len > 0) {
     AstNode *expr = st->children[0];
@@ -6417,38 +6497,48 @@ static int analyze_stmt(Analyzer *a, AstNode *st, Scope *scope) {
       Scope s2;
       memset(&s2, 0, sizeof(s2));
       s2.parent = scope;
+      int had_error = 0;
       for (size_t i = 0; i < st->child_len; i++) {
         AstNode *c = st->children[i];
         if (strcmp(c->kind, "IterVar") == 0) {
           AstNode *tn = ast_child_kind(c, "Type");
           char *tt = canon_type(tn ? tn->text : "unknown");
+          if (scope_has_local(&s2, c->text ? c->text : "")) {
+            char msg[256];
+            snprintf(msg, sizeof(msg), "redeclaration of local '%s' in the same scope", c->text ? c->text : "");
+            set_diag(a->diag, a->file, c->line, c->col, "E3131", "REDECLARATION", msg);
+            free(tt);
+            had_error = 1;
+            continue;
+          }
           int okd = scope_define(&s2, c->text ? c->text : "", tt ? tt : "unknown", -1, 1);
           free(tt);
           if (!okd) {
-            free_syms(s2.syms);
-            return 0;
+            had_error = 1;
+            continue;
           }
         } else if (strcmp(c->kind, "Block") == 0) {
           int ok = analyze_block(a, c, &s2);
           free_syms(s2.syms);
-          return ok;
+          if (!ok) had_error = 1;
+          return had_error ? 0 : 1;
         } else {
           int ok = 1;
           char *t = infer_expr_type(a, c, &s2, &ok);
           free(t);
           if (!ok) {
-            free_syms(s2.syms);
-            return 0;
+            had_error = 1;
           }
         }
       }
       free_syms(s2.syms);
-      return 1;
+      return had_error ? 0 : 1;
     }
 
     Scope s2;
     memset(&s2, 0, sizeof(s2));
     s2.parent = scope;
+    int had_error = 0;
     if (st->child_len == 0) return 1;
     AstNode *body = st->children[st->child_len - 1];
     size_t parts = st->child_len - 1;
@@ -6456,8 +6546,7 @@ static int analyze_stmt(Analyzer *a, AstNode *st, Scope *scope) {
       AstNode *c = st->children[i];
       if (strcmp(c->kind, "VarDecl") == 0 || strcmp(c->kind, "AssignStmt") == 0) {
         if (!analyze_stmt(a, c, &s2)) {
-          free_syms(s2.syms);
-          return 0;
+          had_error = 1;
         }
         continue;
       }
@@ -6465,49 +6554,50 @@ static int analyze_stmt(Analyzer *a, AstNode *st, Scope *scope) {
       char *t = infer_expr_type(a, c, &s2, &ok);
       free(t);
       if (!ok) {
-        free_syms(s2.syms);
-        return 0;
+        had_error = 1;
+        continue;
       }
       if (i == 1 || (parts == 1 && i == 0)) {
         char *ct = infer_expr_type(a, c, &s2, &ok);
         if (ct && strcmp(ct, "bool") != 0) {
           set_diag(a->diag, a->file, c->line, c->col, "E3001", "TYPE_MISMATCH_ASSIGNMENT", "condition must be bool");
           free(ct);
-          free_syms(s2.syms);
-          return 0;
+          had_error = 1;
+          continue;
         }
         free(ct);
       }
     }
     if (body && !analyze_stmt(a, body, &s2)) {
-      free_syms(s2.syms);
-      return 0;
+      had_error = 1;
     }
     free_syms(s2.syms);
-    return 1;
+    return had_error ? 0 : 1;
   }
   if (strcmp(st->kind, "SwitchStmt") == 0) {
     AstNode *sw_expr = (st->child_len > 0) ? st->children[0] : NULL;
     int ok = 1;
     char *t = sw_expr ? infer_expr_type(a, sw_expr, scope, &ok) : NULL;
     free(t);
-    if (!ok) return 0;
-    if (!analyze_switch_termination(a, st)) return 0;
+    int had_error = 0;
+    if (!ok) had_error = 1;
+    if (!analyze_switch_termination(a, st)) had_error = 1;
     for (size_t i = 0; i < st->child_len; i++) {
       AstNode *c = st->children[i];
       if (strcmp(c->kind, "CaseClause") != 0 && strcmp(c->kind, "DefaultClause") != 0) continue;
       size_t start = (strcmp(c->kind, "CaseClause") == 0 && c->child_len > 0) ? 1 : 0;
       for (size_t j = start; j < c->child_len; j++) {
-        if (!analyze_stmt(a, c->children[j], scope)) return 0;
+        if (!analyze_stmt(a, c->children[j], scope)) had_error = 1;
       }
     }
-    return 1;
+    return had_error ? 0 : 1;
   }
   if (strcmp(st->kind, "TryStmt") == 0) {
+    int had_error = 0;
     for (size_t i = 0; i < st->child_len; i++) {
       AstNode *c = st->children[i];
       if (strcmp(c->kind, "Block") == 0) {
-        if (!analyze_block(a, c, scope)) return 0;
+        if (!analyze_block(a, c, scope)) had_error = 1;
       } else if (strcmp(c->kind, "CatchClause") == 0) {
         Scope s2;
         memset(&s2, 0, sizeof(s2));
@@ -6518,24 +6608,35 @@ static int analyze_stmt(Analyzer *a, AstNode *st, Scope *scope) {
           set_diag(a->diag, a->file, c->line, c->col, "E3001", "TYPE_MISMATCH_ASSIGNMENT", "catch type must derive from Exception");
           free(tt);
           free_syms(s2.syms);
-          return 0;
+          had_error = 1;
+          continue;
+        }
+        if (scope_has_local(&s2, c->text ? c->text : "")) {
+          char msg[256];
+          snprintf(msg, sizeof(msg), "redeclaration of local '%s' in the same scope", c->text ? c->text : "");
+          set_diag(a->diag, a->file, c->line, c->col, "E3131", "REDECLARATION", msg);
+          free(tt);
+          free_syms(s2.syms);
+          had_error = 1;
+          continue;
         }
         if (!scope_define(&s2, c->text ? c->text : "", tt ? tt : "unknown", -1, 1)) {
           free(tt);
           free_syms(s2.syms);
-          return 0;
+          had_error = 1;
+          continue;
         }
         free(tt);
         AstNode *blk = ast_child_kind(c, "Block");
         int ok = blk ? analyze_block(a, blk, &s2) : 1;
         free_syms(s2.syms);
-        if (!ok) return 0;
+        if (!ok) had_error = 1;
       } else if (strcmp(c->kind, "FinallyClause") == 0) {
         AstNode *blk = ast_child_kind(c, "Block");
-        if (blk && !analyze_block(a, blk, scope)) return 0;
+        if (blk && !analyze_block(a, blk, scope)) had_error = 1;
       }
     }
-    return 1;
+    return had_error ? 0 : 1;
   }
   return 1;
 }
@@ -6548,25 +6649,35 @@ static int analyze_function(Analyzer *a, AstNode *fn) {
   Scope root;
   memset(&root, 0, sizeof(root));
   root.parent = NULL;
+  int had_error = 0;
   for (size_t i = 0; i < fn->child_len; i++) {
     AstNode *c = fn->children[i];
     if (strcmp(c->kind, "Param") != 0) continue;
     AstNode *tn = ast_child_kind(c, "Type");
     int is_variadic = ast_child_kind(c, "Variadic") != NULL;
     char *tt = canon_variadic_param_type(tn ? tn->text : "unknown", is_variadic);
+    if (scope_has_local(&root, c->text ? c->text : "")) {
+      char msg[256];
+      snprintf(msg, sizeof(msg), "redeclaration of local '%s' in the same scope", c->text ? c->text : "");
+      set_diag(a->diag, a->file, c->line, c->col, "E3131", "REDECLARATION", msg);
+      free(tt);
+      had_error = 1;
+      continue;
+    }
     if (!tt || !scope_define(&root, c->text ? c->text : "", tt, -1, 1)) {
       free(tt);
-      free_syms(root.syms);
-      return 0;
+      had_error = 1;
+      continue;
     }
     free(tt);
   }
   AstNode *blk = ast_child_kind(fn, "Block");
   int ok = blk ? analyze_block(a, blk, &root) : 1;
+  if (!ok) had_error = 1;
   free_syms(root.syms);
   a->current_module_path = prev_module;
   a->current_proto = prev_proto;
-  return ok;
+  return had_error ? 0 : 1;
 }
 
 static int analyze_method(Analyzer *a, AstNode *fn, const char *self_type) {
@@ -6578,6 +6689,7 @@ static int analyze_method(Analyzer *a, AstNode *fn, const char *self_type) {
   Scope root;
   memset(&root, 0, sizeof(root));
   root.parent = NULL;
+  int had_error = 0;
   if (self_type) {
     char *st = canon_type(self_type);
     if (!st || !scope_define_alias(&root, "self", st, -1, 1, 1, 0)) {
@@ -6593,19 +6705,28 @@ static int analyze_method(Analyzer *a, AstNode *fn, const char *self_type) {
     AstNode *tn = ast_child_kind(c, "Type");
     int is_variadic = ast_child_kind(c, "Variadic") != NULL;
     char *tt = canon_variadic_param_type(tn ? tn->text : "unknown", is_variadic);
+    if (scope_has_local(&root, c->text ? c->text : "")) {
+      char msg[256];
+      snprintf(msg, sizeof(msg), "redeclaration of local '%s' in the same scope", c->text ? c->text : "");
+      set_diag(a->diag, a->file, c->line, c->col, "E3131", "REDECLARATION", msg);
+      free(tt);
+      had_error = 1;
+      continue;
+    }
     if (!tt || !scope_define(&root, c->text ? c->text : "", tt, -1, 1)) {
       free(tt);
-      free_syms(root.syms);
-      return 0;
+      had_error = 1;
+      continue;
     }
     free(tt);
   }
   AstNode *blk = ast_child_kind(fn, "Block");
   int ok = blk ? analyze_block(a, blk, &root) : 1;
+  if (!ok) had_error = 1;
   free_syms(root.syms);
   a->current_module_path = prev_module;
   a->current_proto = prev_proto;
-  return ok;
+  return had_error ? 0 : 1;
 }
 
 static int parse_file_internal(const char *file, PsDiag *out_diag, AstNode **out_root) {
@@ -6662,6 +6783,100 @@ int ps_parse_file_ast(const char *file, PsDiag *out_diag, FILE *out) {
   fputc('\n', out);
   ast_free(root);
   return 0;
+}
+
+static void analyzer_cleanup(Analyzer *a) {
+  free_fns(a->fns);
+  free_imports(a->imports);
+  free_namespaces(a->namespaces);
+  free_user_modules(a->user_modules);
+  free_registry(a->registry);
+  free_protos(a->protos);
+  free_groups(&a->groups);
+  free_groups(&a->groups);
+}
+
+static int frontend_analyze_program(const char *file, PsDiag *out_diag, AstNode **out_root, Analyzer *out_a) {
+  AstNode *root = NULL;
+  int rc = parse_file_internal(file, out_diag, &root);
+  if (rc != 0) {
+    ast_free(root);
+    return rc;
+  }
+
+  memset(out_a, 0, sizeof(*out_a));
+  out_a->file = file;
+  out_a->diag = out_diag;
+  int had_error = 0;
+
+  if (!collect_imports(out_a, root)) {
+    if (out_diag && out_diag->code && strcmp(out_diag->code, "E0002") == 0) {
+      ast_free(root);
+      analyzer_cleanup(out_a);
+      return 2;
+    }
+    had_error = 1;
+  }
+  if (!collect_prototypes(out_a, root)) {
+    if (out_diag && out_diag->code && strcmp(out_diag->code, "E0002") == 0) {
+      ast_free(root);
+      analyzer_cleanup(out_a);
+      return 2;
+    }
+    had_error = 1;
+  }
+  if (!collect_groups(out_a, root)) {
+    if (out_diag && out_diag->code && strcmp(out_diag->code, "E0002") == 0) {
+      ast_free(root);
+      analyzer_cleanup(out_a);
+      return 2;
+    }
+    had_error = 1;
+  }
+  if (!analyze_prototype_field_initializers(out_a)) {
+    had_error = 1;
+  }
+  for (size_t i = 0; i < root->child_len; i++) {
+    AstNode *fn = root->children[i];
+    if (strcmp(fn->kind, "FunctionDecl") == 0) {
+      if ((fn->flags & AST_FLAG_INTERNAL) != 0) {
+        set_diag(out_diag, file, fn->line, fn->col, "E3200", "INVALID_VISIBILITY_LOCATION",
+                 "keyword 'internal' is only allowed in prototype members");
+        had_error = 1;
+        continue;
+      }
+      if (!add_fn(out_a, fn)) {
+        set_diag(out_diag, file, 1, 1, "E0002", "INTERNAL_ERROR", "analyzer allocation failure");
+        ast_free(root);
+        analyzer_cleanup(out_a);
+        return 2;
+      }
+    }
+  }
+
+  for (size_t i = 0; i < root->child_len; i++) {
+    AstNode *fn = root->children[i];
+    if (strcmp(fn->kind, "FunctionDecl") != 0) continue;
+    if (!analyze_function(out_a, fn)) {
+      had_error = 1;
+    }
+  }
+
+  for (size_t i = 0; i < root->child_len; i++) {
+    AstNode *pd = root->children[i];
+    if (strcmp(pd->kind, "PrototypeDecl") != 0) continue;
+    const char *proto_name = pd->text ? pd->text : "";
+    for (size_t j = 0; j < pd->child_len; j++) {
+      AstNode *m = pd->children[j];
+      if (strcmp(m->kind, "FunctionDecl") != 0) continue;
+      if (!analyze_method(out_a, m, proto_name)) {
+        had_error = 1;
+      }
+    }
+  }
+
+  *out_root = root;
+  return had_error ? 1 : 0;
 }
 
 typedef struct {
@@ -11107,128 +11322,10 @@ int ps_emit_ir_json(const char *file, PsDiag *out_diag, FILE *out) {
 
 int ps_check_file_static(const char *file, PsDiag *out_diag) {
   AstNode *root = NULL;
-  int rc = parse_file_internal(file, out_diag, &root);
-  if (rc != 0) {
-    ast_free(root);
-    return rc;
-  }
-
   Analyzer a;
-  memset(&a, 0, sizeof(a));
-  a.file = file;
-  a.diag = out_diag;
-
-  if (!collect_imports(&a, root)) {
-    ast_free(root);
-    free_fns(a.fns);
-    free_imports(a.imports);
-    free_namespaces(a.namespaces);
-    free_user_modules(a.user_modules);
-    free_registry(a.registry);
-    return 1;
-  }
-  if (!collect_prototypes(&a, root)) {
-    ast_free(root);
-    free_fns(a.fns);
-    free_imports(a.imports);
-    free_namespaces(a.namespaces);
-    free_user_modules(a.user_modules);
-    free_registry(a.registry);
-    free_protos(a.protos);
-    free_groups(&a.groups);
-    return 1;
-  }
-  if (!collect_groups(&a, root)) {
-    ast_free(root);
-    free_fns(a.fns);
-    free_imports(a.imports);
-    free_namespaces(a.namespaces);
-    free_user_modules(a.user_modules);
-    free_registry(a.registry);
-    free_protos(a.protos);
-    free_groups(&a.groups);
-    free_groups(&a.groups);
-    return 1;
-  }
-  if (!analyze_prototype_field_initializers(&a)) {
-    ast_free(root);
-    free_fns(a.fns);
-    free_imports(a.imports);
-    free_namespaces(a.namespaces);
-    free_user_modules(a.user_modules);
-    free_registry(a.registry);
-    free_protos(a.protos);
-    free_groups(&a.groups);
-    free_groups(&a.groups);
-    return 1;
-  }
-
-  for (size_t i = 0; i < root->child_len; i++) {
-    AstNode *fn = root->children[i];
-    if (strcmp(fn->kind, "FunctionDecl") == 0) {
-      if ((fn->flags & AST_FLAG_INTERNAL) != 0) {
-        set_diag(out_diag, file, fn->line, fn->col, "E3200", "INVALID_VISIBILITY_LOCATION",
-                 "keyword 'internal' is only allowed in prototype members");
-        ast_free(root);
-        free_fns(a.fns);
-        free_imports(a.imports);
-        free_namespaces(a.namespaces);
-        free_user_modules(a.user_modules);
-        free_registry(a.registry);
-        free_protos(a.protos);
-        free_groups(&a.groups);
-        free_groups(&a.groups);
-        return 1;
-      }
-      if (!add_fn(&a, fn)) {
-        ast_free(root);
-        free_fns(a.fns);
-        free_protos(a.protos);
-        free_groups(&a.groups);
-        set_diag(out_diag, file, 1, 1, "E0002", "INTERNAL_ERROR", "analyzer allocation failure");
-        return 2;
-      }
-    }
-  }
-
-  for (size_t i = 0; i < root->child_len; i++) {
-    AstNode *fn = root->children[i];
-    if (strcmp(fn->kind, "FunctionDecl") != 0) continue;
-    if (!analyze_function(&a, fn)) {
-      ast_free(root);
-      free_fns(a.fns);
-      free_protos(a.protos);
-      free_groups(&a.groups);
-      return 1;
-    }
-  }
-
-  for (size_t i = 0; i < root->child_len; i++) {
-    AstNode *pd = root->children[i];
-    if (strcmp(pd->kind, "PrototypeDecl") != 0) continue;
-    const char *proto_name = pd->text ? pd->text : "";
-    for (size_t j = 0; j < pd->child_len; j++) {
-      AstNode *m = pd->children[j];
-      if (strcmp(m->kind, "FunctionDecl") != 0) continue;
-      if (!analyze_method(&a, m, proto_name)) {
-        ast_free(root);
-        free_fns(a.fns);
-        free_protos(a.protos);
-        free_groups(&a.groups);
-        free_user_modules(a.user_modules);
-        return 1;
-      }
-    }
-  }
-
+  int rc = frontend_analyze_program(file, out_diag, &root, &a);
+  if (rc != 0) return rc;
   ast_free(root);
-  free_fns(a.fns);
-  free_imports(a.imports);
-  free_namespaces(a.namespaces);
-  free_user_modules(a.user_modules);
-  free_registry(a.registry);
-  free_protos(a.protos);
-  free_groups(&a.groups);
-  free_groups(&a.groups);
+  analyzer_cleanup(&a);
   return 0;
 }

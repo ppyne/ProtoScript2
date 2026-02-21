@@ -63,27 +63,58 @@ const char *ps_diag_display_file(const char *file, char *buf, size_t buf_sz) {
 
 void ps_diag_write(FILE *out, const char *fallback_file, const PsDiag *d) {
   if (!out) return;
-  char mapped[128];
-  const char *raw = (d && d->file) ? d->file : fallback_file;
-  const char *file = ps_diag_display_file(raw, mapped, sizeof(mapped));
-  int line = (d && d->line > 0) ? d->line : 1;
-  int col = (d && d->col > 0) ? d->col : 1;
-  const char *code = (d && d->code) ? d->code : NULL;
-  const char *name = (d && d->name) ? d->name : (d && d->category ? d->category : NULL);
-  const char *msg = (d && d->message[0]) ? d->message : "unknown error";
-  if (code && code[0] && name && name[0]) {
-    fprintf(out, "%s:%d:%d %s %s: %s\n", file ? file : "<unknown>", line, col, code, name, msg);
-  } else if (name && name[0]) {
-    fprintf(out, "%s:%d:%d %s: %s\n", file ? file : "<unknown>", line, col, name, msg);
-  } else if (code && code[0]) {
-    fprintf(out, "%s:%d:%d %s: %s\n", file ? file : "<unknown>", line, col, code, msg);
-  } else {
-    fprintf(out, "%s:%d:%d Error: %s\n", file ? file : "<unknown>", line, col, msg);
+  int count = (d && d->count > 0) ? d->count : 0;
+  if (count > PS_DIAG_MAX_ITEMS) count = PS_DIAG_MAX_ITEMS;
+  if (count == 0) {
+    char mapped[128];
+    const char *raw = (d && d->file) ? d->file : fallback_file;
+    const char *file = ps_diag_display_file(raw, mapped, sizeof(mapped));
+    int line = (d && d->line > 0) ? d->line : 1;
+    int col = (d && d->col > 0) ? d->col : 1;
+    const char *code = (d && d->code) ? d->code : NULL;
+    const char *name = (d && d->name) ? d->name : (d && d->category ? d->category : NULL);
+    const char *msg = (d && d->message[0]) ? d->message : "unknown error";
+    if (code && code[0] && name && name[0]) {
+      fprintf(out, "%s:%d:%d %s %s: %s\n", file ? file : "<unknown>", line, col, code, name, msg);
+    } else if (name && name[0]) {
+      fprintf(out, "%s:%d:%d %s: %s\n", file ? file : "<unknown>", line, col, name, msg);
+    } else if (code && code[0]) {
+      fprintf(out, "%s:%d:%d %s: %s\n", file ? file : "<unknown>", line, col, code, msg);
+    } else {
+      fprintf(out, "%s:%d:%d Error: %s\n", file ? file : "<unknown>", line, col, msg);
+    }
+    if (d && d->suggestion_count == 1 && d->suggestions[0][0]) {
+      fprintf(out, "Did you mean '%s'?\n", d->suggestions[0]);
+    } else if (d && d->suggestion_count >= 2 && d->suggestions[0][0] && d->suggestions[1][0]) {
+      fprintf(out, "Did you mean '%s' or '%s'?\n", d->suggestions[0], d->suggestions[1]);
+    }
+    return;
   }
-  if (d && d->suggestion_count == 1 && d->suggestions[0][0]) {
-    fprintf(out, "Did you mean '%s'?\n", d->suggestions[0]);
-  } else if (d && d->suggestion_count >= 2 && d->suggestions[0][0] && d->suggestions[1][0]) {
-    fprintf(out, "Did you mean '%s' or '%s'?\n", d->suggestions[0], d->suggestions[1]);
+
+  for (int i = 0; i < count; i++) {
+    const PsDiagItem *it = &d->items[i];
+    char mapped[128];
+    const char *raw = it->file ? it->file : fallback_file;
+    const char *file = ps_diag_display_file(raw, mapped, sizeof(mapped));
+    int line = it->line > 0 ? it->line : 1;
+    int col = it->col > 0 ? it->col : 1;
+    const char *code = it->code;
+    const char *name = it->name ? it->name : it->category;
+    const char *msg = it->message[0] ? it->message : "unknown error";
+    if (code && code[0] && name && name[0]) {
+      fprintf(out, "%s:%d:%d %s %s: %s\n", file ? file : "<unknown>", line, col, code, name, msg);
+    } else if (name && name[0]) {
+      fprintf(out, "%s:%d:%d %s: %s\n", file ? file : "<unknown>", line, col, name, msg);
+    } else if (code && code[0]) {
+      fprintf(out, "%s:%d:%d %s: %s\n", file ? file : "<unknown>", line, col, code, msg);
+    } else {
+      fprintf(out, "%s:%d:%d Error: %s\n", file ? file : "<unknown>", line, col, msg);
+    }
+    if (it->suggestion_count == 1 && it->suggestions[0][0]) {
+      fprintf(out, "Did you mean '%s'?\n", it->suggestions[0]);
+    } else if (it->suggestion_count >= 2 && it->suggestions[0][0] && it->suggestions[1][0]) {
+      fprintf(out, "Did you mean '%s' or '%s'?\n", it->suggestions[0], it->suggestions[1]);
+    }
   }
 }
 

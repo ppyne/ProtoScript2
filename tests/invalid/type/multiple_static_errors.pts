@@ -1,0 +1,8 @@
+import Io;
+
+function main(): void {
+    string t = Io.tempPath();
+    TextFile t = Io.openText(t, "w");
+    int x = "oops";
+    doesNotExist();
+}

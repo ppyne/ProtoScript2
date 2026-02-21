@@ -33,6 +33,25 @@ function main() : void {
 invalid/type/type_mismatch_assignment.pts:3:5 E3001 TYPE_MISMATCH_ASSIGNMENT: cannot assign string to int
 ```
 
+## Redeclaration in same scope
+- Context: static name binding / lexical scope
+- Spec §: 15.2
+- Message template: `<file>:<line>:<column> E3131 REDECLARATION: redeclaration of local '<name>' in the same scope`
+- Code: E3131
+- Example input:
+```c
+import Io;
+
+function main(): void {
+    string t = Io.tempPath();
+    TextFile t = Io.openText(t, "w");
+}
+```
+- Expected output exact:
+```
+invalid/type/redeclaration_same_scope.pts:5:14 E3131 REDECLARATION: redeclaration of local 't' in the same scope
+```
+
 ## Import path not found
 - Context: module resolution (static)
 - Spec §: 10.2

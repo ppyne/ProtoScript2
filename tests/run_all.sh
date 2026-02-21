@@ -45,6 +45,10 @@ echo "-- strict diagnostics (format + suggestions + JS/C parity)"
 "$ROOT_DIR/tests/run_diagnostics_strict.sh"
 echo
 
+echo "-- static diagnostics parity (all invalid static suites, JS ↔ C)"
+"$ROOT_DIR/tests/run_static_diag_parity.sh"
+echo
+
 echo "-- CLI autonomy guard (no delegation in c/ps)"
 "$ROOT_DIR/tests/run_cli_autonomy_guard.sh"
 echo

@@ -1651,6 +1651,19 @@ class Analyzer {
     );
   }
 
+  reportRedeclaration(node, name) {
+    this.addDiag(node, "E3131", "REDECLARATION", `redeclaration of local '${name}' in the same scope`);
+  }
+
+  defineLocal(scope, node, name, type, initialized, knownListLen = null, aliasSelf = false, isConst = false) {
+    if (scope.hasOwn(name)) {
+      this.reportRedeclaration(node, name);
+      return false;
+    }
+    scope.define(name, type, initialized, knownListLen, aliasSelf, isConst);
+    return true;
+  }
+
   collectScopeNames(scope) {
     const out = new Set();
     for (let cur = scope; cur; cur = cur.parent) {
@@ -2472,7 +2485,7 @@ class Analyzer {
     this.withContext(moduleFile, ownerProto, () => {
       const scope = new Scope(null);
       for (const p of fn.params) {
-        scope.define(p.name, canonicalVariadicParamType(p), true);
+        if (!this.defineLocal(scope, p, p.name, canonicalVariadicParamType(p), true)) return;
       }
       this.analyzeBlock(fn.body, scope, fn);
     });
@@ -2484,8 +2497,15 @@ class Analyzer {
     if (!entry) return;
     for (const m of entry.methods.values()) {
       const scope = new Scope(null);
-      scope.define("self", { kind: "NamedType", name: protoName }, true, null, true);
-      for (const p of m.params) scope.define(p.name, canonicalVariadicParamType(p), true);
+      if (!this.defineLocal(scope, m, "self", { kind: "NamedType", name: protoName }, true, null, true)) continue;
+      let paramsOk = true;
+      for (const p of m.params) {
+        if (!this.defineLocal(scope, p, p.name, canonicalVariadicParamType(p), true)) {
+          paramsOk = false;
+          break;
+        }
+      }
+      if (!paramsOk) continue;
       this.withContext(entry.moduleFile || this.file, protoName, () => this.analyzeBlock(m.body, scope, m));
     }
   }
@@ -2498,6 +2518,10 @@ class Analyzer {
   analyzeStmt(stmt, scope, fn) {
     switch (stmt.kind) {
       case "VarDecl": {
+        if (scope.hasOwn(stmt.name)) {
+          this.reportRedeclaration(stmt, stmt.name);
+          break;
+        }
         const isConst = !!stmt.isConst;
         let t = stmt.declaredType;
         let knownListLen = null;
@@ -2557,7 +2581,9 @@ class Analyzer {
         }
         // Variables are implicitly initialized; no uninitialized state is observable.
         const aliasSelf = stmt.init ? this.isSelfAliasExpr(stmt.init, scope) : false;
-        scope.define(stmt.name, t || { kind: "PrimitiveType", name: "void" }, true, knownListLen, aliasSelf, isConst);
+        if (!this.defineLocal(scope, stmt, stmt.name, t || { kind: "PrimitiveType", name: "void" }, true, knownListLen, aliasSelf, isConst)) {
+          break;
+        }
         break;
       }
       case "AssignStmt": {
@@ -2676,7 +2702,7 @@ class Analyzer {
           if (it.startsWith("view<")) elementType = iterType.args[0];
           if (it.startsWith("slice<")) elementType = iterType.args[0];
           if (it.startsWith("map<")) elementType = stmt.forKind === "of" ? iterType.args[1] : iterType.args[0];
-          s2.define(stmt.iterVar.name, stmt.iterVar.declaredType || elementType, true);
+          if (!this.defineLocal(s2, stmt.iterVar, stmt.iterVar.name, stmt.iterVar.declaredType || elementType, true)) break;
           this.analyzeStmt(stmt.body, s2, fn);
         }
         break;
@@ -2703,7 +2729,7 @@ class Analyzer {
         if (!this.isSubtype(c.type, { kind: "NamedType", name: "Exception" })) {
           this.addDiag(c, "E3001", "TYPE_MISMATCH_ASSIGNMENT", "catch type must derive from Exception");
         }
-        cs.define(c.name, c.type, true);
+        if (!this.defineLocal(cs, c, c.name, c.type, true)) break;
         this.analyzeBlock(c.block, cs, fn);
       }
       if (stmt.finallyBlock) this.analyzeBlock(stmt.finallyBlock, scope, fn);
@@ -3413,6 +3439,9 @@ class Scope {
   constructor(parent) {
     this.parent = parent;
     this.syms = new Map();
+  }
+  hasOwn(name) {
+    return this.syms.has(name);
   }
   define(name, type, initialized, knownListLen = null, aliasSelf = false, isConst = false) {
     this.syms.set(name, { type, initialized, knownListLen, aliasSelf, isConst });

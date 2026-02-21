@@ -1,6 +1,4 @@
 function main() : void {
     map<string, int> m = {};
-
-    map<string, int> m = {};
     int x = m["absent"]; // runtime missing key
 }

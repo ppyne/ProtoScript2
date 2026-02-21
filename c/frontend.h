@@ -15,6 +15,24 @@ typedef struct {
   const char *actual_kind;
   char suggestions[3][64];
   int suggestion_count;
+} PsDiagItem;
+
+#define PS_DIAG_MAX_ITEMS 128
+
+typedef struct {
+  const char *file;
+  int line;
+  int col;
+  const char *code;
+  const char *name;
+  const char *category;
+  char message[256];
+  const char *expected_kind;
+  const char *actual_kind;
+  char suggestions[3][64];
+  int suggestion_count;
+  int count;
+  PsDiagItem items[PS_DIAG_MAX_ITEMS];
 } PsDiag;
 
 int ps_parse_file_syntax(const char *file, PsDiag *out_diag);

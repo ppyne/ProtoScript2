@@ -173,6 +173,16 @@ static int run_file(PS_Context *ctx, const char *file, PS_Value *args_list, PS_V
   return rc;
 }
 
+static int static_check_before_run(const char *file) {
+  PsDiag d;
+  int r = ps_check_file_static(file, &d);
+  if (r != 0) {
+    print_diag(stderr, file, &d);
+    return EXIT_FAILURE;
+  }
+  return 0;
+}
+
 static int is_cli_option(const char *arg) {
   return strcmp(arg, "--help") == 0 || strcmp(arg, "--version") == 0 || strcmp(arg, "--trace") == 0 ||
          strcmp(arg, "--trace-ir") == 0 || strcmp(arg, "--time") == 0;
@@ -242,12 +252,17 @@ int main(int argc, char **argv) {
 
   int rc = 0;
   int exit_code = 0;
+  int static_failure = 0;
   PS_Value *ret = NULL;
   if (strcmp(argv[cmd_index], "run") == 0 && (cmd_index + 1) < argc) {
     g_last_run_file = argv[cmd_index + 1];
-    PS_Value *args_list = build_args_list(ctx, argc, argv, 0);
-    rc = run_file(ctx, argv[cmd_index + 1], args_list, &ret);
-    if (args_list) ps_value_release(args_list);
+    rc = static_check_before_run(g_last_run_file);
+    if (rc != 0) static_failure = 1;
+    if (rc == 0) {
+      PS_Value *args_list = build_args_list(ctx, argc, argv, 0);
+      rc = run_file(ctx, argv[cmd_index + 1], args_list, &ret);
+      if (args_list) ps_value_release(args_list);
+    }
   } else if (strcmp(argv[cmd_index], "-e") == 0 && (cmd_index + 1) < argc) {
     char path[256];
     if (!write_temp_source(argv[cmd_index + 1], path, sizeof(path))) {
@@ -255,9 +270,13 @@ int main(int argc, char **argv) {
       rc = 2;
     } else {
       g_last_run_file = path;
-      PS_Value *args_list = build_args_list(ctx, argc, argv, 0);
-      rc = run_file(ctx, path, args_list, &ret);
-      if (args_list) ps_value_release(args_list);
+      rc = static_check_before_run(g_last_run_file);
+      if (rc != 0) static_failure = 1;
+      if (rc == 0) {
+        PS_Value *args_list = build_args_list(ctx, argc, argv, 0);
+        rc = run_file(ctx, path, args_list, &ret);
+        if (args_list) ps_value_release(args_list);
+      }
     }
   } else if (strcmp(argv[cmd_index], "repl") == 0) {
     char line[1024];
@@ -268,6 +287,12 @@ int main(int argc, char **argv) {
       if (strncmp(line, "exit", 4) == 0) break;
       char path[256];
       if (!write_temp_source(line, path, sizeof(path))) break;
+      rc = static_check_before_run(path);
+      if (rc != 0) {
+        static_failure = 1;
+        ps_clear_error(ctx);
+        continue;
+      }
       rc = run_file(ctx, path, NULL, &ret);
       if (rc != 0) {
         const char *code = NULL;
@@ -333,7 +358,8 @@ int main(int argc, char **argv) {
     exit_code = (int)ps_as_int(ret);
   } else if (rc != 0) {
     PS_ErrorCode err = ps_last_error_code(ctx);
-    if (ctx->last_exception) exit_code = 1;
+    if (static_failure) exit_code = EXIT_FAILURE;
+    else if (ctx->last_exception) exit_code = 1;
     else if (err == PS_ERR_INTERNAL || err == PS_ERR_OOM) exit_code = 1;
     else exit_code = 2;
   } else {

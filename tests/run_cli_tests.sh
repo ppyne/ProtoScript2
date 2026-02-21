@@ -137,6 +137,46 @@ expect_error_contains() {
   fi
 }
 
+expect_error_contains_not_contains() {
+  local desc="$1"
+  local must_have="$2"
+  local must_not_have="$3"
+  shift 3
+  set +e
+  "$@" >/tmp/ps_cli_test.out 2>&1
+  local rc=$?
+  set -e
+  if [[ "$rc" -eq 0 ]]; then
+    echo "FAIL $desc"
+    echo "  expected non-zero exit, got 0"
+    echo "  cmd: $*"
+    echo "  output:"
+    sed -n '1,80p' /tmp/ps_cli_test.out
+    fail=$((fail + 1))
+    return
+  fi
+  if ! grep -Fq "$must_have" /tmp/ps_cli_test.out; then
+    echo "FAIL $desc"
+    echo "  missing output: $must_have"
+    echo "  cmd: $*"
+    echo "  output:"
+    sed -n '1,80p' /tmp/ps_cli_test.out
+    fail=$((fail + 1))
+    return
+  fi
+  if grep -Fq "$must_not_have" /tmp/ps_cli_test.out; then
+    echo "FAIL $desc"
+    echo "  unexpected output present: $must_not_have"
+    echo "  cmd: $*"
+    echo "  output:"
+    sed -n '1,80p' /tmp/ps_cli_test.out
+    fail=$((fail + 1))
+    return
+  fi
+  echo "PASS $desc"
+  pass=$((pass + 1))
+}
+
 expect_no_output() {
   local desc="$1"
   shift
@@ -163,6 +203,36 @@ expect_no_output() {
   else
     echo "PASS $desc"
     pass=$((pass + 1))
+  fi
+}
+
+expect_same_static_diag_check_run() {
+  local desc="$1"
+  local src="$2"
+  set +e
+  "$PS" check "$src" >/tmp/ps_cli_check.out 2>&1
+  local rc_check=$?
+  "$PS" run "$src" >/tmp/ps_cli_run.out 2>&1
+  local rc_run=$?
+  set -e
+  if [[ "$rc_check" -eq 0 || "$rc_run" -eq 0 ]]; then
+    echo "FAIL $desc"
+    echo "  expected non-zero for both check and run"
+    echo "  check rc=$rc_check run rc=$rc_run"
+    fail=$((fail + 1))
+    return
+  fi
+  if cmp -s /tmp/ps_cli_check.out /tmp/ps_cli_run.out; then
+    echo "PASS $desc"
+    pass=$((pass + 1))
+  else
+    echo "FAIL $desc"
+    echo "  check and run diagnostics differ"
+    echo "  check output:"
+    sed -n '1,80p' /tmp/ps_cli_check.out
+    echo "  run output:"
+    sed -n '1,80p' /tmp/ps_cli_run.out
+    fail=$((fail + 1))
   fi
 }
 
@@ -235,7 +305,33 @@ expect_output_contains "run manual ex021" "2" "$PS" run "$ROOT_DIR/tests/cli/man
 expect_output_contains "run manual ex024" "L0" "$PS" run "$ROOT_DIR/tests/cli/manual_ex024.pts"
 expect_output_contains "run manual ex007" "json null" "$PS" run "$ROOT_DIR/tests/cli/manual_ex007.pts"
 expect_exit "run exit code" 100 "$PS" run "$ROOT_DIR/tests/cli/exit_code.pts"
-expect_exit "run static error exit" 2 "$PS" run "$ROOT_DIR/tests/invalid/type/uninitialized_read_call_arg.pts"
+expect_exit "run static error exit" 1 "$PS" run "$ROOT_DIR/tests/invalid/type/type_mismatch_assignment.pts"
+expect_error_contains_not_contains \
+  "run static redeclaration guard (no runtime)" \
+  "E3131 REDECLARATION" \
+  "R1011 UNHANDLED_EXCEPTION" \
+  "$PS" run "$ROOT_DIR/tests/invalid/type/redeclaration_same_scope.pts"
+expect_same_static_diag_check_run \
+  "run/check static diag parity redeclaration" \
+  "$ROOT_DIR/tests/invalid/type/redeclaration_same_scope.pts"
+expect_error_contains_not_contains \
+  "run multiple static errors guard (no runtime)" \
+  "E3131 REDECLARATION" \
+  "R1011 UNHANDLED_EXCEPTION" \
+  "$PS" run "$ROOT_DIR/tests/invalid/multiple_static_errors.pts"
+expect_same_static_diag_check_run \
+  "run/check static diag parity multi-error-first" \
+  "$ROOT_DIR/tests/invalid/multiple_static_errors.pts"
+expect_error_contains_not_contains \
+  "run --trace static error no runtime trace" \
+  "E3131 REDECLARATION" \
+  "[trace]" \
+  "$PS" --trace run "$ROOT_DIR/tests/invalid/multiple_static_errors.pts"
+expect_error_contains_not_contains \
+  "run --trace --trace-ir static error no ir trace" \
+  "E3131 REDECLARATION" \
+  "[ir]" \
+  "$PS" --trace --trace-ir run "$ROOT_DIR/tests/invalid/multiple_static_errors.pts"
 expect_exit "argv passthrough" 0 "$PS" run "$ROOT_DIR/tests/cli/args.pts"
 expect_exit "runtime error exit" 1 "$PS" run "$ROOT_DIR/tests/cli/runtime_error.pts"
 expect_error_contains "preprocess mapping" "mapped_file.pts:202:17 R1004 RUNTIME_DIVIDE_BY_ZERO:" "$PS" run "$ROOT_DIR/tests/cli/preprocess_runtime_error.pts"

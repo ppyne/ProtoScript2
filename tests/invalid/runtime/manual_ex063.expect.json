@@ -1,11 +1,12 @@
 {
   "status": "reject-runtime",
-  "error_family": "Rxxx",
+  "error_family": "Rxxxx",
   "error_code": "R1003",
   "category": "RUNTIME_MISSING_KEY",
   "position": {
-    "file": "EX-063.pts",
-    "line": 5,
+    "file": "invalid/runtime/manual_ex063.pts",
+    "line": 3,
     "column": 13
-  }
+  },
+  "expected_output": "invalid/runtime/manual_ex063.pts:3:13 R1003 RUNTIME_MISSING_KEY: missing key. got \"absent\"; expected present key"
 }

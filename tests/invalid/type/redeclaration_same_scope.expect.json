@@ -1,0 +1,12 @@
+{
+  "status": "reject-static",
+  "error_family": "E3xxx",
+  "error_code": "E3131",
+  "category": "REDECLARATION",
+  "position": {
+    "file": "invalid/type/redeclaration_same_scope.pts",
+    "line": 5,
+    "column": 14
+  },
+  "expected_output": "invalid/type/redeclaration_same_scope.pts:5:14 E3131 REDECLARATION: redeclaration of local 't' in the same scope"
+}
