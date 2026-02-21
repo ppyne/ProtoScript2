@@ -1,0 +1,12 @@
+{
+  "status": "reject-runtime",
+  "error_family": "Rxxxx",
+  "error_code": "R1013",
+  "category": "RUNTIME_CLONE_NOT_SUPPORTED",
+  "position": {
+    "file": "edge/handle_clone_regexpmatch_instance.pts",
+    "line": 6,
+    "column": 6
+  },
+  "expected_output": "edge/handle_clone_regexpmatch_instance.pts:6:6 R1013 RUNTIME_CLONE_NOT_SUPPORTED: clone not supported for builtin handle RegExpMatch"
+}

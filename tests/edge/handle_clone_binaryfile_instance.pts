@@ -1,0 +1,7 @@
+import Io;
+
+function main() : void {
+    string p = Io.tempPath();
+    BinaryFile f = Io.openBinary(p, "w");
+    f.clone();
+}

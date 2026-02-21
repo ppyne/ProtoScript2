@@ -57,6 +57,10 @@ echo "-- builtin contract guard (sealed handles + R1013)"
 "$ROOT_DIR/tests/run_builtin_contract_guard.sh"
 echo
 
+echo "-- builtin clone instance contract (C/JS, R1013)"
+"$ROOT_DIR/tests/run_builtin_clone_instance_contract.sh"
+echo
+
 echo "-- WASM runtime parity (Node oracle vs C runtime in WASM)"
 "$ROOT_DIR/tests/run_wasm_runtime_parity.sh"
 echo

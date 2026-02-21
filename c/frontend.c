@@ -5162,6 +5162,14 @@ static char *ir_type_elem_for_index(const char *t);
 static char *ir_type_map_key(const char *t);
 static char *ir_type_map_value(const char *t);
 
+static int builtin_clone_receiver(const char *t) {
+  if (!t) return 0;
+  return strcmp(t, "TextFile") == 0 || strcmp(t, "BinaryFile") == 0 || strcmp(t, "Dir") == 0 ||
+         strcmp(t, "Walker") == 0 || strcmp(t, "RegExp") == 0 || strcmp(t, "PathInfo") == 0 ||
+         strcmp(t, "PathEntry") == 0 || strcmp(t, "RegExpMatch") == 0 || strcmp(t, "ProcessEvent") == 0 ||
+         strcmp(t, "ProcessResult") == 0 || strcmp(t, "CivilDateTime") == 0;
+}
+
 static char *method_ret_type(const char *recv_t, const char *m) {
   if (!recv_t || !m) return NULL;
   if (strcmp(recv_t, "int") == 0) {
@@ -5532,6 +5540,17 @@ static char *infer_call_type(Analyzer *a, AstNode *e, Scope *scope, int *ok) {
       char *tt = infer_expr_type(a, target, scope, ok);
       if (tt) {
         if (proto_find(a->protos, tt)) {
+          if (strcmp(callee->text ? callee->text : "", "clone") == 0 && builtin_clone_receiver(tt)) {
+            if (argc != 0) {
+              set_diag(a->diag, a->file, e->line, e->col, "E1003", "ARITY_MISMATCH", "arity mismatch for 'clone'");
+              *ok = 0;
+              free(tt);
+              return NULL;
+            }
+            char *ret = strdup(tt);
+            free(tt);
+            return ret;
+          }
           ProtoInfo *owner = NULL;
           ProtoMethod *pm = proto_find_method_ex(a->protos, tt, callee->text, &owner);
           if (!pm) {

@@ -1,0 +1,6 @@
+import Fs;
+
+function main() : void {
+    Walker w = Fs.walk(".", 1, false);
+    w.clone();
+}

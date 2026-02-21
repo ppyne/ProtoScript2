@@ -1,0 +1,6 @@
+import RegExp;
+
+function main() : void {
+    RegExp r = RegExp.compile("a", "");
+    r.clone();
+}

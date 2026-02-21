@@ -1,0 +1,6 @@
+import Fs;
+
+function main() : void {
+    Dir d = Fs.openDir(".");
+    d.clone();
+}

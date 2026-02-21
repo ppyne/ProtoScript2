@@ -4429,8 +4429,27 @@ function emitInstr(i, fnInf, state) {
       {
         const rt = t(i.receiver);
         const rc = parseContainer(rt);
+        const nonCloneableHandle = new Set([
+          "TextFile",
+          "BinaryFile",
+          "Dir",
+          "Walker",
+          "RegExp",
+          "PathInfo",
+          "PathEntry",
+          "RegExpMatch",
+          "ProcessEvent",
+          "ProcessResult",
+        ]);
+        if (i.method === "clone" && nonCloneableHandle.has(rt)) {
+          out.push(`ps_panic("R1013", "RUNTIME_CLONE_NOT_SUPPORTED", "clone not supported for builtin handle ${rt}");`);
+          break;
+        }
         if (rt === "TextFile" || rt === "BinaryFile") {
-          if (i.method === "read") {
+          if (i.method === "clone") {
+            const handle = rt === "BinaryFile" ? "BinaryFile" : "TextFile";
+            out.push(`ps_panic("R1013", "RUNTIME_CLONE_NOT_SUPPORTED", "clone not supported for builtin handle ${handle}");`);
+          } else if (i.method === "read") {
             if (i.args.length !== 1) {
               out.push('ps_raise_runtime_typed("InvalidArgumentException", "invalid read size");');
             } else if (rt === "BinaryFile") {

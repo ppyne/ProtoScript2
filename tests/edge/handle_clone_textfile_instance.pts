@@ -1,0 +1,7 @@
+import Io;
+
+function main() : void {
+    string p = Io.tempPath();
+    TextFile f = Io.openText(p, "w");
+    f.clone();
+}

@@ -1,0 +1,8 @@
+import Sys;
+
+function main() : void {
+    list<string> args = ["x"];
+    list<byte> input = [];
+    ProcessResult r = Sys.execute("/bin/echo", args, input, true, false);
+    r.clone();
+}

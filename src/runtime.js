@@ -3806,6 +3806,16 @@ function evalCall(expr, scope, functions, moduleEnv, protoEnv, file, callFunctio
         return callFunction(fn, [target, ...args]);
       }
       if (m.name === "clone") {
+        if (target && target.__fs_dir) {
+          throw new RuntimeError(
+            rdiag(file, m, "R1013", "RUNTIME_CLONE_NOT_SUPPORTED", "clone not supported for builtin handle Dir")
+          );
+        }
+        if (target && target.__fs_walker) {
+          throw new RuntimeError(
+            rdiag(file, m, "R1013", "RUNTIME_CLONE_NOT_SUPPORTED", "clone not supported for builtin handle Walker")
+          );
+        }
         return objectCloneDefault(protoEnv, target, { scope, functions, moduleEnv, protoEnv, file, callFunction, node: m });
       }
       if (isObjectInstance(target) && target.__fields) {
@@ -3907,6 +3917,12 @@ function evalCall(expr, scope, functions, moduleEnv, protoEnv, file, callFunctio
     };
     if (target && target.__fs_dir) {
       const dir = target;
+      if (m.name === "clone") {
+        expectArity(0, 0);
+        throw new RuntimeError(
+          rdiag(file, m, "R1013", "RUNTIME_CLONE_NOT_SUPPORTED", "clone not supported for builtin handle Dir")
+        );
+      }
       const fillNext = () => {
         if (dir.closed) fsThrowEval("IOException", "dir closed");
         if (dir.next !== null) return true;
@@ -3962,6 +3978,12 @@ function evalCall(expr, scope, functions, moduleEnv, protoEnv, file, callFunctio
     }
     if (target && target.__fs_walker) {
       const walker = target;
+      if (m.name === "clone") {
+        expectArity(0, 0);
+        throw new RuntimeError(
+          rdiag(file, m, "R1013", "RUNTIME_CLONE_NOT_SUPPORTED", "clone not supported for builtin handle Walker")
+        );
+      }
       const joinPath = (base, name) => (base.endsWith("/") ? base + name : `${base}/${name}`);
       const fillNext = () => {
         if (walker.closed) fsThrowEval("IOException", "walker closed");
@@ -4592,6 +4614,13 @@ function evalCall(expr, scope, functions, moduleEnv, protoEnv, file, callFunctio
     }
 
     if (target instanceof TextFile || target instanceof BinaryFile) {
+      if (m.name === "clone") {
+        expectArity(0, 0, "RUNTIME_IO_ERROR");
+        const handle = target instanceof BinaryFile ? "BinaryFile" : "TextFile";
+        throw new RuntimeError(
+          rdiag(file, m, "R1013", "RUNTIME_CLONE_NOT_SUPPORTED", `clone not supported for builtin handle ${handle}`)
+        );
+      }
       if (m.name === "close") {
         expectArity(0, 0, "RUNTIME_IO_ERROR");
         if (target.isStd) {

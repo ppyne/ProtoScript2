@@ -1,0 +1,12 @@
+{
+  "status": "reject-runtime",
+  "error_family": "Rxxxx",
+  "error_code": "R1013",
+  "category": "RUNTIME_CLONE_NOT_SUPPORTED",
+  "position": {
+    "file": "edge/handle_clone_pathentry_instance.pts",
+    "line": 12,
+    "column": 6
+  },
+  "expected_output": "edge/handle_clone_pathentry_instance.pts:12:6 R1013 RUNTIME_CLONE_NOT_SUPPORTED: clone not supported for builtin handle PathEntry"
+}

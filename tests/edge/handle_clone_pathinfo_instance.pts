@@ -1,0 +1,6 @@
+import Fs;
+
+function main() : void {
+    PathInfo p = Fs.pathInfo(".");
+    p.clone();
+}

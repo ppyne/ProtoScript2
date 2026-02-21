@@ -1508,6 +1508,23 @@ static const char *noncloneable_builtin_handle_base(PS_IR_Module *m, const char 
   return NULL;
 }
 
+static const char *noncloneable_builtin_handle_base_from_object_shape(PS_Context *ctx, PS_Value *obj) {
+  if (!ctx || !obj || obj->tag != PS_V_OBJECT) return NULL;
+  if (ps_object_get_str_internal(ctx, obj, "exitCode", 8) && ps_object_get_str_internal(ctx, obj, "events", 6)) return "ProcessResult";
+  if (ps_object_get_str_internal(ctx, obj, "stream", 6) && ps_object_get_str_internal(ctx, obj, "data", 4)) return "ProcessEvent";
+  if (ps_object_get_str_internal(ctx, obj, "ok", 2) && ps_object_get_str_internal(ctx, obj, "start", 5) &&
+      ps_object_get_str_internal(ctx, obj, "end", 3) && ps_object_get_str_internal(ctx, obj, "groups", 6))
+    return "RegExpMatch";
+  if (ps_object_get_str_internal(ctx, obj, "dirname", 7) && ps_object_get_str_internal(ctx, obj, "basename", 8) &&
+      ps_object_get_str_internal(ctx, obj, "filename", 8) && ps_object_get_str_internal(ctx, obj, "extension", 9))
+    return "PathInfo";
+  if (ps_object_get_str_internal(ctx, obj, "path", 4) && ps_object_get_str_internal(ctx, obj, "name", 4) &&
+      ps_object_get_str_internal(ctx, obj, "depth", 5) && ps_object_get_str_internal(ctx, obj, "isDir", 5) &&
+      ps_object_get_str_internal(ctx, obj, "isFile", 6) && ps_object_get_str_internal(ctx, obj, "isSymlink", 9))
+    return "PathEntry";
+  return NULL;
+}
+
 static int exception_matches(PS_IR_Module *m, PS_Value *v, const char *type_name) {
   if (!v || v->tag != PS_V_EXCEPTION || !type_name) return 0;
   if (strcmp(type_name, "Exception") == 0) return 1;
@@ -2461,6 +2478,12 @@ static int exec_function(PS_Context *ctx, PS_IR_Module *m, IRFunction *f, PS_Val
           const int can_read = (f->flags & PS_FILE_READ) != 0;
           const int can_write = (f->flags & (PS_FILE_WRITE | PS_FILE_APPEND)) != 0;
           const int is_binary = (f->flags & PS_FILE_BINARY) != 0;
+          if (strcmp(ins->method, "clone") == 0) {
+            if (!expect_arity(ctx, ins, 0, 0)) goto raise;
+            ps_throw(ctx, PS_ERR_TYPE, is_binary ? "clone not supported for builtin handle BinaryFile"
+                                                 : "clone not supported for builtin handle TextFile");
+            goto raise;
+          }
           if (strcmp(ins->method, "close") == 0) {
             if (!expect_arity(ctx, ins, 0, 0)) goto raise;
             if (f->flags & PS_FILE_STD) {
@@ -2738,6 +2761,13 @@ static int exec_function(PS_Context *ctx, PS_IR_Module *m, IRFunction *f, PS_Val
             if (!expect_arity(ctx, ins, 0, 0)) goto raise;
             const char *proto_name = ps_object_proto_name_internal(recv);
             if (!proto_name || !*proto_name) {
+              const char *shape_base = noncloneable_builtin_handle_base_from_object_shape(ctx, recv);
+              if (shape_base) {
+                char msg[256];
+                snprintf(msg, sizeof(msg), "clone not supported for builtin handle %s", shape_base);
+                ps_throw(ctx, PS_ERR_TYPE, msg);
+                goto raise;
+              }
               ps_throw_diag(ctx, PS_ERR_TYPE, "clone expects prototype or instance receiver", "value", "prototype or instance");
               goto raise;
             }
