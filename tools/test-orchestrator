@@ -1,0 +1,426 @@
+#!/usr/bin/env python3
+"""ProtoScript2 test orchestration wrapper.
+
+This script coordinates existing test runners without duplicating their logic.
+"""
+
+from __future__ import annotations
+
+import argparse
+import json
+import os
+import re
+import subprocess
+import sys
+import time
+from pathlib import Path
+from typing import Dict, List
+
+
+ROOT = Path(__file__).resolve().parent.parent
+DEFAULT_OUT = ROOT / "docs" / "test-baseline.json"
+LOG_DIR = ROOT / "reports" / "test-orchestrator"
+
+SUMMARY_RE = re.compile(r"Summary:\s+PASS=(\d+)\s+FAIL=(\d+)(?:\s+SKIP=(\d+))?\s+TOTAL=(\d+)")
+
+
+def _flow_defs() -> List[Dict[str, object]]:
+    return [
+        {
+            "id": "run_all_robust",
+            "script": "tests/run_all.sh",
+            "cmd": "tests/run_all.sh --robust",
+            "paths": ["node", "c", "emit-c", "wasm", "robust"],
+            "sanitizer": True,
+            "emit_c": True,
+            "requires_c_bins": True,
+            "parse_summary": False,
+        },
+        {
+            "id": "conformance_modules",
+            "script": "tests/run_conformance.sh",
+            "cmd": "CONFORMANCE_MODULES=1 tests/run_conformance.sh",
+            "paths": ["node"],
+            "sanitizer": False,
+            "emit_c": False,
+            "requires_c_bins": False,
+            "parse_summary": True,
+        },
+        {
+            "id": "node_c_crosscheck_strict",
+            "script": "tests/run_node_c_crosscheck.sh",
+            "cmd": "tests/run_node_c_crosscheck.sh --strict-ast --strict-static-c",
+            "paths": ["node", "emit-c"],
+            "sanitizer": False,
+            "emit_c": True,
+            "requires_c_bins": True,
+            "parse_summary": True,
+        },
+        {
+            "id": "runtime_crosscheck",
+            "script": "tests/run_runtime_crosscheck.sh",
+            "cmd": "tests/run_runtime_crosscheck.sh",
+            "paths": ["node", "emit-c"],
+            "sanitizer": False,
+            "emit_c": True,
+            "requires_c_bins": True,
+            "parse_summary": True,
+        },
+        {
+            "id": "cli_runtime_parity",
+            "script": "tests/run_cli_runtime_parity.sh",
+            "cmd": "tests/run_cli_runtime_parity.sh",
+            "paths": ["node", "c"],
+            "sanitizer": False,
+            "emit_c": False,
+            "requires_c_bins": True,
+            "parse_summary": True,
+        },
+        {
+            "id": "runtime_triangle_parity",
+            "script": "tests/run_runtime_triangle_parity.sh",
+            "cmd": "tests/run_runtime_triangle_parity.sh",
+            "paths": ["c", "emit-c", "wasm"],
+            "sanitizer": False,
+            "emit_c": True,
+            "requires_c_bins": True,
+            "parse_summary": True,
+        },
+        {
+            "id": "wasm_runtime_parity",
+            "script": "tests/run_wasm_runtime_parity.sh",
+            "cmd": "tests/run_wasm_runtime_parity.sh",
+            "paths": ["wasm"],
+            "sanitizer": False,
+            "emit_c": False,
+            "requires_c_bins": False,
+            "parse_summary": True,
+        },
+        {
+            "id": "robustness",
+            "script": "tests/run_robustness.sh",
+            "cmd": "tests/run_robustness.sh",
+            "paths": ["robust", "node", "c", "emit-c", "wasm"],
+            "sanitizer": True,
+            "emit_c": True,
+            "requires_c_bins": True,
+            "parse_summary": True,
+        },
+    ]
+
+
+def _choose_flows(args: argparse.Namespace) -> List[Dict[str, object]]:
+    defs = _flow_defs()
+    if args.full:
+        return defs
+
+    enabled_paths: List[str] = []
+    if args.node:
+        enabled_paths.append("node")
+    if args.c:
+        enabled_paths.append("c")
+    if args.emit_c:
+        enabled_paths.append("emit-c")
+    if args.robust:
+        enabled_paths.append("robust")
+
+    if not enabled_paths:
+        return []
+
+    chosen: List[Dict[str, object]] = []
+    for flow in defs:
+        paths = set(flow["paths"])  # type: ignore[arg-type]
+        if paths.intersection(enabled_paths):
+            chosen.append(flow)
+    return chosen
+
+
+def _parse_summary(log_text: str) -> Dict[str, int] | None:
+    match = None
+    for line in log_text.splitlines():
+        m = SUMMARY_RE.search(line)
+        if m:
+            match = m
+    if not match:
+        return None
+    skip = int(match.group(3)) if match.group(3) else 0
+    return {
+        "pass": int(match.group(1)),
+        "fail": int(match.group(2)),
+        "skip": skip,
+        "total": int(match.group(4)),
+    }
+
+
+def _c_bins_ready() -> bool:
+    ps = ROOT / "c" / "ps"
+    pscc = ROOT / "c" / "pscc"
+    return ps.exists() and pscc.exists() and ps.is_file() and pscc.is_file() and os.access(ps, os.X_OK) and os.access(pscc, os.X_OK)
+
+
+def _ensure_c_bins() -> tuple[bool, int, str]:
+    need = not _c_bins_ready()
+    if not need:
+        return (True, 0, "")
+    t0 = time.time()
+    proc = subprocess.run(
+        "make -C c",
+        cwd=str(ROOT),
+        shell=True,
+        executable="/bin/bash",
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        text=True,
+    )
+    dur_ms = int((time.time() - t0) * 1000)
+    return (proc.returncode == 0, dur_ms, proc.stdout)
+
+
+def _selftest_prereq_guard() -> int:
+    ok, _, _ = _ensure_c_bins()
+    if not ok:
+        print("FAIL prereq-guard: initial ensure_c_bins failed", file=sys.stderr)
+        return 1
+    ps = ROOT / "c" / "ps"
+    pscc = ROOT / "c" / "pscc"
+    if ps.exists():
+        ps.unlink()
+    if pscc.exists():
+        pscc.unlink()
+    if _c_bins_ready():
+        print("FAIL prereq-guard: binaries unexpectedly still present", file=sys.stderr)
+        return 1
+    ok2, _, _ = _ensure_c_bins()
+    if not ok2 or not _c_bins_ready():
+        print("FAIL prereq-guard: recovery rebuild failed", file=sys.stderr)
+        return 1
+    print("PASS prereq-guard")
+    return 0
+
+
+def _aggregate(reports: List[Dict[str, object]]) -> Dict[str, Dict[str, int]]:
+    out: Dict[str, Dict[str, int]] = {}
+    for item in reports:
+        summary = item.get("summary")
+        if not isinstance(summary, dict):
+            continue
+        for p in item["paths"]:  # type: ignore[index]
+            if p not in out:
+                out[p] = {"pass": 0, "fail": 0, "skip": 0, "total": 0}
+            out[p]["pass"] += int(summary.get("pass", 0))
+            out[p]["fail"] += int(summary.get("fail", 0))
+            out[p]["skip"] += int(summary.get("skip", 0))
+            out[p]["total"] += int(summary.get("total", 0))
+    return out
+
+
+def _print_summary(snapshot: Dict[str, object]) -> None:
+    print("== ProtoScript2 Orchestrator Summary ==")
+    print(f"profile: {snapshot.get('profile')}")
+    print(f"overall_status: {snapshot.get('overall_status')}")
+    print(f"total_tests_executed: {snapshot.get('total_tests_executed')}")
+    print(f"emit_c_compilation_status: {snapshot.get('emit_c_compilation_status')}")
+    san = snapshot.get("sanitizer", {})
+    if isinstance(san, dict):
+        print(
+            "sanitizer: "
+            f"requested={san.get('requested')} "
+            f"ran={san.get('ran')} "
+            f"all_passed={san.get('all_passed')}"
+        )
+    print("paths:")
+    paths = snapshot.get("per_execution_path", {})
+    if isinstance(paths, dict):
+        for key in sorted(paths):
+            v = paths[key]
+            if isinstance(v, dict):
+                print(
+                    f"  {key}: PASS={v.get('pass', 0)} FAIL={v.get('fail', 0)} "
+                    f"SKIP={v.get('skip', 0)} TOTAL={v.get('total', 0)}"
+                )
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(
+        description="Wrap existing ProtoScript2 test scripts and aggregate results."
+    )
+    parser.add_argument("--full", action="store_true", help="Run the full baseline profile.")
+    parser.add_argument("--node", action="store_true", help="Run Node-relevant flows.")
+    parser.add_argument("--c", action="store_true", help="Run C runtime/CLI-relevant flows.")
+    parser.add_argument("--emit-c", dest="emit_c", action="store_true", help="Run emit-c flows.")
+    parser.add_argument("--robust", action="store_true", help="Run robustness/sanitizer flows.")
+    parser.add_argument("--summary", action="store_true", help="Print summary to stdout.")
+    parser.add_argument(
+        "--selftest-prereq-guard",
+        action="store_true",
+        help="Fast regression check: recover when c/ps and c/pscc disappear.",
+    )
+    parser.add_argument(
+        "--out",
+        default=str(DEFAULT_OUT),
+        help=f"Output JSON path (default: {DEFAULT_OUT}).",
+    )
+    args = parser.parse_args()
+
+    if args.selftest_prereq_guard:
+        return _selftest_prereq_guard()
+
+    out_path = Path(args.out).resolve()
+    if args.summary and not any([args.full, args.node, args.c, args.emit_c, args.robust]):
+        if not out_path.exists():
+            print(f"ERROR: summary requested but file does not exist: {out_path}", file=sys.stderr)
+            return 2
+        with out_path.open("r", encoding="utf-8") as f:
+            snapshot = json.load(f)
+        _print_summary(snapshot)
+        return 0
+
+    flows = _choose_flows(args)
+    if not flows:
+        parser.print_help()
+        return 2
+
+    LOG_DIR.mkdir(parents=True, exist_ok=True)
+    reports: List[Dict[str, object]] = []
+    suite_start = time.time()
+    for flow in flows:
+        flow_id = str(flow["id"])
+        log_path = LOG_DIR / f"{flow_id}.log"
+        setup = {
+            "ran": False,
+            "ok": True,
+            "duration_ms": 0,
+            "log": None,
+        }
+        if bool(flow.get("requires_c_bins")):
+            ok, dur_ms, build_log = _ensure_c_bins()
+            if build_log:
+                setup_log_path = LOG_DIR / f"{flow_id}.prebuild.log"
+                setup_log_path.write_text(build_log, encoding="utf-8")
+                setup["log"] = str(setup_log_path.relative_to(ROOT))
+            setup["ran"] = True
+            setup["ok"] = ok
+            setup["duration_ms"] = dur_ms
+            if not ok:
+                reports.append(
+                    {
+                        "id": flow_id,
+                        "script": flow["script"],
+                        "command": flow["cmd"],
+                        "paths": flow["paths"],
+                        "exit_code": 1,
+                        "duration_ms": 0,
+                        "log": str(log_path.relative_to(ROOT)),
+                        "summary": None,
+                        "sanitizer": bool(flow["sanitizer"]),
+                        "emit_c": bool(flow["emit_c"]),
+                        "setup": setup,
+                        "error": "prebuild_failed",
+                    }
+                )
+                print(f"[orchestrator] FAIL {flow_id} (prebuild failed)", flush=True)
+                continue
+            if not _c_bins_ready():
+                reports.append(
+                    {
+                        "id": flow_id,
+                        "script": flow["script"],
+                        "command": flow["cmd"],
+                        "paths": flow["paths"],
+                        "exit_code": 1,
+                        "duration_ms": 0,
+                        "log": str(log_path.relative_to(ROOT)),
+                        "summary": None,
+                        "sanitizer": bool(flow["sanitizer"]),
+                        "emit_c": bool(flow["emit_c"]),
+                        "setup": setup,
+                        "error": "prebuild_invariant_failed",
+                    }
+                )
+                print(f"[orchestrator] FAIL {flow_id} (prebuild invariant failed)", flush=True)
+                continue
+        print(f"[orchestrator] RUN {flow_id}: {flow['cmd']}", flush=True)
+        t0 = time.time()
+        proc = subprocess.run(
+            str(flow["cmd"]),
+            cwd=str(ROOT),
+            shell=True,
+            executable="/bin/bash",
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+        )
+        dur_ms = int((time.time() - t0) * 1000)
+        log_path.write_text(proc.stdout, encoding="utf-8")
+        summary = _parse_summary(proc.stdout) if bool(flow.get("parse_summary", True)) else None
+        reports.append(
+            {
+                "id": flow_id,
+                "script": flow["script"],
+                "command": flow["cmd"],
+                "paths": flow["paths"],
+                "exit_code": proc.returncode,
+                "duration_ms": dur_ms,
+                "log": str(log_path.relative_to(ROOT)),
+                "summary": summary,
+                "sanitizer": bool(flow["sanitizer"]),
+                "emit_c": bool(flow["emit_c"]),
+                "setup": setup,
+            }
+        )
+        status = "OK" if proc.returncode == 0 else "FAIL"
+        print(f"[orchestrator] {status} {flow_id} ({dur_ms} ms)", flush=True)
+        if proc.returncode != 0:
+            print(f"[orchestrator] see log: {log_path}", file=sys.stderr, flush=True)
+        if bool(flow.get("requires_c_bins")) and not _c_bins_ready():
+            print(
+                f"[orchestrator] note: {flow_id} invalidated c binaries; next dependent flow will rebuild",
+                flush=True,
+            )
+
+    total_duration = int((time.time() - suite_start) * 1000)
+    per_path = _aggregate(reports)
+    total_tests = sum(
+        int(item["summary"]["total"])  # type: ignore[index]
+        for item in reports
+        if isinstance(item.get("summary"), dict)
+    )
+    overall_ok = all(int(item["exit_code"]) == 0 for item in reports)
+    sanitizer_runs = [r for r in reports if bool(r.get("sanitizer"))]
+    sanitizer_ran = len(sanitizer_runs) > 0
+    sanitizer_ok = sanitizer_ran and all(int(r["exit_code"]) == 0 for r in sanitizer_runs)
+    emit_runs = [r for r in reports if bool(r.get("emit_c"))]
+    emit_ok = len(emit_runs) > 0 and all(int(r["exit_code"]) == 0 for r in emit_runs)
+
+    snapshot = {
+        "schema_version": 1,
+        "profile": "full" if args.full else "custom",
+        "generated_at_utc": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+        "root": str(ROOT),
+        "total_flows_executed": len(reports),
+        "total_tests_executed": total_tests,
+        "total_duration_ms": total_duration,
+        "overall_status": "pass" if overall_ok else "fail",
+        "emit_c_compilation_status": "pass" if emit_ok else "fail",
+        "sanitizer": {
+            "requested": bool(args.full or args.robust),
+            "ran": sanitizer_ran,
+            "all_passed": sanitizer_ok,
+        },
+        "per_execution_path": per_path,
+        "flows": reports,
+    }
+
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    with out_path.open("w", encoding="utf-8") as f:
+        json.dump(snapshot, f, indent=2, sort_keys=True)
+        f.write("\n")
+
+    if args.summary:
+        _print_summary(snapshot)
+
+    return 0 if overall_ok else 1
+
+
+if __name__ == "__main__":
+    sys.exit(main())

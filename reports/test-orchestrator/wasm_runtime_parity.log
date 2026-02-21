@@ -1,0 +1,13 @@
+== WASM Runtime Parity (Node oracle vs C runtime in WASM) ==
+Node compiler: /Users/avialle/dev/ProtoScript2/bin/protoscriptc
+WASM module:   /Users/avialle/dev/ProtoScript2/web/protoscript.js
+
+PASS cli/hello.pts
+PASS cli/clone_inherited_throw_parity.pts
+PASS edge/clone_inherited_override.pts
+PASS edge/handle_clone_regexp_direct.pts
+PASS edge/handle_clone_textfile_direct.pts
+PASS edge/handle_clone_dir_direct.pts
+
+Summary: PASS=6 FAIL=0 TOTAL=6
+WASM runtime parity PASSED.

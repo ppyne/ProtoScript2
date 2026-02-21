@@ -1,0 +1,82 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+usage() {
+  cat <<'EOF'
+Usage:
+  tools/test-normalization --profile <cli-runtime|wasm|triangle> [input-file]
+  tools/test-normalization --help
+
+Description:
+  Applies the exact normalization rules already used in existing parity scripts.
+  If input-file is omitted, reads stdin.
+EOF
+}
+
+PROFILE=""
+INPUT=""
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --profile)
+      PROFILE="${2:-}"
+      shift 2
+      ;;
+    --help|-h)
+      usage
+      exit 0
+      ;;
+    *)
+      if [[ -n "$INPUT" ]]; then
+        echo "ERROR: only one input file is allowed" >&2
+        exit 2
+      fi
+      INPUT="$1"
+      shift
+      ;;
+  esac
+done
+
+if [[ -z "$PROFILE" ]]; then
+  echo "ERROR: --profile is required" >&2
+  usage
+  exit 2
+fi
+
+if [[ -n "$INPUT" && ! -f "$INPUT" ]]; then
+  echo "ERROR: input file not found: $INPUT" >&2
+  exit 2
+fi
+
+ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+
+apply_profile() {
+  local profile="$1"
+  case "$profile" in
+    cli-runtime)
+      sed -E 's#([A-Za-z0-9_./-]*/)?ps_[0-9a-fA-F-]+_[0-9]+#ps_tmp#g'
+      ;;
+    wasm)
+      sed -E \
+        -e 's#([A-Za-z0-9_./-]*/)?ps_[0-9a-fA-F-]+_[0-9]+#ps_tmp#g' \
+        -e 's#/tmp/ps_mcpp_input_[0-9]+\.txt#/tmp/ps_mcpp_input_tmp.txt#g' \
+        -e 's#^(/tmp/ps_mcpp_input_tmp\.txt|.*/tests/[^:]+\.pts):#__SRC__:#'
+      ;;
+    triangle)
+      sed -E \
+        -e 's#([A-Za-z0-9_./-]*/)?ps_[0-9a-fA-F-]+_[0-9]+#ps_tmp#g' \
+        -e 's#/tmp/ps_mcpp_input_[0-9]+\.txt#/tmp/ps_mcpp_input_tmp.txt#g' \
+        -e "s#^(/tmp/ps_mcpp_input_tmp\\.txt|ps_tmp|$ROOT_DIR/tests/[^:]+\\.pts|.*/tests/[^:]+\\.pts|tests/[^:]+\\.pts):#__SRC__:#"
+      ;;
+    *)
+      echo "ERROR: unsupported profile '$profile'" >&2
+      exit 2
+      ;;
+  esac
+}
+
+if [[ -n "$INPUT" ]]; then
+  apply_profile "$PROFILE" <"$INPUT"
+else
+  apply_profile "$PROFILE"
+fi

@@ -1,0 +1,258 @@
+{
+  "emit_c_compilation_status": "pass",
+  "flows": [
+    {
+      "command": "tests/run_all.sh --robust",
+      "duration_ms": 1945427,
+      "emit_c": true,
+      "exit_code": 0,
+      "id": "run_all_robust",
+      "log": "reports/test-orchestrator/run_all_robust.log",
+      "paths": [
+        "node",
+        "c",
+        "emit-c",
+        "wasm",
+        "robust"
+      ],
+      "sanitizer": true,
+      "script": "tests/run_all.sh",
+      "setup": {
+        "duration_ms": 0,
+        "log": null,
+        "ok": true,
+        "ran": true
+      },
+      "summary": null
+    },
+    {
+      "command": "CONFORMANCE_MODULES=1 tests/run_conformance.sh",
+      "duration_ms": 141992,
+      "emit_c": false,
+      "exit_code": 0,
+      "id": "conformance_modules",
+      "log": "reports/test-orchestrator/conformance_modules.log",
+      "paths": [
+        "node"
+      ],
+      "sanitizer": false,
+      "script": "tests/run_conformance.sh",
+      "setup": {
+        "duration_ms": 0,
+        "log": null,
+        "ok": true,
+        "ran": false
+      },
+      "summary": {
+        "fail": 0,
+        "pass": 412,
+        "skip": 0,
+        "total": 412
+      }
+    },
+    {
+      "command": "tests/run_node_c_crosscheck.sh --strict-ast --strict-static-c",
+      "duration_ms": 382502,
+      "emit_c": true,
+      "exit_code": 0,
+      "id": "node_c_crosscheck_strict",
+      "log": "reports/test-orchestrator/node_c_crosscheck_strict.log",
+      "paths": [
+        "node",
+        "emit-c"
+      ],
+      "sanitizer": false,
+      "script": "tests/run_node_c_crosscheck.sh",
+      "setup": {
+        "duration_ms": 6026,
+        "log": "reports/test-orchestrator/node_c_crosscheck_strict.prebuild.log",
+        "ok": true,
+        "ran": true
+      },
+      "summary": {
+        "fail": 0,
+        "pass": 75,
+        "skip": 0,
+        "total": 75
+      }
+    },
+    {
+      "command": "tests/run_runtime_crosscheck.sh",
+      "duration_ms": 232801,
+      "emit_c": true,
+      "exit_code": 0,
+      "id": "runtime_crosscheck",
+      "log": "reports/test-orchestrator/runtime_crosscheck.log",
+      "paths": [
+        "node",
+        "emit-c"
+      ],
+      "sanitizer": false,
+      "script": "tests/run_runtime_crosscheck.sh",
+      "setup": {
+        "duration_ms": 0,
+        "log": null,
+        "ok": true,
+        "ran": true
+      },
+      "summary": {
+        "fail": 0,
+        "pass": 329,
+        "skip": 0,
+        "total": 329
+      }
+    },
+    {
+      "command": "tests/run_cli_runtime_parity.sh",
+      "duration_ms": 68260,
+      "emit_c": false,
+      "exit_code": 0,
+      "id": "cli_runtime_parity",
+      "log": "reports/test-orchestrator/cli_runtime_parity.log",
+      "paths": [
+        "node",
+        "c"
+      ],
+      "sanitizer": false,
+      "script": "tests/run_cli_runtime_parity.sh",
+      "setup": {
+        "duration_ms": 0,
+        "log": null,
+        "ok": true,
+        "ran": true
+      },
+      "summary": {
+        "fail": 0,
+        "pass": 329,
+        "skip": 0,
+        "total": 329
+      }
+    },
+    {
+      "command": "tests/run_runtime_triangle_parity.sh",
+      "duration_ms": 312278,
+      "emit_c": true,
+      "exit_code": 0,
+      "id": "runtime_triangle_parity",
+      "log": "reports/test-orchestrator/runtime_triangle_parity.log",
+      "paths": [
+        "c",
+        "emit-c",
+        "wasm"
+      ],
+      "sanitizer": false,
+      "script": "tests/run_runtime_triangle_parity.sh",
+      "setup": {
+        "duration_ms": 0,
+        "log": null,
+        "ok": true,
+        "ran": true
+      },
+      "summary": {
+        "fail": 0,
+        "pass": 329,
+        "skip": 0,
+        "total": 329
+      }
+    },
+    {
+      "command": "tests/run_wasm_runtime_parity.sh",
+      "duration_ms": 2728,
+      "emit_c": false,
+      "exit_code": 0,
+      "id": "wasm_runtime_parity",
+      "log": "reports/test-orchestrator/wasm_runtime_parity.log",
+      "paths": [
+        "wasm"
+      ],
+      "sanitizer": false,
+      "script": "tests/run_wasm_runtime_parity.sh",
+      "setup": {
+        "duration_ms": 0,
+        "log": null,
+        "ok": true,
+        "ran": false
+      },
+      "summary": {
+        "fail": 0,
+        "pass": 6,
+        "skip": 0,
+        "total": 6
+      }
+    },
+    {
+      "command": "tests/run_robustness.sh",
+      "duration_ms": 1020307,
+      "emit_c": true,
+      "exit_code": 0,
+      "id": "robustness",
+      "log": "reports/test-orchestrator/robustness.log",
+      "paths": [
+        "robust",
+        "node",
+        "c",
+        "emit-c",
+        "wasm"
+      ],
+      "sanitizer": true,
+      "script": "tests/run_robustness.sh",
+      "setup": {
+        "duration_ms": 0,
+        "log": null,
+        "ok": true,
+        "ran": true
+      },
+      "summary": {
+        "fail": 0,
+        "pass": 293,
+        "skip": 0,
+        "total": 293
+      }
+    }
+  ],
+  "generated_at_utc": "2026-02-21T20:00:15Z",
+  "overall_status": "pass",
+  "per_execution_path": {
+    "c": {
+      "fail": 0,
+      "pass": 951,
+      "skip": 0,
+      "total": 951
+    },
+    "emit-c": {
+      "fail": 0,
+      "pass": 1026,
+      "skip": 0,
+      "total": 1026
+    },
+    "node": {
+      "fail": 0,
+      "pass": 1438,
+      "skip": 0,
+      "total": 1438
+    },
+    "robust": {
+      "fail": 0,
+      "pass": 293,
+      "skip": 0,
+      "total": 293
+    },
+    "wasm": {
+      "fail": 0,
+      "pass": 628,
+      "skip": 0,
+      "total": 628
+    }
+  },
+  "profile": "full",
+  "root": "/Users/avialle/dev/ProtoScript2",
+  "sanitizer": {
+    "all_passed": true,
+    "ran": true,
+    "requested": true
+  },
+  "schema_version": 1,
+  "total_duration_ms": 4112330,
+  "total_flows_executed": 8,
+  "total_tests_executed": 1773
+}
