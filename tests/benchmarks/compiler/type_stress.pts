@@ -1,0 +1,23 @@
+function main() : void {
+    int a01 = 1;
+    int a02 = 2;
+    int a03 = 3;
+    int a04 = 4;
+    int a05 = 5;
+    int a06 = 6;
+    int a07 = 7;
+    int a08 = 8;
+    int a09 = 9;
+    int a10 = 10;
+    int a11 = a01 + a02 + a03 + a04 + a05;
+    int a12 = a06 + a07 + a08 + a09 + a10;
+    int a13 = a11 + a12;
+    int a14 = a13 - a01;
+    int a15 = a14 * 2;
+    int a16 = a15 / 2;
+    int a17 = a16 + 17;
+    int a18 = a17 + 18;
+    int a19 = a18 + 19;
+    int a20 = a19 + 20;
+    int sink = a20;
+}

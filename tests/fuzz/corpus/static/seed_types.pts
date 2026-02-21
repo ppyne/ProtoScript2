@@ -1,0 +1,5 @@
+function main() : void {
+    int a = 1;
+    float b = 2.0;
+    bool c = true;
+}

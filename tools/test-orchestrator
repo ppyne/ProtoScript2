@@ -27,6 +27,36 @@ SUMMARY_RE = re.compile(r"Summary:\s+PASS=(\d+)\s+FAIL=(\d+)(?:\s+SKIP=(\d+))?\s
 def _flow_defs() -> List[Dict[str, object]]:
     return [
         {
+            "id": "orchestrator_prereq_guard",
+            "script": "tests/run_orchestrator_prereq_guard.sh",
+            "cmd": "tests/run_orchestrator_prereq_guard.sh",
+            "paths": ["c"],
+            "sanitizer": False,
+            "emit_c": False,
+            "requires_c_bins": False,
+            "parse_summary": False,
+        },
+        {
+            "id": "spec_traceability",
+            "script": "tools/spec-coverage",
+            "cmd": "tools/spec-coverage --check --write",
+            "paths": ["node"],
+            "sanitizer": False,
+            "emit_c": False,
+            "requires_c_bins": False,
+            "parse_summary": False,
+        },
+        {
+            "id": "sanitizer_smoke",
+            "script": "tests/run_sanitizer_smoke.sh",
+            "cmd": "tests/run_sanitizer_smoke.sh",
+            "paths": ["c", "emit-c", "robust"],
+            "sanitizer": True,
+            "emit_c": True,
+            "requires_c_bins": True,
+            "parse_summary": False,
+        },
+        {
             "id": "run_all_robust",
             "script": "tests/run_all.sh",
             "cmd": "tests/run_all.sh --robust",
@@ -106,13 +136,85 @@ def _flow_defs() -> List[Dict[str, object]]:
             "requires_c_bins": True,
             "parse_summary": True,
         },
+        {
+            "id": "fuzz_short",
+            "script": "tools/fuzz-runner",
+            "cmd": "tools/fuzz-runner --short",
+            "paths": ["c", "robust"],
+            "sanitizer": True,
+            "emit_c": False,
+            "requires_c_bins": False,
+            "parse_summary": True,
+        },
+        {
+            "id": "fuzz_nightly",
+            "script": "tools/fuzz-runner",
+            "cmd": "tools/fuzz-runner --nightly",
+            "paths": ["c", "robust"],
+            "sanitizer": True,
+            "emit_c": False,
+            "requires_c_bins": False,
+            "parse_summary": True,
+        },
+        {
+            "id": "bench_quick",
+            "script": "tools/bench-runner",
+            "cmd": "tools/bench-runner --quick",
+            "paths": ["node", "c", "emit-c"],
+            "sanitizer": False,
+            "emit_c": True,
+            "requires_c_bins": True,
+            "parse_summary": True,
+        },
+        {
+            "id": "bench_full",
+            "script": "tools/bench-runner",
+            "cmd": "tools/bench-runner --full",
+            "paths": ["node", "c", "emit-c"],
+            "sanitizer": False,
+            "emit_c": True,
+            "requires_c_bins": True,
+            "parse_summary": True,
+        },
     ]
 
 
 def _choose_flows(args: argparse.Namespace) -> List[Dict[str, object]]:
     defs = _flow_defs()
+    by_id = {str(f["id"]): f for f in defs}
+    if args.ci_pr:
+        return [
+            by_id["orchestrator_prereq_guard"],
+            by_id["spec_traceability"],
+            by_id["sanitizer_smoke"],
+            by_id["fuzz_short"],
+            by_id["bench_quick"],
+        ]
+    if args.ci_nightly:
+        return [
+            by_id["run_all_robust"],
+            by_id["conformance_modules"],
+            by_id["node_c_crosscheck_strict"],
+            by_id["runtime_crosscheck"],
+            by_id["cli_runtime_parity"],
+            by_id["runtime_triangle_parity"],
+            by_id["wasm_runtime_parity"],
+            by_id["robustness"],
+            by_id["spec_traceability"],
+            by_id["fuzz_nightly"],
+            by_id["bench_full"],
+        ]
     if args.full:
-        return defs
+        return [
+            by_id["run_all_robust"],
+            by_id["conformance_modules"],
+            by_id["node_c_crosscheck_strict"],
+            by_id["runtime_crosscheck"],
+            by_id["cli_runtime_parity"],
+            by_id["runtime_triangle_parity"],
+            by_id["wasm_runtime_parity"],
+            by_id["robustness"],
+        ]
 
     enabled_paths: List[str] = []
     if args.node:
@@ -124,11 +226,28 @@ def _choose_flows(args: argparse.Namespace) -> List[Dict[str, object]]:
     if args.robust:
         enabled_paths.append("robust")
 
-    if not enabled_paths:
+    selected_ids: List[str] = []
+    if args.traceability:
+        selected_ids.append("spec_traceability")
+    if args.fuzz_short:
+        selected_ids.append("fuzz_short")
+    if args.fuzz_nightly:
+        selected_ids.append("fuzz_nightly")
+    if args.bench_quick:
+        selected_ids.append("bench_quick")
+    if args.bench_full:
+        selected_ids.append("bench_full")
+    if args.sanitizer_smoke:
+        selected_ids.append("sanitizer_smoke")
+
+    if not enabled_paths and not selected_ids:
         return []
 
     chosen: List[Dict[str, object]] = []
     for flow in defs:
+        if str(flow["id"]) in selected_ids:
+            chosen.append(flow)
+            continue
         paths = set(flow["paths"])  # type: ignore[arg-type]
         if paths.intersection(enabled_paths):
             chosen.append(flow)
@@ -249,6 +368,14 @@ def main() -> int:
     parser.add_argument("--c", action="store_true", help="Run C runtime/CLI-relevant flows.")
     parser.add_argument("--emit-c", dest="emit_c", action="store_true", help="Run emit-c flows.")
     parser.add_argument("--robust", action="store_true", help="Run robustness/sanitizer flows.")
+    parser.add_argument("--traceability", action="store_true", help="Run spec/manual traceability coverage.")
+    parser.add_argument("--fuzz-short", action="store_true", help="Run short fuzzing pass.")
+    parser.add_argument("--fuzz-nightly", action="store_true", help="Run nightly fuzzing pass.")
+    parser.add_argument("--bench-quick", action="store_true", help="Run quick benchmark pass.")
+    parser.add_argument("--bench-full", action="store_true", help="Run full benchmark pass.")
+    parser.add_argument("--sanitizer-smoke", action="store_true", help="Run sanitizer smoke pass.")
+    parser.add_argument("--ci-pr", action="store_true", help="Run PR CI profile.")
+    parser.add_argument("--ci-nightly", action="store_true", help="Run nightly CI profile.")
     parser.add_argument("--summary", action="store_true", help="Print summary to stdout.")
     parser.add_argument(
         "--selftest-prereq-guard",
@@ -266,7 +393,23 @@ def main() -> int:
         return _selftest_prereq_guard()
 
     out_path = Path(args.out).resolve()
-    if args.summary and not any([args.full, args.node, args.c, args.emit_c, args.robust]):
+    if args.summary and not any(
+        [
+            args.full,
+            args.node,
+            args.c,
+            args.emit_c,
+            args.robust,
+            args.traceability,
+            args.fuzz_short,
+            args.fuzz_nightly,
+            args.bench_quick,
+            args.bench_full,
+            args.sanitizer_smoke,
+            args.ci_pr,
+            args.ci_nightly,
+        ]
+    ):
         if not out_path.exists():
             print(f"ERROR: summary requested but file does not exist: {out_path}", file=sys.stderr)
             return 2

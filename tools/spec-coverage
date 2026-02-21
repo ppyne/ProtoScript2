@@ -1,0 +1,126 @@
+#!/usr/bin/env python3
+from __future__ import annotations
+
+import argparse
+import json
+import re
+import sys
+from collections import defaultdict
+from pathlib import Path
+
+
+ROOT = Path(__file__).resolve().parent.parent
+MANIFEST = ROOT / "tests" / "manifest.json"
+REFS = ROOT / "tests" / "spec_refs.json"
+SPEC = ROOT / "SPECIFICATION.md"
+MANUAL = ROOT / "MANUEL_REFERENCE.md"
+OUT = ROOT / "docs" / "spec-test-coverage.md"
+
+REF_RE = re.compile(r"^(SPEC|MANUAL):([0-9]+(?:\.[0-9]+)*)$")
+HEADING_RE = re.compile(r"^\s*#+\s+([0-9]+(?:\.[0-9]+)*)\b")
+
+
+def extract_sections(path: Path) -> set[str]:
+    out: set[str] = set()
+    for line in path.read_text(encoding="utf-8").splitlines():
+        m = HEADING_RE.match(line)
+        if m:
+            out.add(m.group(1))
+    return out
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(description="Generate spec/manual test coverage mapping.")
+    parser.add_argument("--check", action="store_true", help="Fail on missing or malformed spec_ref metadata.")
+    parser.add_argument("--write", action="store_true", help=f"Write coverage report to {OUT}.")
+    args = parser.parse_args()
+
+    manifest = json.loads(MANIFEST.read_text(encoding="utf-8"))
+    refs = json.loads(REFS.read_text(encoding="utf-8"))
+    suites = manifest.get("suites", {})
+    case_refs = refs.get("cases", {})
+
+    spec_sections = extract_sections(SPEC)
+    manual_sections = extract_sections(MANUAL)
+
+    missing: list[str] = []
+    malformed: list[str] = []
+    unresolved: list[str] = []
+    by_ref: dict[str, list[str]] = defaultdict(list)
+
+    for suite_cases in suites.values():
+        for case_id in suite_cases:
+            meta = case_refs.get(case_id)
+            if not isinstance(meta, dict):
+                missing.append(case_id)
+                continue
+            spec_ref = meta.get("spec_ref")
+            if not isinstance(spec_ref, list) or not spec_ref:
+                missing.append(case_id)
+                continue
+            for ref in spec_ref:
+                if not isinstance(ref, str):
+                    malformed.append(f"{case_id}: non-string ref")
+                    continue
+                m = REF_RE.match(ref)
+                if not m:
+                    malformed.append(f"{case_id}: {ref}")
+                    continue
+                ns, sid = m.group(1), m.group(2)
+                if ns == "SPEC" and sid not in spec_sections:
+                    unresolved.append(f"{case_id}: {ref}")
+                if ns == "MANUAL" and sid not in manual_sections:
+                    unresolved.append(f"{case_id}: {ref}")
+                by_ref[ref].append(case_id)
+
+    lines: list[str] = []
+    lines.append("# Spec/Manual Test Coverage")
+    lines.append("")
+    lines.append(f"Generated from `{MANIFEST}` + `{REFS}`.")
+    lines.append("")
+    lines.append("## Coverage Table")
+    lines.append("")
+    lines.append("| spec_ref | tests |")
+    lines.append("|---|---:|")
+    for ref in sorted(by_ref):
+        lines.append(f"| `{ref}` | {len(by_ref[ref])} |")
+
+    lines.append("")
+    lines.append("## Coverage Details")
+    lines.append("")
+    for ref in sorted(by_ref):
+        lines.append(f"### `{ref}`")
+        lines.append("")
+        for case_id in sorted(by_ref[ref]):
+            lines.append(f"- `{case_id}`")
+        lines.append("")
+
+    lines.append("## Clarifications Needed")
+    lines.append("")
+    if unresolved:
+        lines.append("The following refs do not match an extracted heading ID and need clarification:")
+        for item in sorted(set(unresolved)):
+            lines.append(f"- `{item}`")
+    else:
+        lines.append("No unresolved section IDs detected.")
+    lines.append("")
+
+    if args.write:
+        OUT.write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+    bad = bool(missing or malformed)
+    if args.check and bad:
+        if missing:
+            print(f"ERROR: missing spec_ref metadata for {len(missing)} tests", file=sys.stderr)
+        if malformed:
+            print(f"ERROR: malformed spec_ref metadata entries: {len(malformed)}", file=sys.stderr)
+        return 1
+
+    print(f"Summary: PASS={0 if bad else 1} FAIL={1 if bad else 0} TOTAL=1")
+    if unresolved:
+        print(f"note: unresolved refs needing clarification: {len(set(unresolved))}")
+    return 0 if not bad else 1
+
+
+if __name__ == "__main__":
+    sys.exit(main())

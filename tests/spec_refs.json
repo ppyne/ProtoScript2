@@ -1,0 +1,2471 @@
+{
+  "cases": {
+    "edge/call_static_basic": {
+      "spec_ref": [
+        "SPEC:4.1",
+        "MANUAL:8.1"
+      ]
+    },
+    "edge/call_static_nested": {
+      "spec_ref": [
+        "SPEC:4.1",
+        "MANUAL:8.1"
+      ]
+    },
+    "edge/civildatetime_clone_allowed": {
+      "spec_ref": [
+        "SPEC:4.1",
+        "MANUAL:8.1"
+      ]
+    },
+    "edge/civildatetime_subtype_runtime": {
+      "spec_ref": [
+        "SPEC:4.1",
+        "MANUAL:8.1"
+      ]
+    },
+    "edge/clone_inherited_override": {
+      "spec_ref": [
+        "SPEC:4.1",
+        "MANUAL:8.1"
+      ]
+    },
+    "edge/clone_super_initial_divergent": {
+      "spec_ref": [
+        "SPEC:4.1",
+        "MANUAL:8.1"
+      ]
+    },
+    "edge/compound_assign": {
+      "spec_ref": [
+        "SPEC:4.1",
+        "MANUAL:8.1"
+      ]
+    },
+    "edge/control_flow_continuation": {
+      "spec_ref": [
+        "SPEC:4.1",
+        "MANUAL:8.1"
+      ]
+    },
+    "edge/default_values_local": {
+      "spec_ref": [
+        "SPEC:4.1",
+        "MANUAL:8.1"
+      ]
+    },
+    "edge/default_values_proto": {
+      "spec_ref": [
+        "SPEC:4.1",
+        "MANUAL:8.1"
+      ]
+    },
+    "edge/exception_derived": {
+      "spec_ref": [
+        "SPEC:4.1",
+        "MANUAL:8.1"
+      ]
+    },
+    "edge/float_methods": {
+      "spec_ref": [
+        "SPEC:4.1",
+        "MANUAL:8.1"
+      ]
+    },
+    "edge/glyph_basic": {
+      "spec_ref": [
+        "SPEC:4.1",
+        "MANUAL:8.1"
+      ]
+    },
+    "edge/glyph_methods": {
+      "spec_ref": [
+        "SPEC:4.1",
+        "MANUAL:8.1"
+      ]
+    },
+    "edge/group_stress": {
+      "spec_ref": [
+        "SPEC:4.1",
+        "MANUAL:8.1"
+      ]
+    },
+    "edge/handle_clone_binaryfile_direct": {
+      "spec_ref": [
+        "SPEC:4.1",
+        "MANUAL:8.1"
+      ]
+    },
+    "edge/handle_clone_dir_direct": {
+      "spec_ref": [
+        "SPEC:4.1",
+        "MANUAL:8.1"
+      ]
+    },
+    "edge/handle_clone_pathentry_direct": {
+      "spec_ref": [
+        "SPEC:4.1",
+        "MANUAL:8.1"
+      ]
+    },
+    "edge/handle_clone_pathinfo_direct": {
+      "spec_ref": [
+        "SPEC:4.1",
+        "MANUAL:8.1"
+      ]
+    },
+    "edge/handle_clone_processevent_direct": {
+      "spec_ref": [
+        "SPEC:4.1",
+        "MANUAL:8.1"
+      ]
+    },
+    "edge/handle_clone_processresult_direct": {
+      "spec_ref": [
+        "SPEC:4.1",
+        "MANUAL:8.1"
+      ]
+    },
+    "edge/handle_clone_regexp_direct": {
+      "spec_ref": [
+        "SPEC:4.1",
+        "MANUAL:8.1"
+      ]
+    },
+    "edge/handle_clone_regexpmatch_direct": {
+      "spec_ref": [
+        "SPEC:4.1",
+        "MANUAL:8.1"
+      ]
+    },
+    "edge/handle_clone_textfile_direct": {
+      "spec_ref": [
+        "SPEC:4.1",
+        "MANUAL:8.1"
+      ]
+    },
+    "edge/handle_clone_walker_direct": {
+      "spec_ref": [
+        "SPEC:4.1",
+        "MANUAL:8.1"
+      ]
+    },
+    "edge/if_basic": {
+      "spec_ref": [
+        "SPEC:4.1",
+        "MANUAL:8.1"
+      ]
+    },
+    "edge/index_get_list": {
+      "spec_ref": [
+        "SPEC:4.1",
+        "MANUAL:8.1"
+      ]
+    },
+    "edge/index_get_map": {
+      "spec_ref": [
+        "SPEC:4.1",
+        "MANUAL:8.1"
+      ]
+    },
+    "edge/index_set_list": {
+      "spec_ref": [
+        "SPEC:4.1",
+        "MANUAL:8.1"
+      ]
+    },
+    "edge/index_set_map": {
+      "spec_ref": [
+        "SPEC:4.1",
+        "MANUAL:8.1"
+      ]
+    },
+    "edge/int64_print": {
+      "spec_ref": [
+        "SPEC:4.1",
+        "MANUAL:8.1"
+      ]
+    },
+    "edge/int64_print_io": {
+      "spec_ref": [
+        "SPEC:4.1",
+        "MANUAL:8.1"
+      ]
+    },
+    "edge/int_bitwise_ops": {
+      "spec_ref": [
+        "SPEC:4.1",
+        "MANUAL:8.1"
+      ]
+    },
+    "edge/int_methods": {
+      "spec_ref": [
+        "SPEC:4.1",
+        "MANUAL:8.1"
+      ]
+    },
+    "edge/int_min_literal": {
+      "spec_ref": [
+        "SPEC:4.1",
+        "MANUAL:8.1"
+      ]
+    },
+    "edge/io_binary_read_write": {
+      "spec_ref": [
+        "SPEC:4.1",
+        "MANUAL:8.1"
+      ]
+    },
+    "edge/io_eof_length_text": {
+      "spec_ref": [
+        "SPEC:4.1",
+        "MANUAL:8.1"
+      ]
+    },
+    "edge/io_exceptions_basic": {
+      "spec_ref": [
+        "SPEC:4.1",
+        "MANUAL:8.1"
+      ]
+    },
+    "edge/io_print": {
+      "spec_ref": [
+        "SPEC:4.1",
+        "MANUAL:8.1"
+      ]
+    },
+    "edge/io_stdout_stderr": {
+      "spec_ref": [
+        "SPEC:4.1",
+        "MANUAL:8.1"
+      ]
+    },
+    "edge/io_temp_path": {
+      "spec_ref": [
+        "SPEC:4.1",
+        "MANUAL:8.1"
+      ]
+    },
+    "edge/io_text_roundtrip": {
+      "spec_ref": [
+        "SPEC:4.1",
+        "MANUAL:8.1"
+      ]
+    },
+    "edge/io_text_seek_tell": {
+      "spec_ref": [
+        "SPEC:4.1",
+        "MANUAL:8.1"
+      ]
+    },
+    "edge/iter_list_in": {
+      "spec_ref": [
+        "SPEC:4.1",
+        "MANUAL:8.1"
+      ]
+    },
+    "edge/iter_list_of": {
+      "spec_ref": [
+        "SPEC:4.1",
+        "MANUAL:8.1"
+      ]
+    },
+    "edge/json_constructors": {
+      "spec_ref": [
+        "SPEC:4.1",
+        "MANUAL:8.1"
+      ]
+    },
+    "edge/json_decode_basic": {
+      "spec_ref": [
+        "SPEC:4.1",
+        "MANUAL:8.1"
+      ]
+    },
+    "edge/json_decode_object_basic": {
+      "spec_ref": [
+        "SPEC:4.1",
+        "MANUAL:8.1"
+      ]
+    },
+    "edge/json_decode_unicode_escape": {
+      "spec_ref": [
+        "SPEC:4.1",
+        "MANUAL:8.1"
+      ]
+    },
+    "edge/json_encode_basic": {
+      "spec_ref": [
+        "SPEC:4.1",
+        "MANUAL:8.1"
+      ]
+    },
+    "edge/json_isvalid": {
+      "spec_ref": [
+        "SPEC:4.1",
+        "MANUAL:8.1"
+      ]
+    },
+    "edge/list_join_concat": {
+      "spec_ref": [
+        "SPEC:4.1",
+        "MANUAL:8.1"
+      ]
+    },
+    "edge/list_methods_basic": {
+      "spec_ref": [
+        "SPEC:4.1",
+        "MANUAL:8.1"
+      ]
+    },
+    "edge/list_reverse_empty": {
+      "spec_ref": [
+        "SPEC:4.1",
+        "MANUAL:8.1"
+      ]
+    },
+    "edge/list_reverse_int": {
+      "spec_ref": [
+        "SPEC:4.1",
+        "MANUAL:8.1"
+      ]
+    },
+    "edge/list_reverse_proto": {
+      "spec_ref": [
+        "SPEC:4.1",
+        "MANUAL:8.1"
+      ]
+    },
+    "edge/list_reverse_sort_consistency": {
+      "spec_ref": [
+        "SPEC:4.1",
+        "MANUAL:8.1"
+      ]
+    },
+    "edge/list_reverse_string": {
+      "spec_ref": [
+        "SPEC:4.1",
+        "MANUAL:8.1"
+      ]
+    },
+    "edge/list_sort_suite": {
+      "spec_ref": [
+        "SPEC:4.1",
+        "MANUAL:8.1"
+      ]
+    },
+    "edge/manual_ex001": {
+      "spec_ref": [
+        "SPEC:4.1",
+        "MANUAL:8.1"
+      ]
+    },
+    "edge/manual_ex002": {
+      "spec_ref": [
+        "SPEC:4.1",
+        "MANUAL:8.1"
+      ]
+    },
+    "edge/manual_ex003": {
+      "spec_ref": [
+        "SPEC:4.1",
+        "MANUAL:8.1"
+      ]
+    },
+    "edge/manual_ex004": {
+      "spec_ref": [
+        "SPEC:4.1",
+        "MANUAL:8.1"
+      ]
+    },
+    "edge/manual_ex006": {
+      "spec_ref": [
+        "SPEC:4.1",
+        "MANUAL:8.1"
+      ]
+    },
+    "edge/manual_ex007": {
+      "spec_ref": [
+        "SPEC:4.1",
+        "MANUAL:8.1"
+      ]
+    },
+    "edge/manual_ex008": {
+      "spec_ref": [
+        "SPEC:4.1",
+        "MANUAL:8.1"
+      ]
+    },
+    "edge/manual_ex009": {
+      "spec_ref": [
+        "SPEC:4.1",
+        "MANUAL:8.1"
+      ]
+    },
+    "edge/manual_ex010": {
+      "spec_ref": [
+        "SPEC:4.1",
+        "MANUAL:8.1"
+      ]
+    },
+    "edge/manual_ex011": {
+      "spec_ref": [
+        "SPEC:4.1",
+        "MANUAL:8.1"
+      ]
+    },
+    "edge/manual_ex012": {
+      "spec_ref": [
+        "SPEC:4.1",
+        "MANUAL:8.1"
+      ]
+    },
+    "edge/manual_ex013": {
+      "spec_ref": [
+        "SPEC:4.1",
+        "MANUAL:8.1"
+      ]
+    },
+    "edge/manual_ex014": {
+      "spec_ref": [
+        "SPEC:4.1",
+        "MANUAL:8.1"
+      ]
+    },
+    "edge/manual_ex015": {
+      "spec_ref": [
+        "SPEC:4.1",
+        "MANUAL:8.1"
+      ]
+    },
+    "edge/manual_ex016": {
+      "spec_ref": [
+        "SPEC:4.1",
+        "MANUAL:8.1"
+      ]
+    },
+    "edge/manual_ex018": {
+      "spec_ref": [
+        "SPEC:4.1",
+        "MANUAL:8.1"
+      ]
+    },
+    "edge/manual_ex019": {
+      "spec_ref": [
+        "SPEC:4.1",
+        "MANUAL:8.1"
+      ]
+    },
+    "edge/manual_ex021": {
+      "spec_ref": [
+        "SPEC:4.1",
+        "MANUAL:8.1"
+      ]
+    },
+    "edge/manual_ex022": {
+      "spec_ref": [
+        "SPEC:4.1",
+        "MANUAL:8.1"
+      ]
+    },
+    "edge/manual_ex023": {
+      "spec_ref": [
+        "SPEC:4.1",
+        "MANUAL:8.1"
+      ]
+    },
+    "edge/manual_ex024": {
+      "spec_ref": [
+        "SPEC:4.1",
+        "MANUAL:8.1"
+      ]
+    },
+    "edge/manual_ex025": {
+      "spec_ref": [
+        "SPEC:4.1",
+        "MANUAL:8.1"
+      ]
+    },
+    "edge/manual_ex027": {
+      "spec_ref": [
+        "SPEC:4.1",
+        "MANUAL:8.1"
+      ]
+    },
+    "edge/manual_ex029": {
+      "spec_ref": [
+        "SPEC:4.1",
+        "MANUAL:8.1"
+      ]
+    },
+    "edge/manual_ex030": {
+      "spec_ref": [
+        "SPEC:4.1",
+        "MANUAL:8.1"
+      ]
+    },
+    "edge/manual_ex031": {
+      "spec_ref": [
+        "SPEC:4.1",
+        "MANUAL:8.1"
+      ]
+    },
+    "edge/manual_ex032": {
+      "spec_ref": [
+        "SPEC:4.1",
+        "MANUAL:8.1"
+      ]
+    },
+    "edge/manual_ex033": {
+      "spec_ref": [
+        "SPEC:4.1",
+        "MANUAL:8.1"
+      ]
+    },
+    "edge/manual_ex034": {
+      "spec_ref": [
+        "SPEC:4.1",
+        "MANUAL:8.1"
+      ]
+    },
+    "edge/manual_ex035": {
+      "spec_ref": [
+        "SPEC:4.1",
+        "MANUAL:8.1"
+      ]
+    },
+    "edge/manual_ex036": {
+      "spec_ref": [
+        "SPEC:4.1",
+        "MANUAL:8.1"
+      ]
+    },
+    "edge/manual_ex037": {
+      "spec_ref": [
+        "SPEC:4.1",
+        "MANUAL:8.1"
+      ]
+    },
+    "edge/manual_ex038": {
+      "spec_ref": [
+        "SPEC:4.1",
+        "MANUAL:8.1"
+      ]
+    },
+    "edge/manual_ex039": {
+      "spec_ref": [
+        "SPEC:4.1",
+        "MANUAL:8.1"
+      ]
+    },
+    "edge/manual_ex040": {
+      "spec_ref": [
+        "SPEC:4.1",
+        "MANUAL:8.1"
+      ]
+    },
+    "edge/manual_ex041": {
+      "spec_ref": [
+        "SPEC:4.1",
+        "MANUAL:8.1"
+      ]
+    },
+    "edge/manual_ex042": {
+      "spec_ref": [
+        "SPEC:4.1",
+        "MANUAL:8.1"
+      ]
+    },
+    "edge/manual_ex044": {
+      "spec_ref": [
+        "SPEC:4.1",
+        "MANUAL:8.1"
+      ]
+    },
+    "edge/manual_ex045": {
+      "spec_ref": [
+        "SPEC:4.1",
+        "MANUAL:8.1"
+      ]
+    },
+    "edge/manual_ex046": {
+      "spec_ref": [
+        "SPEC:4.1",
+        "MANUAL:8.1"
+      ]
+    },
+    "edge/manual_ex049": {
+      "spec_ref": [
+        "SPEC:4.1",
+        "MANUAL:8.1"
+      ]
+    },
+    "edge/manual_ex051": {
+      "spec_ref": [
+        "SPEC:4.1",
+        "MANUAL:8.1"
+      ]
+    },
+    "edge/manual_ex052": {
+      "spec_ref": [
+        "SPEC:4.1",
+        "MANUAL:8.1"
+      ]
+    },
+    "edge/manual_ex054": {
+      "spec_ref": [
+        "SPEC:4.1",
+        "MANUAL:8.1"
+      ]
+    },
+    "edge/manual_ex055": {
+      "spec_ref": [
+        "SPEC:4.1",
+        "MANUAL:8.1"
+      ]
+    },
+    "edge/manual_ex056": {
+      "spec_ref": [
+        "SPEC:4.1",
+        "MANUAL:8.1"
+      ]
+    },
+    "edge/manual_ex057": {
+      "spec_ref": [
+        "SPEC:4.1",
+        "MANUAL:8.1"
+      ]
+    },
+    "edge/manual_ex059": {
+      "spec_ref": [
+        "SPEC:4.1",
+        "MANUAL:8.1"
+      ]
+    },
+    "edge/manual_ex061": {
+      "spec_ref": [
+        "SPEC:4.1",
+        "MANUAL:8.1"
+      ]
+    },
+    "edge/manual_ex062": {
+      "spec_ref": [
+        "SPEC:4.1",
+        "MANUAL:8.1"
+      ]
+    },
+    "edge/manual_ex064": {
+      "spec_ref": [
+        "SPEC:4.1",
+        "MANUAL:8.1"
+      ]
+    },
+    "edge/manual_ex065": {
+      "spec_ref": [
+        "SPEC:4.1",
+        "MANUAL:8.1"
+      ]
+    },
+    "edge/manual_ex066": {
+      "spec_ref": [
+        "SPEC:4.1",
+        "MANUAL:8.1"
+      ]
+    },
+    "edge/manual_ex067": {
+      "spec_ref": [
+        "SPEC:4.1",
+        "MANUAL:8.1"
+      ]
+    },
+    "edge/manual_ex068": {
+      "spec_ref": [
+        "SPEC:4.1",
+        "MANUAL:8.1"
+      ]
+    },
+    "edge/manual_ex069": {
+      "spec_ref": [
+        "SPEC:4.1",
+        "MANUAL:8.1"
+      ]
+    },
+    "edge/manual_ex070": {
+      "spec_ref": [
+        "SPEC:4.1",
+        "MANUAL:8.1"
+      ]
+    },
+    "edge/manual_ex071": {
+      "spec_ref": [
+        "SPEC:4.1",
+        "MANUAL:8.1"
+      ]
+    },
+    "edge/manual_ex072": {
+      "spec_ref": [
+        "SPEC:4.1",
+        "MANUAL:8.1"
+      ]
+    },
+    "edge/manual_ex073": {
+      "spec_ref": [
+        "SPEC:4.1",
+        "MANUAL:8.1"
+      ]
+    },
+    "edge/manual_ex074": {
+      "spec_ref": [
+        "SPEC:4.1",
+        "MANUAL:8.1"
+      ]
+    },
+    "edge/manual_ex075": {
+      "spec_ref": [
+        "SPEC:4.1",
+        "MANUAL:8.1"
+      ]
+    },
+    "edge/manual_ex076": {
+      "spec_ref": [
+        "SPEC:4.1",
+        "MANUAL:8.1"
+      ]
+    },
+    "edge/manual_ex077": {
+      "spec_ref": [
+        "SPEC:4.1",
+        "MANUAL:8.1"
+      ]
+    },
+    "edge/manual_ex079": {
+      "spec_ref": [
+        "SPEC:4.1",
+        "MANUAL:8.1"
+      ]
+    },
+    "edge/manual_ex080": {
+      "spec_ref": [
+        "SPEC:4.1",
+        "MANUAL:8.1"
+      ]
+    },
+    "edge/manual_ex081": {
+      "spec_ref": [
+        "SPEC:4.1",
+        "MANUAL:8.1"
+      ]
+    },
+    "edge/manual_ex081A": {
+      "spec_ref": [
+        "SPEC:4.1",
+        "MANUAL:8.1"
+      ]
+    },
+    "edge/manual_ex082": {
+      "spec_ref": [
+        "SPEC:4.1",
+        "MANUAL:8.1"
+      ]
+    },
+    "edge/manual_ex083": {
+      "spec_ref": [
+        "SPEC:4.1",
+        "MANUAL:8.1"
+      ]
+    },
+    "edge/manual_ex084": {
+      "spec_ref": [
+        "SPEC:4.1",
+        "MANUAL:8.1"
+      ]
+    },
+    "edge/manual_ex085": {
+      "spec_ref": [
+        "SPEC:4.1",
+        "MANUAL:8.1"
+      ]
+    },
+    "edge/manual_ex086": {
+      "spec_ref": [
+        "SPEC:4.1",
+        "MANUAL:8.1"
+      ]
+    },
+    "edge/manual_ex087": {
+      "spec_ref": [
+        "SPEC:4.1",
+        "MANUAL:8.1"
+      ]
+    },
+    "edge/manual_ex087A": {
+      "spec_ref": [
+        "SPEC:4.1",
+        "MANUAL:8.1"
+      ]
+    },
+    "edge/manual_ex087B": {
+      "spec_ref": [
+        "SPEC:4.1",
+        "MANUAL:8.1"
+      ]
+    },
+    "edge/manual_ex088": {
+      "spec_ref": [
+        "SPEC:4.1",
+        "MANUAL:8.1"
+      ]
+    },
+    "edge/manual_ex089": {
+      "spec_ref": [
+        "SPEC:4.1",
+        "MANUAL:8.1"
+      ]
+    },
+    "edge/manual_ex090": {
+      "spec_ref": [
+        "SPEC:4.1",
+        "MANUAL:8.1"
+      ]
+    },
+    "edge/manual_ex091": {
+      "spec_ref": [
+        "SPEC:4.1",
+        "MANUAL:8.1"
+      ]
+    },
+    "edge/manual_ex092": {
+      "spec_ref": [
+        "SPEC:4.1",
+        "MANUAL:8.1"
+      ]
+    },
+    "edge/manual_ex093": {
+      "spec_ref": [
+        "SPEC:4.1",
+        "MANUAL:8.1"
+      ]
+    },
+    "edge/manual_ex094": {
+      "spec_ref": [
+        "SPEC:4.1",
+        "MANUAL:8.1"
+      ]
+    },
+    "edge/manual_ex095": {
+      "spec_ref": [
+        "SPEC:4.1",
+        "MANUAL:8.1"
+      ]
+    },
+    "edge/manual_ex096": {
+      "spec_ref": [
+        "SPEC:4.1",
+        "MANUAL:8.1"
+      ]
+    },
+    "edge/manual_ex097": {
+      "spec_ref": [
+        "SPEC:4.1",
+        "MANUAL:8.1"
+      ]
+    },
+    "edge/manual_ex098": {
+      "spec_ref": [
+        "SPEC:4.1",
+        "MANUAL:8.1"
+      ]
+    },
+    "edge/manual_ex099": {
+      "spec_ref": [
+        "SPEC:4.1",
+        "MANUAL:8.1"
+      ]
+    },
+    "edge/manual_ex100": {
+      "spec_ref": [
+        "SPEC:4.1",
+        "MANUAL:8.1"
+      ]
+    },
+    "edge/manual_ex101": {
+      "spec_ref": [
+        "SPEC:4.1",
+        "MANUAL:8.1"
+      ]
+    },
+    "edge/manual_ex102": {
+      "spec_ref": [
+        "SPEC:4.1",
+        "MANUAL:8.1"
+      ]
+    },
+    "edge/manual_ex103": {
+      "spec_ref": [
+        "SPEC:4.1",
+        "MANUAL:8.1"
+      ]
+    },
+    "edge/manual_ex105": {
+      "spec_ref": [
+        "SPEC:4.1",
+        "MANUAL:8.1"
+      ]
+    },
+    "edge/manual_ex106": {
+      "spec_ref": [
+        "SPEC:4.1",
+        "MANUAL:8.1"
+      ]
+    },
+    "edge/manual_ex107": {
+      "spec_ref": [
+        "SPEC:4.1",
+        "MANUAL:8.1"
+      ]
+    },
+    "edge/manual_ex108": {
+      "spec_ref": [
+        "SPEC:4.1",
+        "MANUAL:8.1"
+      ]
+    },
+    "edge/manual_ex109": {
+      "spec_ref": [
+        "SPEC:4.1",
+        "MANUAL:8.1"
+      ]
+    },
+    "edge/manual_ex110": {
+      "spec_ref": [
+        "SPEC:4.1",
+        "MANUAL:8.1"
+      ]
+    },
+    "edge/manual_ex111": {
+      "spec_ref": [
+        "SPEC:4.1",
+        "MANUAL:8.1"
+      ]
+    },
+    "edge/manual_ex112": {
+      "spec_ref": [
+        "SPEC:4.1",
+        "MANUAL:8.1"
+      ]
+    },
+    "edge/manual_ex113": {
+      "spec_ref": [
+        "SPEC:4.1",
+        "MANUAL:8.1"
+      ]
+    },
+    "edge/manual_ex114": {
+      "spec_ref": [
+        "SPEC:4.1",
+        "MANUAL:8.1"
+      ]
+    },
+    "edge/manual_ex115": {
+      "spec_ref": [
+        "SPEC:4.1",
+        "MANUAL:8.1"
+      ]
+    },
+    "edge/manual_ex116": {
+      "spec_ref": [
+        "SPEC:4.1",
+        "MANUAL:8.1"
+      ]
+    },
+    "edge/manual_ex117": {
+      "spec_ref": [
+        "SPEC:4.1",
+        "MANUAL:8.1"
+      ]
+    },
+    "edge/map_alias_chain_set_updates_root": {
+      "spec_ref": [
+        "SPEC:4.1",
+        "MANUAL:8.1"
+      ]
+    },
+    "edge/map_alias_set_updates_original": {
+      "spec_ref": [
+        "SPEC:4.1",
+        "MANUAL:8.1"
+      ]
+    },
+    "edge/map_empty_literal_typed_set": {
+      "spec_ref": [
+        "SPEC:4.1",
+        "MANUAL:8.1"
+      ]
+    },
+    "edge/map_insert_on_set": {
+      "spec_ref": [
+        "SPEC:4.1",
+        "MANUAL:8.1"
+      ]
+    },
+    "edge/map_iteration_in": {
+      "spec_ref": [
+        "SPEC:4.1",
+        "MANUAL:8.1"
+      ]
+    },
+    "edge/map_iteration_of": {
+      "spec_ref": [
+        "SPEC:4.1",
+        "MANUAL:8.1"
+      ]
+    },
+    "edge/map_key_present": {
+      "spec_ref": [
+        "SPEC:4.1",
+        "MANUAL:8.1"
+      ]
+    },
+    "edge/map_methods_basic": {
+      "spec_ref": [
+        "SPEC:4.1",
+        "MANUAL:8.1"
+      ]
+    },
+    "edge/map_remove_order": {
+      "spec_ref": [
+        "SPEC:4.1",
+        "MANUAL:8.1"
+      ]
+    },
+    "edge/map_update_then_lookup": {
+      "spec_ref": [
+        "SPEC:4.1",
+        "MANUAL:8.1"
+      ]
+    },
+    "edge/math_abs_min_max": {
+      "spec_ref": [
+        "SPEC:4.1",
+        "MANUAL:8.1"
+      ]
+    },
+    "edge/math_constants": {
+      "spec_ref": [
+        "SPEC:4.1",
+        "MANUAL:8.1"
+      ]
+    },
+    "edge/math_domain_no_error": {
+      "spec_ref": [
+        "SPEC:4.1",
+        "MANUAL:8.1"
+      ]
+    },
+    "edge/math_extended": {
+      "spec_ref": [
+        "SPEC:4.1",
+        "MANUAL:8.1"
+      ]
+    },
+    "edge/math_floor_ceil_round_pow_exp": {
+      "spec_ref": [
+        "SPEC:4.1",
+        "MANUAL:8.1"
+      ]
+    },
+    "edge/math_numeric_limits": {
+      "spec_ref": [
+        "SPEC:4.1",
+        "MANUAL:8.1"
+      ]
+    },
+    "edge/math_random_loop": {
+      "spec_ref": [
+        "SPEC:4.1",
+        "MANUAL:8.1"
+      ]
+    },
+    "edge/math_random_range": {
+      "spec_ref": [
+        "SPEC:4.1",
+        "MANUAL:8.1"
+      ]
+    },
+    "edge/math_random_variability": {
+      "spec_ref": [
+        "SPEC:4.1",
+        "MANUAL:8.1"
+      ]
+    },
+    "edge/math_trig_hyper": {
+      "spec_ref": [
+        "SPEC:4.1",
+        "MANUAL:8.1"
+      ]
+    },
+    "edge/method_variadic_empty": {
+      "spec_ref": [
+        "SPEC:4.1",
+        "MANUAL:8.1"
+      ]
+    },
+    "edge/method_variadic_fixed_plus": {
+      "spec_ref": [
+        "SPEC:4.1",
+        "MANUAL:8.1"
+      ]
+    },
+    "edge/method_variadic_with_args": {
+      "spec_ref": [
+        "SPEC:4.1",
+        "MANUAL:8.1"
+      ]
+    },
+    "edge/module_import_name_priority": {
+      "spec_ref": [
+        "SPEC:4.1",
+        "MANUAL:8.1"
+      ]
+    },
+    "edge/module_import_name_search_paths_second": {
+      "spec_ref": [
+        "SPEC:4.1",
+        "MANUAL:8.1"
+      ]
+    },
+    "edge/module_import_path_basic": {
+      "spec_ref": [
+        "SPEC:4.1",
+        "MANUAL:8.1"
+      ]
+    },
+    "edge/module_import_path_selective": {
+      "spec_ref": [
+        "SPEC:4.1",
+        "MANUAL:8.1"
+      ]
+    },
+    "edge/module_import_simple_add": {
+      "spec_ref": [
+        "SPEC:4.1",
+        "MANUAL:8.1"
+      ]
+    },
+    "edge/module_namespace_call": {
+      "spec_ref": [
+        "SPEC:4.1",
+        "MANUAL:8.1"
+      ]
+    },
+    "edge/module_try_catch": {
+      "spec_ref": [
+        "SPEC:4.1",
+        "MANUAL:8.1"
+      ]
+    },
+    "edge/module_try_finally_rethrow": {
+      "spec_ref": [
+        "SPEC:4.1",
+        "MANUAL:8.1"
+      ]
+    },
+    "edge/module_utf8_roundtrip": {
+      "spec_ref": [
+        "SPEC:4.1",
+        "MANUAL:8.1"
+      ]
+    },
+    "edge/numeric_cast_valid": {
+      "spec_ref": [
+        "SPEC:4.1",
+        "MANUAL:8.1"
+      ]
+    },
+    "edge/numeric_literal_context": {
+      "spec_ref": [
+        "SPEC:4.1",
+        "MANUAL:8.1"
+      ]
+    },
+    "edge/oob_list_index": {
+      "spec_ref": [
+        "SPEC:4.1",
+        "MANUAL:8.1"
+      ]
+    },
+    "edge/overflow_int_add": {
+      "spec_ref": [
+        "SPEC:4.1",
+        "MANUAL:8.1"
+      ]
+    },
+    "edge/override_chain_order_self_specialization": {
+      "spec_ref": [
+        "SPEC:4.1",
+        "MANUAL:8.1"
+      ]
+    },
+    "edge/override_multilevel_super_nested_self_deep": {
+      "spec_ref": [
+        "SPEC:4.1",
+        "MANUAL:8.1"
+      ]
+    },
+    "edge/proto_bool_field": {
+      "spec_ref": [
+        "SPEC:4.1",
+        "MANUAL:8.1"
+      ]
+    },
+    "edge/proto_field_init_clone_repeated": {
+      "spec_ref": [
+        "SPEC:4.1",
+        "MANUAL:8.1"
+      ]
+    },
+    "edge/proto_field_init_inheritance": {
+      "spec_ref": [
+        "SPEC:4.1",
+        "MANUAL:8.1"
+      ]
+    },
+    "edge/proto_field_init_list_literal": {
+      "spec_ref": [
+        "SPEC:4.1",
+        "MANUAL:8.1"
+      ]
+    },
+    "edge/proto_field_init_override_no_impact": {
+      "spec_ref": [
+        "SPEC:4.1",
+        "MANUAL:8.1"
+      ]
+    },
+    "edge/proto_field_init_scalar_const": {
+      "spec_ref": [
+        "SPEC:4.1",
+        "MANUAL:8.1"
+      ]
+    },
+    "edge/prototype_basic": {
+      "spec_ref": [
+        "SPEC:4.1",
+        "MANUAL:8.1"
+      ]
+    },
+    "edge/prototype_inherit_static": {
+      "spec_ref": [
+        "SPEC:4.1",
+        "MANUAL:8.1"
+      ]
+    },
+    "edge/prototype_parent_call": {
+      "spec_ref": [
+        "SPEC:4.1",
+        "MANUAL:8.1"
+      ]
+    },
+    "edge/runtime_exception_filter": {
+      "spec_ref": [
+        "SPEC:4.1",
+        "MANUAL:8.1"
+      ]
+    },
+    "edge/slice_view_list_basic": {
+      "spec_ref": [
+        "SPEC:4.1",
+        "MANUAL:8.1"
+      ]
+    },
+    "edge/string_indexof_emoji": {
+      "spec_ref": [
+        "SPEC:4.1",
+        "MANUAL:8.1"
+      ]
+    },
+    "edge/string_indexof_notfound": {
+      "spec_ref": [
+        "SPEC:4.1",
+        "MANUAL:8.1"
+      ]
+    },
+    "edge/string_length_ascii": {
+      "spec_ref": [
+        "SPEC:4.1",
+        "MANUAL:8.1"
+      ]
+    },
+    "edge/string_length_combining": {
+      "spec_ref": [
+        "SPEC:4.1",
+        "MANUAL:8.1"
+      ]
+    },
+    "edge/string_length_emoji": {
+      "spec_ref": [
+        "SPEC:4.1",
+        "MANUAL:8.1"
+      ]
+    },
+    "edge/string_replace_basic": {
+      "spec_ref": [
+        "SPEC:4.1",
+        "MANUAL:8.1"
+      ]
+    },
+    "edge/string_split_basic": {
+      "spec_ref": [
+        "SPEC:4.1",
+        "MANUAL:8.1"
+      ]
+    },
+    "edge/string_split_empty": {
+      "spec_ref": [
+        "SPEC:4.1",
+        "MANUAL:8.1"
+      ]
+    },
+    "edge/string_starts_ends": {
+      "spec_ref": [
+        "SPEC:4.1",
+        "MANUAL:8.1"
+      ]
+    },
+    "edge/string_substring_emoji": {
+      "spec_ref": [
+        "SPEC:4.1",
+        "MANUAL:8.1"
+      ]
+    },
+    "edge/string_to_int_float": {
+      "spec_ref": [
+        "SPEC:4.1",
+        "MANUAL:8.1"
+      ]
+    },
+    "edge/string_trim_basic": {
+      "spec_ref": [
+        "SPEC:4.1",
+        "MANUAL:8.1"
+      ]
+    },
+    "edge/string_trim_start_end": {
+      "spec_ref": [
+        "SPEC:4.1",
+        "MANUAL:8.1"
+      ]
+    },
+    "edge/string_upper": {
+      "spec_ref": [
+        "SPEC:4.1",
+        "MANUAL:8.1"
+      ]
+    },
+    "edge/string_utf8_roundtrip": {
+      "spec_ref": [
+        "SPEC:4.1",
+        "MANUAL:8.1"
+      ]
+    },
+    "edge/super_clone_init": {
+      "spec_ref": [
+        "SPEC:4.1",
+        "MANUAL:8.1"
+      ]
+    },
+    "edge/switch_cfg_case": {
+      "spec_ref": [
+        "SPEC:4.1",
+        "MANUAL:8.1"
+      ]
+    },
+    "edge/switch_cfg_default": {
+      "spec_ref": [
+        "SPEC:4.1",
+        "MANUAL:8.1"
+      ]
+    },
+    "edge/switch_no_termination": {
+      "spec_ref": [
+        "SPEC:4.1",
+        "MANUAL:8.1"
+      ]
+    },
+    "edge/time_dst_paris": {
+      "spec_ref": [
+        "SPEC:4.1",
+        "MANUAL:8.1"
+      ]
+    },
+    "edge/time_iso_parse_format": {
+      "spec_ref": [
+        "SPEC:4.1",
+        "MANUAL:8.1"
+      ]
+    },
+    "edge/time_iso_week": {
+      "spec_ref": [
+        "SPEC:4.1",
+        "MANUAL:8.1"
+      ]
+    },
+    "edge/time_timezone_validation": {
+      "spec_ref": [
+        "SPEC:4.1",
+        "MANUAL:8.1"
+      ]
+    },
+    "edge/time_utc_roundtrip": {
+      "spec_ref": [
+        "SPEC:4.1",
+        "MANUAL:8.1"
+      ]
+    },
+    "edge/user_exception_filter": {
+      "spec_ref": [
+        "SPEC:4.1",
+        "MANUAL:8.1"
+      ]
+    },
+    "edge/variadic_empty_call": {
+      "spec_ref": [
+        "SPEC:4.1",
+        "MANUAL:8.1"
+      ]
+    },
+    "edge/variadic_view_empty_length": {
+      "spec_ref": [
+        "SPEC:4.1",
+        "MANUAL:8.1"
+      ]
+    },
+    "edge/variadic_view_nonempty_length": {
+      "spec_ref": [
+        "SPEC:4.1",
+        "MANUAL:8.1"
+      ]
+    },
+    "edge/view_string_basic": {
+      "spec_ref": [
+        "SPEC:4.1",
+        "MANUAL:8.1"
+      ]
+    },
+    "fs/dir_iterator": {
+      "spec_ref": [
+        "SPEC:6.4",
+        "MANUAL:8.2"
+      ]
+    },
+    "fs/exceptions": {
+      "spec_ref": [
+        "SPEC:6.4",
+        "MANUAL:8.2"
+      ]
+    },
+    "fs/import_fs": {
+      "spec_ref": [
+        "SPEC:6.4",
+        "MANUAL:8.2"
+      ]
+    },
+    "fs/module_missing": {
+      "spec_ref": [
+        "SPEC:6.4",
+        "MANUAL:8.2"
+      ]
+    },
+    "fs/mutating": {
+      "spec_ref": [
+        "SPEC:6.4",
+        "MANUAL:8.2"
+      ]
+    },
+    "fs/queries": {
+      "spec_ref": [
+        "SPEC:6.4",
+        "MANUAL:8.2"
+      ]
+    },
+    "fs/size": {
+      "spec_ref": [
+        "SPEC:6.4",
+        "MANUAL:8.2"
+      ]
+    },
+    "fs/walker": {
+      "spec_ref": [
+        "SPEC:6.4",
+        "MANUAL:8.2"
+      ]
+    },
+    "invalid/parse/manual_ex020": {
+      "spec_ref": [
+        "SPEC:6.1",
+        "MANUAL:2.1"
+      ]
+    },
+    "invalid/parse/manual_ex026": {
+      "spec_ref": [
+        "SPEC:6.1",
+        "MANUAL:2.1"
+      ]
+    },
+    "invalid/parse/manual_ex050": {
+      "spec_ref": [
+        "SPEC:6.1",
+        "MANUAL:2.1"
+      ]
+    },
+    "invalid/parse/manual_ex053": {
+      "spec_ref": [
+        "SPEC:6.1",
+        "MANUAL:2.1"
+      ]
+    },
+    "invalid/parse/manual_ex078": {
+      "spec_ref": [
+        "SPEC:6.1",
+        "MANUAL:2.1"
+      ]
+    },
+    "invalid/parse/unclosed_block": {
+      "spec_ref": [
+        "SPEC:6.1",
+        "MANUAL:2.1"
+      ]
+    },
+    "invalid/parse/unexpected_token_comma": {
+      "spec_ref": [
+        "SPEC:6.1",
+        "MANUAL:2.1"
+      ]
+    },
+    "invalid/runtime/div_zero_int": {
+      "spec_ref": [
+        "SPEC:6.6",
+        "MANUAL:8.3"
+      ]
+    },
+    "invalid/runtime/glyph_add": {
+      "spec_ref": [
+        "SPEC:6.6",
+        "MANUAL:8.3"
+      ]
+    },
+    "invalid/runtime/glyph_unary": {
+      "spec_ref": [
+        "SPEC:6.6",
+        "MANUAL:8.3"
+      ]
+    },
+    "invalid/runtime/index_get_string_oob": {
+      "spec_ref": [
+        "SPEC:6.6",
+        "MANUAL:8.3"
+      ]
+    },
+    "invalid/runtime/index_get_string_oob_combining": {
+      "spec_ref": [
+        "SPEC:6.6",
+        "MANUAL:8.3"
+      ]
+    },
+    "invalid/runtime/index_get_string_oob_emoji": {
+      "spec_ref": [
+        "SPEC:6.6",
+        "MANUAL:8.3"
+      ]
+    },
+    "invalid/runtime/index_set_list_oob": {
+      "spec_ref": [
+        "SPEC:6.6",
+        "MANUAL:8.3"
+      ]
+    },
+    "invalid/runtime/int_overflow_add": {
+      "spec_ref": [
+        "SPEC:6.6",
+        "MANUAL:8.3"
+      ]
+    },
+    "invalid/runtime/int_to_byte_range": {
+      "spec_ref": [
+        "SPEC:6.6",
+        "MANUAL:8.3"
+      ]
+    },
+    "invalid/runtime/io_after_close": {
+      "spec_ref": [
+        "SPEC:6.6",
+        "MANUAL:8.3"
+      ]
+    },
+    "invalid/runtime/io_close_std": {
+      "spec_ref": [
+        "SPEC:6.6",
+        "MANUAL:8.3"
+      ]
+    },
+    "invalid/runtime/io_invalid_mode": {
+      "spec_ref": [
+        "SPEC:6.6",
+        "MANUAL:8.3"
+      ]
+    },
+    "invalid/runtime/io_read_size_invalid": {
+      "spec_ref": [
+        "SPEC:6.6",
+        "MANUAL:8.3"
+      ]
+    },
+    "invalid/runtime/io_utf8_invalid": {
+      "spec_ref": [
+        "SPEC:6.6",
+        "MANUAL:8.3"
+      ]
+    },
+    "invalid/runtime/io_write_type_binary": {
+      "spec_ref": [
+        "SPEC:6.6",
+        "MANUAL:8.3"
+      ]
+    },
+    "invalid/runtime/io_write_type_text": {
+      "spec_ref": [
+        "SPEC:6.6",
+        "MANUAL:8.3"
+      ]
+    },
+    "invalid/runtime/json_decode_invalid": {
+      "spec_ref": [
+        "SPEC:6.6",
+        "MANUAL:8.3"
+      ]
+    },
+    "invalid/runtime/json_encode_nan": {
+      "spec_ref": [
+        "SPEC:6.6",
+        "MANUAL:8.3"
+      ]
+    },
+    "invalid/runtime/list_index_oob": {
+      "spec_ref": [
+        "SPEC:6.6",
+        "MANUAL:8.3"
+      ]
+    },
+    "invalid/runtime/list_pop_empty_runtime": {
+      "spec_ref": [
+        "SPEC:6.6",
+        "MANUAL:8.3"
+      ]
+    },
+    "invalid/runtime/manual_ex060": {
+      "spec_ref": [
+        "SPEC:6.6",
+        "MANUAL:8.3"
+      ]
+    },
+    "invalid/runtime/manual_ex063": {
+      "spec_ref": [
+        "SPEC:6.6",
+        "MANUAL:8.3"
+      ]
+    },
+    "invalid/runtime/map_missing_key": {
+      "spec_ref": [
+        "SPEC:6.6",
+        "MANUAL:8.3"
+      ]
+    },
+    "invalid/runtime/math_type_error": {
+      "spec_ref": [
+        "SPEC:6.6",
+        "MANUAL:8.3"
+      ]
+    },
+    "invalid/runtime/module_badver": {
+      "spec_ref": [
+        "SPEC:6.6",
+        "MANUAL:8.3"
+      ]
+    },
+    "invalid/runtime/module_noinit": {
+      "spec_ref": [
+        "SPEC:6.6",
+        "MANUAL:8.3"
+      ]
+    },
+    "invalid/runtime/module_nosym": {
+      "spec_ref": [
+        "SPEC:6.6",
+        "MANUAL:8.3"
+      ]
+    },
+    "invalid/runtime/module_not_found": {
+      "spec_ref": [
+        "SPEC:6.6",
+        "MANUAL:8.3"
+      ]
+    },
+    "invalid/runtime/shift_range_int": {
+      "spec_ref": [
+        "SPEC:6.6",
+        "MANUAL:8.3"
+      ]
+    },
+    "invalid/runtime/slice_invalidated_pop": {
+      "spec_ref": [
+        "SPEC:6.6",
+        "MANUAL:8.3"
+      ]
+    },
+    "invalid/runtime/string_substring_oob": {
+      "spec_ref": [
+        "SPEC:6.6",
+        "MANUAL:8.3"
+      ]
+    },
+    "invalid/runtime/string_to_float_invalid": {
+      "spec_ref": [
+        "SPEC:6.6",
+        "MANUAL:8.3"
+      ]
+    },
+    "invalid/runtime/string_to_int_invalid": {
+      "spec_ref": [
+        "SPEC:6.6",
+        "MANUAL:8.3"
+      ]
+    },
+    "invalid/runtime/unhandled_exception": {
+      "spec_ref": [
+        "SPEC:6.6",
+        "MANUAL:8.3"
+      ]
+    },
+    "invalid/runtime/utf8_invalid_bytes": {
+      "spec_ref": [
+        "SPEC:6.6",
+        "MANUAL:8.3"
+      ]
+    },
+    "invalid/runtime/view_invalidated_push": {
+      "spec_ref": [
+        "SPEC:6.6",
+        "MANUAL:8.3"
+      ]
+    },
+    "invalid/runtime/view_oob": {
+      "spec_ref": [
+        "SPEC:6.6",
+        "MANUAL:8.3"
+      ]
+    },
+    "invalid/type/arity_file_read_too_few": {
+      "spec_ref": [
+        "SPEC:5.6",
+        "MANUAL:3.1"
+      ]
+    },
+    "invalid/type/arity_json_encode_too_few": {
+      "spec_ref": [
+        "SPEC:5.6",
+        "MANUAL:3.1"
+      ]
+    },
+    "invalid/type/arity_list_join_too_few": {
+      "spec_ref": [
+        "SPEC:5.6",
+        "MANUAL:3.1"
+      ]
+    },
+    "invalid/type/arity_list_push_too_many": {
+      "spec_ref": [
+        "SPEC:5.6",
+        "MANUAL:3.1"
+      ]
+    },
+    "invalid/type/arity_math_pow_too_many": {
+      "spec_ref": [
+        "SPEC:5.6",
+        "MANUAL:3.1"
+      ]
+    },
+    "invalid/type/arity_method_variadic_missing_fixed": {
+      "spec_ref": [
+        "SPEC:5.6",
+        "MANUAL:3.1"
+      ]
+    },
+    "invalid/type/arity_string_concat_too_many": {
+      "spec_ref": [
+        "SPEC:5.6",
+        "MANUAL:3.1"
+      ]
+    },
+    "invalid/type/arity_string_substring_too_few": {
+      "spec_ref": [
+        "SPEC:5.6",
+        "MANUAL:3.1"
+      ]
+    },
+    "invalid/type/arity_textfile_seek_too_few": {
+      "spec_ref": [
+        "SPEC:5.6",
+        "MANUAL:3.1"
+      ]
+    },
+    "invalid/type/arity_textfile_tell_too_many": {
+      "spec_ref": [
+        "SPEC:5.6",
+        "MANUAL:3.1"
+      ]
+    },
+    "invalid/type/builtin_sealed_inheritance_binaryfile": {
+      "spec_ref": [
+        "SPEC:5.6",
+        "MANUAL:3.1"
+      ]
+    },
+    "invalid/type/builtin_sealed_inheritance_dir": {
+      "spec_ref": [
+        "SPEC:5.6",
+        "MANUAL:3.1"
+      ]
+    },
+    "invalid/type/builtin_sealed_inheritance_pathentry": {
+      "spec_ref": [
+        "SPEC:5.6",
+        "MANUAL:3.1"
+      ]
+    },
+    "invalid/type/builtin_sealed_inheritance_pathinfo": {
+      "spec_ref": [
+        "SPEC:5.6",
+        "MANUAL:3.1"
+      ]
+    },
+    "invalid/type/builtin_sealed_inheritance_processevent": {
+      "spec_ref": [
+        "SPEC:5.6",
+        "MANUAL:3.1"
+      ]
+    },
+    "invalid/type/builtin_sealed_inheritance_processresult": {
+      "spec_ref": [
+        "SPEC:5.6",
+        "MANUAL:3.1"
+      ]
+    },
+    "invalid/type/builtin_sealed_inheritance_regexp": {
+      "spec_ref": [
+        "SPEC:5.6",
+        "MANUAL:3.1"
+      ]
+    },
+    "invalid/type/builtin_sealed_inheritance_regexpmatch": {
+      "spec_ref": [
+        "SPEC:5.6",
+        "MANUAL:3.1"
+      ]
+    },
+    "invalid/type/builtin_sealed_inheritance_textfile": {
+      "spec_ref": [
+        "SPEC:5.6",
+        "MANUAL:3.1"
+      ]
+    },
+    "invalid/type/builtin_sealed_inheritance_walker": {
+      "spec_ref": [
+        "SPEC:5.6",
+        "MANUAL:3.1"
+      ]
+    },
+    "invalid/type/cast_byte_256": {
+      "spec_ref": [
+        "SPEC:5.6",
+        "MANUAL:3.1"
+      ]
+    },
+    "invalid/type/cast_byte_3_5": {
+      "spec_ref": [
+        "SPEC:5.6",
+        "MANUAL:3.1"
+      ]
+    },
+    "invalid/type/cast_byte_int_256": {
+      "spec_ref": [
+        "SPEC:5.6",
+        "MANUAL:3.1"
+      ]
+    },
+    "invalid/type/cast_byte_minus1": {
+      "spec_ref": [
+        "SPEC:5.6",
+        "MANUAL:3.1"
+      ]
+    },
+    "invalid/type/cast_int_3_14": {
+      "spec_ref": [
+        "SPEC:5.6",
+        "MANUAL:3.1"
+      ]
+    },
+    "invalid/type/catch_non_exception": {
+      "spec_ref": [
+        "SPEC:5.6",
+        "MANUAL:3.1"
+      ]
+    },
+    "invalid/type/civildatetime_field_assignment_forbidden": {
+      "spec_ref": [
+        "SPEC:5.6",
+        "MANUAL:3.1"
+      ]
+    },
+    "invalid/type/empty_list_no_context": {
+      "spec_ref": [
+        "SPEC:5.6",
+        "MANUAL:3.1"
+      ]
+    },
+    "invalid/type/empty_map_no_context": {
+      "spec_ref": [
+        "SPEC:5.6",
+        "MANUAL:3.1"
+      ]
+    },
+    "invalid/type/group_descriptor_as_expression": {
+      "spec_ref": [
+        "SPEC:5.6",
+        "MANUAL:3.1"
+      ]
+    },
+    "invalid/type/list_pop_empty_static": {
+      "spec_ref": [
+        "SPEC:5.6",
+        "MANUAL:3.1"
+      ]
+    },
+    "invalid/type/list_sort_bad_compareTo_signature": {
+      "spec_ref": [
+        "SPEC:5.6",
+        "MANUAL:3.1"
+      ]
+    },
+    "invalid/type/list_sort_missing_compareTo": {
+      "spec_ref": [
+        "SPEC:5.6",
+        "MANUAL:3.1"
+      ]
+    },
+    "invalid/type/list_sort_type_error": {
+      "spec_ref": [
+        "SPEC:5.6",
+        "MANUAL:3.1"
+      ]
+    },
+    "invalid/type/literal_byte_256": {
+      "spec_ref": [
+        "SPEC:5.6",
+        "MANUAL:3.1"
+      ]
+    },
+    "invalid/type/manual_ex005": {
+      "spec_ref": [
+        "SPEC:5.6",
+        "MANUAL:3.1"
+      ]
+    },
+    "invalid/type/manual_ex017": {
+      "spec_ref": [
+        "SPEC:5.6",
+        "MANUAL:3.1"
+      ]
+    },
+    "invalid/type/manual_ex028": {
+      "spec_ref": [
+        "SPEC:5.6",
+        "MANUAL:3.1"
+      ]
+    },
+    "invalid/type/manual_ex043": {
+      "spec_ref": [
+        "SPEC:5.6",
+        "MANUAL:3.1"
+      ]
+    },
+    "invalid/type/manual_ex047": {
+      "spec_ref": [
+        "SPEC:5.6",
+        "MANUAL:3.1"
+      ]
+    },
+    "invalid/type/manual_ex048": {
+      "spec_ref": [
+        "SPEC:5.6",
+        "MANUAL:3.1"
+      ]
+    },
+    "invalid/type/manual_ex058": {
+      "spec_ref": [
+        "SPEC:5.6",
+        "MANUAL:3.1"
+      ]
+    },
+    "invalid/type/manual_ex104": {
+      "spec_ref": [
+        "SPEC:5.6",
+        "MANUAL:3.1"
+      ]
+    },
+    "invalid/type/module_import_path_bad_ext": {
+      "spec_ref": [
+        "SPEC:5.6",
+        "MANUAL:3.1"
+      ]
+    },
+    "invalid/type/module_import_path_missing": {
+      "spec_ref": [
+        "SPEC:5.6",
+        "MANUAL:3.1"
+      ]
+    },
+    "invalid/type/module_import_path_no_root_proto": {
+      "spec_ref": [
+        "SPEC:5.6",
+        "MANUAL:3.1"
+      ]
+    },
+    "invalid/type/module_missing": {
+      "spec_ref": [
+        "SPEC:5.6",
+        "MANUAL:3.1"
+      ]
+    },
+    "invalid/type/module_registry_invalid_type": {
+      "spec_ref": [
+        "SPEC:5.6",
+        "MANUAL:3.1"
+      ]
+    },
+    "invalid/type/module_symbol_missing": {
+      "spec_ref": [
+        "SPEC:5.6",
+        "MANUAL:3.1"
+      ]
+    },
+    "invalid/type/multiple_static_errors": {
+      "spec_ref": [
+        "SPEC:5.6",
+        "MANUAL:3.1"
+      ]
+    },
+    "invalid/type/null_literal": {
+      "spec_ref": [
+        "SPEC:5.6",
+        "MANUAL:3.1"
+      ]
+    },
+    "invalid/type/proto_const_field_missing_init": {
+      "spec_ref": [
+        "SPEC:5.6",
+        "MANUAL:3.1"
+      ]
+    },
+    "invalid/type/proto_const_field_reassign": {
+      "spec_ref": [
+        "SPEC:5.6",
+        "MANUAL:3.1"
+      ]
+    },
+    "invalid/type/proto_field_init_self_invalid": {
+      "spec_ref": [
+        "SPEC:5.6",
+        "MANUAL:3.1"
+      ]
+    },
+    "invalid/type/proto_field_init_type_mismatch": {
+      "spec_ref": [
+        "SPEC:5.6",
+        "MANUAL:3.1"
+      ]
+    },
+    "invalid/type/prototype_descriptor_as_expression": {
+      "spec_ref": [
+        "SPEC:5.6",
+        "MANUAL:3.1"
+      ]
+    },
+    "invalid/type/redeclaration_same_scope": {
+      "spec_ref": [
+        "SPEC:5.6",
+        "MANUAL:3.1"
+      ]
+    },
+    "invalid/type/return_self": {
+      "spec_ref": [
+        "SPEC:5.6",
+        "MANUAL:3.1"
+      ]
+    },
+    "invalid/type/return_self_alias": {
+      "spec_ref": [
+        "SPEC:5.6",
+        "MANUAL:3.1"
+      ]
+    },
+    "invalid/type/string_index_write": {
+      "spec_ref": [
+        "SPEC:5.6",
+        "MANUAL:3.1"
+      ]
+    },
+    "invalid/type/super_method_missing": {
+      "spec_ref": [
+        "SPEC:5.6",
+        "MANUAL:3.1"
+      ]
+    },
+    "invalid/type/super_outside_method": {
+      "spec_ref": [
+        "SPEC:5.6",
+        "MANUAL:3.1"
+      ]
+    },
+    "invalid/type/switch_no_termination": {
+      "spec_ref": [
+        "SPEC:5.6",
+        "MANUAL:3.1"
+      ]
+    },
+    "invalid/type/throw_exception_call": {
+      "spec_ref": [
+        "SPEC:5.6",
+        "MANUAL:3.1"
+      ]
+    },
+    "invalid/type/type_mismatch_assignment": {
+      "spec_ref": [
+        "SPEC:5.6",
+        "MANUAL:3.1"
+      ]
+    },
+    "invalid/type/unknown_group_member": {
+      "spec_ref": [
+        "SPEC:5.6",
+        "MANUAL:3.1"
+      ]
+    },
+    "invalid/type/unknown_local_variable": {
+      "spec_ref": [
+        "SPEC:5.6",
+        "MANUAL:3.1"
+      ]
+    },
+    "invalid/type/variadic_mutation_forbidden": {
+      "spec_ref": [
+        "SPEC:5.6",
+        "MANUAL:3.1"
+      ]
+    },
+    "invalid/type/view_index_write": {
+      "spec_ref": [
+        "SPEC:5.6",
+        "MANUAL:3.1"
+      ]
+    },
+    "invalid/visibility_internal/internal_access_from_global_same_file": {
+      "spec_ref": [
+        "SPEC:4.3.3",
+        "MANUAL:10.3.2"
+      ]
+    },
+    "invalid/visibility_internal/internal_access_from_unrelated_prototype_same_file": {
+      "spec_ref": [
+        "SPEC:4.3.3",
+        "MANUAL:10.3.2"
+      ]
+    },
+    "invalid/visibility_internal/internal_keyword_outside_prototype": {
+      "spec_ref": [
+        "SPEC:4.3.3",
+        "MANUAL:10.3.2"
+      ]
+    },
+    "regexp/compile_basic": {
+      "spec_ref": [
+        "SPEC:3.0",
+        "MANUAL:7.1"
+      ]
+    },
+    "regexp/compile_forbidden_lookahead": {
+      "spec_ref": [
+        "SPEC:3.0",
+        "MANUAL:7.1"
+      ]
+    },
+    "regexp/compile_unclosed_paren": {
+      "spec_ref": [
+        "SPEC:3.0",
+        "MANUAL:7.1"
+      ]
+    },
+    "regexp/find_groups": {
+      "spec_ref": [
+        "SPEC:3.0",
+        "MANUAL:7.1"
+      ]
+    },
+    "regexp/findall_empty_anchor": {
+      "spec_ref": [
+        "SPEC:3.0",
+        "MANUAL:7.1"
+      ]
+    },
+    "regexp/findall_unlimited_neg1": {
+      "spec_ref": [
+        "SPEC:3.0",
+        "MANUAL:7.1"
+      ]
+    },
+    "regexp/flags_im_s": {
+      "spec_ref": [
+        "SPEC:3.0",
+        "MANUAL:7.1"
+      ]
+    },
+    "regexp/invalid_syntax": {
+      "spec_ref": [
+        "SPEC:3.0",
+        "MANUAL:7.1"
+      ]
+    },
+    "regexp/match_empty_antiloop": {
+      "spec_ref": [
+        "SPEC:3.0",
+        "MANUAL:7.1"
+      ]
+    },
+    "regexp/match_semantics": {
+      "spec_ref": [
+        "SPEC:3.0",
+        "MANUAL:7.1"
+      ]
+    },
+    "regexp/nested_quantifiers": {
+      "spec_ref": [
+        "SPEC:3.0",
+        "MANUAL:7.1"
+      ]
+    },
+    "regexp/nested_quantifiers_nomatch": {
+      "spec_ref": [
+        "SPEC:3.0",
+        "MANUAL:7.1"
+      ]
+    },
+    "regexp/non_greedy_behavior": {
+      "spec_ref": [
+        "SPEC:3.0",
+        "MANUAL:7.1"
+      ]
+    },
+    "regexp/range_max_invalid": {
+      "spec_ref": [
+        "SPEC:3.0",
+        "MANUAL:7.1"
+      ]
+    },
+    "regexp/range_maxparts_invalid": {
+      "spec_ref": [
+        "SPEC:3.0",
+        "MANUAL:7.1"
+      ]
+    },
+    "regexp/range_replace_max_invalid": {
+      "spec_ref": [
+        "SPEC:3.0",
+        "MANUAL:7.1"
+      ]
+    },
+    "regexp/range_start_invalid": {
+      "spec_ref": [
+        "SPEC:3.0",
+        "MANUAL:7.1"
+      ]
+    },
+    "regexp/replace_all_backrefs": {
+      "spec_ref": [
+        "SPEC:3.0",
+        "MANUAL:7.1"
+      ]
+    },
+    "regexp/replace_backrefs": {
+      "spec_ref": [
+        "SPEC:3.0",
+        "MANUAL:7.1"
+      ]
+    },
+    "regexp/replace_backrefs_out_of_range": {
+      "spec_ref": [
+        "SPEC:3.0",
+        "MANUAL:7.1"
+      ]
+    },
+    "regexp/replaceall_unlimited_neg1": {
+      "spec_ref": [
+        "SPEC:3.0",
+        "MANUAL:7.1"
+      ]
+    },
+    "regexp/shorthand_classes": {
+      "spec_ref": [
+        "SPEC:3.0",
+        "MANUAL:7.1"
+      ]
+    },
+    "regexp/split_basic": {
+      "spec_ref": [
+        "SPEC:3.0",
+        "MANUAL:7.1"
+      ]
+    },
+    "regexp/split_empty_match": {
+      "spec_ref": [
+        "SPEC:3.0",
+        "MANUAL:7.1"
+      ]
+    },
+    "regexp/split_unlimited_neg1": {
+      "spec_ref": [
+        "SPEC:3.0",
+        "MANUAL:7.1"
+      ]
+    },
+    "regexp/utf8_glyph_boundaries": {
+      "spec_ref": [
+        "SPEC:3.0",
+        "MANUAL:7.1"
+      ]
+    },
+    "regexp/utf8_indices": {
+      "spec_ref": [
+        "SPEC:3.0",
+        "MANUAL:7.1"
+      ]
+    },
+    "sys/env": {
+      "spec_ref": [
+        "SPEC:6.4",
+        "MANUAL:8.2"
+      ]
+    },
+    "sys/has_env": {
+      "spec_ref": [
+        "SPEC:6.4",
+        "MANUAL:8.2"
+      ]
+    },
+    "sys/import_sys": {
+      "spec_ref": [
+        "SPEC:6.4",
+        "MANUAL:8.2"
+      ]
+    },
+    "sys/module_missing": {
+      "spec_ref": [
+        "SPEC:6.4",
+        "MANUAL:8.2"
+      ]
+    },
+    "sys_execute/args_variants": {
+      "spec_ref": [
+        "SPEC:6.4",
+        "MANUAL:8.2"
+      ]
+    },
+    "sys_execute/both_order": {
+      "spec_ref": [
+        "SPEC:6.4",
+        "MANUAL:8.2"
+      ]
+    },
+    "sys_execute/exec_failure": {
+      "spec_ref": [
+        "SPEC:6.4",
+        "MANUAL:8.2"
+      ]
+    },
+    "sys_execute/exit_code": {
+      "spec_ref": [
+        "SPEC:6.4",
+        "MANUAL:8.2"
+      ]
+    },
+    "sys_execute/input_echo": {
+      "spec_ref": [
+        "SPEC:6.4",
+        "MANUAL:8.2"
+      ]
+    },
+    "sys_execute/invalid_program": {
+      "spec_ref": [
+        "SPEC:6.4",
+        "MANUAL:8.2"
+      ]
+    },
+    "sys_execute/invalid_utf8_output": {
+      "spec_ref": [
+        "SPEC:6.4",
+        "MANUAL:8.2"
+      ]
+    },
+    "sys_execute/large_binary_output": {
+      "spec_ref": [
+        "SPEC:6.4",
+        "MANUAL:8.2"
+      ]
+    },
+    "sys_execute/permission_denied": {
+      "spec_ref": [
+        "SPEC:6.4",
+        "MANUAL:8.2"
+      ]
+    },
+    "sys_execute/stderr_only": {
+      "spec_ref": [
+        "SPEC:6.4",
+        "MANUAL:8.2"
+      ]
+    },
+    "sys_execute/stdout_only": {
+      "spec_ref": [
+        "SPEC:6.4",
+        "MANUAL:8.2"
+      ]
+    },
+    "valid/visibility_internal/internal_access_child_method": {
+      "spec_ref": [
+        "SPEC:4.3.3",
+        "MANUAL:10.3.2"
+      ]
+    },
+    "valid/visibility_internal/internal_access_same_prototype_method": {
+      "spec_ref": [
+        "SPEC:4.3.3",
+        "MANUAL:10.3.2"
+      ]
+    },
+    "valid/visibility_internal/internal_call_internal_method_via_public": {
+      "spec_ref": [
+        "SPEC:4.3.3",
+        "MANUAL:10.3.2"
+      ]
+    }
+  },
+  "version": 1
+}

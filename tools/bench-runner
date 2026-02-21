@@ -1,0 +1,218 @@
+#!/usr/bin/env python3
+from __future__ import annotations
+
+import argparse
+import json
+import os
+import statistics
+import subprocess
+import sys
+import tempfile
+import time
+from pathlib import Path
+
+
+ROOT = Path(__file__).resolve().parent.parent
+MANIFEST = ROOT / "tests" / "benchmarks" / "manifest.json"
+BASELINE = ROOT / "tests" / "benchmarks" / "baseline.json"
+REPORT_DIR = ROOT / "reports" / "benchmarks"
+
+
+def ensure_c_bins() -> None:
+    ps = ROOT / "c" / "ps"
+    pscc = ROOT / "c" / "pscc"
+    if ps.exists() and pscc.exists() and os.access(ps, os.X_OK) and os.access(pscc, os.X_OK):
+        return
+    subprocess.run(["make", "-C", "c"], cwd=str(ROOT), check=True)
+
+
+def run_once(cmd: list[str]) -> tuple[int, float]:
+    t0 = time.perf_counter()
+    proc = subprocess.run(cmd, cwd=str(ROOT), stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    ms = (time.perf_counter() - t0) * 1000.0
+    return proc.returncode, ms
+
+
+def measure_runtime(path_kind: str, case_path: str, repeats: int) -> tuple[bool, float]:
+    times: list[float] = []
+    for _ in range(repeats):
+        if path_kind == "node":
+            cmd = [str(ROOT / "bin" / "protoscriptc"), "--run", str(ROOT / case_path)]
+        elif path_kind == "c":
+            cmd = [str(ROOT / "c" / "ps"), "run", str(ROOT / case_path)]
+        elif path_kind == "emit-c":
+            with tempfile.TemporaryDirectory(prefix="ps_bench_emitc_") as td:
+                c_path = Path(td) / "case.c"
+                bin_path = Path(td) / "case.bin"
+                with c_path.open("w", encoding="utf-8") as out:
+                    emit = subprocess.run(
+                        [str(ROOT / "bin" / "protoscriptc"), "--emit-c", str(ROOT / case_path)],
+                        cwd=str(ROOT),
+                        stdout=out,
+                        stderr=subprocess.PIPE,
+                        text=True,
+                    )
+                if emit.returncode != 0:
+                    return (False, 0.0)
+                cc = subprocess.run(
+                    ["cc", "-std=c11", "-x", "c", str(c_path), "-w", "-o", str(bin_path)],
+                    cwd=str(ROOT),
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                    text=True,
+                )
+                if cc.returncode != 0:
+                    return (False, 0.0)
+                rc, ms = run_once([str(bin_path)])
+                if rc != 0:
+                    return (False, 0.0)
+                times.append(ms)
+                continue
+        else:
+            return (False, 0.0)
+        rc, ms = run_once(cmd)
+        if rc != 0:
+            return (False, 0.0)
+        times.append(ms)
+    return (True, statistics.median(times))
+
+
+def measure_compile(path_kind: str, case_path: str, repeats: int) -> tuple[bool, float]:
+    times: list[float] = []
+    for _ in range(repeats):
+        if path_kind == "node":
+            cmd = [str(ROOT / "bin" / "protoscriptc"), "--check", str(ROOT / case_path)]
+        elif path_kind == "c":
+            cmd = [str(ROOT / "c" / "pscc"), "--check-c-static", str(ROOT / case_path)]
+        elif path_kind == "emit-c":
+            cmd = [str(ROOT / "bin" / "protoscriptc"), "--emit-c", str(ROOT / case_path)]
+        else:
+            return (False, 0.0)
+        rc, ms = run_once(cmd)
+        if rc != 0:
+            return (False, 0.0)
+        times.append(ms)
+    return (True, statistics.median(times))
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(description="Run ProtoScript2 benchmark suite with relative regression checks.")
+    g = parser.add_mutually_exclusive_group()
+    g.add_argument("--quick", action="store_true", help="Quick benchmark pass (CI PR).")
+    g.add_argument("--full", action="store_true", help="Full benchmark pass (nightly).")
+    parser.add_argument("--update-baseline", action="store_true", help="Update tests/benchmarks/baseline.json")
+    parser.add_argument("--regress-factor", type=float, default=3.0, help="Max allowed slowdown factor vs baseline.")
+    parser.add_argument("--pathological-factor", type=float, default=10.0, help="Hard fail slowdown factor.")
+    parser.add_argument("--superlinear-factor", type=float, default=4.0, help="Max growth ratio for 2x scale tests.")
+    args = parser.parse_args()
+
+    repeats = 2 if args.quick or not args.full else 5
+    ensure_c_bins()
+    REPORT_DIR.mkdir(parents=True, exist_ok=True)
+
+    manifest = json.loads(MANIFEST.read_text(encoding="utf-8"))
+    cases = manifest.get("cases", [])
+    if not isinstance(cases, list):
+        print("ERROR: invalid benchmark manifest", file=sys.stderr)
+        return 2
+
+    baseline = json.loads(BASELINE.read_text(encoding="utf-8")) if BASELINE.exists() else {"metrics": {}}
+    base_metrics: dict[str, float] = baseline.get("metrics", {}) if isinstance(baseline.get("metrics"), dict) else {}
+
+    results: dict[str, float] = {}
+    pass_count = 0
+    fail_count = 0
+    checks: list[dict[str, object]] = []
+
+    for case in cases:
+        case_id = str(case.get("id"))
+        case_path = str(case.get("path"))
+        kind = str(case.get("kind"))
+        for path_kind in ("node", "c", "emit-c"):
+            metric_key = f"{case_id}:{path_kind}"
+            ok, median_ms = (
+                measure_runtime(path_kind, case_path, repeats)
+                if kind == "runtime"
+                else measure_compile(path_kind, case_path, repeats)
+            )
+            if not ok:
+                fail_count += 1
+                checks.append({"metric": metric_key, "status": "fail_exec"})
+                continue
+            results[metric_key] = median_ms
+            pass_count += 1
+            checks.append({"metric": metric_key, "status": "pass", "ms": median_ms})
+
+            prev = base_metrics.get(metric_key)
+            if prev and prev > 0:
+                ratio = median_ms / prev
+                if ratio > args.pathological_factor:
+                    fail_count += 1
+                    checks.append({"metric": metric_key, "status": "fail_pathological", "ratio": ratio})
+                elif ratio > args.regress_factor:
+                    fail_count += 1
+                    checks.append({"metric": metric_key, "status": "fail_regression", "ratio": ratio})
+
+    # Superlinear detection on declared scale groups.
+    by_group: dict[tuple[str, str], list[tuple[int, float]]] = {}
+    for case in cases:
+        group = case.get("scale_group")
+        scale = case.get("scale")
+        case_id = str(case.get("id"))
+        if not group or not isinstance(scale, int):
+            continue
+        for path_kind in ("node", "c", "emit-c"):
+            key = f"{case_id}:{path_kind}"
+            if key not in results:
+                continue
+            by_group.setdefault((str(group), path_kind), []).append((scale, results[key]))
+
+    for (group, path_kind), vals in by_group.items():
+        vals = sorted(vals, key=lambda x: x[0])
+        if len(vals) < 2:
+            continue
+        a_scale, a_ms = vals[0]
+        b_scale, b_ms = vals[-1]
+        if b_scale >= 2 * a_scale and a_ms > 0:
+            growth = b_ms / a_ms
+            if growth > args.superlinear_factor:
+                fail_count += 1
+                checks.append(
+                    {
+                        "metric": f"superlinear:{group}:{path_kind}",
+                        "status": "fail_superlinear",
+                        "growth": growth,
+                    }
+                )
+
+    report = {
+        "generated_at_utc": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+        "mode": "quick" if args.quick or not args.full else "full",
+        "repeats": repeats,
+        "summary": {"pass": pass_count, "fail": fail_count, "total": pass_count + fail_count},
+        "metrics": results,
+        "checks": checks,
+    }
+    (REPORT_DIR / "latest.json").write_text(json.dumps(report, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+
+    if args.update_baseline:
+        BASELINE.write_text(
+            json.dumps(
+                {
+                    "version": 1,
+                    "generated_at_utc": report["generated_at_utc"],
+                    "metrics": results,
+                },
+                indent=2,
+                sort_keys=True,
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+
+    print(f"Summary: PASS={pass_count} FAIL={fail_count} TOTAL={pass_count + fail_count}")
+    return 0 if fail_count == 0 else 1
+
+
+if __name__ == "__main__":
+    sys.exit(main())

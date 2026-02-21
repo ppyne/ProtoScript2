@@ -1,0 +1,8 @@
+import Io;
+
+function main() : void {
+    string x = "abc";
+    Io.printLine(x.contains("b").toString());
+    Io.printLine(x.replaceAll("a", "z"));
+    Io.printLine(x.lastIndexOf("c").toString());
+}

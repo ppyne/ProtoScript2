@@ -1,0 +1,78 @@
+name: ProtoScript2 Validation
+
+on:
+  pull_request:
+  workflow_dispatch:
+  schedule:
+    - cron: "15 3 * * *"
+
+jobs:
+  pr-gate:
+    if: github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install jq
+        run: sudo apt-get update && sudo apt-get install -y jq
+
+      - name: PR CI profile
+        env:
+          FUZZ_REQUIRE_ENGINE: "1"
+        run: ./tools/test-orchestrator --ci-pr --summary
+
+      - name: Upload validation artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pr-validation-artifacts
+          path: |
+            reports/test-orchestrator/**
+            reports/fuzz/**
+            reports/benchmarks/**
+            docs/spec-test-coverage.md
+            docs/test-baseline.json
+
+  nightly-gate:
+    if: github.event_name == 'schedule'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install jq
+        run: sudo apt-get update && sudo apt-get install -y jq
+
+      - name: Nightly CI profile
+        env:
+          FUZZ_REQUIRE_ENGINE: "1"
+        run: |
+          ./tools/test-orchestrator --full --summary
+          ./tools/test-orchestrator --traceability --fuzz-nightly --bench-full --summary
+
+      - name: Upload nightly artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: nightly-validation-artifacts
+          path: |
+            reports/test-orchestrator/**
+            reports/fuzz/**
+            reports/benchmarks/**
+            docs/spec-test-coverage.md
+            docs/test-baseline.json

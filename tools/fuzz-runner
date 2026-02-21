@@ -1,0 +1,218 @@
+#!/usr/bin/env python3
+from __future__ import annotations
+
+import argparse
+import json
+import os
+import shutil
+import subprocess
+import sys
+import time
+from pathlib import Path
+
+
+ROOT = Path(__file__).resolve().parent.parent
+REPORT_DIR = ROOT / "reports" / "fuzz"
+BIN_DIR = ROOT / "tests" / "fuzz" / "bin"
+FINDINGS_RAW = ROOT / "tests" / "fuzz" / "findings" / "raw"
+MCPP_LIB = ROOT / "third_party" / "mcpp" / "lib" / "libmcpp.a"
+
+
+TARGETS = [
+    {
+        "id": "fuzz_parse_syntax",
+        "src": ROOT / "c" / "fuzz" / "fuzz_parse_syntax.c",
+        "corpus": ROOT / "tests" / "fuzz" / "corpus" / "parser",
+    },
+    {
+        "id": "fuzz_static_check",
+        "src": ROOT / "c" / "fuzz" / "fuzz_static_check.c",
+        "corpus": ROOT / "tests" / "fuzz" / "corpus" / "static",
+    },
+]
+
+
+COMMON_SRCS = [
+    "c/frontend.c",
+    "c/preprocess.c",
+    "c/diag.c",
+    "c/runtime/ps_api.c",
+    "c/runtime/ps_errors.c",
+    "c/runtime/ps_heap.c",
+    "c/runtime/ps_value.c",
+    "c/runtime/ps_string.c",
+    "c/runtime/ps_list.c",
+    "c/runtime/ps_object.c",
+    "c/runtime/ps_map.c",
+    "c/runtime/ps_dynlib_posix.c",
+    "c/runtime/ps_json.c",
+    "c/runtime/ps_modules.c",
+    "c/runtime/ps_vm.c",
+    "c/modules/debug.c",
+]
+
+
+def run_cmd(cmd: list[str], log_file: Path) -> tuple[int, int]:
+    t0 = time.time()
+    proc = subprocess.run(cmd, cwd=str(ROOT), capture_output=True, text=True)
+    dt = int((time.time() - t0) * 1000)
+    log_file.write_text(proc.stdout + proc.stderr, encoding="utf-8")
+    return proc.returncode, dt
+
+
+def ensure_mcpp() -> None:
+    if MCPP_LIB.exists():
+        return
+    subprocess.run(["make", "-C", str(ROOT / "third_party" / "mcpp"), "clean"], check=True)
+    subprocess.run(
+        [
+            "make",
+            "-C",
+            str(ROOT / "third_party" / "mcpp"),
+            'CFLAGS=-O2 -Wno-deprecated-declarations -fno-common',
+        ],
+        check=True,
+    )
+
+
+def build_target(target: dict[str, Path | str], clang: str, cflags: list[str], log_file: Path) -> tuple[int, int]:
+    bin_path = BIN_DIR / str(target["id"])
+    cmd = [
+        clang,
+        *cflags,
+        "-Iinclude",
+        "-Ic",
+        "-Ithird_party/mcpp",
+        "-Dps_module_init=ps_module_init_Debug",
+        str(target["src"]),
+        *COMMON_SRCS,
+        str(MCPP_LIB),
+        "-ldl",
+        "-o",
+        str(bin_path),
+    ]
+    return run_cmd(cmd, log_file)
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(description="Run ProtoScript2 fuzz targets under ASan/UBSan.")
+    g = parser.add_mutually_exclusive_group()
+    g.add_argument("--short", action="store_true", help="Short CI-friendly fuzz pass.")
+    g.add_argument("--nightly", action="store_true", help="Long nightly fuzz pass.")
+    parser.add_argument("--seconds", type=int, default=None, help="Override max_total_time per target.")
+    args = parser.parse_args()
+
+    mode = "short"
+    if args.nightly:
+        mode = "nightly"
+    max_seconds = args.seconds if args.seconds is not None else (30 if mode == "short" else 300)
+
+    clang = shutil.which("clang")
+    if not clang:
+        print("ERROR: clang is required for fuzzing.", file=sys.stderr)
+        return 2
+
+    REPORT_DIR.mkdir(parents=True, exist_ok=True)
+    BIN_DIR.mkdir(parents=True, exist_ok=True)
+    FINDINGS_RAW.mkdir(parents=True, exist_ok=True)
+    ensure_mcpp()
+
+    cflags = [
+        "-std=c11",
+        "-O1",
+        "-g",
+        "-fno-omit-frame-pointer",
+        "-fsanitize=fuzzer,address,undefined",
+        "-Wall",
+        "-Wextra",
+    ]
+
+    pass_count = 0
+    fail_count = 0
+    skip_count = 0
+    total = 0
+    require_engine = os.environ.get("FUZZ_REQUIRE_ENGINE", "0") == "1"
+    report: dict[str, object] = {
+        "mode": mode,
+        "max_seconds_per_target": max_seconds,
+        "generated_at_utc": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+        "targets": [],
+    }
+
+    for target in TARGETS:
+        target_id = str(target["id"])
+        total += 1
+        build_log = REPORT_DIR / f"{target_id}.build.log"
+        rc_build, dt_build = build_target(target, clang, cflags, build_log)
+        if rc_build != 0:
+            build_text = build_log.read_text(encoding="utf-8", errors="replace")
+            if "libclang_rt.fuzzer" in build_text and not require_engine:
+                print(f"SKIP {target_id} (libFuzzer runtime unavailable)", flush=True)
+                skip_count += 1
+                report["targets"].append(
+                    {
+                        "id": target_id,
+                        "build_rc": rc_build,
+                        "build_ms": dt_build,
+                        "run_rc": None,
+                        "run_ms": None,
+                        "status": "skip_engine_missing",
+                        "build_log": str(build_log.relative_to(ROOT)),
+                    }
+                )
+                continue
+            print(f"FAIL {target_id} (build)", flush=True)
+            fail_count += 1
+            report["targets"].append(
+                {
+                    "id": target_id,
+                    "build_rc": rc_build,
+                    "build_ms": dt_build,
+                    "run_rc": None,
+                    "run_ms": None,
+                    "status": "fail_build",
+                    "build_log": str(build_log.relative_to(ROOT)),
+                }
+            )
+            continue
+
+        run_log = REPORT_DIR / f"{target_id}.run.log"
+        artifact_prefix = str(FINDINGS_RAW / f"{target_id}-")
+        cmd = [
+            str(BIN_DIR / target_id),
+            str(target["corpus"]),
+            f"-max_total_time={max_seconds}",
+            f"-artifact_prefix={artifact_prefix}",
+            "-print_final_stats=1",
+        ]
+        rc_run, dt_run = run_cmd(cmd, run_log)
+        status = "pass" if rc_run == 0 else "fail_run"
+        if rc_run == 0:
+            pass_count += 1
+            print(f"PASS {target_id}", flush=True)
+        else:
+            fail_count += 1
+            print(f"FAIL {target_id} (run)", flush=True)
+        report["targets"].append(
+            {
+                "id": target_id,
+                "build_rc": rc_build,
+                "build_ms": dt_build,
+                "run_rc": rc_run,
+                "run_ms": dt_run,
+                "status": status,
+                "build_log": str(build_log.relative_to(ROOT)),
+                "run_log": str(run_log.relative_to(ROOT)),
+            }
+        )
+
+    report["summary"] = {"pass": pass_count, "fail": fail_count, "skip": skip_count, "total": total}
+    out_json = REPORT_DIR / "latest.json"
+    out_json.write_text(json.dumps(report, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+
+    print(f"Summary: PASS={pass_count} FAIL={fail_count} SKIP={skip_count} TOTAL={total}")
+    return 0 if fail_count == 0 else 1
+
+
+if __name__ == "__main__":
+    sys.exit(main())

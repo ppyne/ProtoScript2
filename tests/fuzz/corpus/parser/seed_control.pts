@@ -1,0 +1,9 @@
+import Io;
+
+function main() : void {
+    int i = 0;
+    while (i < 3) {
+        Io.printLine(i.toString());
+        i = i + 1;
+    }
+}
