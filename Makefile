@@ -49,8 +49,9 @@ WEB_OBJS := \
 
 WEB_CPPFLAGS := -DPS_WASM=1 -I$(ROOT)/include -I$(C_DIR) -I$(C_DIR)/runtime -I$(MCPP_DIR)
 WEB_CFLAGS := -O2
+WEB_STACK_SIZE := 1048576
 WEB_LDFLAGS := -s WASM=1 -s MODULARIZE=1 -s EXPORT_NAME=ProtoScript -s EXIT_RUNTIME=0 \
-  -s FORCE_FILESYSTEM=1 -s ALLOW_MEMORY_GROWTH=1 -s INVOKE_RUN=0 \
+  -s FORCE_FILESYSTEM=1 -s ALLOW_MEMORY_GROWTH=1 -s INVOKE_RUN=0 -s STACK_SIZE=$(WEB_STACK_SIZE) \
   -s EXPORTED_RUNTIME_METHODS="['FS','callMain']" \
   --preload-file $(ROOT)/modules/registry.json@/modules/registry.json
 

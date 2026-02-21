@@ -154,6 +154,17 @@ Frontend C (pscc) :
 ./c/pscc --emit-ir file.pts      # forward vers bin/protoscriptc
 ./c/pscc --emit-c file.pts       # forward vers bin/protoscriptc
 ```
+
+Build WASM (reproductible) :
+
+```bash
+make web-clean
+make web
+```
+
+Le pipeline WASM documenté (versions d'outils, validation parity) est ici :
+[`docs/wasm-build.md`](docs/wasm-build.md)
+
 ## Extension sans compromission
 
 ProtoScript V2 autorise des modules tiers via API native normative (section 20 de la spec) avec contraintes strictes :
