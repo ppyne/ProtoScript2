@@ -230,6 +230,22 @@ static int is_escaped(const char *s, size_t i) {
 }
 
 static int has_forbidden_meta(const char *p, size_t len) {
+  int in_class = 0;
+  for (size_t i = 0; i + 1 < len; i++) {
+    if (p[i] == '\\' && !is_escaped(p, i)) {
+      i += 1;
+      continue;
+    }
+    if (!in_class && p[i] == '[' && !is_escaped(p, i)) {
+      in_class = 1;
+      continue;
+    }
+    if (in_class && p[i] == ']' && !is_escaped(p, i)) {
+      in_class = 0;
+      continue;
+    }
+    if (!in_class && (p[i] == '*' || p[i] == '+' || p[i] == '?') && p[i + 1] == '?') return 1;
+  }
   for (size_t i = 0; i + 2 < len; i++) {
     if (p[i] == '(' && p[i + 1] == '?' && (p[i + 2] == '=' || p[i + 2] == '!')) return 1;
   }

@@ -1,0 +1,9 @@
+prototype TextFileChildSuper : TextFile {
+    function clone() : TextFileChildSuper {
+        return super.clone();
+    }
+}
+
+function main() : void {
+    TextFileChildSuper.clone();
+}

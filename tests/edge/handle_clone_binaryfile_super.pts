@@ -1,0 +1,9 @@
+prototype BinaryFileChildSuper : BinaryFile {
+    function clone() : BinaryFileChildSuper {
+        return super.clone();
+    }
+}
+
+function main() : void {
+    BinaryFileChildSuper.clone();
+}

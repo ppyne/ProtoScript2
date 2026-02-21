@@ -5,6 +5,6 @@ function main() : void {
     list<string> args = [];
     list<byte> input = [];
     ProcessResult r = Sys.execute("/usr/bin/true", args, input, false, false);
-    bool ok = (r.exitCode == 0) && (r.events.length() == 0);
+    bool ok = (r.exitCode() == 0) && (r.events().length() == 0);
     Io.printLine(ok.toString());
 }

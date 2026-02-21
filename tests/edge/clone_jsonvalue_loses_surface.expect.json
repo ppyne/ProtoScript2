@@ -1,0 +1,12 @@
+{
+  "status": "reject-runtime",
+  "error_family": "Rxxxx",
+  "error_code": "R1010",
+  "category": "RUNTIME_TYPE_ERROR",
+  "position": {
+    "file": "edge/clone_jsonvalue_loses_surface.pts",
+    "line": 5,
+    "column": 19
+  },
+  "expected_output": "edge/clone_jsonvalue_loses_surface.pts:5:19 R1010 RUNTIME_TYPE_ERROR: unknown method. got isNull; expected valid object/prototype method"
+}

@@ -1,0 +1,12 @@
+{
+  "status": "reject-runtime",
+  "error_family": "Rxxxx",
+  "error_code": "R1010",
+  "category": "RUNTIME_TYPE_ERROR",
+  "position": {
+    "file": "edge/clone_pathentry_uninitialized.pts",
+    "line": 5,
+    "column": 19
+  },
+  "expected_output": "edge/clone_pathentry_uninitialized.pts:5:19 R1010 RUNTIME_TYPE_ERROR: missing builtin field. got name; expected initialized builtin object"
+}

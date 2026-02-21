@@ -29,7 +29,11 @@ echo
 normalize_stream() {
   local src="$1"
   local dst="$2"
-  sed -E 's#([A-Za-z0-9_./-]*/)?ps_[0-9a-fA-F-]+_[0-9]+#ps_tmp#g' "$src" >"$dst"
+  sed -E \
+    -e 's#([A-Za-z0-9_./-]*/)?ps_[0-9a-fA-F-]+_[0-9]+#ps_tmp#g' \
+    -e 's#/tmp/ps_mcpp_input_[0-9]+\.txt#/tmp/ps_mcpp_input_tmp.txt#g' \
+    -e 's#^(/tmp/ps_mcpp_input_tmp\.txt|.*/tests/[^:]+\.pts):#__SRC__:#' \
+    "$src" >"$dst"
 }
 
 pass=0
@@ -39,6 +43,9 @@ declare -a CASES=(
   "$ROOT_DIR/tests/cli/hello.pts"
   "$ROOT_DIR/tests/cli/clone_inherited_throw_parity.pts"
   "$ROOT_DIR/tests/edge/clone_inherited_override.pts"
+  "$ROOT_DIR/tests/edge/handle_clone_regexp_direct.pts"
+  "$ROOT_DIR/tests/edge/handle_clone_textfile_direct.pts"
+  "$ROOT_DIR/tests/edge/handle_clone_dir_direct.pts"
 )
 
 for src in "${CASES[@]}"; do

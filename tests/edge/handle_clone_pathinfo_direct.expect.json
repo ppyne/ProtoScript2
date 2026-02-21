@@ -1,0 +1,12 @@
+{
+  "status": "reject-runtime",
+  "error_family": "Rxxxx",
+  "error_code": "R1013",
+  "category": "RUNTIME_CLONE_NOT_SUPPORTED",
+  "position": {
+    "file": "edge/handle_clone_pathinfo_direct.pts",
+    "line": 2,
+    "column": 13
+  },
+  "expected_output": "edge/handle_clone_pathinfo_direct.pts:2:13 R1013 RUNTIME_CLONE_NOT_SUPPORTED: clone not supported for builtin handle PathInfo"
+}

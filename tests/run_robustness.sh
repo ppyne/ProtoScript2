@@ -42,6 +42,10 @@ echo "-- emit-c sanitizer warning policy (ASAN/UBSAN, whitelist explicite)"
 "$ROOT_DIR/tests/robustness/run_asan_ubsan_emitc.sh" "$ROOT_DIR/tests/edge/clone_super_initial_divergent.pts"
 echo
 
+echo "-- runtime triangle parity (VM C native ↔ WASM ↔ emit-C)"
+TRIANGLE_GCC_FLAGS="$ASAN_GCC_FLAGS" "$ROOT_DIR/tests/run_runtime_triangle_parity.sh"
+echo
+
 echo "-- CLI tests (C, ASAN)"
 "$ROOT_DIR/tests/run_cli_tests.sh"
 echo

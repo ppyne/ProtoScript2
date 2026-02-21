@@ -15,6 +15,13 @@ PS_Status ps_module_init_Io(PS_Context *ctx, PS_Module *out);
 PS_Status ps_module_init_JSON(PS_Context *ctx, PS_Module *out);
 PS_Status ps_module_init_Math(PS_Context *ctx, PS_Module *out);
 PS_Status ps_module_init_RegExp(PS_Context *ctx, PS_Module *out);
+PS_Status ps_module_init_Fs(PS_Context *ctx, PS_Module *out);
+PS_Status ps_module_init_Sys(PS_Context *ctx, PS_Module *out);
+PS_Status ps_module_init_test_simple(PS_Context *ctx, PS_Module *out);
+PS_Status ps_module_init_test_utf8(PS_Context *ctx, PS_Module *out);
+PS_Status ps_module_init_test_throw(PS_Context *ctx, PS_Module *out);
+PS_Status ps_module_init_test_nosym(PS_Context *ctx, PS_Module *out);
+PS_Status ps_module_init_test_env(PS_Context *ctx, PS_Module *out);
 #endif
 
 
@@ -100,8 +107,15 @@ PS_Status ps_module_load(PS_Context *ctx, const char *module_name) {
   if (strcmp(module_name, "JSON") == 0) init_fn = ps_module_init_JSON;
   if (strcmp(module_name, "Math") == 0) init_fn = ps_module_init_Math;
   if (strcmp(module_name, "RegExp") == 0) init_fn = ps_module_init_RegExp;
+  if (strcmp(module_name, "Fs") == 0) init_fn = ps_module_init_Fs;
+  if (strcmp(module_name, "Sys") == 0) init_fn = ps_module_init_Sys;
   if (strcmp(module_name, "Time") == 0) init_fn = ps_module_init_Time;
   if (strcmp(module_name, "TimeCivil") == 0) init_fn = ps_module_init_TimeCivil;
+  if (strcmp(module_name, "test.simple") == 0) init_fn = ps_module_init_test_simple;
+  if (strcmp(module_name, "test.utf8") == 0) init_fn = ps_module_init_test_utf8;
+  if (strcmp(module_name, "test.throw") == 0) init_fn = ps_module_init_test_throw;
+  if (strcmp(module_name, "test.nosym") == 0) init_fn = ps_module_init_test_nosym;
+  if (strcmp(module_name, "test.env") == 0) init_fn = ps_module_init_test_env;
   if (init_fn) {
     PS_Module mod;
     memset(&mod, 0, sizeof(mod));

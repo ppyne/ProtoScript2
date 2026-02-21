@@ -1,0 +1,6 @@
+import Io;
+
+function main(): void {
+    ProcessResult p = ProcessResult.clone();
+    Io.printLine(p.exitCode().toString());
+}

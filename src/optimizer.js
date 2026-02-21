@@ -112,7 +112,7 @@ function constantPropagation(ir) {
             const folded = foldUnary(i.operator, Number.isFinite(n) ? n : src.value);
             if (folded !== null) {
               const litType = typeof folded === "boolean" ? "bool" : src.literalType;
-              const ni = { op: "const", dst: i.dst, literalType: litType, value: String(folded) };
+              const ni = { op: "const", dst: i.dst, literalType: litType, value: String(folded), loc: i.loc };
               cst.set(i.dst, { literalType: litType, value: String(folded) });
               out.push(ni);
               continue;
@@ -127,7 +127,7 @@ function constantPropagation(ir) {
           const folded = foldBinary(i.operator, av, bv);
           if (folded !== null && folded !== undefined && Number.isFinite(folded) || typeof folded === "boolean") {
             const litType = typeof folded === "boolean" ? "bool" : a.literalType;
-            const ni = { op: "const", dst: i.dst, literalType: litType, value: String(folded) };
+            const ni = { op: "const", dst: i.dst, literalType: litType, value: String(folded), loc: i.loc };
             cst.set(i.dst, { literalType: litType, value: String(folded) });
             out.push(ni);
             continue;
@@ -136,7 +136,7 @@ function constantPropagation(ir) {
         if (i.op === "select" && cst.has(i.cond)) {
           const cond = cst.get(i.cond).value === "true";
           const src = cond ? i.thenValue : i.elseValue;
-          const ni = { op: "copy", dst: i.dst, src };
+          const ni = { op: "copy", dst: i.dst, src, loc: i.loc };
           if (cst.has(src)) cst.set(i.dst, cst.get(src));
           else cst.delete(i.dst);
           out.push(ni);
@@ -209,7 +209,7 @@ function inlineCalls(ir) {
         for (const ci of callee.blocks[0].instrs) {
           if (ci.op === "ret") {
             const src = tempMap.get(ci.value) || paramMap.get(ci.value) || ci.value;
-            out.push({ op: "copy", dst: i.dst, src });
+            out.push({ op: "copy", dst: i.dst, src, loc: i.loc });
             continue;
           }
           if (ci.op === "const") {
@@ -222,14 +222,14 @@ function inlineCalls(ir) {
             const dst = nextTemp();
             tempMap.set(ci.dst, dst);
             const src = paramMap.get(ci.name) || ci.name;
-            out.push({ op: "copy", dst, src });
+            out.push({ op: "copy", dst, src, loc: ci.loc || i.loc });
             continue;
           }
           if (ci.op === "copy") {
             const dst = nextTemp();
             tempMap.set(ci.dst, dst);
             const src = tempMap.get(ci.src) || paramMap.get(ci.src) || ci.src;
-            out.push({ op: "copy", dst, src });
+            out.push({ op: "copy", dst, src, loc: ci.loc || i.loc });
             continue;
           }
           if (ci.op === "unary_op") {

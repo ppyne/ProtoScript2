@@ -120,16 +120,11 @@ Règles normatives pour toute nouvelle structure builtin :
    - override,
    - invariants de type et d’héritage.
 3. Classifier explicitement le builtin :
-   - `Data type` clonable :
-     - `clone/super/Self` suivent les règles normales du langage ;
-     - les conteneurs exposés (`list`/`map`) doivent préserver la stabilité observable :
-       au minimum, copie défensive à l’entrée ; au retour, snapshot recommandé.
    - `Native handle` non clonable (`R1013 RUNTIME_CLONE_NOT_SUPPORTED` obligatoire) :
      - instanciation contrôlée par API/module ;
      - aucun clone implicite, aucune duplication best-effort.
-     - le prototype builtin handle DOIT être `sealed` par défaut ;
-     - un runtime/backend NE DOIT PAS autoriser l’héritage d’un handle non explicitement déscellé par règle normative ;
-     - `clone()` sur un handle DOIT échouer avec `R1013 RUNTIME_CLONE_NOT_SUPPORTED`.
+   - `Data type` clonable :
+     - `clone()`, `super`, `Self` suivent les règles normales du langage.
 4. Tests obligatoires :
    - `clone()`,
    - `super.clone()`,
@@ -143,6 +138,28 @@ Règles normatives pour toute nouvelle structure builtin :
 6. Cohérence sous-typage/runtime :
    - si le typage statique accepte les sous-types d’un builtin, le runtime doit accepter ces sous-types ;
    - sinon le builtin doit être explicitement `sealed`.
+
+7. Sealed prototype rule:
+   - Un prototype `sealed` NE DOIT PAS être hérité.
+
+   La clonabilité est indépendante de `sealed`.
+   Elle dépend uniquement de la sémantique propre du prototype.
+
+8. Builtin prototypes (closed list):
+   Builtins sealed et non clonables:
+   - `TextFile`
+   - `BinaryFile`
+   - `Dir`
+   - `Walker`
+   - `RegExp`
+   - `PathInfo`
+   - `PathEntry`
+   - `RegExpMatch`
+   - `ProcessEvent`
+   - `ProcessResult`
+
+   Builtin clonable et non sealed:
+   - `CivilDateTime`
 
 # 2. Types scalaires fondamentaux
 
@@ -1024,6 +1041,8 @@ Règles :
 # 4. Modèle objet & prototypes
 
 ProtoScript V2 adopte un **modèle objet prototype-based**, sans classes, inspiré de Self, tout en imposant des contraintes fortes de typage statique et de structure afin de garantir lisibilité, analyse statique et performances.
+
+Conceptuellement, ProtoScript V2 met en œuvre une délégation statique, et non un héritage dynamique.
 
 Les objets sont des **structures fermées**, définies à partir de prototypes explicites, avec un layout mémoire déterministe.
 

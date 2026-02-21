@@ -5,7 +5,7 @@ function main() : void {
     list<string> args = [];
     list<byte> input = "abc".toUtf8Bytes();
     ProcessResult r = Sys.execute("/bin/cat", args, input, true, false);
-    ProcessEvent e = r.events[0];
-    bool ok = (e.data.length() == input.length()) && (e.data.toUtf8String() == "abc");
+    ProcessEvent e = r.events()[0];
+    bool ok = (e.data().length() == input.length()) && (e.data().toUtf8String() == "abc");
     Io.printLine(ok.toString());
 }

@@ -14,13 +14,13 @@ function main() : void {
 
     if (hasParis) {
         CivilDateTime spring = CivilDateTime.clone();
-        spring.year = 2024;
-        spring.month = 3;
-        spring.day = 31;
-        spring.hour = 2;
-        spring.minute = 30;
-        spring.second = 0;
-        spring.millisecond = 0;
+        spring.setYear(2024);
+        spring.setMonth(3);
+        spring.setDay(31);
+        spring.setHour(2);
+        spring.setMinute(30);
+        spring.setSecond(0);
+        spring.setMillisecond(0);
 
         bool caught = false;
         try {
@@ -32,13 +32,13 @@ function main() : void {
         ok = ok && caught;
 
         CivilDateTime fall = CivilDateTime.clone();
-        fall.year = 2024;
-        fall.month = 10;
-        fall.day = 27;
-        fall.hour = 2;
-        fall.minute = 30;
-        fall.second = 0;
-        fall.millisecond = 0;
+        fall.setYear(2024);
+        fall.setMonth(10);
+        fall.setDay(27);
+        fall.setHour(2);
+        fall.setMinute(30);
+        fall.setSecond(0);
+        fall.setMillisecond(0);
 
         caught = false;
         try {
@@ -55,10 +55,10 @@ function main() : void {
 
         CivilDateTime back1 = TimeCivil.fromEpoch(eEarly, tz);
         CivilDateTime back2 = TimeCivil.fromEpoch(eLate, tz);
-        ok = ok && back1.year == 2024 && back1.month == 10 && back1.day == 27
-                 && back1.hour == 2 && back1.minute == 30;
-        ok = ok && back2.year == 2024 && back2.month == 10 && back2.day == 27
-                 && back2.hour == 2 && back2.minute == 30;
+        ok = ok && back1.year() == 2024 && back1.month() == 10 && back1.day() == 27
+                 && back1.hour() == 2 && back1.minute() == 30;
+        ok = ok && back2.year() == 2024 && back2.month() == 10 && back2.day() == 27
+                 && back2.hour() == 2 && back2.minute() == 30;
 
         int jan = TimeCivil.parseISO8601("2024-01-15T00:00:00.000Z");
         int jul = TimeCivil.parseISO8601("2024-07-15T00:00:00.000Z");

@@ -1,0 +1,6 @@
+prototype BinaryFileChild : BinaryFile {
+}
+
+function main() : void {
+    BinaryFileChild.clone();
+}

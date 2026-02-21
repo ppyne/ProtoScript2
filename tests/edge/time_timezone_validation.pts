@@ -31,8 +31,8 @@ function main() : void {
 
     if (hasUTC) {
         CivilDateTime dt = TimeCivil.fromEpoch(0, "UTC");
-        ok = ok && dt.year == 1970 && dt.month == 1 && dt.day == 1
-                 && dt.hour == 0 && dt.minute == 0 && dt.second == 0 && dt.millisecond == 0;
+        ok = ok && dt.year() == 1970 && dt.month() == 1 && dt.day() == 1
+                 && dt.hour() == 0 && dt.minute() == 0 && dt.second() == 0 && dt.millisecond() == 0;
     }
 
     Io.printLine(ok.toString());

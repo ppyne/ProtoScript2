@@ -1,0 +1,6 @@
+import Io;
+
+function main(): void {
+    PathEntry p = PathEntry.clone();
+    Io.printLine(p.name());
+}

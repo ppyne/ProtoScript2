@@ -191,7 +191,7 @@ Le typage est statique et explicite. Les types sont résolus à la compilation.
 - `glyph`
 - `string`
 
-Ces types sont immuables au niveau langage, manipulés par valeur, sans héritage ni champs utilisateur.
+Ces types sont immuables au niveau langage, manipulés par valeur, sans délégation (sans héritage) ni champs utilisateur.
 
 Exemples :
 
@@ -1248,7 +1248,7 @@ Cette relation :
 
 ### 10.3.1 `sealed prototype`
 
-`sealed prototype` interdit **uniquement** l’héritage.
+`sealed prototype` interdit **uniquement** la délégation statique (héritage).
 La création d’objets via `Type.clone()` reste possible (lookup de méthode normal).
 
 Exemple valide :
@@ -1319,41 +1319,31 @@ function main() : void {
 
 ---
 
-### 10.4 Override de méthodes
+## 10.4 Override de méthodes
 
-Une méthode peut être redéfinie dans un prototype enfant **à condition de conserver une signature strictement compatible**.
+Une méthode peut être redéfinie dans un prototype descendant à condition de conserver une signature strictement compatible.
 
-Règles normatives d’override :
+### Règles normatives
 
-- le nom doit être identique
+- le nom doit être identique ;
 
-### 10.4.1 Initialisation explicite des champs
+- la liste des paramètres doit être strictement identique (même nombre, même types, même ordre) ;
 
-Un champ de prototype peut être initialisé directement dans la déclaration :
+- le type de retour doit être identique ;
 
-```c
-prototype P {
-    int i = 5;
-    string s = "hello";
-    list<int> values = [0, 1, 2];
-}
-```
+- aucune surcharge par nombre ou type de paramètres n’est autorisée ;
 
-Règles :
+- une méthode ne peut pas être remplacée par un champ.
 
-- l’initialiseur est vérifié statiquement (type strictement assignable)
-- l’initialisation est exécutée à chaque `clone()`, dans l’ordre parent puis enfant
-- sans initialiseur, la valeur par défaut (section 15.3 de la spec) est utilisée
-- `self` est interdit dans l’initialiseur d’un champ (`E3150`)
-- un champ `const` de prototype doit avoir un initialiseur explicite (`E3151`) et ne peut plus être réassigné (`E3130`)
+En cas de violation :
 
-- la liste des paramètres doit être identique
+- `E3001 TYPE_MISMATCH_ASSIGNMENT` pour signature incompatible ;
 
-- le type de retour doit être identique
+- `E3145 METHOD_OVERRIDE_INVALID` (si vous voulez un code dédié, recommandé).
 
-- aucune surcharge par nombre ou type de paramètres n’est autorisée
+---
 
-Exemple valide :
+### Exemple valide
 
 ```c
 prototype Point {
@@ -1372,7 +1362,9 @@ prototype ColoredPoint : Point {
 ```
 Ref: EX-057
 
-Contre-exemples :
+---
+
+### Contre-exemples
 
 ```c
 prototype Bad1 : Point {
@@ -1381,28 +1373,57 @@ prototype Bad1 : Point {
 
 prototype Bad2 : Point {
     function move(int dx, int dy) : int { return 0; }
-} // Erreur : E2001 UNRESOLVED_NAME
+}
 ```
 Ref: EX-058
 
-Les champs ne peuvent pas être redéfinis avec un type différent.  
-Il n’existe aucun mécanisme de surcharge structurelle implicite.
-
-Erreurs attendues :
-
-- `E3001` (`TYPE_MISMATCH_ASSIGNMENT`) pour une signature de méthode incompatible ou un champ redéfini avec un type différent.
+Erreur : `E3001 TYPE_MISMATCH_ASSIGNMENT`
 
 ---
 
-# 10.5 `clone()` et `super` — Instanciation et héritage cohérents
+## 10.5 Champs de prototype
 
-## 10.5.1 Idée fondamentale
+### 10.5.1 Déclaration et initialisation
+
+Un champ peut être initialisé directement dans la déclaration :
+
+```c
+prototype P {
+    int i = 5;
+    string s = "hello";
+    list<int> values = [0, 1, 2];
+}
+```
+
+### Règles normatives
+
+- l’initialiseur est vérifié statiquement ;
+
+- l’initialisation est exécutée à chaque `clone()` ;
+
+- l’ordre est parent puis enfant ;
+
+- sans initialiseur, la valeur par défaut est utilisée ;
+
+- `self` est interdit dans un initialiseur (`E3150`) ;
+
+- un champ `const` doit avoir un initialiseur (`E3151`) ;
+
+- un champ `const` ne peut pas être réassigné (`E3130`) ;
+
+- un champ ne peut pas être redéfini avec un type différent (`E3001`).
+
+---
+
+# 10.6 `clone()` et `super` — Instanciation et délégation (héritage) cohérents
+
+## 10.6.1 Idée fondamentale
 
 En ProtoScript2, `clone()` est **une méthode normale**.
 
 Cela signifie :
 
-- elle suit les règles d’héritage,
+- elle suit les règles de délégation statique ;
 
 - elle peut être redéfinie,
 
@@ -1410,11 +1431,15 @@ Cela signifie :
 
 - la descendance hérite des redéfinitions.
 
+La chaîne de délégation est figée à la compilation ; le dispatch reste dynamique sur cette chaîne immuable.
+
 Il n’existe **aucune primitive spéciale cachée** pour instancier un prototype.
+
+La création d’instance n’est pas un mécanisme distinct du modèle objet : elle est entièrement exprimée dans le langage.
 
 ---
 
-## 10.5.2 Prototype racine implicite
+## 10.6.2 Prototype racine implicite
 
 Tous les prototypes héritent implicitement d’un prototype racine : `Object`
 
@@ -1430,7 +1455,7 @@ C’est l’implémentation par défaut.
 
 ---
 
-## 10.5.3 Que fait `Object.clone()` ?
+## 10.6.3 Que fait `Object.clone()` ?
 
 Le comportement par défaut de `clone()` est :
 
@@ -1448,7 +1473,7 @@ crée un nouvel objet **qui se comporte comme une instance de `A`**.
 
 ---
 
-## 10.5.4 Héritage normal
+## 10.6.4 Héritage normal
 
 Si un prototype redéfinit `clone()`, la descendance en hérite comme toute méthode.
 
@@ -1473,22 +1498,22 @@ C’est un dispatch normal.
 
 Note normative :
 
-- `P.clone()` (appel statique) suit exactement le même lookup d’héritage que toute méthode.
+- `P.clone()` (appel statique) suit exactement le même lookup de délégation (d'héritage) que toute méthode.
 - un nom interne éventuel de backend (ex. `__clone_static`) n’est qu’un détail d’implémentation et ne doit jamais bypass la résolution normale de `clone()`.
 
 ---
 
-## 10.5.5 Pourquoi ce modèle est important
+## 10.6.5 Pourquoi ce modèle est important
 
 - la syntaxe méthode = sémantique méthode,
 
 - aucune règle cachée,
 
-- cohérence totale du modèle d’héritage.
+- cohérence totale du modèle de délégation (d’héritage).
 
 ---
 
-## 10.5.6 Mot-clé `super`
+## 10.6.6 Mot-clé `super`
 
 `super` permet d’appeler la version héritée d’une méthode.
 
@@ -1504,7 +1529,7 @@ Règle :
 
 ---
 
-## 10.5.7 Pattern courant : `super.clone()` + initialisation
+## 10.6.7 Pattern courant : `super.clone()` + initialisation
 
 C’est maintenant le pattern recommandé pour personnaliser l’instanciation.
 
@@ -1533,7 +1558,7 @@ prototype B : A {
 
 ---
 
-## 10.5.8 Type `Self`
+## 10.6.8 Type `Self`
 
 `clone()` retourne `Self`.
 
@@ -1549,7 +1574,7 @@ Le compilateur spécialise automatiquement le type.
 
 ---
 
-## 10.5.9 Erreurs liées à `super`
+## 10.6.9 Erreurs liées à `super`
 
 `super` est valide uniquement dans une méthode.
 
@@ -1567,7 +1592,7 @@ Exemple :
 
 ---
 
-## 10.5.10 Résumé conceptuel
+## 10.6.10 Résumé conceptuel
 
 - `clone()` est une méthode héritée normale.
 
@@ -1577,11 +1602,11 @@ Exemple :
 
 - Aucune primitive spéciale n’existe.
 
-- L’instanciation est cohérente avec le modèle d’héritage.
+- L’instanciation est cohérente avec le modèle de délégation (d’héritage).
 
 ---
 
-### 10.6 Ce qui n’existe pas volontairement
+### 10.7 Ce qui n’existe pas volontairement
 
 ProtoScript V2 exclut explicitement :
 
@@ -1601,7 +1626,7 @@ Ces exclusions sont **des choix de conception**, et non des limitations accident
 
 ---
 
-### 10.7 Prototypes et compilation
+### 10.8 Prototypes et compilation
 
 Le modèle prototype-based de ProtoScript V2 est conçu pour être **pleinement compilable**.
 
@@ -1620,7 +1645,7 @@ La délégation est **résolue statiquement**, sans coût d’indirection dynami
 
 ---
 
-### 10.8 Note de positionnement : Self et JavaScript
+### 10.9 Note de positionnement : Self et JavaScript
 
 Le modèle de ProtoScript V2 s’inscrit dans la lignée conceptuelle du langage [**Self: The Power of Simplicity**](https://bibliography.selflanguage.org/_static/self-power.pdf)  (Ungar & Smith, 1987), qui a posé les bases du prototype-based programming :
 
@@ -1650,7 +1675,7 @@ ProtoScript V2 adopte ainsi un modèle que l’on peut qualifier de :
 
 Ce positionnement vise la clarté conceptuelle, la sûreté sémantique et l’efficacité de compilation.
 
-### 10.9 Filiation conceptuelle : Self → Io → ProtoScript V2
+### 10.10 Filiation conceptuelle : Self → Io → ProtoScript V2
 
 Le langage Self (Ungar & Smith, 1987) a introduit le modèle prototype-based en supprimant toute notion de classe au profit d’objets clonés et de délégation.
 Cette approche a démontré qu’un modèle orienté objet pouvait être à la fois plus simple et plus expressif qu’un système class-based traditionnel.
@@ -1663,7 +1688,7 @@ La résolution des champs et méthodes est strictement statique.
 Aucune mutation dynamique des prototypes n’est autorisée.
 Ce positionnement vise la clarté sémantique, la sûreté et l’efficacité de compilation.
 
-### 10.10 Comparaison des modèles prototype-based
+### 10.11 Comparaison des modèles prototype-based
 
 *(Self / Io / JavaScript / ProtoScript V2)*
 
@@ -2130,7 +2155,7 @@ Notes :
 |------------|------------|-------------------|
 | length() | <img src="docs/lettre_A.svg" alt="A" width="24" /> | <img src="docs/lettre_A.svg" alt="A" width="24" /> |
 | indexation | <img src="docs/lettre_A.svg" alt="A" width="24" /> | <img src="docs/lettre_A.svg" alt="A" width="24" /> |
-| substring() | <img src="docs/lettre_C.svg" alt="C" width="24" /> | <img src="docs/lettre_C.svg" alt="C" width="24" /> |
+| subString() | <img src="docs/lettre_C.svg" alt="C" width="24" /> | <img src="docs/lettre_C.svg" alt="C" width="24" /> |
 | concat() | <img src="docs/lettre_C.svg" alt="C" width="24" /> | <img src="docs/lettre_C.svg" alt="C" width="24" /> |
 | replace() | <img src="docs/lettre_C.svg" alt="C" width="24" /> | <img src="docs/lettre_C.svg" alt="C" width="24" /> |
 | split() | <img src="docs/lettre_C.svg" alt="C" width="24" /> | <img src="docs/lettre_C.svg" alt="C" width="24" /> |
@@ -2153,14 +2178,14 @@ Ref: EX-074
 
 Si la liste de bytes n'est pas un UTF-8 valide, `toUtf8String()` lève une exception runtime.
 
-### 13.10 Sous-chaînes (substring)
+### 13.10 Sous-chaînes `subString`
 
-`substring(start, length)` extrait une sous-chaîne en indices de glyphes.
+`subString(start, length)` extrait une sous-chaîne en indices de glyphes.
 Elle retourne une **nouvelle** chaîne et ne crée pas de vue partagée.
 
 ```c
 string s = "a😀b";
-string t = s.substring(1, 1); // "😀"
+string t = s.subString(1, 1); // "😀"
 ```
 Ref: EX-075
 
@@ -2261,35 +2286,25 @@ Note :
 un prototype **non exporté** par un module natif est simplement **inaccessible** depuis l’extérieur.
 Cela ne modifie pas le mécanisme d’instanciation par `Type.clone()`.
 
-### 14.4.0 Builtins : types données vs handles natifs
+### 14.4.0 Builtins : table normative fermée
 
 - Les builtins sont décrits comme des prototypes ProtoScript.
 - La surface observable (méthodes, erreurs, règles de dispatch) est normative.
 - L’implémentation interne peut utiliser des structures runtime spécifiques, sans effet sémantique.
 
-Règle clone :
-
-- builtins de type **donnée** : `clone()` suit les règles normales (`lookup`, `super`, `Self`).
-- builtins de type **handle natif** : `clone()` est interdit et lève :
-  `R1013 RUNTIME_CLONE_NOT_SUPPORTED`.
-
-Exemple (handle non clonable) :
-
-```c
-function main() : void {
-    RegExp.clone(); // R1013 RUNTIME_CLONE_NOT_SUPPORTED
-}
-```
-
-Encadré normatif :
-
-> Les builtins sont décrits comme des prototypes ProtoScript.  
-> L’implémentation interne peut différer, mais la surface observable est normative.
-
-Surfaces canoniques (résumé) :
-
-- Handles natifs non clonables : `TextFile`, `BinaryFile`, `Dir`, `Walker`, `RegExp`.
-- Données clonables : `CivilDateTime`, `PathInfo`, `PathEntry`, `JSONValue`, `RegExpMatch`, `ProcessEvent`, `ProcessResult`.
+| Builtin prototype | sealed | error on extend          | clonable | error on clone()                  |
+| ----------------- | ------ | ------------------------ | -------- | --------------------------------- |
+| TextFile          | yes    | E3140 SEALED_INHERITANCE | no       | R1013 RUNTIME_CLONE_NOT_SUPPORTED |
+| BinaryFile        | yes    | E3140 SEALED_INHERITANCE | no       | R1013 RUNTIME_CLONE_NOT_SUPPORTED |
+| Dir               | yes    | E3140 SEALED_INHERITANCE | no       | R1013 RUNTIME_CLONE_NOT_SUPPORTED |
+| Walker            | yes    | E3140 SEALED_INHERITANCE | no       | R1013 RUNTIME_CLONE_NOT_SUPPORTED |
+| RegExp            | yes    | E3140 SEALED_INHERITANCE | no       | R1013 RUNTIME_CLONE_NOT_SUPPORTED |
+| PathInfo          | yes    | E3140 SEALED_INHERITANCE | no       | R1013 RUNTIME_CLONE_NOT_SUPPORTED |
+| PathEntry         | yes    | E3140 SEALED_INHERITANCE | no       | R1013 RUNTIME_CLONE_NOT_SUPPORTED |
+| RegExpMatch       | yes    | E3140 SEALED_INHERITANCE | no       | R1013 RUNTIME_CLONE_NOT_SUPPORTED |
+| ProcessEvent      | yes    | E3140 SEALED_INHERITANCE | no       | R1013 RUNTIME_CLONE_NOT_SUPPORTED |
+| ProcessResult     | yes    | E3140 SEALED_INHERITANCE | no       | R1013 RUNTIME_CLONE_NOT_SUPPORTED |
+| CivilDateTime     | no     |                          | yes      |                                   |
 
 ### 14.5 Registry des modules standards
 
@@ -2835,7 +2850,7 @@ Notes :
 **Prototype `PathInfo`**
 
 ```c
-prototype PathInfo {
+sealed prototype PathInfo {
     function dirname(): string {}
     function basename(): string {}
     function filename(): string {}
@@ -2846,7 +2861,7 @@ prototype PathInfo {
 **Prototype `Dir`**
 
 ```c
-prototype Dir {
+sealed prototype Dir {
     function hasNext(): bool {}
     function next(): string {}
     function close(): void {}
@@ -2868,7 +2883,7 @@ Les entrées `.` et `..` sont filtrées.
 **Prototype `Walker`**
 
 ```c
-prototype Walker {
+sealed prototype Walker {
     function hasNext() : bool {}
     function next() : PathEntry {}
     function close() : void {}
@@ -2886,7 +2901,7 @@ Méthodes :
 **Prototype `PathEntry`**
 
 ```c
-prototype PathEntry {
+sealed prototype PathEntry {
     function path(): string {}
     function name(): string {}
     function depth(): int {}
@@ -2966,7 +2981,7 @@ Notes :
 **Prototype `ProcessResult`**
 
 ```c
-prototype ProcessResult {
+sealed prototype ProcessResult {
     function exitCode(): int {}
     function events(): list<ProcessEvent> {}
 }
@@ -2975,7 +2990,7 @@ prototype ProcessResult {
 **Prototype `ProcessEvent`**
 
 ```c
-prototype ProcessEvent {
+sealed prototype ProcessEvent {
     function stream(): int {} // 1 = stdout, 2 = stderr
     function data(): list<byte> {}
 }
@@ -3080,7 +3095,7 @@ Conventions de limite (uniformes) :
 `RegExpMatch` expose :
 
 ```c
-prototype RegExpMatch {
+sealed prototype RegExpMatch {
     function ok(): bool {}
     function start(): int {}
     function end(): int {}
@@ -3267,7 +3282,7 @@ C’est volontaire et cohérent avec le choix d'implémentation retenue par Prot
 ```c
 RegExp numbers = RegExp.compile("\\d+", "");
 
-list<RegExpMatch> matches = numbers.findAll("Prix: 10€, 2€ taxe, 12€" total, 0, -1);
+list<RegExpMatch> matches = numbers.findAll("Prix: 10€, 2€ taxe, 12€", 0, -1);
 for (int i = 0; i < matches.length(); i++)
     Io.printLine(matches[i].groups[0]);
 ```
@@ -3788,12 +3803,13 @@ Différences clés vs JS/PHP :
 | Famille | Opérateurs |
 |---|---|
 | Unaires | `! ~ - ++ --` |
-| Multiplicatifs | `* / % &` |
-| Additifs | `+ - | ^` |
+| Multiplicatifs | `* / %` |
+| Additifs | `+ -` |
+| Bitwise | `& | ^ ~ << >>` |
 | Shifts | `<< >>` |
 | Comparaison | `== != < <= > >=` |
 | Logiques | `&& ||` |
-| Conditionnel | `?:` |
+| Conditionnel (ternaire) | `?:` |
 | Affectation | `= += -= *= /=` |
 
 ### 18.3 Exemple complet

@@ -1,0 +1,6 @@
+prototype TextFileChild : TextFile {
+}
+
+function main() : void {
+    TextFileChild.clone();
+}

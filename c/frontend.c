@@ -3991,6 +3991,13 @@ static int add_builtin_exception_protos(Analyzer *a) {
     if (!proto_add_method0(pi, "filename", "string")) return 0;
     if (!proto_add_method0(pi, "extension", "string")) return 0;
   }
+  {
+    ProtoInfo *pi = proto_find(a->protos, "PathInfo");
+    if (pi) {
+      pi->builtin = 1;
+      pi->sealed = 1;
+    }
+  }
 
   if (!proto_find(a->protos, "PathEntry")) {
     ProtoInfo *pe = proto_append(a, "PathEntry", NULL);
@@ -4002,6 +4009,13 @@ static int add_builtin_exception_protos(Analyzer *a) {
     if (!proto_add_method0(pe, "isDir", "bool")) return 0;
     if (!proto_add_method0(pe, "isFile", "bool")) return 0;
     if (!proto_add_method0(pe, "isSymlink", "bool")) return 0;
+  }
+  {
+    ProtoInfo *pe = proto_find(a->protos, "PathEntry");
+    if (pe) {
+      pe->builtin = 1;
+      pe->sealed = 1;
+    }
   }
 
   ProtoInfo *tf = proto_find(a->protos, "TextFile");
@@ -4088,6 +4102,13 @@ static int add_builtin_exception_protos(Analyzer *a) {
     if (!proto_add_method0(rm, "end", "int")) return 0;
     if (!proto_add_method0(rm, "groups", "list<string>")) return 0;
   }
+  {
+    ProtoInfo *rm = proto_find(a->protos, "RegExpMatch");
+    if (rm) {
+      rm->builtin = 1;
+      rm->sealed = 1;
+    }
+  }
 
   if (!proto_find(a->protos, "ProcessEvent")) {
     ProtoInfo *ev = proto_append(a, "ProcessEvent", NULL);
@@ -4096,6 +4117,13 @@ static int add_builtin_exception_protos(Analyzer *a) {
     if (!proto_add_method0(ev, "stream", "int")) return 0;
     if (!proto_add_method0(ev, "data", "list<byte>")) return 0;
   }
+  {
+    ProtoInfo *ev = proto_find(a->protos, "ProcessEvent");
+    if (ev) {
+      ev->builtin = 1;
+      ev->sealed = 1;
+    }
+  }
 
   if (!proto_find(a->protos, "ProcessResult")) {
     ProtoInfo *pr = proto_append(a, "ProcessResult", NULL);
@@ -4103,6 +4131,13 @@ static int add_builtin_exception_protos(Analyzer *a) {
     pr->builtin = 1;
     if (!proto_add_method0(pr, "exitCode", "int")) return 0;
     if (!proto_add_method0(pr, "events", "list<ProcessEvent>")) return 0;
+  }
+  {
+    ProtoInfo *pr = proto_find(a->protos, "ProcessResult");
+    if (pr) {
+      pr->builtin = 1;
+      pr->sealed = 1;
+    }
   }
 
   if (!proto_find(a->protos, "JSONValue")) {

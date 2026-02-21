@@ -306,6 +306,32 @@ function inferTempTypes(ir, protoMap) {
                   else if (i.method === "asString") set(i.dst, "string");
                   else if (i.method === "asArray") set(i.dst, "list<JSONValue>");
                   else if (i.method === "asObject") set(i.dst, "map<string,JSONValue>");
+                } else if (rt === "ProcessResult") {
+                  if (i.method === "exitCode") set(i.dst, "int");
+                  else if (i.method === "events") set(i.dst, "list<ProcessEvent>");
+                  else set(i.dst, "unknown");
+                } else if (rt === "ProcessEvent") {
+                  if (i.method === "stream") set(i.dst, "int");
+                  else if (i.method === "data") set(i.dst, "list<byte>");
+                  else set(i.dst, "unknown");
+                } else if (rt === "RegExpMatch") {
+                  if (i.method === "ok") set(i.dst, "bool");
+                  else if (i.method === "start" || i.method === "end") set(i.dst, "int");
+                  else if (i.method === "groups") set(i.dst, "list<string>");
+                  else set(i.dst, "unknown");
+                } else if (rt === "PathInfo") {
+                  if (["dirname", "basename", "filename", "extension"].includes(i.method)) set(i.dst, "string");
+                  else set(i.dst, "unknown");
+                } else if (rt === "PathEntry") {
+                  if (["path", "name"].includes(i.method)) set(i.dst, "string");
+                  else if (i.method === "depth") set(i.dst, "int");
+                  else if (["isDir", "isFile", "isSymlink"].includes(i.method)) set(i.dst, "bool");
+                  else set(i.dst, "unknown");
+                } else if (rt === "CivilDateTime") {
+                  if (["year", "month", "day", "hour", "minute", "second", "millisecond"].includes(i.method)) set(i.dst, "int");
+                  else if (["setYear", "setMonth", "setDay", "setHour", "setMinute", "setSecond", "setMillisecond"].includes(i.method))
+                    set(i.dst, "void");
+                  else set(i.dst, "unknown");
                 } else if (rt === "int") {
                   if (i.method === "toByte") set(i.dst, "byte");
                   else if (i.method === "toFloat") set(i.dst, "float");
@@ -802,7 +828,7 @@ function emitContainerHelpers(typeNames) {
     out.push(`static ${valC} ps_map_get_${m.base}(const ${mapC}* m, ${keyC} key) {`);
     out.push("  size_t idx = 0;");
     out.push(`  bool ok = ps_map_find_${m.base}(m, key, &idx);`);
-    out.push('  if (!ok) ps_panic("R1003", "RUNTIME_MISSING_KEY", "missing map key");');
+    out.push('  if (!ok) ps_panic_diag("R1003", "RUNTIME_MISSING_KEY", "missing key", "key", "present key");');
     out.push("  return m->values[idx];");
     out.push("}");
     out.push(`static void ps_map_set_${m.base}(${mapC}* m, ${keyC} key, ${valC} value) {`);
@@ -881,18 +907,35 @@ function emitRuntimeHelpers(protoMap) {
     "static ps_exception* ps_last_exception = NULL;",
     "static jmp_buf ps_try_stack[64];",
     "static int ps_try_len = 0;",
+    "static const char* ps_rt_file = \"<runtime>\";",
+    "static int64_t ps_rt_line = 1;",
+    "static int64_t ps_rt_col = 1;",
     "extern char **environ;",
     "static ps_string ps_cstr(const char* s) {",
     "  ps_string out = { s ? s : \"\", s ? strlen(s) : 0 };",
     "  return out;",
     "}",
     "static bool ps_utf8_validate(const uint8_t* s, size_t len);",
+    "static void ps_set_runtime_site(const char* file, int64_t line, int64_t col) {",
+    "  ps_rt_file = (file && *file) ? file : \"<runtime>\";",
+    "  ps_rt_line = line > 0 ? line : 1;",
+    "  ps_rt_col = col > 0 ? col : 1;",
+    "}",
+    "static void ps_bind_user_exception_site(ps_exception* ex) {",
+    "  if (!ex) return;",
+    "  const char* f = ex->file.ptr;",
+    "  size_t flen = ex->file.len;",
+    "  int file_missing = (!f || flen == 0 || strcmp(f, \"<runtime>\") == 0);",
+    "  if (file_missing) ex->file = ps_cstr(ps_rt_file);",
+    "  if (ex->line <= 1) ex->line = ps_rt_line;",
+    "  if (ex->column <= 1) ex->column = ps_rt_col;",
+    "}",
     "static void ps_set_exception(const char* code, const char* category, const char* msg, int is_runtime) {",
     "  ps_runtime_exception.type = \"RuntimeException\";",
     "  ps_runtime_exception.parent = \"Exception\";",
-    "  ps_runtime_exception.file = ps_cstr(\"<runtime>\");",
-    "  ps_runtime_exception.line = 1;",
-    "  ps_runtime_exception.column = 1;",
+    "  ps_runtime_exception.file = ps_cstr(ps_rt_file);",
+    "  ps_runtime_exception.line = ps_rt_line;",
+    "  ps_runtime_exception.column = ps_rt_col;",
     "  ps_runtime_exception.message = ps_cstr(msg);",
     "  ps_runtime_exception.cause = NULL;",
     "  ps_runtime_exception.code = ps_cstr(code ? code : \"\");",
@@ -903,9 +946,9 @@ function emitRuntimeHelpers(protoMap) {
     "static void ps_set_runtime_exception_typed(const char* type, const char* msg) {",
     "  ps_runtime_exception.type = type ? type : \"RuntimeException\";",
     "  ps_runtime_exception.parent = \"RuntimeException\";",
-    "  ps_runtime_exception.file = ps_cstr(\"<runtime>\");",
-    "  ps_runtime_exception.line = 1;",
-    "  ps_runtime_exception.column = 1;",
+    "  ps_runtime_exception.file = ps_cstr(ps_rt_file);",
+    "  ps_runtime_exception.line = ps_rt_line;",
+    "  ps_runtime_exception.column = ps_rt_col;",
     "  ps_runtime_exception.message = ps_cstr(msg ? msg : \"\");",
     "  ps_runtime_exception.cause = NULL;",
     "  ps_runtime_exception.code = ps_cstr(\"\");",
@@ -953,6 +996,7 @@ function emitRuntimeHelpers(protoMap) {
     "  ps_set_exception(code, category, msg, 1);",
     "  ps_raise_exception();",
     "}",
+    "static void ps_panic_diag(const char* code, const char* category, const char* short_msg, const char* got, const char* expected);",
     "static ps_exception* ps_get_exception(void) {",
     "  if (!ps_last_exception) ps_set_exception(\"R1999\", \"RUNTIME_THROW\", \"exception\", 1);",
     "  return ps_last_exception;",
@@ -996,7 +1040,7 @@ function emitRuntimeHelpers(protoMap) {
     "  return ex;",
     "}",
     "static void ps_raise_user_exception(ps_exception* ex) {",
-    "  if (ex) { ps_last_exception = ex; }",
+    "  if (ex) { ps_bind_user_exception_site(ex); ps_last_exception = ex; }",
     "  ps_raise_exception();",
     "}",
     "",
@@ -1214,41 +1258,41 @@ function emitRuntimeHelpers(protoMap) {
     "}",
     "static ps_string ps_text_from_bytes(const uint8_t* buf, size_t n) {",
     "  for (size_t i = 0; i < n; i += 1) {",
-    "    if (buf[i] == 0) ps_raise_runtime_typed(\"Utf8DecodeException\", \"invalid UTF-8\");",
+    "    if (buf[i] == 0) ps_raise_runtime_typed(\"Utf8DecodeException\", \"invalid UTF-8 sequence\");",
     "  }",
     "  size_t out_len = n;",
     "  char* out = (char*)malloc(out_len + 1);",
     "  if (!out) ps_panic(\"R1998\", \"RUNTIME_OOM\", \"out of memory\");",
     "  if (out_len > 0) memcpy(out, buf, out_len);",
     "  out[out_len] = '\\0';",
-    "  if (!ps_utf8_validate((const uint8_t*)out, out_len)) ps_raise_runtime_typed(\"Utf8DecodeException\", \"invalid UTF-8\");",
+    "  if (!ps_utf8_validate((const uint8_t*)out, out_len)) ps_raise_runtime_typed(\"Utf8DecodeException\", \"invalid UTF-8 sequence\");",
     "  return (ps_string){ out, out_len };",
     "}",
     "static int ps_read_utf8_glyph(FILE* fp, uint8_t out[4], size_t* out_len) {",
     "  int c0 = fgetc(fp);",
     "  if (c0 == EOF) return 0;",
     "  uint8_t b0 = (uint8_t)c0;",
-    "  if (b0 == 0) ps_raise_runtime_typed(\"Utf8DecodeException\", \"invalid UTF-8\");",
+    "  if (b0 == 0) ps_raise_runtime_typed(\"Utf8DecodeException\", \"invalid UTF-8 sequence\");",
     "  size_t len = 0;",
     "  uint32_t cp = 0;",
     "  if (b0 < 0x80) { len = 1; cp = b0; }",
     "  else if ((b0 & 0xE0) == 0xC0) { len = 2; cp = (uint32_t)(b0 & 0x1F); }",
     "  else if ((b0 & 0xF0) == 0xE0) { len = 3; cp = (uint32_t)(b0 & 0x0F); }",
     "  else if ((b0 & 0xF8) == 0xF0) { len = 4; cp = (uint32_t)(b0 & 0x07); }",
-    "  else { ps_raise_runtime_typed(\"Utf8DecodeException\", \"invalid UTF-8\"); }",
+    "  else { ps_raise_runtime_typed(\"Utf8DecodeException\", \"invalid UTF-8 sequence\"); }",
     "  out[0] = b0;",
     "  for (size_t i = 1; i < len; i += 1) {",
     "    int ci = fgetc(fp);",
-    "    if (ci == EOF) ps_raise_runtime_typed(\"Utf8DecodeException\", \"invalid UTF-8\");",
+    "    if (ci == EOF) ps_raise_runtime_typed(\"Utf8DecodeException\", \"invalid UTF-8 sequence\");",
     "    uint8_t bi = (uint8_t)ci;",
-    "    if ((bi & 0xC0) != 0x80) ps_raise_runtime_typed(\"Utf8DecodeException\", \"invalid UTF-8\");",
+    "    if ((bi & 0xC0) != 0x80) ps_raise_runtime_typed(\"Utf8DecodeException\", \"invalid UTF-8 sequence\");",
     "    out[i] = bi;",
     "    cp = (cp << 6) | (uint32_t)(bi & 0x3F);",
-    "    if (bi == 0) ps_raise_runtime_typed(\"Utf8DecodeException\", \"invalid UTF-8\");",
+    "    if (bi == 0) ps_raise_runtime_typed(\"Utf8DecodeException\", \"invalid UTF-8 sequence\");",
     "  }",
-    "  if (len == 2 && cp < 0x80) ps_raise_runtime_typed(\"Utf8DecodeException\", \"invalid UTF-8\");",
-    "  if (len == 3 && cp < 0x800) ps_raise_runtime_typed(\"Utf8DecodeException\", \"invalid UTF-8\");",
-    "  if (len == 4 && (cp < 0x10000 || cp > 0x10FFFF)) ps_raise_runtime_typed(\"Utf8DecodeException\", \"invalid UTF-8\");",
+    "  if (len == 2 && cp < 0x80) ps_raise_runtime_typed(\"Utf8DecodeException\", \"invalid UTF-8 sequence\");",
+    "  if (len == 3 && cp < 0x800) ps_raise_runtime_typed(\"Utf8DecodeException\", \"invalid UTF-8 sequence\");",
+    "  if (len == 4 && (cp < 0x10000 || cp > 0x10FFFF)) ps_raise_runtime_typed(\"Utf8DecodeException\", \"invalid UTF-8 sequence\");",
     "  *out_len = len;",
     "  return 1;",
     "}",
@@ -1430,17 +1474,39 @@ function emitRuntimeHelpers(protoMap) {
     "  ps_jsonvalue v = JSON_null(); v.kind = PS_JSON_BOOL; v.b = b; return v;",
     "}",
     "static ps_jsonvalue JSON_number(double n) {",
-    "  if (isnan(n) || isinf(n)) ps_panic(\"R1010\", \"RUNTIME_JSON_ERROR\", \"invalid JSON number\");",
+    "  if (isnan(n) || isinf(n)) ps_panic_diag(\"R1010\", \"RUNTIME_JSON_ERROR\", \"invalid JSON number\", \"JSON value\", \"expected JSON type\");",
     "  ps_jsonvalue v = JSON_null(); v.kind = PS_JSON_NUMBER; v.num = n; return v;",
     "}",
     "static ps_jsonvalue JSON_string(ps_string s) {",
     "  ps_jsonvalue v = JSON_null(); v.kind = PS_JSON_STRING; v.str = s; return v;",
     "}",
+    "static ps_list_JSONValue ps_json_array_snapshot(ps_list_JSONValue items) {",
+    "  ps_list_JSONValue out = (ps_list_JSONValue){ NULL, 0, 0, 0 };",
+    "  if (items.len == 0) return out;",
+    "  out.ptr = (ps_jsonvalue*)malloc(sizeof(ps_jsonvalue) * items.len);",
+    "  if (!out.ptr) ps_panic(\"R1998\", \"RUNTIME_OOM\", \"out of memory\");",
+    "  memcpy(out.ptr, items.ptr, sizeof(ps_jsonvalue) * items.len);",
+    "  out.len = items.len;",
+    "  out.cap = items.len;",
+    "  return out;",
+    "}",
+    "static ps_map_string_JSONValue ps_json_object_snapshot(ps_map_string_JSONValue members) {",
+    "  ps_map_string_JSONValue out = (ps_map_string_JSONValue){ NULL, NULL, 0, 0 };",
+    "  if (members.len == 0) return out;",
+    "  out.keys = (ps_string*)malloc(sizeof(ps_string) * members.len);",
+    "  out.values = (ps_jsonvalue*)malloc(sizeof(ps_jsonvalue) * members.len);",
+    "  if (!out.keys || !out.values) ps_panic(\"R1998\", \"RUNTIME_OOM\", \"out of memory\");",
+    "  memcpy(out.keys, members.keys, sizeof(ps_string) * members.len);",
+    "  memcpy(out.values, members.values, sizeof(ps_jsonvalue) * members.len);",
+    "  out.len = members.len;",
+    "  out.cap = members.len;",
+    "  return out;",
+    "}",
     "static ps_jsonvalue JSON_array(ps_list_JSONValue items) {",
-    "  ps_jsonvalue v = JSON_null(); v.kind = PS_JSON_ARRAY; v.arr = items; return v;",
+    "  ps_jsonvalue v = JSON_null(); v.kind = PS_JSON_ARRAY; v.arr = ps_json_array_snapshot(items); return v;",
     "}",
     "static ps_jsonvalue JSON_object(ps_map_string_JSONValue members) {",
-    "  ps_jsonvalue v = JSON_null(); v.kind = PS_JSON_OBJECT; v.obj = members; return v;",
+    "  ps_jsonvalue v = JSON_null(); v.kind = PS_JSON_OBJECT; v.obj = ps_json_object_snapshot(members); return v;",
     "}",
     "static bool ps_json_is_null(ps_jsonvalue v) { return v.kind == PS_JSON_NULL; }",
     "static bool ps_json_is_bool(ps_jsonvalue v) { return v.kind == PS_JSON_BOOL; }",
@@ -1451,8 +1517,8 @@ function emitRuntimeHelpers(protoMap) {
     "static bool ps_json_as_bool(ps_jsonvalue v) { if (v.kind != PS_JSON_BOOL) ps_panic(\"R1010\", \"RUNTIME_TYPE_ERROR\", \"not a bool\"); return v.b; }",
     "static double ps_json_as_number(ps_jsonvalue v) { if (v.kind != PS_JSON_NUMBER) ps_panic(\"R1010\", \"RUNTIME_TYPE_ERROR\", \"not a number\"); return v.num; }",
     "static ps_string ps_json_as_string(ps_jsonvalue v) { if (v.kind != PS_JSON_STRING) ps_panic(\"R1010\", \"RUNTIME_TYPE_ERROR\", \"not a string\"); return v.str; }",
-    "static ps_list_JSONValue ps_json_as_array(ps_jsonvalue v) { if (v.kind != PS_JSON_ARRAY) ps_panic(\"R1010\", \"RUNTIME_TYPE_ERROR\", \"not an array\"); return v.arr; }",
-    "static ps_map_string_JSONValue ps_json_as_object(ps_jsonvalue v) { if (v.kind != PS_JSON_OBJECT) ps_panic(\"R1010\", \"RUNTIME_TYPE_ERROR\", \"not an object\"); return v.obj; }",
+    "static ps_list_JSONValue ps_json_as_array(ps_jsonvalue v) { if (v.kind != PS_JSON_ARRAY) ps_panic(\"R1010\", \"RUNTIME_TYPE_ERROR\", \"not an array\"); return ps_json_array_snapshot(v.arr); }",
+    "static ps_map_string_JSONValue ps_json_as_object(ps_jsonvalue v) { if (v.kind != PS_JSON_OBJECT) ps_panic(\"R1010\", \"RUNTIME_TYPE_ERROR\", \"not an object\"); return ps_json_object_snapshot(v.obj); }",
     "static void ps_map_set_string_JSONValue(ps_map_string_JSONValue* m, ps_string key, ps_jsonvalue value);",
     "typedef struct { const char* s; size_t len; size_t i; } ps_json_parser;",
     "static void ps_json_skip_ws(ps_json_parser* p) {",
@@ -1571,7 +1637,7 @@ function emitRuntimeHelpers(protoMap) {
     "      if (!buf.ptr) buf.ptr = (char*)malloc(1);",
     "      if (!buf.ptr) ps_panic(\"R1998\", \"RUNTIME_OOM\", \"out of memory\");",
     "      buf.ptr[buf.len] = '\\0';",
-    "      if (!ps_utf8_validate((const uint8_t*)buf.ptr, buf.len)) ps_panic(\"R1007\", \"RUNTIME_INVALID_UTF8\", \"invalid UTF-8\");",
+    "      if (!ps_utf8_validate((const uint8_t*)buf.ptr, buf.len)) ps_panic_diag(\"R1007\", \"RUNTIME_INVALID_UTF8\", \"invalid UTF-8 sequence\", \"byte stream\", \"valid UTF-8\");",
     "      return JSON_string((ps_string){ buf.ptr, buf.len });",
     "    }",
     "    if (c < 0x20) { *ok = 0; return JSON_null(); }",
@@ -1647,7 +1713,7 @@ function emitRuntimeHelpers(protoMap) {
     "  int ok = 1;",
     "  ps_jsonvalue v = ps_json_parse_value(&p, &ok);",
     "  ps_json_skip_ws(&p);",
-    "  if (!ok || p.i != p.len) ps_panic(\"R1010\", \"RUNTIME_JSON_ERROR\", \"invalid JSON\");",
+    "  if (!ok || p.i != p.len) ps_panic_diag(\"R1010\", \"RUNTIME_JSON_ERROR\", \"invalid JSON\", \"JSON value\", \"expected JSON type\");",
     "  return v;",
     "}",
     "static bool JSON_isValid(ps_string s) {",
@@ -2275,45 +2341,61 @@ function emitRuntimeHelpers(protoMap) {
     "",
     "static int64_t test_simple_add(int64_t a, int64_t b) { return a + b; }",
     "static ps_string test_utf8_roundtrip(ps_string s) { return s; }",
-    "static void test_throw_fail(void) { ps_panic(\"R1010\", \"RUNTIME_MODULE_ERROR\", \"module not found\"); }",
-    "static int64_t test_noinit_ping(void) { ps_panic(\"R1010\", \"RUNTIME_MODULE_ERROR\", \"module not found\"); return 0; }",
-    "static int64_t test_badver_ping(void) { ps_panic(\"R1010\", \"RUNTIME_MODULE_ERROR\", \"module not found\"); return 0; }",
-    "static int64_t test_missing_ping(void) { ps_panic(\"R1010\", \"RUNTIME_MODULE_ERROR\", \"module not found\"); return 0; }",
-    "static int64_t test_nosym_missing(void) { ps_panic(\"R1010\", \"RUNTIME_MODULE_ERROR\", \"symbol not found\"); return 0; }",
+    "static void test_throw_fail(void) { ps_panic(\"R1010\", \"RUNTIME_MODULE_ERROR\", \"module not found. got module or symbol; expected available module/symbol\"); }",
+    "static int64_t test_noinit_ping(void) { ps_panic(\"R1010\", \"RUNTIME_MODULE_ERROR\", \"module not found. got module or symbol; expected available module/symbol\"); return 0; }",
+    "static int64_t test_badver_ping(void) { ps_panic(\"R1010\", \"RUNTIME_MODULE_ERROR\", \"module not found. got module or symbol; expected available module/symbol\"); return 0; }",
+    "static int64_t test_missing_ping(void) { ps_panic(\"R1010\", \"RUNTIME_MODULE_ERROR\", \"module not found. got module or symbol; expected available module/symbol\"); return 0; }",
+    "static int64_t test_nosym_missing(void) { ps_panic(\"R1010\", \"RUNTIME_MODULE_ERROR\", \"symbol not found. got module or symbol; expected available module/symbol\"); return 0; }",
     "",
+    "static void ps_panic_diag(const char* code, const char* category, const char* short_msg, const char* got, const char* expected) {",
+    "  char b[512];",
+    "  if (short_msg && got && expected) snprintf(b, sizeof(b), \"%s. got %s; expected %s\", short_msg, got, expected);",
+    "  else if (short_msg) snprintf(b, sizeof(b), \"%s\", short_msg);",
+    "  else snprintf(b, sizeof(b), \"runtime error\");",
+    "  ps_panic(code, category, b);",
+    "}",
     "static void ps_check_int_overflow_add(int64_t a, int64_t b) {",
     "  int64_t r;",
-    "  if (__builtin_add_overflow(a, b, &r)) ps_panic(\"R1001\", \"RUNTIME_INT_OVERFLOW\", \"int overflow on +\");",
+    "  if (__builtin_add_overflow(a, b, &r)) ps_panic_diag(\"R1001\", \"RUNTIME_INT_OVERFLOW\", \"int overflow\", \"value\", \"value within int range\");",
     "}",
     "static void ps_check_int_overflow_sub(int64_t a, int64_t b) {",
     "  int64_t r;",
-    "  if (__builtin_sub_overflow(a, b, &r)) ps_panic(\"R1001\", \"RUNTIME_INT_OVERFLOW\", \"int overflow on -\");",
+    "  if (__builtin_sub_overflow(a, b, &r)) ps_panic_diag(\"R1001\", \"RUNTIME_INT_OVERFLOW\", \"int overflow\", \"value\", \"value within int range\");",
     "}",
     "static void ps_check_int_overflow_mul(int64_t a, int64_t b) {",
     "  int64_t r;",
-    "  if (__builtin_mul_overflow(a, b, &r)) ps_panic(\"R1001\", \"RUNTIME_INT_OVERFLOW\", \"int overflow on *\");",
+    "  if (__builtin_mul_overflow(a, b, &r)) ps_panic_diag(\"R1001\", \"RUNTIME_INT_OVERFLOW\", \"int overflow\", \"value\", \"value within int range\");",
     "}",
     "static void ps_check_div_zero_int(int64_t d) {",
-    "  if (d == 0) ps_panic(\"R1004\", \"RUNTIME_DIVIDE_BY_ZERO\", \"division by zero\");",
+    "  if (d == 0) ps_panic_diag(\"R1004\", \"RUNTIME_DIVIDE_BY_ZERO\", \"division by zero\", \"0\", \"non-zero divisor\");",
     "}",
     "static void ps_check_shift_range(int64_t s, int width) {",
-    "  if (s < 0 || s >= width) ps_panic(\"R1005\", \"RUNTIME_SHIFT_RANGE\", \"invalid shift amount\");",
+    "  if (s < 0 || s >= width) {",
+    "    char got[64]; char exp[64];",
+    "    snprintf(got, sizeof(got), \"%lld\", (long long)s);",
+    "    snprintf(exp, sizeof(exp), \"0..%d\", width > 0 ? width - 1 : 0);",
+    "    ps_panic_diag(\"R1005\", \"RUNTIME_SHIFT_RANGE\", \"invalid shift\", got, exp);",
+    "  }",
     "}",
     "static void ps_check_index_bounds(size_t len, int64_t idx) {",
-    "  if (idx < 0 || (size_t)idx >= len) ps_panic(\"R1002\", \"RUNTIME_INDEX_OOB\", \"index out of bounds\");",
+    "  if (idx < 0 || (size_t)idx >= len) {",
+    "    char got[64];",
+    "    snprintf(got, sizeof(got), \"%lld\", (long long)idx);",
+    "    ps_panic_diag(\"R1002\", \"RUNTIME_INDEX_OOB\", \"index out of bounds\", got, \"index within bounds\");",
+    "  }",
     "}",
     "static void ps_check_view_bounds(size_t len, int64_t offset, int64_t view_len) {",
     "  if (offset < 0 || view_len < 0 || (size_t)(offset + view_len) > len) {",
-    "    ps_panic(\"R1002\", \"RUNTIME_INDEX_OOB\", \"index out of bounds\");",
+    "    ps_panic_diag(\"R1002\", \"RUNTIME_INDEX_OOB\", \"index out of bounds\", \"offset/length\", \"within source\");",
     "  }",
     "}",
     "static void ps_check_view_valid(const uint64_t* version_ptr, uint64_t version) {",
     "  if (version_ptr && *version_ptr != version) {",
-    "    ps_panic(\"R1012\", \"RUNTIME_VIEW_INVALID\", \"view invalidated\");",
+    "    ps_panic_diag(\"R1012\", \"RUNTIME_VIEW_INVALID\", \"view invalidated\", \"invalidated view\", \"valid view\");",
     "  }",
     "}",
     "static void ps_check_map_has_key(int has_key) {",
-    "  if (!has_key) ps_panic(\"R1003\", \"RUNTIME_MISSING_KEY\", \"missing map key\");",
+    "  if (!has_key) ps_panic_diag(\"R1003\", \"RUNTIME_MISSING_KEY\", \"missing key\", \"key\", \"present key\");",
     "}",
     "static size_t ps_utf8_next(const char* s, size_t len, size_t i, uint32_t* out_cp) {",
     "  if (i >= len) return 0;",
@@ -2373,7 +2455,7 @@ function emitRuntimeHelpers(protoMap) {
     "  return n;",
     "}",
     "static uint32_t ps_string_index_glyph(ps_string s, int64_t idx) {",
-    "  if (idx < 0) ps_panic(\"R1002\", \"RUNTIME_INDEX_OOB\", \"index out of bounds\");",
+    "  if (idx < 0) ps_panic_diag(\"R1002\", \"RUNTIME_INDEX_OOB\", \"index out of bounds\", \"start<0\", \"range within string\");",
     "  size_t want = (size_t)idx;",
     "  size_t g = 0;",
     "  for (size_t i = 0; i < s.len; ) {",
@@ -2384,7 +2466,7 @@ function emitRuntimeHelpers(protoMap) {
     "    g += 1;",
     "    i += adv;",
     "  }",
-    "  ps_panic(\"R1002\", \"RUNTIME_INDEX_OOB\", \"index out of bounds\");",
+    "  ps_panic_diag(\"R1002\", \"RUNTIME_INDEX_OOB\", \"index out of bounds\", \"index\", \"range within string\");",
     "  return 0;",
     "}",
     "static uint32_t ps_view_glyph_get(ps_view_glyph v, int64_t idx) {",
@@ -2393,17 +2475,17 @@ function emitRuntimeHelpers(protoMap) {
     "  return v.ptr[idx];",
     "}",
     "static ps_string ps_string_substring(ps_string s, int64_t start, int64_t length) {",
-    "  if (start < 0 || length < 0) ps_panic(\"R1002\", \"RUNTIME_INDEX_OOB\", \"index out of bounds\");",
+    "  if (start < 0 || length < 0) ps_panic_diag(\"R1002\", \"RUNTIME_INDEX_OOB\", \"index out of bounds\", \"start/length\", \"range within string\");",
     "  size_t i = 0;",
     "  for (size_t g = 0; g < (size_t)start; g += 1) {",
     "    size_t adv = ps_utf8_next(s.ptr, s.len, i, NULL);",
-    "    if (adv == 0) ps_panic(\"R1002\", \"RUNTIME_INDEX_OOB\", \"index out of bounds\");",
+    "    if (adv == 0) ps_panic_diag(\"R1002\", \"RUNTIME_INDEX_OOB\", \"index out of bounds\", \"start\", \"range within string\");",
     "    i += adv;",
     "  }",
     "  size_t start_b = i;",
     "  for (size_t g = 0; g < (size_t)length; g += 1) {",
     "    size_t adv = ps_utf8_next(s.ptr, s.len, i, NULL);",
-    "    if (adv == 0) ps_panic(\"R1002\", \"RUNTIME_INDEX_OOB\", \"index out of bounds\");",
+    "    if (adv == 0) ps_panic_diag(\"R1002\", \"RUNTIME_INDEX_OOB\", \"index out of bounds\", \"start=2, length=2\", \"range within string\");",
     "    i += adv;",
     "  }",
     "  size_t out_len = i - start_b;",
@@ -2777,7 +2859,7 @@ function emitRuntimeHelpers(protoMap) {
     "  return out;",
     "}",
     "static ps_string ps_list_byte_to_utf8_string(ps_list_byte b) {",
-    "  if (!ps_utf8_validate(b.ptr, b.len)) ps_panic(\"R1007\", \"RUNTIME_INVALID_UTF8\", \"invalid UTF-8\");",
+    "  if (!ps_utf8_validate(b.ptr, b.len)) ps_panic_diag(\"R1007\", \"RUNTIME_INVALID_UTF8\", \"invalid UTF-8 sequence\", \"byte stream\", \"valid UTF-8\");",
     "  char* buf = (char*)malloc(b.len + 1);",
     "  if (!buf && b.len > 0) ps_panic(\"R1998\", \"RUNTIME_OOM\", \"out of memory\");",
     "  if (b.len > 0) memcpy(buf, b.ptr, b.len);",
@@ -2821,7 +2903,7 @@ function emitRuntimeHelpers(protoMap) {
     "  return (int64_t)trunc(v);",
     "}",
     "static int64_t ps_string_to_int(ps_string s) {",
-    "  if (s.len == 0) ps_panic(\"R1010\", \"RUNTIME_TYPE_ERROR\", \"invalid int format\");",
+    "  if (s.len == 0) ps_panic_diag(\"R1010\", \"RUNTIME_TYPE_ERROR\", \"invalid int format\", \"string\", \"int literal\");",
     "  char* buf = (char*)malloc(s.len + 1);",
     "  if (!buf) ps_panic(\"R1998\", \"RUNTIME_OOM\", \"out of memory\");",
     "  memcpy(buf, s.ptr, s.len);",
@@ -2831,11 +2913,11 @@ function emitRuntimeHelpers(protoMap) {
     "  long long v = strtoll(buf, &end, 10);",
     "  int ok = (end && *end == 0 && errno != ERANGE);",
     "  free(buf);",
-    "  if (!ok) ps_panic(\"R1010\", \"RUNTIME_TYPE_ERROR\", \"invalid int format\");",
+    "  if (!ok) ps_panic_diag(\"R1010\", \"RUNTIME_TYPE_ERROR\", \"invalid int format\", \"string\", \"int literal\");",
     "  return (int64_t)v;",
     "}",
     "static double ps_string_to_float(ps_string s) {",
-    "  if (s.len == 0) ps_panic(\"R1010\", \"RUNTIME_TYPE_ERROR\", \"invalid float format\");",
+    "  if (s.len == 0) ps_panic_diag(\"R1010\", \"RUNTIME_TYPE_ERROR\", \"invalid float format\", \"string\", \"float literal\");",
     "  char* buf = (char*)malloc(s.len + 1);",
     "  if (!buf) ps_panic(\"R1998\", \"RUNTIME_OOM\", \"out of memory\");",
     "  memcpy(buf, s.ptr, s.len);",
@@ -2845,7 +2927,7 @@ function emitRuntimeHelpers(protoMap) {
     "  double v = strtod(buf, &end);",
     "  int ok = (end && *end == 0 && errno != ERANGE);",
     "  free(buf);",
-    "  if (!ok) ps_panic(\"R1010\", \"RUNTIME_TYPE_ERROR\", \"invalid float format\");",
+    "  if (!ok) ps_panic_diag(\"R1010\", \"RUNTIME_TYPE_ERROR\", \"invalid float format\", \"string\", \"float literal\");",
     "  return v;",
     "}",
     "static bool ps_glyph_is_letter(uint32_t g) {",
@@ -3575,6 +3657,25 @@ function emitRuntimeHelpers(protoMap) {
     "  e->data = ps_list_byte_from_buf(buf, len);",
     "  return e;",
     "}",
+    "static void ps_sys_append_event(ps_list_ProcessEvent* events, int stream, const uint8_t* buf, size_t len) {",
+    "  if (!events || !buf || len == 0) return;",
+    "  if (events->len > 0) {",
+    "    ProcessEvent* last = events->ptr[events->len - 1];",
+    "    if (last && last->stream == (int64_t)stream) {",
+    "      size_t old_len = last->data.len;",
+    "      size_t new_len = old_len + len;",
+    "      uint8_t* grown = (uint8_t*)realloc(last->data.ptr, new_len);",
+    "      if (!grown) ps_panic(\"R1998\", \"RUNTIME_OOM\", \"out of memory\");",
+    "      memcpy(grown + old_len, buf, len);",
+    "      last->data.ptr = grown;",
+    "      last->data.len = new_len;",
+    "      last->data.cap = new_len;",
+    "      return;",
+    "    }",
+    "  }",
+    "  ProcessEvent* e = ps_sys_make_event(stream, buf, len);",
+    "  ps_list_ProcessEvent_push(events, e);",
+    "}",
     "static ProcessResult* Sys_execute(ps_string program, ps_list_string args, ps_list_byte input, bool capture_stdout, bool capture_stderr) {",
     "  if (program.len == 0) ps_raise_runtime_typed(\"InvalidExecutableException\", \"invalid executable\");",
     "  char* prog = ps_string_to_cstr(program);",
@@ -3689,8 +3790,7 @@ function emitRuntimeHelpers(protoMap) {
     "      if (fds[idx].revents & (POLLIN | POLLHUP)) {",
     "        ssize_t r = read(out_pipe[0], buf, sizeof(buf));",
     "        if (r > 0) {",
-    "          ProcessEvent* e = ps_sys_make_event(1, buf, (size_t)r);",
-    "          ps_list_ProcessEvent_push(&events, e);",
+    "          ps_sys_append_event(&events, 1, buf, (size_t)r);",
     "        } else if (r == 0) {",
     "          close(out_pipe[0]);",
     "          stdout_open = 0;",
@@ -3702,8 +3802,7 @@ function emitRuntimeHelpers(protoMap) {
     "      if (fds[idx].revents & (POLLIN | POLLHUP)) {",
     "        ssize_t r = read(err_pipe[0], buf, sizeof(buf));",
     "        if (r > 0) {",
-    "          ProcessEvent* e = ps_sys_make_event(2, buf, (size_t)r);",
-    "          ps_list_ProcessEvent_push(&events, e);",
+    "          ps_sys_append_event(&events, 2, buf, (size_t)r);",
     "        } else if (r == 0) {",
     "          close(err_pipe[0]);",
     "          stderr_open = 0;",
@@ -3854,7 +3953,7 @@ function emitRuntimeHelpers(protoMap) {
     "  char b[512];",
     "  if (!kind) kind = \"RegExpError\";",
     "  if (!msg) msg = \"error\";",
-    "  snprintf(b, sizeof(b), \"%s: %s\", kind, msg);",
+    "  snprintf(b, sizeof(b), \"%s: %s. got module or symbol; expected available module/symbol\", kind, msg);",
     "  ps_panic(\"R1010\", \"RUNTIME_MODULE_ERROR\", b);",
     "}",
     "static RegExpMatch* ps_rx_match_empty(void) {",
@@ -3901,11 +4000,21 @@ function emitRuntimeHelpers(protoMap) {
     "  if (has_i) ff[k++] = 'i'; if (has_m) ff[k++] = 'm'; if (has_s) ff[k++] = 's'; ff[k] = '\\0';",
     "  slot->flags = ps_rx_copy(ff, k);",
     "  int rc = regcomp(&slot->re, pre, cflags);",
-    "  free(pre); free(p); free(f);",
     "  if (rc != 0) {",
     "    char eb[256]; regerror(rc, &slot->re, eb, sizeof(eb));",
+    "    if (strstr(eb, \"parentheses not balanced\")) {",
+    "      size_t need = strlen(p) + 64;",
+    "      char* msg = (char*)malloc(need);",
+    "      if (!msg) ps_panic(\"R1998\", \"RUNTIME_OOM\", \"out of memory\");",
+    "      snprintf(msg, need, \"Invalid regular expression: /%s/: Unterminated group\", p);",
+    "      free(pre); free(p); free(f);",
+    "      ps_rx_fail(\"RegExpSyntax\", msg);",
+    "      free(msg);",
+    "    }",
+    "    free(pre); free(p); free(f);",
     "    ps_rx_fail(\"RegExpSyntax\", eb);",
     "  }",
+    "  free(pre); free(p); free(f);",
     "  return r;",
     "}",
     "static RegExpMatch* RegExp_find(RegExp* self, ps_string input, int64_t start) {",
@@ -4176,7 +4285,19 @@ function emitInstr(i, fnInf, state) {
       {
         const m = parseMapType(t(i.map));
         const mapRefName = aliasOf(i.map) || i.map;
-        if (m) out.push(`ps_check_map_has_key(ps_map_has_key_${m.base}(&${n(mapRefName)}, ${n(i.key)}));`);
+        if (m) {
+          if (m.keyType === "string") {
+            out.push(`if (!ps_map_has_key_${m.base}(&${n(mapRefName)}, ${n(i.key)})) {`);
+            out.push(`  char* __ps_missing_key = ps_string_to_cstr(${n(i.key)});`);
+            out.push("  char __ps_missing_diag[512];");
+            out.push("  snprintf(__ps_missing_diag, sizeof(__ps_missing_diag), \"missing key. got \\\"%s\\\"; expected present key\", __ps_missing_key ? __ps_missing_key : \"\");");
+            out.push("  if (__ps_missing_key) free(__ps_missing_key);");
+            out.push("  ps_panic(\"R1003\", \"RUNTIME_MISSING_KEY\", __ps_missing_diag);");
+            out.push("}");
+          } else {
+            out.push(`ps_check_map_has_key(ps_map_has_key_${m.base}(&${n(mapRefName)}, ${n(i.key)}));`);
+          }
+        }
         else out.push("ps_check_map_has_key(0);");
       }
       break;
@@ -4186,11 +4307,11 @@ function emitInstr(i, fnInf, state) {
         const rt = t(i.right);
         if (lt === "glyph" || rt === "glyph") {
           if (lt !== "glyph" || rt !== "glyph") {
-            out.push('ps_panic("R1010", "RUNTIME_TYPE_ERROR", "invalid glyph operation");');
+            out.push('ps_panic_diag("R1010", "RUNTIME_TYPE_ERROR", "invalid glyph operation", "value", "compatible type");');
           } else if (["==", "!=", "<", "<=", ">", ">="].includes(i.operator)) {
             out.push(`${n(i.dst)} = (${n(i.left)} ${i.operator} ${n(i.right)});`);
           } else {
-            out.push('ps_panic("R1010", "RUNTIME_TYPE_ERROR", "invalid glyph operation");');
+            out.push('ps_panic_diag("R1010", "RUNTIME_TYPE_ERROR", "invalid glyph operation", "value", "compatible type");');
           }
         } else if ((i.operator === "==" || i.operator === "!=") && lt === "string" && rt === "string") {
           const cmp = `ps_string_eq(${n(i.left)}, ${n(i.right)})`;
@@ -4202,7 +4323,7 @@ function emitInstr(i, fnInf, state) {
       break;
     case "unary_op":
       if (t(i.src) === "glyph" && (i.operator === "-" || i.operator === "++" || i.operator === "--" || i.operator === "~")) {
-        out.push('ps_panic("R1010", "RUNTIME_TYPE_ERROR", "invalid glyph operation");');
+        out.push('ps_panic_diag("R1010", "RUNTIME_TYPE_ERROR", "invalid glyph operation", "value", "compatible type");');
       } else {
         out.push(`${n(i.dst)} = (${i.operator}${n(i.src)});`);
       }
@@ -4213,12 +4334,19 @@ function emitInstr(i, fnInf, state) {
       break;
     case "postfix_op":
       if (t(i.src) === "glyph" && (i.operator === "++" || i.operator === "--")) {
-        out.push('ps_panic("R1010", "RUNTIME_TYPE_ERROR", "invalid glyph operation");');
+        out.push('ps_panic_diag("R1010", "RUNTIME_TYPE_ERROR", "invalid glyph operation", "value", "compatible type");');
       } else {
         out.push(`${n(i.dst)} = ${n(i.src)}${i.operator};`);
       }
       break;
     case "call_static":
+      if (typeof i.callee === "string" && i.callee.startsWith("__clone_not_supported.")) {
+        const handle = i.callee.slice("__clone_not_supported.".length) || "Object";
+        out.push(`ps_panic("R1013", "RUNTIME_CLONE_NOT_SUPPORTED", "clone not supported for builtin handle ${handle}");`);
+        if (i.dst && t(i.dst) && t(i.dst) !== "void") {
+          out.push(`${n(i.dst)} = (${cTypeFromName(t(i.dst))})0;`);
+        }
+      } else
       if (i.variadic && VARIADIC_PARAM_INFO.has(i.callee)) {
         const info = VARIADIC_PARAM_INFO.get(i.callee);
         const viewType = info.type;
@@ -4273,7 +4401,7 @@ function emitInstr(i, fnInf, state) {
           return !(at === "int" || at === "float");
         });
         if (bad) {
-          out.push('ps_panic("R1010", "RUNTIME_TYPE_ERROR", "expected float");');
+          out.push('ps_panic_diag("R1010", "RUNTIME_TYPE_ERROR", "invalid argument", "string", "float");');
         } else if (t(i.dst) === "void") {
           out.push(`${cIdent(i.callee)}(${i.args.map(n).join(", ")});`);
         } else {
@@ -4355,6 +4483,44 @@ function emitInstr(i, fnInf, state) {
           else if (i.method === "asString") out.push(`${n(i.dst)} = ps_json_as_string(${n(i.receiver)});`);
           else if (i.method === "asArray") out.push(`${n(i.dst)} = ps_json_as_array(${n(i.receiver)});`);
           else if (i.method === "asObject") out.push(`${n(i.dst)} = ps_json_as_object(${n(i.receiver)});`);
+        } else if (rt === "ProcessResult") {
+          if (i.method === "exitCode") out.push(`${n(i.dst)} = ${n(i.receiver)}->exitCode;`);
+          else if (i.method === "events") out.push(`${n(i.dst)} = ${n(i.receiver)}->events;`);
+        } else if (rt === "ProcessEvent") {
+          if (i.method === "stream") out.push(`${n(i.dst)} = ${n(i.receiver)}->stream;`);
+          else if (i.method === "data") out.push(`${n(i.dst)} = ${n(i.receiver)}->data;`);
+        } else if (rt === "RegExpMatch") {
+          if (i.method === "ok") out.push(`${n(i.dst)} = ${n(i.receiver)}->ok;`);
+          else if (i.method === "start") out.push(`${n(i.dst)} = ${n(i.receiver)}->start;`);
+          else if (i.method === "end") out.push(`${n(i.dst)} = ${n(i.receiver)}->end;`);
+          else if (i.method === "groups") out.push(`${n(i.dst)} = ${n(i.receiver)}->groups;`);
+        } else if (rt === "PathInfo") {
+          if (i.method === "dirname") out.push(`${n(i.dst)} = ${n(i.receiver)}->dirname;`);
+          else if (i.method === "basename") out.push(`${n(i.dst)} = ${n(i.receiver)}->basename;`);
+          else if (i.method === "filename") out.push(`${n(i.dst)} = ${n(i.receiver)}->filename;`);
+          else if (i.method === "extension") out.push(`${n(i.dst)} = ${n(i.receiver)}->extension;`);
+        } else if (rt === "PathEntry") {
+          if (i.method === "path") out.push(`${n(i.dst)} = ${n(i.receiver)}->path;`);
+          else if (i.method === "name") out.push(`${n(i.dst)} = ${n(i.receiver)}->name;`);
+          else if (i.method === "depth") out.push(`${n(i.dst)} = ${n(i.receiver)}->depth;`);
+          else if (i.method === "isDir") out.push(`${n(i.dst)} = ${n(i.receiver)}->isDir;`);
+          else if (i.method === "isFile") out.push(`${n(i.dst)} = ${n(i.receiver)}->isFile;`);
+          else if (i.method === "isSymlink") out.push(`${n(i.dst)} = ${n(i.receiver)}->isSymlink;`);
+        } else if (rt === "CivilDateTime") {
+          if (i.method === "year") out.push(`${n(i.dst)} = ${n(i.receiver)}->year;`);
+          else if (i.method === "month") out.push(`${n(i.dst)} = ${n(i.receiver)}->month;`);
+          else if (i.method === "day") out.push(`${n(i.dst)} = ${n(i.receiver)}->day;`);
+          else if (i.method === "hour") out.push(`${n(i.dst)} = ${n(i.receiver)}->hour;`);
+          else if (i.method === "minute") out.push(`${n(i.dst)} = ${n(i.receiver)}->minute;`);
+          else if (i.method === "second") out.push(`${n(i.dst)} = ${n(i.receiver)}->second;`);
+          else if (i.method === "millisecond") out.push(`${n(i.dst)} = ${n(i.receiver)}->millisecond;`);
+          else if (i.method === "setYear") out.push(`${n(i.receiver)}->year = ${n(i.args[0])};`);
+          else if (i.method === "setMonth") out.push(`${n(i.receiver)}->month = ${n(i.args[0])};`);
+          else if (i.method === "setDay") out.push(`${n(i.receiver)}->day = ${n(i.args[0])};`);
+          else if (i.method === "setHour") out.push(`${n(i.receiver)}->hour = ${n(i.args[0])};`);
+          else if (i.method === "setMinute") out.push(`${n(i.receiver)}->minute = ${n(i.args[0])};`);
+          else if (i.method === "setSecond") out.push(`${n(i.receiver)}->second = ${n(i.args[0])};`);
+          else if (i.method === "setMillisecond") out.push(`${n(i.receiver)}->millisecond = ${n(i.args[0])};`);
         } else if (i.method === "length") {
           if (rt === "string") out.push(`${n(i.dst)} = (int64_t)ps_utf8_glyph_len(${n(i.receiver)});`);
           else if (rc && ["list", "slice", "view"].includes(rc.kind)) {
@@ -4395,7 +4561,7 @@ function emitInstr(i, fnInf, state) {
           if (m) out.push(`${n(i.dst)} = ps_map_values_${m.base}(&${n(i.receiver)});`);
           else out.push(`${n(i.dst)}.len = 0; ${n(i.dst)}.cap = 0; ${n(i.dst)}.ptr = NULL;`);
         } else if (rt === "int" && i.method === "toByte") {
-          out.push(`if (${n(i.receiver)} < 0 || ${n(i.receiver)} > 255) ps_panic("R1008", "RUNTIME_BYTE_RANGE", "byte out of range");`);
+          out.push(`if (${n(i.receiver)} < 0 || ${n(i.receiver)} > 255) ps_panic_diag("R1008", "RUNTIME_BYTE_RANGE", "byte out of range", "value", "0..255");`);
           out.push(`${n(i.dst)} = (uint8_t)${n(i.receiver)};`);
         } else if (rt === "int" && i.method === "toInt") {
           out.push(`${n(i.dst)} = ${n(i.receiver)};`);
@@ -4588,13 +4754,13 @@ function emitInstr(i, fnInf, state) {
           out.push(`}`);
         } else if (i.method === "removeLast" && rc && rc.kind === "list") {
           const recv = aliasOf(i.receiver) || i.receiver;
-          out.push(`if (${n(recv)}.len == 0) ps_panic("R1006", "RUNTIME_EMPTY_POP", "pop on empty list");`);
+          out.push(`if (${n(recv)}.len == 0) ps_panic_diag("R1006", "RUNTIME_EMPTY_POP", "pop on empty list", "empty list", "non-empty list");`);
           out.push(`${n(recv)}.len -= 1;`);
           out.push(`${n(recv)}.version += 1;`);
           if (t(i.dst) !== "void") out.push(`${n(i.dst)} = 0;`);
         } else if (i.method === "pop" && rc && rc.kind === "list") {
           const recv = aliasOf(i.receiver) || i.receiver;
-          out.push(`if (${n(recv)}.len == 0) ps_panic("R1006", "RUNTIME_EMPTY_POP", "pop on empty list");`);
+          out.push(`if (${n(recv)}.len == 0) ps_panic_diag("R1006", "RUNTIME_EMPTY_POP", "pop on empty list", "empty list", "non-empty list");`);
           out.push(`${n(recv)}.len -= 1;`);
           out.push(`${n(recv)}.version += 1;`);
           out.push(`${n(i.dst)} = ${n(recv)}.ptr[${n(recv)}.len];`);
@@ -4789,6 +4955,16 @@ function emitInstr(i, fnInf, state) {
           out.push(`${n(i.dst)}->type = "${i.proto}";`);
           out.push(`${n(i.dst)}->parent = ${parent ? `"${parent}"` : "NULL"};`);
           out.push(`${n(i.dst)}->is_runtime = ${i.proto === "RuntimeException" ? "1" : "0"};`);
+        // Backend-C only: these allocations select the correct native storage size
+        // for handle-backed builtins. They do not alter ProtoScript semantics:
+        // method lookup/dispatch, clone/super resolution, Self specialization,
+        // and prototype hierarchy are resolved upstream in IR/runtime logic.
+        } else if (rt === "TextFile" || rt === "BinaryFile") {
+          out.push(`${n(i.dst)} = (ps_file*)calloc(1, sizeof(ps_file));`);
+        } else if (rt === "Dir") {
+          out.push(`${n(i.dst)} = (ps_fs_dir*)calloc(1, sizeof(ps_fs_dir));`);
+        } else if (rt === "Walker") {
+          out.push(`${n(i.dst)} = (ps_fs_walker*)calloc(1, sizeof(ps_fs_walker));`);
         } else if (PROTO_MAP.has(rt)) {
           out.push(`${n(i.dst)} = (${rt}*)calloc(1, sizeof(${rt}));`);
           if (i.proto && isExceptionProto(PROTO_MAP, i.proto) && i.proto !== "Exception" && i.proto !== "RuntimeException") {
@@ -4932,6 +5108,14 @@ function emitInstr(i, fnInf, state) {
   return out;
 }
 
+function emitLocPrelude(instr) {
+  if (!instr || !instr.loc) return null;
+  const line = Number.isInteger(instr.loc.line) && instr.loc.line > 0 ? instr.loc.line : 1;
+  const col = Number.isInteger(instr.loc.col) && instr.loc.col > 0 ? instr.loc.col : 1;
+  const file = typeof instr.loc.file === "string" && instr.loc.file.length > 0 ? instr.loc.file : "__SRC__";
+  return `ps_set_runtime_site(${cStringLiteral(file)}, ${line}, ${col});`;
+}
+
 function emitFunctionBody(fn, fnInf) {
   const out = [];
   const ret = fn.name === "main" ? "int" : cTypeFromName(fn.returnType.name);
@@ -4971,6 +5155,8 @@ function emitFunctionBody(fn, fnInf) {
   for (const b of blocks) {
     out.push(`${b.label}:`);
     for (const i of b.instrs) {
+      const locPrelude = emitLocPrelude(i);
+      if (locPrelude) out.push(`  ${locPrelude}`);
       const lines = emitInstr(i, fnInf, emitState);
       for (const l of lines) out.push(`  ${l}`);
     }

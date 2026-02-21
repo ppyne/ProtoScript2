@@ -1,0 +1,9 @@
+prototype WalkerChildSuper : Walker {
+    function clone() : WalkerChildSuper {
+        return super.clone();
+    }
+}
+
+function main() : void {
+    WalkerChildSuper.clone();
+}

@@ -70,6 +70,55 @@ static int write_temp_source(const char *code, char *out_path, size_t out_sz) {
 
 static PS_IR_Module *load_ir_from_file(PS_Context *ctx, const char *file) {
   PsDiag d;
+#ifdef __EMSCRIPTEN__
+  char tmp_path[128];
+  snprintf(tmp_path, sizeof(tmp_path), "/tmp/ps_ir_%d.json", getpid());
+  FILE *tmp = fopen(tmp_path, "w+");
+  if (!tmp) {
+    ps_throw(ctx, PS_ERR_INTERNAL, "failed to open IR temp file");
+    return NULL;
+  }
+  int rc = ps_emit_ir_json(file, &d, tmp);
+  if (rc != 0) {
+    fclose(tmp);
+    unlink(tmp_path);
+    print_diag(stderr, file, &d);
+    return NULL;
+  }
+  if (fflush(tmp) != 0 || fseek(tmp, 0, SEEK_END) != 0) {
+    fclose(tmp);
+    unlink(tmp_path);
+    ps_throw(ctx, PS_ERR_INTERNAL, "failed to materialize IR");
+    return NULL;
+  }
+  long sz = ftell(tmp);
+  if (sz < 0 || fseek(tmp, 0, SEEK_SET) != 0) {
+    fclose(tmp);
+    unlink(tmp_path);
+    ps_throw(ctx, PS_ERR_INTERNAL, "failed to seek IR");
+    return NULL;
+  }
+  size_t len = (size_t)sz;
+  char *buf = (char *)malloc(len + 1);
+  if (!buf) {
+    fclose(tmp);
+    unlink(tmp_path);
+    ps_throw(ctx, PS_ERR_OOM, "out of memory");
+    return NULL;
+  }
+  size_t got = fread(buf, 1, len, tmp);
+  fclose(tmp);
+  unlink(tmp_path);
+  if (got != len) {
+    free(buf);
+    ps_throw(ctx, PS_ERR_INTERNAL, "failed to read IR");
+    return NULL;
+  }
+  buf[len] = '\0';
+  PS_IR_Module *m = ps_ir_load_json(ctx, buf, len);
+  free(buf);
+  return m;
+#else
   char *buf = NULL;
   size_t len = 0;
   FILE *mem = open_memstream(&buf, &len);
@@ -87,6 +136,7 @@ static PS_IR_Module *load_ir_from_file(PS_Context *ctx, const char *file) {
   PS_IR_Module *m = ps_ir_load_json(ctx, buf, len);
   free(buf);
   return m;
+#endif
 }
 
 static PS_Value *build_args_list(PS_Context *ctx, int argc, char **argv, int start) {

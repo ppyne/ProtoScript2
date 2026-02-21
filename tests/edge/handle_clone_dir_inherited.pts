@@ -1,0 +1,6 @@
+prototype DirChild : Dir {
+}
+
+function main() : void {
+    DirChild.clone();
+}

@@ -86,7 +86,7 @@ Captured output MUST be recorded chronologically as described in section 5.
 # 4. ProcessResult Prototype
 
 ```
-prototype ProcessResult {
+sealed prototype ProcessResult {
     function exitCode() : int {}
     function events() : list<ProcessEvent> {}
 }
@@ -108,7 +108,7 @@ A chronologically ordered list of output events.
 # 5. ProcessEvent Prototype
 
 ```
-prototype ProcessEvent {
+sealed prototype ProcessEvent {
     function stream() : int {}
     function data() : list<byte> {}
 }

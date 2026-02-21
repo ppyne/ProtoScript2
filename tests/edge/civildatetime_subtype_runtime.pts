@@ -1,0 +1,9 @@
+import Io;
+
+prototype MyCivil : CivilDateTime {
+}
+
+function main() : void {
+    MyCivil dt = MyCivil.clone();
+    Io.printLine("true");
+}

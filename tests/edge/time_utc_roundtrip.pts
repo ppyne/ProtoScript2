@@ -5,25 +5,25 @@ function main() : void {
     bool ok = true;
 
     CivilDateTime dt0 = TimeCivil.fromEpochUTC(0);
-    ok = ok && dt0.year == 1970 && dt0.month == 1 && dt0.day == 1
-             && dt0.hour == 0 && dt0.minute == 0 && dt0.second == 0 && dt0.millisecond == 0;
+    ok = ok && dt0.year() == 1970 && dt0.month() == 1 && dt0.day() == 1
+             && dt0.hour() == 0 && dt0.minute() == 0 && dt0.second() == 0 && dt0.millisecond() == 0;
 
     int back0 = TimeCivil.toEpochUTC(dt0);
     ok = ok && back0 == 0;
 
     CivilDateTime dt = CivilDateTime.clone();
-    dt.year = 2024;
-    dt.month = 2;
-    dt.day = 29;
-    dt.hour = 12;
-    dt.minute = 34;
-    dt.second = 56;
-    dt.millisecond = 789;
+    dt.setYear(2024);
+    dt.setMonth(2);
+    dt.setDay(29);
+    dt.setHour(12);
+    dt.setMinute(34);
+    dt.setSecond(56);
+    dt.setMillisecond(789);
 
     int e = TimeCivil.toEpochUTC(dt);
     CivilDateTime dt2 = TimeCivil.fromEpochUTC(e);
-    ok = ok && dt2.year == 2024 && dt2.month == 2 && dt2.day == 29
-             && dt2.hour == 12 && dt2.minute == 34 && dt2.second == 56 && dt2.millisecond == 789;
+    ok = ok && dt2.year() == 2024 && dt2.month() == 2 && dt2.day() == 29
+             && dt2.hour() == 12 && dt2.minute() == 34 && dt2.second() == 56 && dt2.millisecond() == 789;
 
     ok = ok && TimeCivil.isLeapYear(2000) == true;
     ok = ok && TimeCivil.isLeapYear(1900) == false;

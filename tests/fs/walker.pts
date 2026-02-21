@@ -9,8 +9,8 @@ function main() : void {
     list<int> depths0 = [];
     while (w0.hasNext()) {
         PathEntry e = w0.next();
-        names0.push(e.name);
-        depths0.push(e.depth);
+        names0.push(e.name());
+        depths0.push(e.depth());
     }
     w0.close();
     names0.sort();
@@ -31,11 +31,11 @@ function main() : void {
     bool linkFile = false;
     while (w1.hasNext()) {
         PathEntry e = w1.next();
-        names1.push(e.name);
-        if (e.name == "link") {
-            linkSymlink = e.isSymlink;
-            linkDir = e.isDir;
-            linkFile = e.isFile;
+        names1.push(e.name());
+        if (e.name() == "link") {
+            linkSymlink = e.isSymlink();
+            linkDir = e.isDir();
+            linkFile = e.isFile();
         }
     }
     w1.close();
@@ -52,7 +52,7 @@ function main() : void {
     bool follow = false;
     while (w2.hasNext()) {
         PathEntry e = w2.next();
-        if (e.name == "link" && e.isDir) follow = true;
+        if (e.name() == "link" && e.isDir()) follow = true;
     }
     w2.close();
     if (follow) Io.printLine("follow");

@@ -1,0 +1,6 @@
+prototype WalkerChild : Walker {
+}
+
+function main() : void {
+    WalkerChild.clone();
+}

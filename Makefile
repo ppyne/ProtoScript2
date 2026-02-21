@@ -35,10 +35,17 @@ WEB_OBJS := \
   $(WEB_DIR)/modules_io.o \
   $(WEB_DIR)/modules_json.o \
   $(WEB_DIR)/modules_math.o \
+  $(WEB_DIR)/modules_fs.o \
+  $(WEB_DIR)/modules_sys.o \
   $(WEB_DIR)/modules_debug.o \
   $(WEB_DIR)/modules_time.o \
   $(WEB_DIR)/modules_regexp.o \
-  $(WEB_DIR)/modules_time_civil.o
+  $(WEB_DIR)/modules_time_civil.o \
+  $(WEB_DIR)/modules_test_simple.o \
+  $(WEB_DIR)/modules_test_utf8.o \
+  $(WEB_DIR)/modules_test_throw.o \
+  $(WEB_DIR)/modules_test_nosym.o \
+  $(WEB_DIR)/modules_test_env.o
 
 WEB_CPPFLAGS := -DPS_WASM=1 -I$(ROOT)/include -I$(C_DIR) -I$(C_DIR)/runtime -I$(MCPP_DIR)
 WEB_CFLAGS := -O2
@@ -74,6 +81,14 @@ $(WEB_DIR)/modules_math.o: $(ROOT)/tests/modules_src/math.c
 	@mkdir -p $(WEB_DIR)
 	$(EMCC) $(WEB_CFLAGS) $(WEB_CPPFLAGS) -Dps_module_init=ps_module_init_Math -c $< -o $@
 
+$(WEB_DIR)/modules_fs.o: $(ROOT)/tests/modules_src/fs.c
+	@mkdir -p $(WEB_DIR)
+	$(EMCC) $(WEB_CFLAGS) $(WEB_CPPFLAGS) -Dps_module_init=ps_module_init_Fs -c $< -o $@
+
+$(WEB_DIR)/modules_sys.o: $(C_DIR)/modules/sys_wasm.c
+	@mkdir -p $(WEB_DIR)
+	$(EMCC) $(WEB_CFLAGS) $(WEB_CPPFLAGS) -Dps_module_init=ps_module_init_Sys -c $< -o $@
+
 $(WEB_DIR)/modules_debug.o: $(C_DIR)/modules/debug.c
 	@mkdir -p $(WEB_DIR)
 	$(EMCC) $(WEB_CFLAGS) $(WEB_CPPFLAGS) -Dps_module_init=ps_module_init_Debug -c $< -o $@
@@ -89,6 +104,26 @@ $(WEB_DIR)/modules_regexp.o: $(C_DIR)/modules/regexp.c
 $(WEB_DIR)/modules_time_civil.o: $(C_DIR)/modules/time_civil.c
 	@mkdir -p $(WEB_DIR)
 	$(EMCC) $(WEB_CFLAGS) $(WEB_CPPFLAGS) -Dps_module_init=ps_module_init_TimeCivil -c $< -o $@
+
+$(WEB_DIR)/modules_test_simple.o: $(ROOT)/tests/modules_src/test_simple.c
+	@mkdir -p $(WEB_DIR)
+	$(EMCC) $(WEB_CFLAGS) $(WEB_CPPFLAGS) -Dps_module_init=ps_module_init_test_simple -c $< -o $@
+
+$(WEB_DIR)/modules_test_utf8.o: $(ROOT)/tests/modules_src/test_utf8.c
+	@mkdir -p $(WEB_DIR)
+	$(EMCC) $(WEB_CFLAGS) $(WEB_CPPFLAGS) -Dps_module_init=ps_module_init_test_utf8 -c $< -o $@
+
+$(WEB_DIR)/modules_test_throw.o: $(ROOT)/tests/modules_src/test_throw.c
+	@mkdir -p $(WEB_DIR)
+	$(EMCC) $(WEB_CFLAGS) $(WEB_CPPFLAGS) -Dps_module_init=ps_module_init_test_throw -c $< -o $@
+
+$(WEB_DIR)/modules_test_nosym.o: $(ROOT)/tests/modules_src/test_nosym.c
+	@mkdir -p $(WEB_DIR)
+	$(EMCC) $(WEB_CFLAGS) $(WEB_CPPFLAGS) -Dps_module_init=ps_module_init_test_nosym -c $< -o $@
+
+$(WEB_DIR)/modules_test_env.o: $(ROOT)/tests/modules_src/test_env.c
+	@mkdir -p $(WEB_DIR)
+	$(EMCC) $(WEB_CFLAGS) $(WEB_CPPFLAGS) -Dps_module_init=ps_module_init_test_env -c $< -o $@
 
 mcpp-web:
 	$(MAKE) -C $(MCPP_DIR) clean

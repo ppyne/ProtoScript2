@@ -1,0 +1,907 @@
+== Runtime Triangle Parity (VM C native ↔ WASM ↔ emit-C) ==
+Node compiler: /Users/avialle/dev/ProtoScript2/bin/protoscriptc
+CLI runtime:   /Users/avialle/dev/ProtoScript2/c/ps
+WASM module:   /Users/avialle/dev/ProtoScript2/web/protoscript.js
+
+PASS invalid/runtime/int_overflow_add
+PASS invalid/runtime/div_zero_int
+PASS invalid/runtime/shift_range_int
+PASS invalid/runtime/glyph_add
+PASS invalid/runtime/glyph_unary
+PASS invalid/runtime/list_index_oob
+PASS invalid/runtime/map_missing_key
+PASS invalid/runtime/index_get_string_oob
+PASS invalid/runtime/index_set_list_oob
+PASS invalid/runtime/index_get_string_oob_emoji
+PASS invalid/runtime/index_get_string_oob_combining
+PASS invalid/runtime/list_pop_empty_runtime
+PASS invalid/runtime/int_to_byte_range
+PASS invalid/runtime/string_to_int_invalid
+PASS invalid/runtime/string_to_float_invalid
+FAIL invalid/runtime/string_substring_oob
+  stderr diverges (cli vs emit-c)
+  rc cli=1 wasm=1 emit-c=1
+--- /var/folders/88/nw43wg1s4xb4dr4z8k09jw100000gn/T/tmp.RoQBiriYo2	2026-02-20 00:25:05
++++ /var/folders/88/nw43wg1s4xb4dr4z8k09jw100000gn/T/tmp.khG4j0lxSL	2026-02-20 00:25:05
+@@ -1 +1 @@
+-__SRC__:5:17 R1002 RUNTIME_INDEX_OOB: index out of bounds. got start=2, length=2; expected range within string
++__SRC__:5:16 R1002 RUNTIME_INDEX_OOB: index out of bounds
+FAIL invalid/runtime/view_oob
+  stderr diverges (cli vs emit-c)
+  rc cli=1 wasm=1 emit-c=1
+--- /var/folders/88/nw43wg1s4xb4dr4z8k09jw100000gn/T/tmp.WgjIDb59Hq	2026-02-20 00:25:05
++++ /var/folders/88/nw43wg1s4xb4dr4z8k09jw100000gn/T/tmp.9DYfnvYSQY	2026-02-20 00:25:05
+@@ -1 +1 @@
+-__SRC__:3:21 R1002 RUNTIME_INDEX_OOB: index out of bounds. got offset/length; expected within source
++__SRC__:3:26 R1002 RUNTIME_INDEX_OOB: index out of bounds. got offset/length; expected within source
+FAIL invalid/runtime/view_invalidated_push
+  stderr diverges (cli vs emit-c)
+  rc cli=1 wasm=1 emit-c=1
+--- /var/folders/88/nw43wg1s4xb4dr4z8k09jw100000gn/T/tmp.NA9DAcUbMb	2026-02-20 00:25:06
++++ /var/folders/88/nw43wg1s4xb4dr4z8k09jw100000gn/T/tmp.PNih4lES0D	2026-02-20 00:25:06
+@@ -1 +1 @@
+-__SRC__:7:13 R1012 RUNTIME_VIEW_INVALID: view invalidated. got invalidated view; expected valid view
++__SRC__:7:14 R1012 RUNTIME_VIEW_INVALID: view invalidated. got invalidated view; expected valid view
+FAIL invalid/runtime/slice_invalidated_pop
+  stderr diverges (cli vs emit-c)
+  rc cli=1 wasm=1 emit-c=1
+--- /var/folders/88/nw43wg1s4xb4dr4z8k09jw100000gn/T/tmp.08QhW5lMsS	2026-02-20 00:25:07
++++ /var/folders/88/nw43wg1s4xb4dr4z8k09jw100000gn/T/tmp.jwSOE7kb0B	2026-02-20 00:25:07
+@@ -1 +1 @@
+-__SRC__:7:13 R1012 RUNTIME_VIEW_INVALID: view invalidated. got invalidated view; expected valid view
++__SRC__:7:14 R1012 RUNTIME_VIEW_INVALID: view invalidated. got invalidated view; expected valid view
+FAIL invalid/runtime/utf8_invalid_bytes
+  stderr diverges (cli vs emit-c)
+  rc cli=1 wasm=1 emit-c=1
+--- /var/folders/88/nw43wg1s4xb4dr4z8k09jw100000gn/T/tmp.dNKEgu1U6s	2026-02-20 00:25:08
++++ /var/folders/88/nw43wg1s4xb4dr4z8k09jw100000gn/T/tmp.tRomSwPD3M	2026-02-20 00:25:08
+@@ -1 +1 @@
+-__SRC__:5:21 R1007 RUNTIME_INVALID_UTF8: invalid UTF-8 sequence. got byte stream; expected valid UTF-8
++__SRC__:5:16 R1007 RUNTIME_INVALID_UTF8: invalid UTF-8
+FAIL invalid/runtime/module_noinit
+  stderr diverges (cli vs emit-c)
+  rc cli=1 wasm=1 emit-c=1
+--- /var/folders/88/nw43wg1s4xb4dr4z8k09jw100000gn/T/tmp.TDYoIDeweS	2026-02-20 00:25:10
++++ /var/folders/88/nw43wg1s4xb4dr4z8k09jw100000gn/T/tmp.DORBfsYVuv	2026-02-20 00:25:10
+@@ -1 +1 @@
+-__SRC__:1:21 R1010 RUNTIME_MODULE_ERROR: module not found. got module or symbol; expected available module/symbol
++__SRC__:4:9 R1010 RUNTIME_MODULE_ERROR: module not found. got module or symbol; expected available module/symbol
+FAIL invalid/runtime/module_badver
+  stderr diverges (cli vs emit-c)
+  rc cli=1 wasm=1 emit-c=1
+--- /var/folders/88/nw43wg1s4xb4dr4z8k09jw100000gn/T/tmp.O5HeISGJrT	2026-02-20 00:25:11
++++ /var/folders/88/nw43wg1s4xb4dr4z8k09jw100000gn/T/tmp.QGOPKAZhll	2026-02-20 00:25:11
+@@ -1 +1 @@
+-__SRC__:1:21 R1010 RUNTIME_MODULE_ERROR: module not found. got module or symbol; expected available module/symbol
++__SRC__:4:9 R1010 RUNTIME_MODULE_ERROR: module not found. got module or symbol; expected available module/symbol
+FAIL invalid/runtime/module_nosym
+  stderr diverges (cli vs wasm)
+  rc cli=1 wasm=1 emit-c=1
+--- /var/folders/88/nw43wg1s4xb4dr4z8k09jw100000gn/T/tmp.9BqCyXNy7V	2026-02-20 00:25:12
++++ /var/folders/88/nw43wg1s4xb4dr4z8k09jw100000gn/T/tmp.6AJkCAI04N	2026-02-20 00:25:12
+@@ -1 +1 @@
+-__SRC__:1:20 R1010 RUNTIME_MODULE_ERROR: symbol not found. got module or symbol; expected available module/symbol
++__SRC__:1:20 R1010 RUNTIME_MODULE_ERROR: module not found. got module or symbol; expected available module/symbol
+FAIL invalid/runtime/module_not_found
+  stderr diverges (cli vs emit-c)
+  rc cli=1 wasm=1 emit-c=1
+--- /var/folders/88/nw43wg1s4xb4dr4z8k09jw100000gn/T/tmp.SbKbFpG6yN	2026-02-20 00:25:13
++++ /var/folders/88/nw43wg1s4xb4dr4z8k09jw100000gn/T/tmp.JebSSxpgen	2026-02-20 00:25:13
+@@ -1 +1 @@
+-__SRC__:1:22 R1010 RUNTIME_MODULE_ERROR: module not found. got module or symbol; expected available module/symbol
++__SRC__:4:9 R1010 RUNTIME_MODULE_ERROR: module not found. got module or symbol; expected available module/symbol
+FAIL invalid/runtime/math_type_error
+  stderr diverges (cli vs emit-c)
+  rc cli=1 wasm=1 emit-c=1
+--- /var/folders/88/nw43wg1s4xb4dr4z8k09jw100000gn/T/tmp.dG7r2WqLC3	2026-02-20 00:25:14
++++ /var/folders/88/nw43wg1s4xb4dr4z8k09jw100000gn/T/tmp.e0MihlH6ML	2026-02-20 00:25:14
+@@ -1 +1 @@
+-__SRC__:4:9 R1010 RUNTIME_TYPE_ERROR: invalid argument. got string; expected float
++__SRC__:4:13 R1010 RUNTIME_TYPE_ERROR: expected float
+FAIL invalid/runtime/io_invalid_mode
+  stderr diverges (cli vs emit-c)
+  rc cli=1 wasm=1 emit-c=1
+--- /var/folders/88/nw43wg1s4xb4dr4z8k09jw100000gn/T/tmp.mmPxuXaA8L	2026-02-20 00:25:15
++++ /var/folders/88/nw43wg1s4xb4dr4z8k09jw100000gn/T/tmp.kc5Fwy7b54	2026-02-20 00:25:15
+@@ -1 +1 @@
+-__SRC__:4:7 R1011 UNHANDLED_EXCEPTION: unhandled exception. got InvalidModeException("invalid mode"); expected matching catch
++__SRC__:4:16 R1011 UNHANDLED_EXCEPTION: unhandled exception. got InvalidModeException("invalid mode"); expected matching catch
+FAIL invalid/runtime/io_read_size_invalid
+  stderr diverges (cli vs wasm)
+  rc cli=1 wasm=1 emit-c=1
+--- /var/folders/88/nw43wg1s4xb4dr4z8k09jw100000gn/T/tmp.SJW43i01eq	2026-02-20 00:25:16
++++ /var/folders/88/nw43wg1s4xb4dr4z8k09jw100000gn/T/tmp.COpRSwxKnr	2026-02-20 00:25:16
+@@ -1 +1 @@
+-__SRC__:12:10 R1011 UNHANDLED_EXCEPTION: unhandled exception. got InvalidArgumentException("invalid read size"); expected matching catch
++__SRC__:15:15 R1010 RUNTIME_MODULE_ERROR: module not found. got module or symbol; expected available module/symbol
+FAIL invalid/runtime/io_write_type_text
+  stderr diverges (cli vs wasm)
+  rc cli=1 wasm=1 emit-c=1
+--- /var/folders/88/nw43wg1s4xb4dr4z8k09jw100000gn/T/tmp.SuRfQP1nA0	2026-02-20 00:25:17
++++ /var/folders/88/nw43wg1s4xb4dr4z8k09jw100000gn/T/tmp.EpPnm6Kuxc	2026-02-20 00:25:17
+@@ -1 +1 @@
+-__SRC__:9:10 R1011 UNHANDLED_EXCEPTION: unhandled exception. got InvalidArgumentException("invalid write value"); expected matching catch
++__SRC__:12:15 R1010 RUNTIME_MODULE_ERROR: module not found. got module or symbol; expected available module/symbol
+FAIL invalid/runtime/io_write_type_binary
+  stderr diverges (cli vs wasm)
+  rc cli=1 wasm=1 emit-c=1
+--- /var/folders/88/nw43wg1s4xb4dr4z8k09jw100000gn/T/tmp.CaHUlr10DQ	2026-02-20 00:25:18
++++ /var/folders/88/nw43wg1s4xb4dr4z8k09jw100000gn/T/tmp.6pRoQKohMA	2026-02-20 00:25:18
+@@ -1 +1 @@
+-__SRC__:8:10 R1011 UNHANDLED_EXCEPTION: unhandled exception. got InvalidArgumentException("invalid write value"); expected matching catch
++__SRC__:11:15 R1010 RUNTIME_MODULE_ERROR: module not found. got module or symbol; expected available module/symbol
+FAIL invalid/runtime/io_close_std
+  stderr diverges (cli vs emit-c)
+  rc cli=1 wasm=1 emit-c=1
+--- /var/folders/88/nw43wg1s4xb4dr4z8k09jw100000gn/T/tmp.pCAtkbjTgq	2026-02-20 00:25:19
++++ /var/folders/88/nw43wg1s4xb4dr4z8k09jw100000gn/T/tmp.OwK5nmJcMK	2026-02-20 00:25:19
+@@ -1 +1 @@
+-__SRC__:4:13 R1011 UNHANDLED_EXCEPTION: unhandled exception. got StandardStreamCloseException("cannot close standard stream"); expected matching catch
++__SRC__:4:7 R1011 UNHANDLED_EXCEPTION: unhandled exception. got StandardStreamCloseException("cannot close standard stream"); expected matching catch
+FAIL invalid/runtime/io_after_close
+  stderr diverges (cli vs wasm)
+  rc cli=1 wasm=1 emit-c=1
+--- /var/folders/88/nw43wg1s4xb4dr4z8k09jw100000gn/T/tmp.OdceH3ZKpY	2026-02-20 00:25:20
++++ /var/folders/88/nw43wg1s4xb4dr4z8k09jw100000gn/T/tmp.4yoF6hr5wt	2026-02-20 00:25:20
+@@ -1 +1 @@
+-__SRC__:10:10 R1011 UNHANDLED_EXCEPTION: unhandled exception. got FileClosedException("file is closed"); expected matching catch
++__SRC__:12:15 R1010 RUNTIME_MODULE_ERROR: module not found. got module or symbol; expected available module/symbol
+FAIL invalid/runtime/io_utf8_invalid
+  stderr diverges (cli vs wasm)
+  rc cli=1 wasm=1 emit-c=1
+--- /var/folders/88/nw43wg1s4xb4dr4z8k09jw100000gn/T/tmp.rVOIzifXq3	2026-02-20 00:25:21
++++ /var/folders/88/nw43wg1s4xb4dr4z8k09jw100000gn/T/tmp.hjRgtK7lQH	2026-02-20 00:25:21
+@@ -1 +1 @@
+-ps_tmp:13:10 R1011 UNHANDLED_EXCEPTION: unhandled exception. got Utf8DecodeException("invalid UTF-8 sequence"); expected matching catch
++__SRC__:16:15 R1010 RUNTIME_MODULE_ERROR: module not found. got module or symbol; expected available module/symbol
+FAIL invalid/runtime/json_decode_invalid
+  stderr diverges (cli vs emit-c)
+  rc cli=1 wasm=1 emit-c=1
+--- /var/folders/88/nw43wg1s4xb4dr4z8k09jw100000gn/T/tmp.y9OQexF7UQ	2026-02-20 00:25:22
++++ /var/folders/88/nw43wg1s4xb4dr4z8k09jw100000gn/T/tmp.NAb4tB4KGw	2026-02-20 00:25:22
+@@ -1 +1 @@
+-__SRC__:4:9 R1010 RUNTIME_JSON_ERROR: invalid JSON. got JSON value; expected expected JSON type
++__SRC__:4:16 R1010 RUNTIME_JSON_ERROR: invalid JSON
+FAIL invalid/runtime/json_encode_nan
+  stderr diverges (cli vs emit-c)
+  rc cli=1 wasm=1 emit-c=1
+--- /var/folders/88/nw43wg1s4xb4dr4z8k09jw100000gn/T/tmp.Mhg4gegpd2	2026-02-20 00:25:23
++++ /var/folders/88/nw43wg1s4xb4dr4z8k09jw100000gn/T/tmp.Hu8f95ik2H	2026-02-20 00:25:23
+@@ -1 +1 @@
+-__SRC__:5:9 R1010 RUNTIME_JSON_ERROR: invalid JSON number. got JSON value; expected expected JSON type
++__SRC__:5:16 R1010 RUNTIME_JSON_ERROR: invalid JSON number
+PASS invalid/runtime/unhandled_exception
+PASS invalid/runtime/manual_ex060
+PASS invalid/runtime/manual_ex063
+PASS valid/visibility_internal/internal_access_same_prototype_method
+PASS valid/visibility_internal/internal_access_child_method
+PASS valid/visibility_internal/internal_call_internal_method_via_public
+FAIL regexp/compile_basic
+  stdout diverges (cli vs wasm)
+  rc cli=0 wasm=0 emit-c=0
+--- /var/folders/88/nw43wg1s4xb4dr4z8k09jw100000gn/T/tmp.fqF22Rl6NH	2026-02-20 00:25:28
++++ /var/folders/88/nw43wg1s4xb4dr4z8k09jw100000gn/T/tmp.paad97Zzi3	2026-02-20 00:25:28
+@@ -1 +0,0 @@
+-abc|
+\ No newline at end of file
+FAIL regexp/compile_forbidden_lookahead
+  stderr diverges (cli vs emit-c)
+  rc cli=1 wasm=1 emit-c=1
+--- /var/folders/88/nw43wg1s4xb4dr4z8k09jw100000gn/T/tmp.uVQVuWp8ZP	2026-02-20 00:25:29
++++ /var/folders/88/nw43wg1s4xb4dr4z8k09jw100000gn/T/tmp.n22Z1YNuaq	2026-02-20 00:25:29
+@@ -1 +1 @@
+-__SRC__:4:11 R1010 RUNTIME_MODULE_ERROR: RegExpSyntax: forbidden metasyntax (backreference/lookaround). got module or symbol; expected available module/symbol
++__SRC__:4:19 R1010 RUNTIME_MODULE_ERROR: RegExpSyntax: forbidden metasyntax (backreference/lookaround)
+FAIL regexp/compile_unclosed_paren
+  stderr diverges (cli vs emit-c)
+  rc cli=1 wasm=1 emit-c=1
+--- /var/folders/88/nw43wg1s4xb4dr4z8k09jw100000gn/T/tmp.k2pYBLrGFg	2026-02-20 00:25:30
++++ /var/folders/88/nw43wg1s4xb4dr4z8k09jw100000gn/T/tmp.qIOV94bCNU	2026-02-20 00:25:30
+@@ -1 +1 @@
+-__SRC__:4:11 R1010 RUNTIME_MODULE_ERROR: RegExpSyntax: Invalid regular expression: /(abc/: Unterminated group. got module or symbol; expected available module/symbol
++__SRC__:4:19 R1010 RUNTIME_MODULE_ERROR: RegExpSyntax: parentheses not balanced
+FAIL regexp/find_groups
+  stdout diverges (cli vs wasm)
+  rc cli=0 wasm=0 emit-c=0
+--- /var/folders/88/nw43wg1s4xb4dr4z8k09jw100000gn/T/tmp.PXptdjSu1W	2026-02-20 00:25:31
++++ /var/folders/88/nw43wg1s4xb4dr4z8k09jw100000gn/T/tmp.y3dEtJOIbI	2026-02-20 00:25:31
+@@ -1 +0,0 @@
+-alpha-beta|alpha|beta|0|10
+\ No newline at end of file
+FAIL regexp/replace_all_backrefs
+  stdout diverges (cli vs wasm)
+  rc cli=0 wasm=0 emit-c=0
+--- /var/folders/88/nw43wg1s4xb4dr4z8k09jw100000gn/T/tmp.1r4f3RMsrY	2026-02-20 00:25:32
++++ /var/folders/88/nw43wg1s4xb4dr4z8k09jw100000gn/T/tmp.x7MC05oimw	2026-02-20 00:25:32
+@@ -1 +0,0 @@
+-beta:alpha delta:gamma
+\ No newline at end of file
+FAIL regexp/split_basic
+  stdout diverges (cli vs wasm)
+  rc cli=0 wasm=0 emit-c=0
+--- /var/folders/88/nw43wg1s4xb4dr4z8k09jw100000gn/T/tmp.F3TTxkDZYO	2026-02-20 00:25:33
++++ /var/folders/88/nw43wg1s4xb4dr4z8k09jw100000gn/T/tmp.TMpboyk5wF	2026-02-20 00:25:33
+@@ -1 +0,0 @@
+-3|b
+\ No newline at end of file
+FAIL regexp/utf8_indices
+  stdout diverges (cli vs wasm)
+  rc cli=0 wasm=0 emit-c=0
+--- /var/folders/88/nw43wg1s4xb4dr4z8k09jw100000gn/T/tmp.WN19MDQTP5	2026-02-20 00:25:33
++++ /var/folders/88/nw43wg1s4xb4dr4z8k09jw100000gn/T/tmp.JYCN6bI5rS	2026-02-20 00:25:33
+@@ -1 +0,0 @@
+-1|2|é
+\ No newline at end of file
+FAIL regexp/range_start_invalid
+  stderr diverges (cli vs emit-c)
+  rc cli=1 wasm=1 emit-c=1
+--- /var/folders/88/nw43wg1s4xb4dr4z8k09jw100000gn/T/tmp.F5aejq6IS5	2026-02-20 00:25:34
++++ /var/folders/88/nw43wg1s4xb4dr4z8k09jw100000gn/T/tmp.6JYgmqA4EM	2026-02-20 00:25:34
+@@ -1 +1 @@
+-__SRC__:5:6 R1010 RUNTIME_MODULE_ERROR: RegExpRange: start out of range. got module or symbol; expected available module/symbol
++__SRC__:5:11 R1010 RUNTIME_MODULE_ERROR: RegExpRange: start out of range
+FAIL regexp/range_max_invalid
+  stderr diverges (cli vs emit-c)
+  rc cli=1 wasm=1 emit-c=1
+--- /var/folders/88/nw43wg1s4xb4dr4z8k09jw100000gn/T/tmp.NLsLp6k425	2026-02-20 00:25:35
++++ /var/folders/88/nw43wg1s4xb4dr4z8k09jw100000gn/T/tmp.apyXkTwSE2	2026-02-20 00:25:35
+@@ -1 +1 @@
+-__SRC__:5:6 R1010 RUNTIME_MODULE_ERROR: RegExpRange: max out of range. got module or symbol; expected available module/symbol
++__SRC__:5:14 R1010 RUNTIME_MODULE_ERROR: RegExpRange: max out of range
+FAIL regexp/range_replace_max_invalid
+  stderr diverges (cli vs emit-c)
+  rc cli=1 wasm=1 emit-c=1
+--- /var/folders/88/nw43wg1s4xb4dr4z8k09jw100000gn/T/tmp.O7AfgZm3Uf	2026-02-20 00:25:36
++++ /var/folders/88/nw43wg1s4xb4dr4z8k09jw100000gn/T/tmp.2gMVe37SwZ	2026-02-20 00:25:36
+@@ -1 +1 @@
+-__SRC__:5:6 R1010 RUNTIME_MODULE_ERROR: RegExpRange: max out of range. got module or symbol; expected available module/symbol
++__SRC__:5:17 R1010 RUNTIME_MODULE_ERROR: RegExpRange: max out of range
+FAIL regexp/range_maxparts_invalid
+  stderr diverges (cli vs emit-c)
+  rc cli=1 wasm=1 emit-c=1
+--- /var/folders/88/nw43wg1s4xb4dr4z8k09jw100000gn/T/tmp.8ohNYkSWAE	2026-02-20 00:25:37
++++ /var/folders/88/nw43wg1s4xb4dr4z8k09jw100000gn/T/tmp.HwoSbcbk3a	2026-02-20 00:25:37
+@@ -1 +1 @@
+-__SRC__:5:6 R1010 RUNTIME_MODULE_ERROR: RegExpRange: maxParts out of range. got module or symbol; expected available module/symbol
++__SRC__:5:12 R1010 RUNTIME_MODULE_ERROR: RegExpRange: maxParts out of range
+FAIL regexp/findall_empty_anchor
+  stdout diverges (cli vs wasm)
+  rc cli=0 wasm=0 emit-c=0
+--- /var/folders/88/nw43wg1s4xb4dr4z8k09jw100000gn/T/tmp.ZDOjkj5ubd	2026-02-20 00:25:38
++++ /var/folders/88/nw43wg1s4xb4dr4z8k09jw100000gn/T/tmp.wrleX9Iyci	2026-02-20 00:25:38
+@@ -1 +0,0 @@
+-4
+\ No newline at end of file
+PASS regexp/findall_unlimited_neg1
+PASS regexp/nested_quantifiers
+PASS regexp/nested_quantifiers_nomatch
+FAIL regexp/non_greedy_behavior
+  stdout diverges (cli vs wasm)
+  rc cli=0 wasm=0 emit-c=0
+--- /var/folders/88/nw43wg1s4xb4dr4z8k09jw100000gn/T/tmp.VHYm1Ahxf5	2026-02-20 00:25:41
++++ /var/folders/88/nw43wg1s4xb4dr4z8k09jw100000gn/T/tmp.SVOR79tZFA	2026-02-20 00:25:41
+@@ -1,2 +1,2 @@
+ <a>one</a><a>two</a>
+-<a>one</a>
++<a>one</a><a>two</a>
+PASS regexp/replace_backrefs
+PASS regexp/replaceall_unlimited_neg1
+PASS regexp/replace_backrefs_out_of_range
+PASS regexp/match_empty_antiloop
+PASS regexp/match_semantics
+PASS regexp/shorthand_classes
+PASS regexp/utf8_glyph_boundaries
+PASS regexp/split_empty_match
+PASS regexp/split_unlimited_neg1
+PASS regexp/flags_im_s
+PASS regexp/invalid_syntax
+PASS edge/overflow_int_add
+PASS edge/oob_list_index
+PASS edge/variadic_empty_call
+PASS edge/method_variadic_empty
+PASS edge/method_variadic_with_args
+PASS edge/method_variadic_fixed_plus
+PASS edge/variadic_view_empty_length
+PASS edge/variadic_view_nonempty_length
+PASS edge/proto_field_init_scalar_const
+PASS edge/proto_field_init_list_literal
+PASS edge/proto_field_init_inheritance
+PASS edge/proto_field_init_override_no_impact
+PASS edge/proto_field_init_clone_repeated
+PASS edge/map_key_present
+PASS edge/map_iteration_in
+PASS edge/map_iteration_of
+PASS edge/map_update_then_lookup
+PASS edge/map_insert_on_set
+PASS edge/map_empty_literal_typed_set
+PASS edge/map_alias_set_updates_original
+PASS edge/map_alias_chain_set_updates_root
+PASS edge/map_methods_basic
+PASS edge/map_remove_order
+PASS edge/call_static_basic
+PASS edge/call_static_nested
+PASS edge/clone_super_initial_divergent
+PASS edge/clone_inherited_override
+PASS edge/civildatetime_subtype_runtime
+FAIL edge/handle_clone_textfile_direct
+  stderr diverges (cli vs emit-c)
+  rc cli=1 wasm=1 emit-c=1
+--- /var/folders/88/nw43wg1s4xb4dr4z8k09jw100000gn/T/tmp.VOrPXy0PFB	2026-02-20 00:26:14
++++ /var/folders/88/nw43wg1s4xb4dr4z8k09jw100000gn/T/tmp.UD8zBguTM6	2026-02-20 00:26:14
+@@ -1 +1 @@
+-__SRC__:2:13 R1013 RUNTIME_CLONE_NOT_SUPPORTED: clone not supported for builtin handle TextFile
++__SRC__:2:19 R1013 RUNTIME_CLONE_NOT_SUPPORTED: clone not supported for builtin handle TextFile
+FAIL edge/handle_clone_textfile_inherited
+  stderr diverges (cli vs emit-c)
+  rc cli=1 wasm=1 emit-c=1
+--- /var/folders/88/nw43wg1s4xb4dr4z8k09jw100000gn/T/tmp.pLAloxcnRf	2026-02-20 00:26:14
++++ /var/folders/88/nw43wg1s4xb4dr4z8k09jw100000gn/T/tmp.Nev4D9uDac	2026-02-20 00:26:14
+@@ -1 +1 @@
+-__SRC__:5:18 R1013 RUNTIME_CLONE_NOT_SUPPORTED: clone not supported for builtin handle TextFile
++__SRC__:5:24 R1013 RUNTIME_CLONE_NOT_SUPPORTED: clone not supported for builtin handle TextFile
+FAIL edge/handle_clone_textfile_super
+  stderr diverges (cli vs emit-c)
+  rc cli=1 wasm=1 emit-c=1
+--- /var/folders/88/nw43wg1s4xb4dr4z8k09jw100000gn/T/tmp.XEkuj3yxrg	2026-02-20 00:26:15
++++ /var/folders/88/nw43wg1s4xb4dr4z8k09jw100000gn/T/tmp.eEZKpJ7Q1N	2026-02-20 00:26:15
+@@ -1 +1 @@
+-__SRC__:3:21 R1013 RUNTIME_CLONE_NOT_SUPPORTED: clone not supported for builtin handle TextFile
++__SRC__:3:27 R1013 RUNTIME_CLONE_NOT_SUPPORTED: clone not supported for builtin handle TextFile
+FAIL edge/handle_clone_binaryfile_direct
+  stderr diverges (cli vs emit-c)
+  rc cli=1 wasm=1 emit-c=1
+--- /var/folders/88/nw43wg1s4xb4dr4z8k09jw100000gn/T/tmp.PKRBpvOjU1	2026-02-20 00:26:16
++++ /var/folders/88/nw43wg1s4xb4dr4z8k09jw100000gn/T/tmp.8mFEi85s5q	2026-02-20 00:26:16
+@@ -1 +1 @@
+-__SRC__:2:15 R1013 RUNTIME_CLONE_NOT_SUPPORTED: clone not supported for builtin handle BinaryFile
++__SRC__:2:21 R1013 RUNTIME_CLONE_NOT_SUPPORTED: clone not supported for builtin handle BinaryFile
+FAIL edge/handle_clone_binaryfile_inherited
+  stderr diverges (cli vs emit-c)
+  rc cli=1 wasm=1 emit-c=1
+--- /var/folders/88/nw43wg1s4xb4dr4z8k09jw100000gn/T/tmp.qVUB09Ec48	2026-02-20 00:26:17
++++ /var/folders/88/nw43wg1s4xb4dr4z8k09jw100000gn/T/tmp.kACW4NqqPA	2026-02-20 00:26:17
+@@ -1 +1 @@
+-__SRC__:5:20 R1013 RUNTIME_CLONE_NOT_SUPPORTED: clone not supported for builtin handle BinaryFile
++__SRC__:5:26 R1013 RUNTIME_CLONE_NOT_SUPPORTED: clone not supported for builtin handle BinaryFile
+FAIL edge/handle_clone_binaryfile_super
+  stderr diverges (cli vs emit-c)
+  rc cli=1 wasm=1 emit-c=1
+--- /var/folders/88/nw43wg1s4xb4dr4z8k09jw100000gn/T/tmp.654Tb5iUWt	2026-02-20 00:26:18
++++ /var/folders/88/nw43wg1s4xb4dr4z8k09jw100000gn/T/tmp.IHxiuO2jc3	2026-02-20 00:26:18
+@@ -1 +1 @@
+-__SRC__:3:21 R1013 RUNTIME_CLONE_NOT_SUPPORTED: clone not supported for builtin handle BinaryFile
++__SRC__:3:27 R1013 RUNTIME_CLONE_NOT_SUPPORTED: clone not supported for builtin handle BinaryFile
+FAIL edge/handle_clone_dir_direct
+  stderr diverges (cli vs emit-c)
+  rc cli=1 wasm=1 emit-c=1
+--- /var/folders/88/nw43wg1s4xb4dr4z8k09jw100000gn/T/tmp.tYV5TaHCZo	2026-02-20 00:26:18
++++ /var/folders/88/nw43wg1s4xb4dr4z8k09jw100000gn/T/tmp.gOWF8QzLrZ	2026-02-20 00:26:18
+@@ -1 +1 @@
+-__SRC__:2:8 R1013 RUNTIME_CLONE_NOT_SUPPORTED: clone not supported for builtin handle Dir
++__SRC__:2:14 R1013 RUNTIME_CLONE_NOT_SUPPORTED: clone not supported for builtin handle Dir
+FAIL edge/handle_clone_dir_inherited
+  stderr diverges (cli vs emit-c)
+  rc cli=1 wasm=1 emit-c=1
+--- /var/folders/88/nw43wg1s4xb4dr4z8k09jw100000gn/T/tmp.ve2A2BrDiW	2026-02-20 00:26:19
++++ /var/folders/88/nw43wg1s4xb4dr4z8k09jw100000gn/T/tmp.kTH14afrKX	2026-02-20 00:26:19
+@@ -1 +1 @@
+-__SRC__:5:13 R1013 RUNTIME_CLONE_NOT_SUPPORTED: clone not supported for builtin handle Dir
++__SRC__:5:19 R1013 RUNTIME_CLONE_NOT_SUPPORTED: clone not supported for builtin handle Dir
+FAIL edge/handle_clone_dir_super
+  stderr diverges (cli vs emit-c)
+  rc cli=1 wasm=1 emit-c=1
+--- /var/folders/88/nw43wg1s4xb4dr4z8k09jw100000gn/T/tmp.empMiKwSSi	2026-02-20 00:26:20
++++ /var/folders/88/nw43wg1s4xb4dr4z8k09jw100000gn/T/tmp.aofC9Wx7cB	2026-02-20 00:26:20
+@@ -1 +1 @@
+-__SRC__:3:21 R1013 RUNTIME_CLONE_NOT_SUPPORTED: clone not supported for builtin handle Dir
++__SRC__:3:27 R1013 RUNTIME_CLONE_NOT_SUPPORTED: clone not supported for builtin handle Dir
+FAIL edge/handle_clone_walker_direct
+  stderr diverges (cli vs emit-c)
+  rc cli=1 wasm=1 emit-c=1
+--- /var/folders/88/nw43wg1s4xb4dr4z8k09jw100000gn/T/tmp.obEXMHOBkQ	2026-02-20 00:26:21
++++ /var/folders/88/nw43wg1s4xb4dr4z8k09jw100000gn/T/tmp.84kCaFp470	2026-02-20 00:26:21
+@@ -1 +1 @@
+-__SRC__:2:11 R1013 RUNTIME_CLONE_NOT_SUPPORTED: clone not supported for builtin handle Walker
++__SRC__:2:17 R1013 RUNTIME_CLONE_NOT_SUPPORTED: clone not supported for builtin handle Walker
+FAIL edge/handle_clone_walker_inherited
+  stderr diverges (cli vs emit-c)
+  rc cli=1 wasm=1 emit-c=1
+--- /var/folders/88/nw43wg1s4xb4dr4z8k09jw100000gn/T/tmp.flysQjnEHS	2026-02-20 00:26:21
++++ /var/folders/88/nw43wg1s4xb4dr4z8k09jw100000gn/T/tmp.0SP2WBbUeG	2026-02-20 00:26:22
+@@ -1 +1 @@
+-__SRC__:5:16 R1013 RUNTIME_CLONE_NOT_SUPPORTED: clone not supported for builtin handle Walker
++__SRC__:5:22 R1013 RUNTIME_CLONE_NOT_SUPPORTED: clone not supported for builtin handle Walker
+FAIL edge/handle_clone_walker_super
+  stderr diverges (cli vs emit-c)
+  rc cli=1 wasm=1 emit-c=1
+--- /var/folders/88/nw43wg1s4xb4dr4z8k09jw100000gn/T/tmp.tcVKHTE76x	2026-02-20 00:26:22
++++ /var/folders/88/nw43wg1s4xb4dr4z8k09jw100000gn/T/tmp.V7eS43Xrxn	2026-02-20 00:26:22
+@@ -1 +1 @@
+-__SRC__:3:21 R1013 RUNTIME_CLONE_NOT_SUPPORTED: clone not supported for builtin handle Walker
++__SRC__:3:27 R1013 RUNTIME_CLONE_NOT_SUPPORTED: clone not supported for builtin handle Walker
+FAIL edge/handle_clone_regexp_direct
+  stderr diverges (cli vs emit-c)
+  rc cli=1 wasm=1 emit-c=1
+--- /var/folders/88/nw43wg1s4xb4dr4z8k09jw100000gn/T/tmp.X6Z3MsgMnx	2026-02-20 00:26:23
++++ /var/folders/88/nw43wg1s4xb4dr4z8k09jw100000gn/T/tmp.ktHpcAcImz	2026-02-20 00:26:23
+@@ -1 +1 @@
+-__SRC__:2:11 R1013 RUNTIME_CLONE_NOT_SUPPORTED: clone not supported for builtin handle RegExp
++__SRC__:2:17 R1013 RUNTIME_CLONE_NOT_SUPPORTED: clone not supported for builtin handle RegExp
+FAIL edge/handle_clone_regexp_inherited
+  stderr diverges (cli vs emit-c)
+  rc cli=1 wasm=1 emit-c=1
+--- /var/folders/88/nw43wg1s4xb4dr4z8k09jw100000gn/T/tmp.xIKj0Zzynd	2026-02-20 00:26:24
++++ /var/folders/88/nw43wg1s4xb4dr4z8k09jw100000gn/T/tmp.iZArkrrxLu	2026-02-20 00:26:24
+@@ -1 +1 @@
+-__SRC__:5:16 R1013 RUNTIME_CLONE_NOT_SUPPORTED: clone not supported for builtin handle RegExp
++__SRC__:5:22 R1013 RUNTIME_CLONE_NOT_SUPPORTED: clone not supported for builtin handle RegExp
+FAIL edge/handle_clone_regexp_super
+  stderr diverges (cli vs emit-c)
+  rc cli=1 wasm=1 emit-c=1
+--- /var/folders/88/nw43wg1s4xb4dr4z8k09jw100000gn/T/tmp.CZeu5fgsTE	2026-02-20 00:26:25
++++ /var/folders/88/nw43wg1s4xb4dr4z8k09jw100000gn/T/tmp.ZujtGDDpPd	2026-02-20 00:26:25
+@@ -1 +1 @@
+-__SRC__:3:21 R1013 RUNTIME_CLONE_NOT_SUPPORTED: clone not supported for builtin handle RegExp
++__SRC__:3:27 R1013 RUNTIME_CLONE_NOT_SUPPORTED: clone not supported for builtin handle RegExp
+PASS edge/super_clone_init
+PASS edge/override_multilevel_super_nested_self_deep
+PASS edge/override_chain_order_self_specialization
+PASS edge/index_get_list
+PASS edge/index_get_map
+PASS edge/index_set_list
+PASS edge/index_set_map
+PASS edge/compound_assign
+FAIL edge/group_stress
+  exit code diverges (cli=0 wasm=2 emit-c=0)
+  rc cli=0 wasm=2 emit-c=0
+  cli stderr:
+  wasm stderr:
+/tmp/ps_mcpp_input_1771543605.txt:3:1 E2002 IMPORT_PATH_NOT_FOUND: import path not found
+  emit-c stderr:
+PASS edge/exception_derived
+PASS edge/iter_list_of
+PASS edge/iter_list_in
+PASS edge/switch_cfg_case
+PASS edge/switch_cfg_default
+PASS edge/string_length_ascii
+PASS edge/string_length_emoji
+PASS edge/string_length_combining
+PASS edge/string_indexof_emoji
+PASS edge/string_indexof_notfound
+PASS edge/string_starts_ends
+PASS edge/string_split_basic
+PASS edge/string_split_empty
+PASS edge/string_trim_basic
+PASS edge/string_trim_start_end
+PASS edge/string_upper
+PASS edge/string_replace_basic
+PASS edge/string_substring_emoji
+PASS edge/string_utf8_roundtrip
+PASS edge/list_sort_suite
+PASS edge/list_reverse_int
+PASS edge/list_reverse_string
+PASS edge/list_reverse_proto
+PASS edge/list_reverse_empty
+PASS edge/list_reverse_sort_consistency
+PASS edge/glyph_basic
+PASS edge/prototype_basic
+PASS edge/prototype_inherit_static
+PASS edge/prototype_parent_call
+PASS edge/slice_view_list_basic
+PASS edge/view_string_basic
+PASS edge/int_methods
+PASS edge/numeric_cast_valid
+PASS edge/numeric_literal_context
+PASS edge/int_bitwise_ops
+PASS edge/int64_print
+PASS edge/int64_print_io
+PASS edge/int_min_literal
+PASS edge/float_methods
+PASS edge/glyph_methods
+PASS edge/string_to_int_float
+PASS edge/list_join_concat
+PASS edge/if_basic
+PASS edge/control_flow_continuation
+PASS edge/proto_bool_field
+PASS edge/list_methods_basic
+FAIL edge/default_values_local
+  stdout diverges (cli vs wasm)
+  rc cli=0 wasm=0 emit-c=0
+Binary files /var/folders/88/nw43wg1s4xb4dr4z8k09jw100000gn/T/tmp.omz176C381 and /var/folders/88/nw43wg1s4xb4dr4z8k09jw100000gn/T/tmp.pI7TiNb3om differ
+FAIL edge/default_values_proto
+  stdout diverges (cli vs wasm)
+  rc cli=0 wasm=0 emit-c=0
+Binary files /var/folders/88/nw43wg1s4xb4dr4z8k09jw100000gn/T/tmp.y7GcNoVaIQ and /var/folders/88/nw43wg1s4xb4dr4z8k09jw100000gn/T/tmp.En6AwfISq8 differ
+FAIL edge/module_import_simple_add
+  exit code diverges (cli=0 wasm=1 emit-c=0)
+  rc cli=0 wasm=1 emit-c=0
+  cli stderr:
+  wasm stderr:
+/Users/avialle/dev/ProtoScript2/tests/edge/module_import_simple_add.pts:3:21 R1010 RUNTIME_MODULE_ERROR: module not found. got module or symbol; expected available module/symbol
+  emit-c stderr:
+FAIL edge/module_namespace_call
+  exit code diverges (cli=0 wasm=1 emit-c=0)
+  rc cli=0 wasm=1 emit-c=0
+  cli stderr:
+  wasm stderr:
+/tmp/ps_mcpp_input_1771543651.txt:6:19 R1010 RUNTIME_MODULE_ERROR: module not found. got module or symbol; expected available module/symbol
+  emit-c stderr:
+FAIL edge/module_utf8_roundtrip
+  exit code diverges (cli=0 wasm=1 emit-c=0)
+  rc cli=0 wasm=1 emit-c=0
+  cli stderr:
+  wasm stderr:
+/Users/avialle/dev/ProtoScript2/tests/edge/module_utf8_roundtrip.pts:3:19 R1010 RUNTIME_MODULE_ERROR: module not found. got module or symbol; expected available module/symbol
+  emit-c stderr:
+FAIL edge/module_import_path_basic
+  exit code diverges (cli=0 wasm=2 emit-c=0)
+  rc cli=0 wasm=2 emit-c=0
+  cli stderr:
+  wasm stderr:
+/tmp/ps_mcpp_input_1771543652.txt:2:1 E2002 IMPORT_PATH_NOT_FOUND: import path not found
+  emit-c stderr:
+FAIL edge/module_import_path_selective
+  exit code diverges (cli=0 wasm=2 emit-c=0)
+  rc cli=0 wasm=2 emit-c=0
+  cli stderr:
+  wasm stderr:
+/tmp/ps_mcpp_input_1771543653.txt:2:1 E2002 IMPORT_PATH_NOT_FOUND: import path not found
+  emit-c stderr:
+FAIL edge/module_import_name_priority
+  exit code diverges (cli=0 wasm=2 emit-c=0)
+  rc cli=0 wasm=2 emit-c=0
+  cli stderr:
+  wasm stderr:
+/tmp/ps_mcpp_input_1771543654.txt:2:1 E2001 UNRESOLVED_NAME: unknown module 'datastruct.Stack' (expected module)
+  emit-c stderr:
+FAIL edge/module_import_name_search_paths_second
+  exit code diverges (cli=0 wasm=2 emit-c=0)
+  rc cli=0 wasm=2 emit-c=0
+  cli stderr:
+  wasm stderr:
+/tmp/ps_mcpp_input_1771543655.txt:2:1 E2001 UNRESOLVED_NAME: unknown module 'datastruct.Queue' (expected module)
+  emit-c stderr:
+PASS edge/module_try_catch
+PASS edge/module_try_finally_rethrow
+PASS edge/runtime_exception_filter
+PASS edge/user_exception_filter
+PASS edge/math_abs_min_max
+PASS edge/math_constants
+PASS edge/math_numeric_limits
+PASS edge/math_extended
+PASS edge/math_floor_ceil_round_pow_exp
+PASS edge/math_trig_hyper
+PASS edge/math_domain_no_error
+PASS edge/math_random_range
+PASS edge/math_random_variability
+PASS edge/math_random_loop
+PASS edge/json_encode_basic
+PASS edge/json_decode_basic
+PASS edge/json_decode_object_basic
+PASS edge/json_decode_unicode_escape
+PASS edge/json_isvalid
+PASS edge/json_constructors
+PASS edge/time_timezone_validation
+PASS edge/time_utc_roundtrip
+PASS edge/time_iso_week
+PASS edge/time_iso_parse_format
+PASS edge/time_dst_paris
+FAIL edge/io_text_roundtrip
+  exit code diverges (cli=0 wasm=1 emit-c=0)
+  rc cli=0 wasm=1 emit-c=0
+  cli stderr:
+  wasm stderr:
+/tmp/ps_mcpp_input_1771543678.txt:15:11 R1010 RUNTIME_MODULE_ERROR: module not found. got module or symbol; expected available module/symbol
+  emit-c stderr:
+PASS edge/io_temp_path
+FAIL edge/io_text_seek_tell
+  exit code diverges (cli=0 wasm=1 emit-c=0)
+  rc cli=0 wasm=1 emit-c=0
+  cli stderr:
+  wasm stderr:
+/tmp/ps_mcpp_input_1771543679.txt:18:11 R1010 RUNTIME_MODULE_ERROR: module not found. got module or symbol; expected available module/symbol
+  emit-c stderr:
+FAIL edge/io_print
+  stdout diverges (cli vs wasm)
+  rc cli=0 wasm=0 emit-c=0
+--- /var/folders/88/nw43wg1s4xb4dr4z8k09jw100000gn/T/tmp.7Qvpa6kLKO	2026-02-20 00:28:01
++++ /var/folders/88/nw43wg1s4xb4dr4z8k09jw100000gn/T/tmp.GCisFslgnm	2026-02-20 00:28:01
+@@ -1 +0,0 @@
+-abc
+\ No newline at end of file
+FAIL edge/io_exceptions_basic
+  exit code diverges (cli=0 wasm=1 emit-c=0)
+  rc cli=0 wasm=1 emit-c=0
+  cli stderr:
+  wasm stderr:
+/tmp/ps_mcpp_input_1771543681.txt:88:11 R1010 RUNTIME_MODULE_ERROR: module not found. got module or symbol; expected available module/symbol
+  emit-c stderr:
+FAIL edge/io_stdout_stderr
+  stdout diverges (cli vs wasm)
+  rc cli=0 wasm=0 emit-c=0
+--- /var/folders/88/nw43wg1s4xb4dr4z8k09jw100000gn/T/tmp.PGAQx5v1vt	2026-02-20 00:28:03
++++ /var/folders/88/nw43wg1s4xb4dr4z8k09jw100000gn/T/tmp.GcH4SJ9iH5	2026-02-20 00:28:03
+@@ -1 +0,0 @@
+-out
+\ No newline at end of file
+FAIL edge/io_binary_read_write
+  exit code diverges (cli=0 wasm=1 emit-c=0)
+  rc cli=0 wasm=1 emit-c=0
+  cli stderr:
+  wasm stderr:
+/tmp/ps_mcpp_input_1771543683.txt:15:11 R1010 RUNTIME_MODULE_ERROR: module not found. got module or symbol; expected available module/symbol
+  emit-c stderr:
+FAIL edge/io_eof_length_text
+  exit code diverges (cli=0 wasm=1 emit-c=0)
+  rc cli=0 wasm=1 emit-c=0
+  cli stderr:
+  wasm stderr:
+/tmp/ps_mcpp_input_1771543684.txt:12:11 R1010 RUNTIME_MODULE_ERROR: module not found. got module or symbol; expected available module/symbol
+  emit-c stderr:
+PASS edge/manual_ex001
+PASS edge/manual_ex002
+PASS edge/manual_ex004
+PASS edge/manual_ex006
+PASS edge/manual_ex007
+PASS edge/manual_ex008
+PASS edge/manual_ex009
+PASS edge/manual_ex010
+PASS edge/manual_ex011
+PASS edge/manual_ex012
+PASS edge/manual_ex013
+PASS edge/manual_ex014
+PASS edge/manual_ex015
+PASS edge/manual_ex016
+PASS edge/manual_ex018
+PASS edge/manual_ex019
+PASS edge/manual_ex021
+PASS edge/manual_ex022
+PASS edge/manual_ex023
+PASS edge/manual_ex024
+PASS edge/manual_ex025
+PASS edge/manual_ex027
+PASS edge/manual_ex029
+PASS edge/manual_ex030
+PASS edge/manual_ex031
+PASS edge/manual_ex032
+PASS edge/manual_ex033
+PASS edge/manual_ex034
+PASS edge/manual_ex035
+PASS edge/manual_ex036
+PASS edge/manual_ex037
+PASS edge/manual_ex038
+PASS edge/manual_ex039
+PASS edge/manual_ex040
+PASS edge/manual_ex041
+PASS edge/manual_ex042
+PASS edge/manual_ex044
+PASS edge/manual_ex045
+PASS edge/manual_ex046
+PASS edge/manual_ex049
+PASS edge/manual_ex051
+PASS edge/manual_ex052
+PASS edge/manual_ex054
+PASS edge/manual_ex055
+PASS edge/manual_ex056
+PASS edge/manual_ex057
+PASS edge/manual_ex059
+PASS edge/manual_ex061
+PASS edge/manual_ex062
+PASS edge/manual_ex064
+PASS edge/manual_ex065
+PASS edge/manual_ex066
+PASS edge/manual_ex067
+PASS edge/manual_ex068
+PASS edge/manual_ex069
+PASS edge/manual_ex070
+PASS edge/manual_ex071
+PASS edge/manual_ex072
+PASS edge/manual_ex073
+PASS edge/manual_ex074
+PASS edge/manual_ex075
+PASS edge/manual_ex076
+PASS edge/manual_ex079
+PASS edge/manual_ex080
+PASS edge/manual_ex081
+PASS edge/manual_ex082
+PASS edge/manual_ex083
+PASS edge/manual_ex084
+PASS edge/manual_ex085
+PASS edge/manual_ex086
+PASS edge/manual_ex087A
+PASS edge/manual_ex087B
+PASS edge/manual_ex087
+PASS edge/manual_ex090
+PASS edge/manual_ex093
+PASS edge/manual_ex094
+PASS edge/manual_ex095
+PASS edge/manual_ex096
+PASS edge/manual_ex097
+PASS edge/manual_ex098
+PASS edge/manual_ex003
+PASS edge/manual_ex077
+PASS edge/manual_ex081A
+PASS edge/manual_ex088
+PASS edge/manual_ex089
+PASS edge/manual_ex091
+PASS edge/manual_ex092
+FAIL edge/manual_ex099
+  exit code diverges (cli=0 wasm=1 emit-c=0)
+  rc cli=0 wasm=1 emit-c=0
+  cli stderr:
+  wasm stderr:
+/tmp/ps_mcpp_input_1771543754.txt:6:7 R1010 RUNTIME_MODULE_ERROR: module not found. got module or symbol; expected available module/symbol
+  emit-c stderr:
+FAIL edge/manual_ex100
+  exit code diverges (cli=0 wasm=1 emit-c=0)
+  rc cli=0 wasm=1 emit-c=0
+  cli stderr:
+  wasm stderr:
+/tmp/ps_mcpp_input_1771543755.txt:6:7 R1010 RUNTIME_MODULE_ERROR: module not found. got module or symbol; expected available module/symbol
+  emit-c stderr:
+FAIL edge/manual_ex101
+  exit code diverges (cli=0 wasm=1 emit-c=0)
+  rc cli=0 wasm=1 emit-c=0
+  cli stderr:
+  wasm stderr:
+/tmp/ps_mcpp_input_1771543756.txt:6:21 R1010 RUNTIME_MODULE_ERROR: module not found. got module or symbol; expected available module/symbol
+  emit-c stderr:
+FAIL edge/manual_ex102
+  exit code diverges (cli=0 wasm=1 emit-c=0)
+  rc cli=0 wasm=1 emit-c=0
+  cli stderr:
+  wasm stderr:
+/tmp/ps_mcpp_input_1771543757.txt:6:26 R1010 RUNTIME_MODULE_ERROR: module not found. got module or symbol; expected available module/symbol
+  emit-c stderr:
+PASS edge/manual_ex103
+PASS edge/manual_ex105
+PASS edge/manual_ex106
+PASS edge/manual_ex107
+PASS edge/manual_ex108
+PASS edge/manual_ex109
+PASS edge/manual_ex110
+PASS edge/manual_ex111
+PASS edge/manual_ex112
+PASS edge/manual_ex113
+PASS edge/manual_ex114
+PASS edge/manual_ex115
+PASS edge/manual_ex116
+PASS edge/manual_ex117
+PASS fs/import_fs
+FAIL fs/exceptions
+  exit code diverges (cli=0 wasm=1 emit-c=0)
+  rc cli=0 wasm=1 emit-c=0
+  cli stderr:
+  wasm stderr:
+/tmp/ps_mcpp_input_1771543770.txt:6:7 R1010 RUNTIME_MODULE_ERROR: module not found. got module or symbol; expected available module/symbol
+  emit-c stderr:
+FAIL fs/queries
+  exit code diverges (cli=0 wasm=1 emit-c=0)
+  rc cli=0 wasm=1 emit-c=0
+  cli stderr:
+  wasm stderr:
+/tmp/ps_mcpp_input_1771543771.txt:12:17 R1010 RUNTIME_MODULE_ERROR: module not found. got module or symbol; expected available module/symbol
+  emit-c stderr:
+FAIL fs/size
+  exit code diverges (cli=0 wasm=1 emit-c=0)
+  rc cli=0 wasm=1 emit-c=0
+  cli stderr:
+  wasm stderr:
+/tmp/ps_mcpp_input_1771543772.txt:6:7 R1010 RUNTIME_MODULE_ERROR: module not found. got module or symbol; expected available module/symbol
+  emit-c stderr:
+FAIL fs/mutating
+  exit code diverges (cli=0 wasm=1 emit-c=0)
+  rc cli=0 wasm=1 emit-c=0
+  cli stderr:
+  wasm stderr:
+/tmp/ps_mcpp_input_1771543773.txt:11:7 R1010 RUNTIME_MODULE_ERROR: module not found. got module or symbol; expected available module/symbol
+  emit-c stderr:
+FAIL fs/dir_iterator
+  exit code diverges (cli=0 wasm=1 emit-c=0)
+  rc cli=0 wasm=1 emit-c=0
+  cli stderr:
+  wasm stderr:
+/tmp/ps_mcpp_input_1771543774.txt:6:7 R1010 RUNTIME_MODULE_ERROR: module not found. got module or symbol; expected available module/symbol
+  emit-c stderr:
+FAIL fs/walker
+  exit code diverges (cli=0 wasm=1 emit-c=0)
+  rc cli=0 wasm=1 emit-c=0
+  cli stderr:
+  wasm stderr:
+/tmp/ps_mcpp_input_1771543775.txt:7:19 R1010 RUNTIME_MODULE_ERROR: module not found. got module or symbol; expected available module/symbol
+  emit-c stderr:
+PASS sys/import_sys
+FAIL sys/has_env
+  exit code diverges (cli=0 wasm=1 emit-c=0)
+  rc cli=0 wasm=1 emit-c=0
+  cli stderr:
+  wasm stderr:
+/tmp/ps_mcpp_input_1771543777.txt:6:8 R1010 RUNTIME_MODULE_ERROR: module not found. got module or symbol; expected available module/symbol
+  emit-c stderr:
+FAIL sys/env
+  exit code diverges (cli=0 wasm=1 emit-c=0)
+  rc cli=0 wasm=1 emit-c=0
+  cli stderr:
+  wasm stderr:
+/tmp/ps_mcpp_input_1771543778.txt:6:8 R1010 RUNTIME_MODULE_ERROR: module not found. got module or symbol; expected available module/symbol
+  emit-c stderr:
+FAIL sys_execute/exit_code
+  exit code diverges (cli=0 wasm=1 emit-c=0)
+  rc cli=0 wasm=1 emit-c=0
+  cli stderr:
+  wasm stderr:
+/tmp/ps_mcpp_input_1771543779.txt:7:26 R1010 RUNTIME_MODULE_ERROR: module not found. got module or symbol; expected available module/symbol
+  emit-c stderr:
+FAIL sys_execute/stdout_only
+  exit code diverges (cli=0 wasm=1 emit-c=0)
+  rc cli=0 wasm=1 emit-c=0
+  cli stderr:
+  wasm stderr:
+/tmp/ps_mcpp_input_1771543779.txt:7:26 R1010 RUNTIME_MODULE_ERROR: module not found. got module or symbol; expected available module/symbol
+  emit-c stderr:
+FAIL sys_execute/stderr_only
+  exit code diverges (cli=0 wasm=1 emit-c=0)
+  rc cli=0 wasm=1 emit-c=0
+  cli stderr:
+  wasm stderr:
+/tmp/ps_mcpp_input_1771543780.txt:7:26 R1010 RUNTIME_MODULE_ERROR: module not found. got module or symbol; expected available module/symbol
+  emit-c stderr:
+FAIL sys_execute/both_order
+  exit code diverges (cli=0 wasm=1 emit-c=0)
+  rc cli=0 wasm=1 emit-c=0
+  cli stderr:
+  wasm stderr:
+/tmp/ps_mcpp_input_1771543781.txt:7:26 R1010 RUNTIME_MODULE_ERROR: module not found. got module or symbol; expected available module/symbol
+  emit-c stderr:
+FAIL sys_execute/input_echo
+  exit code diverges (cli=0 wasm=1 emit-c=0)
+  rc cli=0 wasm=1 emit-c=0
+  cli stderr:
+  wasm stderr:
+/tmp/ps_mcpp_input_1771543782.txt:7:26 R1010 RUNTIME_MODULE_ERROR: module not found. got module or symbol; expected available module/symbol
+  emit-c stderr:
+FAIL sys_execute/large_binary_output
+  exit code diverges (cli=0 wasm=1 emit-c=0)
+  rc cli=0 wasm=1 emit-c=0
+  cli stderr:
+  wasm stderr:
+/tmp/ps_mcpp_input_1771543783.txt:12:26 R1010 RUNTIME_MODULE_ERROR: module not found. got module or symbol; expected available module/symbol
+  emit-c stderr:
+FAIL sys_execute/args_variants
+  exit code diverges (cli=0 wasm=1 emit-c=0)
+  rc cli=0 wasm=1 emit-c=0
+  cli stderr:
+  wasm stderr:
+/tmp/ps_mcpp_input_1771543784.txt:7:26 R1010 RUNTIME_MODULE_ERROR: module not found. got module or symbol; expected available module/symbol
+  emit-c stderr:
+FAIL sys_execute/invalid_program
+  exit code diverges (cli=0 wasm=1 emit-c=0)
+  rc cli=0 wasm=1 emit-c=0
+  cli stderr:
+  wasm stderr:
+/tmp/ps_mcpp_input_1771543784.txt:8:12 R1010 RUNTIME_MODULE_ERROR: module not found. got module or symbol; expected available module/symbol
+  emit-c stderr:
+FAIL sys_execute/permission_denied
+  exit code diverges (cli=0 wasm=1 emit-c=0)
+  rc cli=0 wasm=1 emit-c=0
+  cli stderr:
+  wasm stderr:
+/tmp/ps_mcpp_input_1771543785.txt:13:7 R1010 RUNTIME_MODULE_ERROR: module not found. got module or symbol; expected available module/symbol
+  emit-c stderr:
+FAIL sys_execute/exec_failure
+  exit code diverges (cli=0 wasm=1 emit-c=0)
+  rc cli=0 wasm=1 emit-c=0
+  cli stderr:
+  wasm stderr:
+/tmp/ps_mcpp_input_1771543786.txt:12:7 R1010 RUNTIME_MODULE_ERROR: module not found. got module or symbol; expected available module/symbol
+  emit-c stderr:
+FAIL sys_execute/invalid_utf8_output
+  exit code diverges (cli=0 wasm=1 emit-c=0)
+  rc cli=0 wasm=1 emit-c=0
+  cli stderr:
+  wasm stderr:
+/tmp/ps_mcpp_input_1771543787.txt:7:26 R1010 RUNTIME_MODULE_ERROR: module not found. got module or symbol; expected available module/symbol
+  emit-c stderr:
+
+Summary: PASS=246 FAIL=87 SKIP=0 TOTAL=333
+RC:1

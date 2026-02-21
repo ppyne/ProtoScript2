@@ -1,0 +1,4 @@
+function main() : void {
+    CivilDateTime dt = CivilDateTime.clone();
+    dt.year = 2024;
+}

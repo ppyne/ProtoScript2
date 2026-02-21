@@ -1,0 +1,12 @@
+{
+  "status": "reject-static",
+  "error_family": "E3xxx",
+  "error_code": "E3140",
+  "category": "SEALED_INHERITANCE",
+  "position": {
+    "file": "invalid/type/builtin_sealed_inheritance_processevent.pts",
+    "line": 1,
+    "column": 1
+  },
+  "expected_output": "invalid/type/builtin_sealed_inheritance_processevent.pts:1:1 E3140 SEALED_INHERITANCE: cannot inherit from sealed prototype 'ProcessEvent'"
+}

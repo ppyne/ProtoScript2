@@ -13,7 +13,7 @@ function main() : void {
     int n = 0;
     while (w.hasNext()) {
         PathEntry e = w.next();
-        if (e.path.length() > 0) n = n + 1;
+        if (e.path().length() > 0) n = n + 1;
     }
     w.close();
     Fs.rm(base.concat("/sub/a.txt"));

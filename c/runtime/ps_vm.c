@@ -1471,6 +1471,15 @@ static const char *proto_parent_name(PS_IR_Module *m, const char *name) {
   return p ? p->parent : NULL;
 }
 
+static int proto_declares_method_meta(PS_IR_Module *m, const char *proto_name, const char *method_name) {
+  PS_IR_Proto *p = proto_find_meta(m, proto_name);
+  if (!p || !method_name) return 0;
+  for (size_t i = 0; i < p->method_count; i++) {
+    if (p->methods[i].name && strcmp(p->methods[i].name, method_name) == 0) return 1;
+  }
+  return 0;
+}
+
 static int proto_is_subtype_meta(PS_IR_Module *m, const char *child, const char *parent) {
   if (!child || !parent) return 0;
   if (strcmp(child, parent) == 0) return 1;
@@ -1482,6 +1491,21 @@ static int proto_is_subtype_meta(PS_IR_Module *m, const char *child, const char 
     cur = par;
   }
   return 0;
+}
+
+static const char *noncloneable_builtin_handle_base(PS_IR_Module *m, const char *proto_name) {
+  if (!m || !proto_name || !*proto_name) return NULL;
+  if (proto_is_subtype_meta(m, proto_name, "TextFile")) return "TextFile";
+  if (proto_is_subtype_meta(m, proto_name, "BinaryFile")) return "BinaryFile";
+  if (proto_is_subtype_meta(m, proto_name, "Dir")) return "Dir";
+  if (proto_is_subtype_meta(m, proto_name, "Walker")) return "Walker";
+  if (proto_is_subtype_meta(m, proto_name, "RegExp")) return "RegExp";
+  if (proto_is_subtype_meta(m, proto_name, "PathInfo")) return "PathInfo";
+  if (proto_is_subtype_meta(m, proto_name, "PathEntry")) return "PathEntry";
+  if (proto_is_subtype_meta(m, proto_name, "RegExpMatch")) return "RegExpMatch";
+  if (proto_is_subtype_meta(m, proto_name, "ProcessEvent")) return "ProcessEvent";
+  if (proto_is_subtype_meta(m, proto_name, "ProcessResult")) return "ProcessResult";
+  return NULL;
 }
 
 static int exception_matches(PS_IR_Module *m, PS_Value *v, const char *type_name) {
@@ -1549,6 +1573,26 @@ static int module_is_std(const char *name) {
 }
 
 static int exec_call_static(PS_Context *ctx, PS_IR_Module *m, const char *callee, PS_Value **args, size_t argc, PS_Value **out) {
+  if (callee) {
+    const char *suffix = ".__clone_static";
+    size_t callee_len = strlen(callee);
+    size_t suffix_len = strlen(suffix);
+    if (callee_len > suffix_len && strcmp(callee + (callee_len - suffix_len), suffix) == 0) {
+      char proto_name[256];
+      size_t proto_len = callee_len - suffix_len;
+      if (proto_len < sizeof(proto_name)) {
+        memcpy(proto_name, callee, proto_len);
+        proto_name[proto_len] = '\0';
+        const char *handle_base = noncloneable_builtin_handle_base(m, proto_name);
+        if (handle_base && !proto_declares_method_meta(m, proto_name, "clone")) {
+          char msg[256];
+          snprintf(msg, sizeof(msg), "clone not supported for builtin handle %s", handle_base);
+          ps_throw(ctx, PS_ERR_TYPE, msg);
+          return 1;
+        }
+      }
+    }
+  }
   IRFunction *fn = find_fn(m, callee);
   if (fn) return exec_function(ctx, m, fn, args, argc, out);
   // Module call: "module.symbol"
@@ -2697,6 +2741,13 @@ static int exec_function(PS_Context *ctx, PS_IR_Module *m, IRFunction *f, PS_Val
               ps_throw_diag(ctx, PS_ERR_TYPE, "clone expects prototype or instance receiver", "value", "prototype or instance");
               goto raise;
             }
+            const char *handle_base = noncloneable_builtin_handle_base(m, proto_name);
+            if (handle_base) {
+              char msg[256];
+              snprintf(msg, sizeof(msg), "clone not supported for builtin handle %s", handle_base);
+              ps_throw(ctx, PS_ERR_TYPE, msg);
+              goto raise;
+            }
             char callee[256];
             snprintf(callee, sizeof(callee), "%s.__clone_static", proto_name);
             PS_Value *ret = NULL;
@@ -2704,6 +2755,109 @@ static int exec_function(PS_Context *ctx, PS_IR_Module *m, IRFunction *f, PS_Val
             bindings_set(&temps, ins->dst, ret);
             if (ret) ps_value_release(ret);
             continue;
+          }
+          {
+            const char *proto_name = ps_object_proto_name_internal(recv);
+            const char *method = ins->method ? ins->method : "";
+            int is_process_result = (proto_name && strcmp(proto_name, "ProcessResult") == 0) || (proto_name && *proto_name && proto_is_subtype_meta(m, proto_name, "ProcessResult"));
+            int is_process_event = (proto_name && strcmp(proto_name, "ProcessEvent") == 0) || (proto_name && *proto_name && proto_is_subtype_meta(m, proto_name, "ProcessEvent"));
+            int is_regexp_match = (proto_name && strcmp(proto_name, "RegExpMatch") == 0) || (proto_name && *proto_name && proto_is_subtype_meta(m, proto_name, "RegExpMatch"));
+            int is_path_info = (proto_name && strcmp(proto_name, "PathInfo") == 0) || (proto_name && *proto_name && proto_is_subtype_meta(m, proto_name, "PathInfo"));
+            int is_path_entry = (proto_name && strcmp(proto_name, "PathEntry") == 0) || (proto_name && *proto_name && proto_is_subtype_meta(m, proto_name, "PathEntry"));
+            int is_civil = (proto_name && strcmp(proto_name, "CivilDateTime") == 0) || (proto_name && *proto_name && proto_is_subtype_meta(m, proto_name, "CivilDateTime"));
+              if (!is_civil) {
+                PS_Value *vy = ps_object_get_str_internal(ctx, recv, "year", 4);
+                PS_Value *vmo = ps_object_get_str_internal(ctx, recv, "month", 5);
+                PS_Value *vd = ps_object_get_str_internal(ctx, recv, "day", 3);
+                if (vy && vmo && vd) is_civil = 1;
+              }
+              if (!is_process_result) {
+                PS_Value *vcode = ps_object_get_str_internal(ctx, recv, "exitCode", 8);
+                PS_Value *vevents = ps_object_get_str_internal(ctx, recv, "events", 6);
+                if (vcode && vevents) is_process_result = 1;
+              }
+              if (!is_process_event) {
+                PS_Value *vstream = ps_object_get_str_internal(ctx, recv, "stream", 6);
+                PS_Value *vdata = ps_object_get_str_internal(ctx, recv, "data", 4);
+                if (vstream && vdata) is_process_event = 1;
+              }
+              if (!is_regexp_match) {
+                PS_Value *vok = ps_object_get_str_internal(ctx, recv, "ok", 2);
+                PS_Value *vstart = ps_object_get_str_internal(ctx, recv, "start", 5);
+                PS_Value *vend = ps_object_get_str_internal(ctx, recv, "end", 3);
+                PS_Value *vgroups = ps_object_get_str_internal(ctx, recv, "groups", 6);
+                if (vok && vstart && vend && vgroups) is_regexp_match = 1;
+              }
+              if (is_process_result || is_process_event || is_regexp_match || is_path_info || is_path_entry || is_civil) {
+                if (is_process_result || is_process_event || is_regexp_match || is_path_info || is_path_entry || is_civil) {
+                  if ((is_civil && (strcmp(method, "setYear") == 0 || strcmp(method, "setMonth") == 0 ||
+                                    strcmp(method, "setDay") == 0 || strcmp(method, "setHour") == 0 ||
+                                    strcmp(method, "setMinute") == 0 || strcmp(method, "setSecond") == 0 ||
+                                    strcmp(method, "setMillisecond") == 0))) {
+                    if (!expect_arity(ctx, ins, 1, 1)) goto raise;
+                    PS_Value *arg = get_value(&temps, &vars, ins->args[0]);
+                    if (!arg || arg->tag != PS_V_INT) {
+                      char got[64];
+                      snprintf(got, sizeof(got), "%s", value_type_name(arg));
+                      ps_throw_diag(ctx, PS_ERR_TYPE, "invalid CivilDateTime setter argument", got, "int");
+                      goto raise;
+                    }
+                    const char *field = NULL;
+                    if (strcmp(method, "setYear") == 0) field = "year";
+                    else if (strcmp(method, "setMonth") == 0) field = "month";
+                    else if (strcmp(method, "setDay") == 0) field = "day";
+                    else if (strcmp(method, "setHour") == 0) field = "hour";
+                    else if (strcmp(method, "setMinute") == 0) field = "minute";
+                    else if (strcmp(method, "setSecond") == 0) field = "second";
+                    else if (strcmp(method, "setMillisecond") == 0) field = "millisecond";
+                    if (!field || !ps_object_set_str_internal(ctx, recv, field, strlen(field), arg)) goto raise;
+                    continue;
+                  }
+                  if (!expect_arity(ctx, ins, 0, 0)) goto raise;
+                  const char *field = NULL;
+                  if (is_process_result) {
+                    if (strcmp(method, "exitCode") == 0) field = "exitCode";
+                    else if (strcmp(method, "events") == 0) field = "events";
+                  } else if (is_process_event) {
+                    if (strcmp(method, "stream") == 0) field = "stream";
+                    else if (strcmp(method, "data") == 0) field = "data";
+                  } else if (is_regexp_match) {
+                    if (strcmp(method, "ok") == 0) field = "ok";
+                    else if (strcmp(method, "start") == 0) field = "start";
+                    else if (strcmp(method, "end") == 0) field = "end";
+                    else if (strcmp(method, "groups") == 0) field = "groups";
+                  } else if (is_path_info) {
+                    if (strcmp(method, "dirname") == 0) field = "dirname";
+                    else if (strcmp(method, "basename") == 0) field = "basename";
+                    else if (strcmp(method, "filename") == 0) field = "filename";
+                    else if (strcmp(method, "extension") == 0) field = "extension";
+                  } else if (is_path_entry) {
+                    if (strcmp(method, "path") == 0) field = "path";
+                    else if (strcmp(method, "name") == 0) field = "name";
+                    else if (strcmp(method, "depth") == 0) field = "depth";
+                    else if (strcmp(method, "isDir") == 0) field = "isDir";
+                    else if (strcmp(method, "isFile") == 0) field = "isFile";
+                    else if (strcmp(method, "isSymlink") == 0) field = "isSymlink";
+                  } else if (is_civil) {
+                    if (strcmp(method, "year") == 0) field = "year";
+                    else if (strcmp(method, "month") == 0) field = "month";
+                    else if (strcmp(method, "day") == 0) field = "day";
+                    else if (strcmp(method, "hour") == 0) field = "hour";
+                    else if (strcmp(method, "minute") == 0) field = "minute";
+                    else if (strcmp(method, "second") == 0) field = "second";
+                    else if (strcmp(method, "millisecond") == 0) field = "millisecond";
+                  }
+                  if (field) {
+                    PS_Value *v = ps_object_get_str_internal(ctx, recv, field, strlen(field));
+                    if (!v) {
+                      ps_throw_diag(ctx, PS_ERR_TYPE, "missing builtin field", field, "initialized builtin object");
+                      goto raise;
+                    }
+                    bindings_set(&temps, ins->dst, v);
+                    continue;
+                  }
+                }
+              }
           }
           char got[96];
           snprintf(got, sizeof(got), "%s", ins->method ? ins->method : "<unknown>");

@@ -91,6 +91,10 @@ const char *ps_runtime_category(PS_ErrorCode code, const char *msg, const char *
     return "RUNTIME_INVALID_UTF8";
   }
   if (code == PS_ERR_TYPE) {
+    if (msg_has(msg, "clone not supported for builtin handle")) {
+      *out_code = "R1013";
+      return "RUNTIME_CLONE_NOT_SUPPORTED";
+    }
     if (msg_has(msg, "Json") || msg_has(msg, "JSON")) {
       *out_code = "R1010";
       return "RUNTIME_JSON_ERROR";

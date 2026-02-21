@@ -5,18 +5,18 @@ function main() : void {
     RegExp r = RegExp.compile("(a)?b", "");
 
     RegExpMatch m1 = r.find("ab", 0);
-    Io.printLine(m1.ok.toString());
-    Io.printLine(m1.groups[0]);
-    Io.printLine(m1.groups[1]);
-    Io.printLine(m1.start.toString().concat("|").concat(m1.end.toString()));
+    Io.printLine(m1.ok().toString());
+    Io.printLine(m1.groups()[0]);
+    Io.printLine(m1.groups()[1]);
+    Io.printLine(m1.start().toString().concat("|").concat(m1.end().toString()));
 
     RegExpMatch m2 = r.find("b", 0);
-    Io.printLine(m2.ok.toString());
-    Io.printLine(m2.groups[0]);
-    Io.printLine(m2.groups[1]);
-    Io.printLine(m2.start.toString().concat("|").concat(m2.end.toString()));
+    Io.printLine(m2.ok().toString());
+    Io.printLine(m2.groups()[0]);
+    Io.printLine(m2.groups()[1]);
+    Io.printLine(m2.start().toString().concat("|").concat(m2.end().toString()));
 
     RegExpMatch m3 = r.find("zzz", 0);
-    Io.printLine(m3.ok.toString());
-    Io.printLine(m3.groups.length().toString());
+    Io.printLine(m3.ok().toString());
+    Io.printLine(m3.groups().length().toString());
 }

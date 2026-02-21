@@ -5,6 +5,6 @@ function main() : void {
     list<string> args = ["a", "b", "c"];
     list<byte> input = [];
     ProcessResult r = Sys.execute("/bin/echo", args, input, true, false);
-    string s = r.events[0].data.toUtf8String();
+    string s = r.events()[0].data().toUtf8String();
     Io.printLine(s);
 }

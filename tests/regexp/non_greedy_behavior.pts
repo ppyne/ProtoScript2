@@ -6,14 +6,14 @@ import Io;
 function main() : void {
     RegExp greedy = RegExp.compile("<a>.*</a>", "s");
     string s = "<a>one</a><a>two</a>";
-    Io.printLine(greedy.find(s, 0).groups[0]);
+    Io.printLine(greedy.find(s, 0).groups()[0]);
 
     // Portable minimal equivalent when lazy quantifier parsing is unavailable.
     try {
         RegExp lazy = RegExp.compile("<a>.*?</a>", "s");
-        Io.printLine(lazy.find(s, 0).groups[0]);
+        Io.printLine(lazy.find(s, 0).groups()[0]);
     } catch (RuntimeException e) {
         RegExp fallback = RegExp.compile("<a>[^<]*</a>", "s");
-        Io.printLine(fallback.find(s, 0).groups[0]);
+        Io.printLine(fallback.find(s, 0).groups()[0]);
     }
 }

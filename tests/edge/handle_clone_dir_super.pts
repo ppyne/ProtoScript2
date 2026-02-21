@@ -1,0 +1,9 @@
+prototype DirChildSuper : Dir {
+    function clone() : DirChildSuper {
+        return super.clone();
+    }
+}
+
+function main() : void {
+    DirChildSuper.clone();
+}

@@ -142,6 +142,7 @@ static PS_Value *make_civil(PS_Context *ctx, int64_t year, int64_t month, int64_
                             int64_t hour, int64_t minute, int64_t second, int64_t millisecond) {
   PS_Value *obj = ps_make_object(ctx);
   if (!obj) return NULL;
+  if (ps_object_set_proto_name(ctx, obj, "CivilDateTime") != PS_OK) return NULL;
   PS_Value *v = NULL;
   v = ps_make_int(ctx, year); if (!v) return NULL; if (ps_object_set_str(ctx, obj, "year", 4, v) != PS_OK) { ps_value_release(v); return NULL; } ps_value_release(v);
   v = ps_make_int(ctx, month); if (!v) return NULL; if (ps_object_set_str(ctx, obj, "month", 5, v) != PS_OK) { ps_value_release(v); return NULL; } ps_value_release(v);

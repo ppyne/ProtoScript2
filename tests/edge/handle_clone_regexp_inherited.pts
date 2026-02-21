@@ -1,0 +1,6 @@
+prototype RegExpChild : RegExp {
+}
+
+function main() : void {
+    RegExpChild.clone();
+}

@@ -121,14 +121,15 @@ function loadModuleRegistry() {
 
 function buildImportMap(ast) {
   const imported = new Map();
+  const importedLoc = new Map();
   const namespaces = new Map();
   const moduleConsts = new Map(); // module -> Map(name -> value)
   const moduleReturns = new Map(); // module -> Map(name -> retType)
   const importedReturns = new Map(); // local symbol -> retType
   const imports = ast.imports || [];
-  if (imports.length === 0) return { imported, namespaces, moduleConsts, moduleReturns, importedReturns };
+  if (imports.length === 0) return { imported, importedLoc, namespaces, moduleConsts, moduleReturns, importedReturns };
   const reg = loadModuleRegistry();
-  if (!reg || !Array.isArray(reg.modules)) return { imported, namespaces, moduleConsts, moduleReturns, importedReturns };
+  if (!reg || !Array.isArray(reg.modules)) return { imported, importedLoc, namespaces, moduleConsts, moduleReturns, importedReturns };
   const modules = new Map();
   for (const m of reg.modules) {
     if (!m || typeof m.name !== "string") continue;
@@ -170,6 +171,7 @@ function buildImportMap(ast) {
         for (const it of imp.items) {
           const local = it.alias || it.name;
           imported.set(local, `${proto}.${it.name}`);
+          importedLoc.set(local, { line: it.line || imp.line || 1, col: it.col || imp.col || 1 });
         }
       } else {
         const alias = imp.alias || (imp.modulePath ? imp.modulePath[imp.modulePath.length - 1] : proto);
@@ -185,6 +187,7 @@ function buildImportMap(ast) {
         if (!mset.has(it.name)) continue;
         const local = it.alias || it.name;
         imported.set(local, `${mod}.${it.name}`);
+        importedLoc.set(local, { line: it.line || imp.line || 1, col: it.col || imp.col || 1 });
         const modRets = moduleReturns.get(mod);
         if (modRets && modRets.has(it.name)) importedReturns.set(local, modRets.get(it.name));
       }
@@ -193,7 +196,7 @@ function buildImportMap(ast) {
       namespaces.set(alias, mod);
     }
   }
-  return { imported, namespaces, moduleConsts, moduleReturns, importedReturns };
+  return { imported, importedLoc, namespaces, moduleConsts, moduleReturns, importedReturns };
 }
 
 class Scope {
@@ -224,6 +227,7 @@ class IRBuilder {
     this.groupConsts = new Map();
     const imports = buildImportMap(ast);
     this.importedSymbols = imports.imported;
+    this.importedLoc = imports.importedLoc;
     this.importNamespaces = imports.namespaces;
     this.moduleConsts = imports.moduleConsts;
     this.moduleReturns = imports.moduleReturns;
@@ -235,6 +239,7 @@ class IRBuilder {
     this.generatedFunctionNames = new Set();
     this.cloneSpecializationCache = new Map();
     this.methodSpecializationCache = new Set();
+    this.currentEmitNode = null;
     this.collectGroupConsts();
   }
 
@@ -298,7 +303,17 @@ class IRBuilder {
     return `${prefix}${this.blockId}`;
   }
 
-  emit(block, instr) {
+  emit(block, instr, locNode = null) {
+    if (instr && !instr.loc) {
+      const node = locNode || this.currentEmitNode;
+      if (node && (node.line || node.col)) {
+        instr.loc = {
+          file: "__SRC__",
+          line: Number.isInteger(node.line) && node.line > 0 ? node.line : 1,
+          col: Number.isInteger(node.col) && node.col > 0 ? node.col : 1,
+        };
+      }
+    }
     block.instrs.push(instr);
   }
 
@@ -385,6 +400,26 @@ class IRBuilder {
           { name: "isFile", type: { kind: "PrimitiveType", name: "bool" } },
           { name: "isSymlink", type: { kind: "PrimitiveType", name: "bool" } },
         ],
+      },
+      {
+        name: "TextFile",
+        parent: "Object",
+        fields: [],
+      },
+      {
+        name: "BinaryFile",
+        parent: "Object",
+        fields: [],
+      },
+      {
+        name: "Dir",
+        parent: "Object",
+        fields: [],
+      },
+      {
+        name: "Walker",
+        parent: "Object",
+        fields: [],
       },
       {
         name: "ProcessEvent",
@@ -557,7 +592,14 @@ class IRBuilder {
         blocks: [entry],
       };
       const dst = this.nextTemp();
-      this.emit(entry, { op: "call_static", dst, callee: `${receiverProtoName}.__clone_default`, args: [], variadic: false });
+      const handleBase = this.nonCloneableHandleBase(receiverProtoName);
+      const noLoc = {};
+      if (handleBase) {
+        this.emit(entry, { op: "make_object", dst, proto: receiverProtoName }, noLoc);
+        this.emit(entry, { op: "call_static", dst, callee: `__clone_not_supported.${handleBase}`, args: [], variadic: false }, noLoc);
+      } else {
+        this.emit(entry, { op: "call_static", dst, callee: `${receiverProtoName}.__clone_default`, args: [], variadic: false }, noLoc);
+      }
       this.emit(entry, { op: "ret", value: dst });
       this.registerFunction(irFn);
       return fnName;
@@ -671,6 +713,29 @@ class IRBuilder {
     return false;
   }
 
+  nonCloneableHandleBase(protoName) {
+    const handles = [
+      "TextFile",
+      "BinaryFile",
+      "Dir",
+      "Walker",
+      "RegExp",
+      "PathInfo",
+      "PathEntry",
+      "RegExpMatch",
+      "ProcessEvent",
+      "ProcessResult",
+    ];
+    for (const handle of handles) {
+      let cur = this.prototypes.get(protoName);
+      while (cur) {
+        if (cur.name === handle) return handle;
+        cur = cur.parent ? this.prototypes.get(cur.parent) : null;
+      }
+    }
+    return null;
+  }
+
   collectPrototypeFields(protoName) {
     const out = [];
     const chain = [];
@@ -776,7 +841,10 @@ class IRBuilder {
   }
 
   lowerStmt(stmt, block, irFn, scope) {
-    switch (stmt.kind) {
+    const prevEmitNode = this.currentEmitNode;
+    this.currentEmitNode = stmt || prevEmitNode;
+    try {
+      switch (stmt.kind) {
       case "VarDecl": {
         const declared = stmt.declaredType || (stmt.init ? this.inferExprType(stmt.init, scope) : { kind: "PrimitiveType", name: "void" });
         const irName = this.nextVar(stmt.name);
@@ -808,10 +876,10 @@ class IRBuilder {
             const cur = this.nextTemp();
             this.emit(curBlock, { op: "load_var", dst: cur, name: irName, type: lowerType(lhsType) });
             if (["+", "-", "*"].includes(binOp) && isIntLike(lhsType) && isIntLike(rhsType)) {
-              this.emit(curBlock, { op: "check_int_overflow", operator: binOp, left: cur, right: rhs.value });
+              this.emit(curBlock, { op: "check_int_overflow", operator: binOp, left: cur, right: rhs.value }, stmt.target);
             }
             if (binOp === "/" && isIntLike(lhsType) && isIntLike(rhsType)) {
-              this.emit(curBlock, { op: "check_div_zero", divisor: rhs.value });
+              this.emit(curBlock, { op: "check_div_zero", divisor: rhs.value }, stmt.expr);
             }
             const next = this.nextTemp();
             this.emit(curBlock, { op: "bin_op", dst: next, operator: binOp, left: cur, right: rhs.value });
@@ -824,10 +892,10 @@ class IRBuilder {
             const cur = this.nextTemp();
             this.emit(base.block, { op: "member_get", dst: cur, target: base.value, name: stmt.target.name });
             if (["+", "-", "*"].includes(binOp) && isIntLike(lhsType) && isIntLike(rhsType)) {
-              this.emit(base.block, { op: "check_int_overflow", operator: binOp, left: cur, right: rhs.value });
+              this.emit(base.block, { op: "check_int_overflow", operator: binOp, left: cur, right: rhs.value }, stmt.target.target);
             }
             if (binOp === "/" && isIntLike(lhsType) && isIntLike(rhsType)) {
-              this.emit(base.block, { op: "check_div_zero", divisor: rhs.value });
+              this.emit(base.block, { op: "check_div_zero", divisor: rhs.value }, stmt.expr);
             }
             const next = this.nextTemp();
             this.emit(base.block, { op: "bin_op", dst: next, operator: binOp, left: cur, right: rhs.value });
@@ -838,14 +906,14 @@ class IRBuilder {
           if (stmt.target.kind === "IndexExpr") {
             const t = this.lowerExpr(stmt.target.target, curBlock, irFn, scope);
             const i = this.lowerExpr(stmt.target.index, t.block, irFn, scope);
-            this.emitIndexChecks(i.block, t, i, { forWrite: false });
+            this.emitIndexChecks(i.block, t, i, { forWrite: false }, stmt.target.target, stmt.target.index);
             const cur = this.nextTemp();
             this.emit(i.block, { op: "index_get", dst: cur, target: t.value, index: i.value });
             if (["+", "-", "*"].includes(binOp) && isIntLike(lhsType) && isIntLike(rhsType)) {
-              this.emit(i.block, { op: "check_int_overflow", operator: binOp, left: cur, right: rhs.value });
+              this.emit(i.block, { op: "check_int_overflow", operator: binOp, left: cur, right: rhs.value }, stmt.target.target);
             }
             if (binOp === "/" && isIntLike(lhsType) && isIntLike(rhsType)) {
-              this.emit(i.block, { op: "check_div_zero", divisor: rhs.value });
+              this.emit(i.block, { op: "check_div_zero", divisor: rhs.value }, stmt.expr);
             }
             const next = this.nextTemp();
             this.emit(i.block, { op: "bin_op", dst: next, operator: binOp, left: cur, right: rhs.value });
@@ -877,7 +945,7 @@ class IRBuilder {
         } else if (stmt.target.kind === "IndexExpr") {
           const t = this.lowerExpr(stmt.target.target, cur, irFn, scope);
           const i = this.lowerExpr(stmt.target.index, t.block, irFn, scope);
-          this.emitIndexChecks(i.block, t, i, { forWrite: true });
+          this.emitIndexChecks(i.block, t, i, { forWrite: true }, stmt.target.target, stmt.target.index);
           this.emit(i.block, { op: "index_set", target: t.value, index: i.value, src: rhs.value });
           cur = i.block;
         } else if (stmt.target.kind === "MemberExpr") {
@@ -1012,6 +1080,9 @@ class IRBuilder {
       default:
         this.emit(block, { op: "unhandled_stmt", kind: stmt.kind });
         return block;
+      }
+    } finally {
+      this.currentEmitNode = prevEmitNode;
     }
   }
 
@@ -1211,7 +1282,10 @@ class IRBuilder {
   }
 
   lowerExpr(expr, block, irFn, scope) {
-    switch (expr.kind) {
+    const prevEmitNode = this.currentEmitNode;
+    this.currentEmitNode = expr || prevEmitNode;
+    try {
+      switch (expr.kind) {
       case "Literal": {
         const dst = this.nextTemp();
         const t = { kind: "PrimitiveType", name: expr.literalType };
@@ -1324,13 +1398,13 @@ class IRBuilder {
         }
         const r = this.lowerExpr(expr.right, l.block, irFn, scope);
         if (["+", "-", "*"].includes(expr.op) && isIntLike(l.type) && isIntLike(r.type)) {
-          this.emit(r.block, { op: "check_int_overflow", operator: expr.op, left: l.value, right: r.value });
+          this.emit(r.block, { op: "check_int_overflow", operator: expr.op, left: l.value, right: r.value }, expr.left);
         }
         if (["/", "%"].includes(expr.op) && isIntLike(l.type) && isIntLike(r.type)) {
-          this.emit(r.block, { op: "check_div_zero", divisor: r.value });
+          this.emit(r.block, { op: "check_div_zero", divisor: r.value }, expr.right);
         }
         if (["<<", ">>"].includes(expr.op) && isIntLike(l.type) && isIntLike(r.type)) {
-          this.emit(r.block, { op: "check_shift_range", shift: r.value, width: typeToString(l.type) === "byte" ? 8 : 64 });
+          this.emit(r.block, { op: "check_shift_range", shift: r.value, width: typeToString(l.type) === "byte" ? 8 : 64 }, expr.right);
         }
         const dst = this.nextTemp();
         this.emit(r.block, { op: "bin_op", dst, operator: expr.op, left: l.value, right: r.value });
@@ -1358,9 +1432,9 @@ class IRBuilder {
       case "IndexExpr": {
         const t = this.lowerExpr(expr.target, block, irFn, scope);
         const i = this.lowerExpr(expr.index, t.block, irFn, scope);
-        this.emitIndexChecks(i.block, t, i, { forWrite: false });
+        this.emitIndexChecks(i.block, t, i, { forWrite: false }, expr.target, expr.index);
         const dst = this.nextTemp();
-        this.emit(i.block, { op: "index_get", dst, target: t.value, index: i.value });
+        this.emit(i.block, { op: "index_get", dst, target: t.value, index: i.value }, expr.target);
         return { value: dst, type: this.elementTypeForIndex(t.type), block: i.block };
       }
       case "MemberExpr": {
@@ -1456,10 +1530,43 @@ class IRBuilder {
         this.emit(block, { op: "unknown_expr", dst, kind: expr.kind });
         return { value: dst, type: { kind: "PrimitiveType", name: "unknown" }, block };
       }
+      }
+    } finally {
+      this.currentEmitNode = prevEmitNode;
     }
   }
 
   lowerCallExpr(expr, block, irFn, scope) {
+    const memberCallLoc = (member, fallback) => {
+      if (member && member.kind === "MemberExpr" && member.target) {
+        const t = member.target;
+        const baseCol = typeof t.col === "number" ? t.col : null;
+        const line = t.line || (fallback && fallback.line) || 1;
+        if (baseCol !== null) {
+          if (t.kind === "Identifier") {
+            const len = t.name ? t.name.length : 0;
+            return { line, col: baseCol + len };
+          }
+          if (t.kind === "SuperExpr") {
+            return { line, col: baseCol + 5 };
+          }
+        }
+      }
+      return fallback || member || expr.callee;
+    };
+    const dotLocFromTarget = (target, fallback) => {
+      if (target && target.kind === "Identifier") {
+        const baseCol = typeof target.col === "number" ? target.col : 1;
+        return { line: target.line || (fallback && fallback.line) || 1, col: baseCol + (target.name ? target.name.length : 0) };
+      }
+      return fallback || target || expr.callee;
+    };
+    const cloneCallLoc = (target) => {
+      if (!target || target.kind !== "Identifier") return expr.callee;
+      const baseCol = typeof target.col === "number" ? target.col : 1;
+      const len = target.name ? target.name.length : 0;
+      return { line: target.line || expr.line || 1, col: baseCol + len };
+    };
     const lowerArgs = (args, startBlock) => {
       let cur = startBlock;
       const out = [];
@@ -1485,7 +1592,7 @@ class IRBuilder {
         callee,
         args: args.map((a) => a.value),
         variadic: isVariadic,
-      });
+      }, this.importedLoc.get(local) || expr.callee);
       if (sig) return { value: dst, type: sig.retType, block: lowered.block };
       if (this.importedReturns && this.importedReturns.has(local)) {
         return { value: dst, type: parseTypeName(this.importedReturns.get(local)), block: lowered.block };
@@ -1507,7 +1614,7 @@ class IRBuilder {
         if (method === "clone") {
           const owner = info && info.owner && info.owner !== "Object" ? info.owner : null;
           const callee = this.ensureCloneSpecialization(recvProto || declProto || "Object", owner);
-          this.emit(lowered.block, { op: "call_static", dst, callee, args: [], variadic: false });
+          this.emit(lowered.block, { op: "call_static", dst, callee, args: [], variadic: false }, memberCallLoc(expr.callee, expr.callee));
           return { value: dst, type: { kind: "NamedType", name: recvProto || declProto || "Object" }, block: lowered.block };
         }
         const calleeOwner = info ? info.owner : (parentName || declProto || "Object");
@@ -1517,7 +1624,7 @@ class IRBuilder {
           callee: `${calleeOwner}.${method}`,
           args: [selfEntry ? selfEntry.irName : "self", ...args.map((a) => a.value)],
           variadic: !!(info && info.method && info.method.params.some((p) => p.variadic)),
-        });
+        }, memberCallLoc(expr.callee, expr.callee));
         return { value: dst, type: info ? info.method.retType : { kind: "PrimitiveType", name: "unknown" }, block: lowered.block };
       }
       if (expr.callee.target.kind === "Identifier" && this.prototypes.has(expr.callee.target.name)) {
@@ -1528,7 +1635,7 @@ class IRBuilder {
         const args = lowered.args;
         const dst = this.nextTemp();
         if (method === "clone") {
-          this.emit(lowered.block, { op: "call_static", dst, callee: `${protoName}.clone`, args: [], variadic: false });
+          this.emit(lowered.block, { op: "call_static", dst, callee: `${protoName}.clone`, args: [], variadic: false }, memberCallLoc(expr.callee, cloneCallLoc(expr.callee.target)));
           return { value: dst, type: { kind: "NamedType", name: protoName }, block: lowered.block };
         }
         const owner = info ? info.owner : protoName;
@@ -1538,7 +1645,7 @@ class IRBuilder {
           callee: `${owner}.${method}`,
           args: args.map((a) => a.value),
           variadic: !!(m && m.params.some((p) => p.variadic)),
-        });
+        }, memberCallLoc(expr.callee, expr.callee));
         return { value: dst, type: m ? m.retType : { kind: "PrimitiveType", name: "unknown" }, block: lowered.block };
       }
       if (expr.callee.target.kind === "Identifier") {
@@ -1548,7 +1655,7 @@ class IRBuilder {
           const args = lowered.args;
           const dst = this.nextTemp();
           if (this.prototypes.has(ns) && method === "clone") {
-            this.emit(lowered.block, { op: "call_static", dst, callee: `${ns}.clone`, args: [], variadic: false });
+            this.emit(lowered.block, { op: "call_static", dst, callee: `${ns}.clone`, args: [], variadic: false }, memberCallLoc(expr.callee, cloneCallLoc(expr.callee.target)));
             return { value: dst, type: { kind: "NamedType", name: ns }, block: lowered.block };
           }
           let variadic = false;
@@ -1565,7 +1672,7 @@ class IRBuilder {
             callee: `${calleeOwner}.${method}`,
             args: args.map((a) => a.value),
             variadic,
-          });
+          }, memberCallLoc(expr.callee, dotLocFromTarget(expr.callee.target, expr.callee)));
           if (this.moduleReturns && this.moduleReturns.has(ns)) {
             const ret = this.moduleReturns.get(ns).get(method);
             if (ret) return { value: dst, type: parseTypeName(ret), block: lowered.block };
@@ -1617,7 +1724,7 @@ class IRBuilder {
               callee,
               args: [recv.value, ...args.map((a) => a.value)],
               variadic: false,
-            });
+            }, memberCallLoc(expr.callee, expr.callee));
             if (method === "hasNext") return { value: dst, type: { kind: "PrimitiveType", name: "bool" }, block: lowered.block };
             if (method === "next") return { value: dst, type: { kind: "PrimitiveType", name: "string" }, block: lowered.block };
             return { value: dst, type: { kind: "PrimitiveType", name: "void" }, block: lowered.block };
@@ -1636,20 +1743,33 @@ class IRBuilder {
               callee,
               args: [recv.value, ...args.map((a) => a.value)],
               variadic: false,
-            });
+            }, memberCallLoc(expr.callee, expr.callee));
             if (method === "hasNext") return { value: dst, type: { kind: "PrimitiveType", name: "bool" }, block: lowered.block };
             if (method === "next") return { value: dst, type: { kind: "NamedType", name: "PathEntry" }, block: lowered.block };
             return { value: dst, type: { kind: "PrimitiveType", name: "void" }, block: lowered.block };
           }
         }
       }
-      if (recv.type && recv.type.kind === "NamedType" && this.prototypes.has(recv.type.name)) {
+      if (
+        recv.type &&
+        recv.type.kind === "NamedType" &&
+        this.prototypes.has(recv.type.name) &&
+        recv.type.name !== "TextFile" &&
+        recv.type.name !== "BinaryFile" &&
+        recv.type.name !== "JSONValue" &&
+        recv.type.name !== "CivilDateTime" &&
+        recv.type.name !== "PathInfo" &&
+        recv.type.name !== "PathEntry" &&
+        recv.type.name !== "RegExpMatch" &&
+        recv.type.name !== "ProcessEvent" &&
+        recv.type.name !== "ProcessResult"
+      ) {
         const info = this.resolvePrototypeMethodOwner(recv.type.name, method);
         const m = info ? info.method : null;
         const owner = info ? info.owner : recv.type.name;
         const dst = this.nextTemp();
         if (method === "clone") {
-          this.emit(lowered.block, { op: "call_static", dst, callee: `${recv.type.name}.clone`, args: [], variadic: false });
+          this.emit(lowered.block, { op: "call_static", dst, callee: `${recv.type.name}.clone`, args: [], variadic: false }, memberCallLoc(expr.callee, cloneCallLoc(expr.callee.target)));
           return { value: dst, type: recv.type, block: lowered.block };
         }
         const callee = `${recv.type.name}.${method}`;
@@ -1659,7 +1779,7 @@ class IRBuilder {
           callee,
           args: [recv.value, ...args.map((a) => a.value)],
           variadic: !!(m && m.params.some((p) => p.variadic)),
-        });
+        }, memberCallLoc(expr.callee, expr.callee));
         return { value: dst, type: m ? m.retType : { kind: "PrimitiveType", name: "unknown" }, block: lowered.block };
       }
       if (method === "toString") {
@@ -1682,7 +1802,7 @@ class IRBuilder {
           lenValue = args[1] ? args[1].value : null;
         }
         const dst = this.nextTemp();
-        this.emit(lowered.block, { op: "check_view_bounds", target: recv.value, offset: offsetValue, len: lenValue });
+        this.emit(lowered.block, { op: "check_view_bounds", target: recv.value, offset: offsetValue, len: lenValue }, memberCallLoc(expr.callee, expr));
         this.emit(lowered.block, {
           op: "make_view",
           dst,
@@ -1696,17 +1816,32 @@ class IRBuilder {
         return { value: dst, type: { kind: "GenericType", name: method, args: [elemType] }, block: lowered.block };
       }
       const dst = this.nextTemp();
+      const isListPopCall =
+        recv.type &&
+        recv.type.kind === "GenericType" &&
+        recv.type.name === "list" &&
+        (method === "pop" || method === "removeLast");
+      const methodLocNode = (method === "toInt" || method === "toFloat" || method === "toByte")
+        ? expr.callee
+        : isListPopCall
+          ? expr.callee.target
+          : memberCallLoc(expr.callee, dotLocFromTarget(expr.callee.target, expr.callee));
       this.emit(lowered.block, {
         op: "call_method_static",
         dst,
         receiver: recv.value,
         method,
         args: args.map((a) => a.value),
-      });
+      }, methodLocNode);
       if (memberName && base && recv.type && recv.type.kind === "GenericType" && recv.type.name === "list") {
         this.emit(lowered.block, { op: "member_set", target: base.value, name: memberName, src: recv.value });
       }
-      return { value: dst, type: { kind: "PrimitiveType", name: "unknown" }, block: lowered.block };
+      let retType = { kind: "PrimitiveType", name: "unknown" };
+      if (recv.type && recv.type.kind === "NamedType" && this.prototypes.has(recv.type.name)) {
+        const info = this.resolvePrototypeMethodOwner(recv.type.name, method);
+        if (info && info.method && info.method.retType) retType = info.method.retType;
+      }
+      return { value: dst, type: retType, block: lowered.block };
     }
 
     const dst = this.nextTemp();
@@ -1714,14 +1849,14 @@ class IRBuilder {
     return { value: dst, type: { kind: "PrimitiveType", name: "unknown" }, block };
   }
 
-  emitIndexChecks(block, target, index, opts = {}) {
+  emitIndexChecks(block, target, index, opts = {}, targetNode = null, indexNode = null) {
     const forWrite = !!opts.forWrite;
     const ts = typeToString(target.type);
     if (ts.startsWith("map<")) {
-      if (!forWrite) this.emit(block, { op: "check_map_has_key", map: target.value, key: index.value });
+      if (!forWrite) this.emit(block, { op: "check_map_has_key", map: target.value, key: index.value }, targetNode || indexNode);
       return;
     }
-    this.emit(block, { op: "check_index_bounds", target: target.value, index: index.value });
+    this.emit(block, { op: "check_index_bounds", target: target.value, index: index.value }, targetNode);
   }
 
   lowerIncDec(expr, block, irFn, scope, isPrefix, op) {
@@ -1759,7 +1894,7 @@ class IRBuilder {
     if (expr.kind === "IndexExpr") {
       const target = this.lowerExpr(expr.target, block, irFn, scope);
       const index = this.lowerExpr(expr.index, target.block, irFn, scope);
-      this.emitIndexChecks(index.block, target, index, { forWrite: false });
+      this.emitIndexChecks(index.block, target, index, { forWrite: false }, expr.target, expr.index);
       const cur = this.nextTemp();
       this.emit(index.block, { op: "index_get", dst: cur, target: target.value, index: index.value });
       const one = this.nextTemp();

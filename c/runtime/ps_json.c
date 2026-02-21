@@ -30,9 +30,19 @@ static PS_JsonValue *parse_value(PS_JsonParser *p);
 static char *parse_string(PS_JsonParser *p) {
   if (p->src[p->pos] != '"') return NULL;
   p->pos++;
-  char *buf = (char *)malloc(p->len - p->pos + 1);
+  size_t cap = 64;
+  char *buf = (char *)malloc(cap);
   if (!buf) return NULL;
   size_t out = 0;
+#define ENSURE_CAP(extra) \
+  do { \
+    if (out + (extra) + 1 > cap) { \
+      while (out + (extra) + 1 > cap) cap *= 2; \
+      char *nb = (char *)realloc(buf, cap); \
+      if (!nb) { free(buf); return NULL; } \
+      buf = nb; \
+    } \
+  } while (0)
   while (p->pos < p->len) {
     char c = p->src[p->pos++];
     if (c == '"') break;
@@ -43,39 +53,49 @@ static char *parse_string(PS_JsonParser *p) {
         case '"':
         case '\\':
         case '/':
+          ENSURE_CAP(1);
           buf[out++] = e;
           break;
         case 'b':
+          ENSURE_CAP(1);
           buf[out++] = '\b';
           break;
         case 'f':
+          ENSURE_CAP(1);
           buf[out++] = '\f';
           break;
         case 'n':
+          ENSURE_CAP(1);
           buf[out++] = '\n';
           break;
         case 'r':
+          ENSURE_CAP(1);
           buf[out++] = '\r';
           break;
         case 't':
+          ENSURE_CAP(1);
           buf[out++] = '\t';
           break;
         case 'u':
           // Minimal: copy as-is, no UTF-16 decoding (IR uses ASCII keys).
           if (p->pos + 4 <= p->len) {
+            ENSURE_CAP(1);
             buf[out++] = '?';
             p->pos += 4;
           }
           break;
         default:
+          ENSURE_CAP(1);
           buf[out++] = e;
           break;
       }
     } else {
+      ENSURE_CAP(1);
       buf[out++] = c;
     }
   }
   buf[out] = '\0';
+#undef ENSURE_CAP
   return buf;
 }
 

@@ -51,6 +51,19 @@ Le module expose deux prototypes :
 
 ## 3. Prototype `RegExp`
 
+```c
+sealed prototype RegExp {
+    function test(string input, int start) : bool {}
+    function find(string input, int start) : RegExpMatch {}
+    function findAll(string input, int start, int max) : list<RegExpMatch> {}
+    function replaceFirst(string input, string replacement, int start) : string {}
+    function replaceAll(string input, string replacement, int start, int max) : string {}
+    function split(string input, int start, int maxParts) : list<string> {}
+    function pattern() : string {}
+    function flags() : string {}
+}
+```
+
 ### 3.1 Construction
 
 `RegExp.compile(string pattern, string flags) : RegExp`
@@ -151,6 +164,15 @@ Règle match vide : identique à `findAll` (avance d’un glyphe pour éviter bo
 ---
 
 ## 4. Prototype `RegExpMatch`
+
+```c
+sealed prototype RegExpMatch {
+    function ok() : bool {}
+    function start() : int {}
+    function end() : int {}
+    function groups() : list<string> {}
+}
+```
 
 ### 4.1 Méthodes
 

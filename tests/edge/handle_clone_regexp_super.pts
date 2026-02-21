@@ -1,0 +1,9 @@
+prototype RegExpChildSuper : RegExp {
+    function clone() : RegExpChildSuper {
+        return super.clone();
+    }
+}
+
+function main() : void {
+    RegExpChildSuper.clone();
+}

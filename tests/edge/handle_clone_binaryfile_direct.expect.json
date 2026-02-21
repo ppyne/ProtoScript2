@@ -1,0 +1,12 @@
+{
+  "status": "reject-runtime",
+  "error_family": "Rxxxx",
+  "error_code": "R1013",
+  "category": "RUNTIME_CLONE_NOT_SUPPORTED",
+  "position": {
+    "file": "edge/handle_clone_binaryfile_direct.pts",
+    "line": 2,
+    "column": 15
+  },
+  "expected_output": "edge/handle_clone_binaryfile_direct.pts:2:15 R1013 RUNTIME_CLONE_NOT_SUPPORTED: clone not supported for builtin handle BinaryFile"
+}

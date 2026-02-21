@@ -1,0 +1,12 @@
+{
+  "status": "reject-static",
+  "error_family": "E2xxx",
+  "error_code": "E2001",
+  "category": "UNRESOLVED_NAME",
+  "position": {
+    "file": "invalid/type/civildatetime_field_assignment_forbidden.pts",
+    "line": 3,
+    "column": 7
+  },
+  "expected_output": "invalid/type/civildatetime_field_assignment_forbidden.pts:3:7 E2001 UNRESOLVED_NAME: unknown field 'year' in prototype 'CivilDateTime' (expected member)"
+}

@@ -88,7 +88,7 @@ function buildPrototypeEnv(ast) {
   protos.set("PathInfo", {
     name: "PathInfo",
     parent: "Object",
-    sealed: false,
+    sealed: true,
     fields: [
       { name: "dirname", type: { kind: "PrimitiveType", name: "string" } },
       { name: "basename", type: { kind: "PrimitiveType", name: "string" } },
@@ -105,7 +105,7 @@ function buildPrototypeEnv(ast) {
   protos.set("PathEntry", {
     name: "PathEntry",
     parent: "Object",
-    sealed: false,
+    sealed: true,
     fields: [
       { name: "path", type: { kind: "PrimitiveType", name: "string" } },
       { name: "name", type: { kind: "PrimitiveType", name: "string" } },
@@ -179,7 +179,7 @@ function buildPrototypeEnv(ast) {
   protos.set("ProcessEvent", {
     name: "ProcessEvent",
     parent: "Object",
-    sealed: false,
+    sealed: true,
     fields: [
       { name: "stream", type: { kind: "PrimitiveType", name: "int" } },
       { name: "data", type: { kind: "GenericType", name: "list", args: [{ kind: "PrimitiveType", name: "byte" }] } },
@@ -192,7 +192,7 @@ function buildPrototypeEnv(ast) {
   protos.set("ProcessResult", {
     name: "ProcessResult",
     parent: "Object",
-    sealed: false,
+    sealed: true,
     fields: [
       { name: "exitCode", type: { kind: "PrimitiveType", name: "int" } },
       { name: "events", type: { kind: "GenericType", name: "list", args: [{ kind: "NamedType", name: "ProcessEvent" }] } },
@@ -205,7 +205,7 @@ function buildPrototypeEnv(ast) {
   protos.set("RegExpMatch", {
     name: "RegExpMatch",
     parent: "Object",
-    sealed: false,
+    sealed: true,
     fields: [
       { name: "ok", type: { kind: "PrimitiveType", name: "bool" } },
       { name: "start", type: { kind: "PrimitiveType", name: "int" } },
@@ -447,7 +447,18 @@ function objectCloneDefault(protos, receiver, hooks = null) {
       )
     );
   }
-  const nonCloneableHandles = ["TextFile", "BinaryFile", "Dir", "Walker", "RegExp"];
+  const nonCloneableHandles = [
+    "TextFile",
+    "BinaryFile",
+    "Dir",
+    "Walker",
+    "RegExp",
+    "PathInfo",
+    "PathEntry",
+    "RegExpMatch",
+    "ProcessEvent",
+    "ProcessResult",
+  ];
   const handleBase = nonCloneableHandles.find((base) => isProtoSubtype(protos, protoName, base));
   if (handleBase) {
     throw new RuntimeError(

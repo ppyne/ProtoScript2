@@ -1824,7 +1824,7 @@ class Analyzer {
       methods.set("basename", makeBuiltinMethod("PathInfo", "basename", [], "string"));
       methods.set("filename", makeBuiltinMethod("PathInfo", "filename", [], "string"));
       methods.set("extension", makeBuiltinMethod("PathInfo", "extension", [], "string"));
-      this.prototypes.set("PathInfo", { decl, parent: "Object", fields: new Map(), methods, moduleFile: null });
+      this.prototypes.set("PathInfo", { decl, parent: "Object", fields: new Map(), methods, moduleFile: null, sealed: true });
     }
     if (!this.prototypes.has("PathEntry")) {
       const decl = { line: 1, col: 1 };
@@ -1835,7 +1835,7 @@ class Analyzer {
       methods.set("isDir", makeBuiltinMethod("PathEntry", "isDir", [], "bool"));
       methods.set("isFile", makeBuiltinMethod("PathEntry", "isFile", [], "bool"));
       methods.set("isSymlink", makeBuiltinMethod("PathEntry", "isSymlink", [], "bool"));
-      this.prototypes.set("PathEntry", { decl, parent: "Object", fields: new Map(), methods, moduleFile: null });
+      this.prototypes.set("PathEntry", { decl, parent: "Object", fields: new Map(), methods, moduleFile: null, sealed: true });
     }
     if (!this.prototypes.has("TextFile")) {
       const decl = { line: 1, col: 1 };
@@ -1883,14 +1883,14 @@ class Analyzer {
       const methods = new Map();
       methods.set("stream", makeBuiltinMethod("ProcessEvent", "stream", [], "int"));
       methods.set("data", makeBuiltinMethod("ProcessEvent", "data", [], "list<byte>"));
-      this.prototypes.set("ProcessEvent", { decl, parent: "Object", fields: new Map(), methods, moduleFile: null });
+      this.prototypes.set("ProcessEvent", { decl, parent: "Object", fields: new Map(), methods, moduleFile: null, sealed: true });
     }
     if (!this.prototypes.has("ProcessResult")) {
       const decl = { line: 1, col: 1 };
       const methods = new Map();
       methods.set("exitCode", makeBuiltinMethod("ProcessResult", "exitCode", [], "int"));
       methods.set("events", makeBuiltinMethod("ProcessResult", "events", [], "list<ProcessEvent>"));
-      this.prototypes.set("ProcessResult", { decl, parent: "Object", fields: new Map(), methods, moduleFile: null });
+      this.prototypes.set("ProcessResult", { decl, parent: "Object", fields: new Map(), methods, moduleFile: null, sealed: true });
     }
     if (!this.prototypes.has("RegExpMatch")) {
       const decl = { line: 1, col: 1 };
@@ -1899,7 +1899,7 @@ class Analyzer {
       methods.set("start", makeBuiltinMethod("RegExpMatch", "start", [], "int"));
       methods.set("end", makeBuiltinMethod("RegExpMatch", "end", [], "int"));
       methods.set("groups", makeBuiltinMethod("RegExpMatch", "groups", [], "list<string>"));
-      this.prototypes.set("RegExpMatch", { decl, parent: "Object", fields: new Map(), methods, moduleFile: null });
+      this.prototypes.set("RegExpMatch", { decl, parent: "Object", fields: new Map(), methods, moduleFile: null, sealed: true });
     }
     if (!this.prototypes.has("RegExp")) {
       const decl = { line: 1, col: 1 };

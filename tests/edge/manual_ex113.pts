@@ -5,6 +5,6 @@ function main() : void {
     RegExp numbers = RegExp.compile("\\d+", "");
     list<RegExpMatch> matches = numbers.findAll("Prix: 10, taxe: 2, total: 12", 0, -1);
     for (int i = 0; i < matches.length(); i++) {
-        Io.printLine(matches[i].groups[0]);
+        Io.printLine(matches[i].groups()[0]);
     }
 }

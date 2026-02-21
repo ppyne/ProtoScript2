@@ -1,0 +1,7 @@
+import Io;
+
+function main() : void {
+    CivilDateTime dt = CivilDateTime.clone();
+    dt.setYear(2026);
+    Io.printLine("ok");
+}

@@ -1,0 +1,6 @@
+import Io;
+
+function main(): void {
+    JSONValue j = JSONValue.clone();
+    Io.printLine(j.isNull().toString());
+}

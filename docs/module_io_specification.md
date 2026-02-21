@@ -99,6 +99,30 @@ Le module expose :
 
 Les prototypes `TextFile` et `BinaryFile` sont fermés : aucun champ public, uniquement les méthodes spécifiées ici.
 
+```c
+sealed prototype TextFile {
+    function read(int size) : string {}
+    function write(string text) : void {}
+    function tell() : int {}
+    function seek(int pos) : void {}
+    function size() : int {}
+    function name() : string {}
+    function close() : void {}
+}
+```
+
+```c
+sealed prototype BinaryFile {
+    function read(int size) : list<byte> {}
+    function write(list<byte> bytes) : void {}
+    function tell() : int {}
+    function seek(int pos) : void {}
+    function size() : int {}
+    function name() : string {}
+    function close() : void {}
+}
+```
+
 ---
 
 # 5. Modes d’ouverture
@@ -527,4 +551,3 @@ f.close();
 ---
 
 # End of Specification
-

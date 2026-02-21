@@ -208,6 +208,15 @@ Throws:
 
 `PathInfo` is a native prototype with fixed API.
 
+```c
+sealed prototype PathInfo {
+    function dirname() : string {}
+    function basename() : string {}
+    function filename() : string {}
+    function extension() : string {}
+}
+```
+
 Methods:
 
 - `dirname() : string`
@@ -261,6 +270,15 @@ Throws:
 # 10. Prototype Dir
 
 Methods:
+
+```c
+sealed prototype Dir {
+    function hasNext() : bool {}
+    function next() : string {}
+    function close() : void {}
+    function reset() : void {}
+}
+```
 
 ```
 Dir.hasNext() : bool
@@ -343,6 +361,14 @@ Fs.walk(string path, int maxDepth, bool followSymlinks) : Walker
 
 Prototype Walker:
 
+```c
+sealed prototype Walker {
+    function hasNext() : bool {}
+    function next() : PathEntry {}
+    function close() : void {}
+}
+```
+
 ```
 Walker.hasNext() : bool
 Walker.next() : PathEntry
@@ -350,6 +376,17 @@ Walker.close() : void
 ```
 
 Prototype PathEntry methods:
+
+```c
+sealed prototype PathEntry {
+    function path() : string {}
+    function name() : string {}
+    function depth() : int {}
+    function isDir() : bool {}
+    function isFile() : bool {}
+    function isSymlink() : bool {}
+}
+```
 
 - `path() : string`
 - `name() : string`

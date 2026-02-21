@@ -5,7 +5,7 @@ function main() : void {
     RegExp r = RegExp.compile("\\d+", "");
     list<RegExpMatch> all = r.findAll("a1 b22 c333", 0, -1);
     Io.printLine(all.length().toString());
-    Io.printLine(all[0].groups[0]);
-    Io.printLine(all[1].groups[0]);
-    Io.printLine(all[2].groups[0]);
+    Io.printLine(all[0].groups()[0]);
+    Io.printLine(all[1].groups()[0]);
+    Io.printLine(all[2].groups()[0]);
 }
