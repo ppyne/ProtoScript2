@@ -1,10 +1,18 @@
-CC ?= cc
-CFLAGS ?= -std=c11 -Wall -Wextra -Werror -O2 -I../include -I.
+override CC := cc
+CFLAGS_BASE := -std=c11 -Wall -Wextra -Werror -O2 -I../include -I.
+
+UNAME_S := $(shell uname -s)
+ARCH_CFLAGS :=
+ifeq ($(UNAME_S),Darwin)
+ARCH_CFLAGS := -arch arm64
+endif
+
+override CFLAGS := $(CFLAGS_BASE) $(ARCH_CFLAGS)
 
 MCPP_DIR := ../third_party/mcpp
 MCPP_LIB := $(MCPP_DIR)/lib/libmcpp.a
 MCPP_INC := -I$(MCPP_DIR)
-MCPP_CFLAGS := -O2 -Wno-deprecated-declarations -fno-common
+override MCPP_CFLAGS := -O2 -Wno-deprecated-declarations -fno-common $(ARCH_CFLAGS)
 
 TARGET = pscc
 TARGET_PS = ps
@@ -34,7 +42,7 @@ MODULE_OBJS = \
   modules_json.o \
   modules_math.o
 
-.PHONY: all clean force-mcpp
+.PHONY: all clean force-mcpp print-build-vars
 
 all: $(TARGET) $(TARGET_PS)
 
@@ -49,6 +57,13 @@ $(MCPP_LIB): force-mcpp
 	$(MAKE) -C $(MCPP_DIR) CFLAGS="$(MCPP_CFLAGS)"
 
 force-mcpp:
+
+print-build-vars:
+	@echo "CC=$(CC)"
+	@echo "ARCH=arm64"
+	@echo "ARCH_CFLAGS=$(ARCH_CFLAGS)"
+	@echo "CFLAGS=$(CFLAGS)"
+	@echo "MCPP_CFLAGS=$(MCPP_CFLAGS)"
 
 clean:
 	rm -f $(TARGET) $(TARGET_PS) $(MODULE_OBJS)

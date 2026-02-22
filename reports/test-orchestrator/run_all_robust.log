@@ -4,18 +4,18 @@
 /Applications/Xcode.app/Contents/Developer/usr/bin/make -C ../third_party/mcpp clean
 rm -f directive.o eval.o expand.o mcpp_main.o mbchar.o support.o system.o
 rm -rf lib
-/Applications/Xcode.app/Contents/Developer/usr/bin/make -C ../third_party/mcpp CFLAGS="-O2 -Wno-deprecated-declarations -fno-common"
-cc -O2 -Wno-deprecated-declarations -fno-common -mmacosx-version-min=10.9   -c -o directive.o directive.c
-cc -O2 -Wno-deprecated-declarations -fno-common -mmacosx-version-min=10.9   -c -o eval.o eval.c
-cc -O2 -Wno-deprecated-declarations -fno-common -mmacosx-version-min=10.9   -c -o expand.o expand.c
-cc -O2 -Wno-deprecated-declarations -fno-common -mmacosx-version-min=10.9   -c -o mcpp_main.o mcpp_main.c
-cc -O2 -Wno-deprecated-declarations -fno-common -mmacosx-version-min=10.9   -c -o mbchar.o mbchar.c
-cc -O2 -Wno-deprecated-declarations -fno-common -mmacosx-version-min=10.9   -c -o support.o support.c
-cc -O2 -Wno-deprecated-declarations -fno-common -mmacosx-version-min=10.9   -c -o system.o system.c
+/Applications/Xcode.app/Contents/Developer/usr/bin/make -C ../third_party/mcpp CFLAGS="-O2 -Wno-deprecated-declarations -fno-common -arch arm64"
+cc -O2 -Wno-deprecated-declarations -fno-common -arch arm64 -mmacosx-version-min=10.9   -c -o directive.o directive.c
+cc -O2 -Wno-deprecated-declarations -fno-common -arch arm64 -mmacosx-version-min=10.9   -c -o eval.o eval.c
+cc -O2 -Wno-deprecated-declarations -fno-common -arch arm64 -mmacosx-version-min=10.9   -c -o expand.o expand.c
+cc -O2 -Wno-deprecated-declarations -fno-common -arch arm64 -mmacosx-version-min=10.9   -c -o mcpp_main.o mcpp_main.c
+cc -O2 -Wno-deprecated-declarations -fno-common -arch arm64 -mmacosx-version-min=10.9   -c -o mbchar.o mbchar.c
+cc -O2 -Wno-deprecated-declarations -fno-common -arch arm64 -mmacosx-version-min=10.9   -c -o support.o support.c
+cc -O2 -Wno-deprecated-declarations -fno-common -arch arm64 -mmacosx-version-min=10.9   -c -o system.o system.c
 mkdir -p lib
 ar rcs lib/libmcpp.a directive.o eval.o expand.o mcpp_main.o mbchar.o support.o system.o
-cc -std=c11 -Wall -Wextra -Werror -O2 -I../include -I. -I../third_party/mcpp pscc.c frontend.c preprocess.c diag.c runtime/ps_json.c ../third_party/mcpp/lib/libmcpp.a -o pscc
-cc -std=c11 -Wall -Wextra -Werror -O2 -I../include -I. -I../third_party/mcpp cli/ps.c frontend.c preprocess.c diag.c runtime/ps_api.c runtime/ps_errors.c runtime/ps_heap.c runtime/ps_value.c runtime/ps_string.c runtime/ps_list.c runtime/ps_object.c runtime/ps_map.c runtime/ps_dynlib_posix.c runtime/ps_json.c runtime/ps_modules.c runtime/ps_vm.c modules/time.o modules/time_civil.o modules_regexp.o modules_debug.o modules_io.o modules_json.o modules_math.o ../third_party/mcpp/lib/libmcpp.a -o ps -ldl
+cc -std=c11 -Wall -Wextra -Werror -O2 -I../include -I. -arch arm64 -I../third_party/mcpp pscc.c frontend.c preprocess.c diag.c runtime/ps_json.c ../third_party/mcpp/lib/libmcpp.a -o pscc
+cc -std=c11 -Wall -Wextra -Werror -O2 -I../include -I. -arch arm64 -I../third_party/mcpp cli/ps.c frontend.c preprocess.c diag.c runtime/ps_api.c runtime/ps_errors.c runtime/ps_heap.c runtime/ps_value.c runtime/ps_string.c runtime/ps_list.c runtime/ps_object.c runtime/ps_map.c runtime/ps_dynlib_posix.c runtime/ps_json.c runtime/ps_modules.c runtime/ps_vm.c modules/time.o modules/time_civil.o modules_regexp.o modules_debug.o modules_io.o modules_json.o modules_math.o ../third_party/mcpp/lib/libmcpp.a -o ps -ldl
 
 -- docs ProtoScript syntax lint
 Docs ProtoScript lint PASSED
@@ -32,7 +32,7 @@ PASS invalid/parse/unexpected_token_comma
 PASS invalid/parse/unclosed_block
 PASS invalid/parse/manual_ex020
 PASS invalid/parse/manual_ex026
-modules built in /var/folders/88/nw43wg1s4xb4dr4z8k09jw100000gn/T//ps_modules_jTX9sL
+modules built in /var/folders/88/nw43wg1s4xb4dr4z8k09jw100000gn/T//ps_modules_R2nMhh
 PASS invalid/parse/manual_ex050
 PASS invalid/parse/manual_ex053
 PASS invalid/parse/manual_ex078
@@ -2499,25 +2499,25 @@ rm -f pscc ps modules/time.o modules/time_civil.o modules_regexp.o modules_debug
 /Applications/Xcode.app/Contents/Developer/usr/bin/make -C ../third_party/mcpp clean
 rm -f directive.o eval.o expand.o mcpp_main.o mbchar.o support.o system.o
 rm -rf lib
-/Applications/Xcode.app/Contents/Developer/usr/bin/make -C ../third_party/mcpp CFLAGS="-O2 -Wno-deprecated-declarations -fno-common"
-cc -O2 -Wno-deprecated-declarations -fno-common -mmacosx-version-min=10.9   -c -o directive.o directive.c
-cc -O2 -Wno-deprecated-declarations -fno-common -mmacosx-version-min=10.9   -c -o eval.o eval.c
-cc -O2 -Wno-deprecated-declarations -fno-common -mmacosx-version-min=10.9   -c -o expand.o expand.c
-cc -O2 -Wno-deprecated-declarations -fno-common -mmacosx-version-min=10.9   -c -o mcpp_main.o mcpp_main.c
-cc -O2 -Wno-deprecated-declarations -fno-common -mmacosx-version-min=10.9   -c -o mbchar.o mbchar.c
-cc -O2 -Wno-deprecated-declarations -fno-common -mmacosx-version-min=10.9   -c -o support.o support.c
-cc -O2 -Wno-deprecated-declarations -fno-common -mmacosx-version-min=10.9   -c -o system.o system.c
+/Applications/Xcode.app/Contents/Developer/usr/bin/make -C ../third_party/mcpp CFLAGS="-O2 -Wno-deprecated-declarations -fno-common -arch arm64"
+cc -O2 -Wno-deprecated-declarations -fno-common -arch arm64 -mmacosx-version-min=10.9   -c -o directive.o directive.c
+cc -O2 -Wno-deprecated-declarations -fno-common -arch arm64 -mmacosx-version-min=10.9   -c -o eval.o eval.c
+cc -O2 -Wno-deprecated-declarations -fno-common -arch arm64 -mmacosx-version-min=10.9   -c -o expand.o expand.c
+cc -O2 -Wno-deprecated-declarations -fno-common -arch arm64 -mmacosx-version-min=10.9   -c -o mcpp_main.o mcpp_main.c
+cc -O2 -Wno-deprecated-declarations -fno-common -arch arm64 -mmacosx-version-min=10.9   -c -o mbchar.o mbchar.c
+cc -O2 -Wno-deprecated-declarations -fno-common -arch arm64 -mmacosx-version-min=10.9   -c -o support.o support.c
+cc -O2 -Wno-deprecated-declarations -fno-common -arch arm64 -mmacosx-version-min=10.9   -c -o system.o system.c
 mkdir -p lib
 ar rcs lib/libmcpp.a directive.o eval.o expand.o mcpp_main.o mbchar.o support.o system.o
-cc -std=c11 -Wall -Wextra -Werror -O1 -g -fsanitize=address -fno-omit-frame-pointer -I../include -I. -I../third_party/mcpp pscc.c frontend.c preprocess.c diag.c runtime/ps_json.c ../third_party/mcpp/lib/libmcpp.a -o pscc
-cc -std=c11 -Wall -Wextra -Werror -O1 -g -fsanitize=address -fno-omit-frame-pointer -I../include -I. -I../third_party/mcpp -Dps_module_init=ps_module_init_Time -c modules/time.c -o modules/time.o
-cc -std=c11 -Wall -Wextra -Werror -O1 -g -fsanitize=address -fno-omit-frame-pointer -I../include -I. -I../third_party/mcpp -Dps_module_init=ps_module_init_TimeCivil -c modules/time_civil.c -o modules/time_civil.o
-cc -std=c11 -Wall -Wextra -Werror -O1 -g -fsanitize=address -fno-omit-frame-pointer -I../include -I. -I../third_party/mcpp -Dps_module_init=ps_module_init_RegExp -c modules/regexp.c -o modules_regexp.o
-cc -std=c11 -Wall -Wextra -Werror -O1 -g -fsanitize=address -fno-omit-frame-pointer -I../include -I. -I../third_party/mcpp -Dps_module_init=ps_module_init_Debug -c modules/debug.c -o modules_debug.o
-cc -std=c11 -Wall -Wextra -Werror -O1 -g -fsanitize=address -fno-omit-frame-pointer -I../include -I. -I../third_party/mcpp -Dps_module_init=ps_module_init_Io -c ../tests/modules_src/io.c -o modules_io.o
-cc -std=c11 -Wall -Wextra -Werror -O1 -g -fsanitize=address -fno-omit-frame-pointer -I../include -I. -I../third_party/mcpp -Dps_module_init=ps_module_init_JSON -c ../tests/modules_src/json.c -o modules_json.o
-cc -std=c11 -Wall -Wextra -Werror -O1 -g -fsanitize=address -fno-omit-frame-pointer -I../include -I. -I../third_party/mcpp -Dps_module_init=ps_module_init_Math -c ../tests/modules_src/math.c -o modules_math.o
-cc -std=c11 -Wall -Wextra -Werror -O1 -g -fsanitize=address -fno-omit-frame-pointer -I../include -I. -I../third_party/mcpp cli/ps.c frontend.c preprocess.c diag.c runtime/ps_api.c runtime/ps_errors.c runtime/ps_heap.c runtime/ps_value.c runtime/ps_string.c runtime/ps_list.c runtime/ps_object.c runtime/ps_map.c runtime/ps_dynlib_posix.c runtime/ps_json.c runtime/ps_modules.c runtime/ps_vm.c modules/time.o modules/time_civil.o modules_regexp.o modules_debug.o modules_io.o modules_json.o modules_math.o ../third_party/mcpp/lib/libmcpp.a -o ps -ldl
+cc -std=c11 -Wall -Wextra -Werror -O2 -I../include -I. -arch arm64 -I../third_party/mcpp pscc.c frontend.c preprocess.c diag.c runtime/ps_json.c ../third_party/mcpp/lib/libmcpp.a -o pscc
+cc -std=c11 -Wall -Wextra -Werror -O2 -I../include -I. -arch arm64 -I../third_party/mcpp -Dps_module_init=ps_module_init_Time -c modules/time.c -o modules/time.o
+cc -std=c11 -Wall -Wextra -Werror -O2 -I../include -I. -arch arm64 -I../third_party/mcpp -Dps_module_init=ps_module_init_TimeCivil -c modules/time_civil.c -o modules/time_civil.o
+cc -std=c11 -Wall -Wextra -Werror -O2 -I../include -I. -arch arm64 -I../third_party/mcpp -Dps_module_init=ps_module_init_RegExp -c modules/regexp.c -o modules_regexp.o
+cc -std=c11 -Wall -Wextra -Werror -O2 -I../include -I. -arch arm64 -I../third_party/mcpp -Dps_module_init=ps_module_init_Debug -c modules/debug.c -o modules_debug.o
+cc -std=c11 -Wall -Wextra -Werror -O2 -I../include -I. -arch arm64 -I../third_party/mcpp -Dps_module_init=ps_module_init_Io -c ../tests/modules_src/io.c -o modules_io.o
+cc -std=c11 -Wall -Wextra -Werror -O2 -I../include -I. -arch arm64 -I../third_party/mcpp -Dps_module_init=ps_module_init_JSON -c ../tests/modules_src/json.c -o modules_json.o
+cc -std=c11 -Wall -Wextra -Werror -O2 -I../include -I. -arch arm64 -I../third_party/mcpp -Dps_module_init=ps_module_init_Math -c ../tests/modules_src/math.c -o modules_math.o
+cc -std=c11 -Wall -Wextra -Werror -O2 -I../include -I. -arch arm64 -I../third_party/mcpp cli/ps.c frontend.c preprocess.c diag.c runtime/ps_api.c runtime/ps_errors.c runtime/ps_heap.c runtime/ps_value.c runtime/ps_string.c runtime/ps_list.c runtime/ps_object.c runtime/ps_map.c runtime/ps_dynlib_posix.c runtime/ps_json.c runtime/ps_modules.c runtime/ps_vm.c modules/time.o modules/time_civil.o modules_regexp.o modules_debug.o modules_io.o modules_json.o modules_math.o ../third_party/mcpp/lib/libmcpp.a -o ps -ldl
 
 -- determinism (Node compiler)
 PASS determinism /Users/avialle/dev/ProtoScript2/tests/edge/group_stress.pts
@@ -2950,7 +2950,7 @@ PASS invalid/parse/unexpected_token_comma
 PASS invalid/parse/unclosed_block
 PASS invalid/parse/manual_ex020
 PASS invalid/parse/manual_ex026
-modules built in /var/folders/88/nw43wg1s4xb4dr4z8k09jw100000gn/T//ps_modules_LFtHex
+modules built in /var/folders/88/nw43wg1s4xb4dr4z8k09jw100000gn/T//ps_modules_GeQ9rg
 PASS invalid/parse/manual_ex050
 PASS invalid/parse/manual_ex053
 PASS invalid/parse/manual_ex078

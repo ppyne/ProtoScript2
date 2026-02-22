@@ -3,7 +3,7 @@
   "flows": [
     {
       "command": "tests/run_all.sh --robust",
-      "duration_ms": 1945427,
+      "duration_ms": 1873060,
       "emit_c": true,
       "exit_code": 0,
       "id": "run_all_robust",
@@ -27,7 +27,7 @@
     },
     {
       "command": "CONFORMANCE_MODULES=1 tests/run_conformance.sh",
-      "duration_ms": 141992,
+      "duration_ms": 132544,
       "emit_c": false,
       "exit_code": 0,
       "id": "conformance_modules",
@@ -52,7 +52,7 @@
     },
     {
       "command": "tests/run_node_c_crosscheck.sh --strict-ast --strict-static-c",
-      "duration_ms": 382502,
+      "duration_ms": 387249,
       "emit_c": true,
       "exit_code": 0,
       "id": "node_c_crosscheck_strict",
@@ -64,7 +64,7 @@
       "sanitizer": false,
       "script": "tests/run_node_c_crosscheck.sh",
       "setup": {
-        "duration_ms": 6026,
+        "duration_ms": 5573,
         "log": "reports/test-orchestrator/node_c_crosscheck_strict.prebuild.log",
         "ok": true,
         "ran": true
@@ -78,7 +78,7 @@
     },
     {
       "command": "tests/run_runtime_crosscheck.sh",
-      "duration_ms": 232801,
+      "duration_ms": 245859,
       "emit_c": true,
       "exit_code": 0,
       "id": "runtime_crosscheck",
@@ -104,7 +104,7 @@
     },
     {
       "command": "tests/run_cli_runtime_parity.sh",
-      "duration_ms": 68260,
+      "duration_ms": 64378,
       "emit_c": false,
       "exit_code": 0,
       "id": "cli_runtime_parity",
@@ -130,7 +130,7 @@
     },
     {
       "command": "tests/run_runtime_triangle_parity.sh",
-      "duration_ms": 312278,
+      "duration_ms": 318943,
       "emit_c": true,
       "exit_code": 0,
       "id": "runtime_triangle_parity",
@@ -157,7 +157,7 @@
     },
     {
       "command": "tests/run_wasm_runtime_parity.sh",
-      "duration_ms": 2728,
+      "duration_ms": 2602,
       "emit_c": false,
       "exit_code": 0,
       "id": "wasm_runtime_parity",
@@ -182,7 +182,7 @@
     },
     {
       "command": "tests/run_robustness.sh",
-      "duration_ms": 1020307,
+      "duration_ms": 962686,
       "emit_c": true,
       "exit_code": 0,
       "id": "robustness",
@@ -210,7 +210,7 @@
       }
     }
   ],
-  "generated_at_utc": "2026-02-21T20:00:15Z",
+  "generated_at_utc": "2026-02-22T22:05:22Z",
   "overall_status": "pass",
   "per_execution_path": {
     "c": {
@@ -252,7 +252,7 @@
     "requested": true
   },
   "schema_version": 1,
-  "total_duration_ms": 4112330,
+  "total_duration_ms": 3992908,
   "total_flows_executed": 8,
   "total_tests_executed": 1773
 }

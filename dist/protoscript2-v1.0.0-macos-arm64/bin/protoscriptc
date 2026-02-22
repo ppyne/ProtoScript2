@@ -1,0 +1,176 @@
+#!/usr/bin/env node
+"use strict";
+
+const fs = require("fs");
+const path = require("path");
+const { check, parseAndAnalyze, parseOnly, formatDiag, FrontendError } = require("../src/frontend");
+const { runProgram, RuntimeError, isExceptionValue } = require("../src/runtime");
+const { buildIR, printIR, serializeIR, validateSerializedIR } = require("../src/ir");
+const { generateC } = require("../src/c_backend");
+const { optimizeIR } = require("../src/optimizer");
+
+function usage() {
+  console.error("Usage:");
+  console.error("  protoscriptc --check <file.pts>");
+  console.error("  protoscriptc --run <file.pts>");
+  console.error("  protoscriptc --emit-ir <file.pts>");
+  console.error("  protoscriptc --emit-ast-json <file.pts>");
+  console.error("  protoscriptc --emit-ir-json <file.pts> [--opt]");
+  console.error("  protoscriptc --validate-ir <file.json>");
+  console.error("  protoscriptc --emit-c <file.pts> [--opt]");
+  process.exit(2);
+}
+
+const args = process.argv.slice(2);
+if (args.length < 2 || args.length > 3) usage();
+
+const mode = args[0];
+const file = args[1];
+const optEnabled = args.includes("--opt");
+
+if (
+  mode !== "--check" &&
+  mode !== "--run" &&
+  mode !== "--emit-ir" &&
+  mode !== "--emit-ast-json" &&
+  mode !== "--emit-ir-json" &&
+  mode !== "--validate-ir" &&
+  mode !== "--emit-c"
+) {
+  console.error("error: unsupported mode");
+  process.exit(2);
+}
+
+if (mode !== "--emit-c" && mode !== "--emit-ir" && mode !== "--emit-ir-json" && optEnabled) {
+  console.error("error: --opt is only valid with --emit-c, --emit-ir or --emit-ir-json");
+  process.exit(2);
+}
+
+const full = path.resolve(file);
+let src = "";
+try {
+  src = fs.readFileSync(full, "utf8");
+} catch (e) {
+  console.error(`error: cannot read file '${file}'`);
+  process.exit(2);
+}
+
+try {
+  if (mode === "--validate-ir") {
+    const doc = JSON.parse(src);
+    const errs = validateSerializedIR(doc);
+    if (errs.length > 0) {
+      for (const e of errs) console.error(`${file}:1:1 E1001 IR_INVALID: ${e}`);
+      process.exit(1);
+    }
+    process.exit(0);
+  }
+
+  if (mode === "--check") {
+    const diags = check(file, src);
+    if (diags.length > 0) {
+      for (const d of diags) console.error(formatDiag(d));
+      process.exit(1);
+    }
+    process.exit(0);
+  }
+
+  if (mode === "--run") {
+    const { ast, diags } = parseAndAnalyze(file, src);
+    if (diags.length > 0) {
+      for (const d of diags) console.error(formatDiag(d));
+      process.exit(1);
+    }
+    runProgram(ast, file, process.argv);
+    process.exit(0);
+  }
+
+  if (mode === "--emit-ast-json") {
+    const { ast } = parseOnly(file, src);
+    process.stdout.write(`${JSON.stringify(ast, null, 2)}\n`);
+    process.exit(0);
+  }
+
+  const { ast, diags } = parseAndAnalyze(file, src);
+  if (diags.length > 0) {
+    for (const d of diags) console.error(formatDiag(d));
+    process.exit(1);
+  }
+  let ir = buildIR(ast);
+  if ((mode === "--emit-c" || mode === "--emit-ir" || mode === "--emit-ir-json") && optEnabled) {
+    enforceOptimizationGate();
+    ir = optimizeIR(ir);
+  }
+  if (mode === "--emit-ir") {
+    process.stdout.write(printIR(ir));
+    process.exit(0);
+  }
+  if (mode === "--emit-ir-json") {
+    process.stdout.write(`${JSON.stringify(serializeIR(ir), null, 2)}\n`);
+    process.exit(0);
+  }
+  process.stdout.write(generateC(ir));
+  process.exit(0);
+} catch (e) {
+  if (isExceptionValue(e)) {
+    if (e.type === "RuntimeException" && e.code && e.category) {
+      console.error(
+        formatDiag({
+          file: e.file || "<runtime>",
+          line: e.line || 1,
+          col: e.column || 1,
+          code: e.code,
+          category: e.category,
+          message: e.message || "exception",
+        })
+      );
+      process.exit(1);
+    }
+    const file = e.file || "<runtime>";
+    const line = e.line || 1;
+    const col = e.column || 1;
+    const typeName = e.type || "Exception";
+    const got = e.message ? `${typeName}("${e.message}")` : typeName;
+    const msg = formatDiagMessage("unhandled exception", got, "matching catch");
+    console.error(`${file}:${line}:${col} R1011 UNHANDLED_EXCEPTION: ${msg}`);
+    process.exit(1);
+  }
+  if (e instanceof RuntimeError && e.diag) {
+    console.error(formatDiag(e.diag));
+    process.exit(1);
+  }
+  if (e instanceof FrontendError && e.diag) {
+    console.error(formatDiag(e.diag));
+    process.exit(1);
+  }
+  console.error(`internal error: ${e && e.message ? e.message : String(e)}`);
+  process.exit(1);
+}
+
+function enforceOptimizationGate() {
+  const repoRoot = path.resolve(__dirname, "..");
+  const conformanceStamp = path.join(repoRoot, "tests", ".conformance_passed");
+  const runtimeCrosscheckStamp = path.join(repoRoot, "tests", ".runtime_crosscheck_passed");
+  if (!fs.existsSync(conformanceStamp)) {
+    console.error("error: optimization gate closed (missing tests/.conformance_passed).");
+    console.error("run full conformance first (no skips).");
+    process.exit(2);
+  }
+  if (!fs.existsSync(runtimeCrosscheckStamp)) {
+    console.error("error: optimization gate closed (missing tests/.runtime_crosscheck_passed).");
+    console.error("run runtime crosscheck first (tests/run_runtime_crosscheck.sh).");
+    process.exit(2);
+  }
+  if (process.env.BACKEND_C_STABLE !== "1") {
+    console.error("error: optimization gate closed (BACKEND_C_STABLE=1 required).");
+    process.exit(2);
+  }
+}
+
+function formatDiagMessage(shortMsg, got, expected) {
+  const s = shortMsg && shortMsg.length > 0 ? shortMsg : "runtime error";
+  if (got && expected) return `${s}. got ${got}; expected ${expected}`;
+  if (got) return `${s}. got ${got}`;
+  if (expected) return `${s}. expected ${expected}`;
+  return s;
+}

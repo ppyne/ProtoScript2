@@ -1,0 +1,85 @@
+{
+  "artifacts": [
+    {
+      "path": "protoscript2-v1.0.0-macos-arm64/bin/protoscriptc",
+      "sha256": "2a1bd79f640d5a018b91ee71f9396960caba44c38caf94a72ffcc38f9767d761",
+      "size": 5638
+    },
+    {
+      "path": "protoscript2-v1.0.0-macos-arm64/bin/ps",
+      "sha256": "444b79cf89f3a190f3773f86ab8d4764187d2dc12e9cd8a9ccdde0df69143906",
+      "size": 494992
+    },
+    {
+      "path": "protoscript2-v1.0.0-macos-arm64/bin/pscc",
+      "sha256": "dcb832cacd6851f4780900df28f601d7e71dd777b55c7b94a876728edf786076",
+      "size": 330456
+    },
+    {
+      "path": "protoscript2-v1.0.0-macos-arm64/manifest.json",
+      "sha256": "118d5520ceeedb0430072ca6ea1c4da9d66b01e48c7d4643419187b00517f6c8",
+      "size": 15188
+    },
+    {
+      "path": "protoscript2-v1.0.0-macos-arm64/spec_refs.json",
+      "sha256": "d6aef5763b03bcf45da45f7a937247681d986c1f684b0082586d9a2016557475",
+      "size": 46335
+    }
+  ],
+  "build_utc": "2026-02-22T22:09:49Z",
+  "gates": [
+    {
+      "command": "make -C c CC=cc print-build-vars",
+      "duration_ms": 22,
+      "exit_code": 0,
+      "name": "build_vars"
+    },
+    {
+      "command": "make -C c CC=cc",
+      "duration_ms": 4579,
+      "exit_code": 0,
+      "name": "build_c"
+    },
+    {
+      "command": "./tools/test-orchestrator --full --summary",
+      "duration_ms": 3992949,
+      "exit_code": 0,
+      "name": "orchestrator_full"
+    },
+    {
+      "command": "tests/run_runtime_crosscheck.sh",
+      "duration_ms": 254474,
+      "exit_code": 0,
+      "name": "emitc_conformance_runtime"
+    },
+    {
+      "command": "tests/run_sanitizer_smoke.sh",
+      "duration_ms": 12433,
+      "exit_code": 0,
+      "name": "sanitizer_smoke"
+    }
+  ],
+  "git_commit": "8d2506babc70da0ec36ed9bc3a06ecb0befe0763",
+  "nightly_mode": false,
+  "output_binary_architecture": {
+    "c/ps": "Non-fat file: /Users/avialle/dev/ProtoScript2/c/ps is architecture: arm64",
+    "c/pscc": "Non-fat file: /Users/avialle/dev/ProtoScript2/c/pscc is architecture: arm64"
+  },
+  "platform": {
+    "compiler_target_triple": "arm64-apple-darwin25.3.0",
+    "host_arch_uname_m": "arm64",
+    "machine": "arm64",
+    "python": "3.9.6",
+    "system": "Darwin",
+    "target_arch": "arm64"
+  },
+  "release_name": "protoscript2-v1.0.0-macos-arm64",
+  "release_version": "1.0.0",
+  "tool_versions": {
+    "cc": "Apple clang version 17.0.0 (clang-1700.6.3.2)",
+    "jq": "jq-1.7.1-apple",
+    "make": "GNU Make 3.81",
+    "node": "v22.16.0",
+    "python": "Python 3.9.6"
+  }
+}

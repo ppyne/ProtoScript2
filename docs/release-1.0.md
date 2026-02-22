@@ -10,6 +10,16 @@
 - Standard library module contracts covered by normative suites (`Io`, `Math`, `JSON`, `Time`, `Fs`, `Sys`, `SysExecute`, `RegExp`).
 - CLI contract for `c/ps` and `c/pscc` commands already validated by `tests/run_cli_tests.sh` via orchestrator flows.
 
+### Diagnostics stability promise (v1.x)
+
+- error codes are stable
+- error message wording is stable
+- JSON diagnostic structure is stable
+- line/column spans are stable
+- ordering of diagnostics is stable
+
+Any change to these is considered a breaking change.
+
 ### Experimental in v1.x (may evolve without major bump)
 
 - WASM packaging/distribution details and browser integration surface.
@@ -56,7 +66,7 @@ Single-entry release gate runner:
 
 Prerequisites:
 
-- `node`, `make`, `cc`, `jq`
+- `node`, `make`, `cc`, `jq`, `rg` (ripgrep)
 - Git submodules initialized (`third_party/mcpp`)
 
 Commands:

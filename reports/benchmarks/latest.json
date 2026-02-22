@@ -1,0 +1,128 @@
+{
+  "checks": [
+    {
+      "metric": "micro_loop_1000:node",
+      "ms": 159.226562,
+      "status": "pass"
+    },
+    {
+      "metric": "micro_loop_1000:c",
+      "ms": 5.983687500000001,
+      "status": "pass"
+    },
+    {
+      "metric": "micro_loop_1000:emit-c-runtime",
+      "ms": 2.5775209999999715,
+      "status": "pass"
+    },
+    {
+      "metric": "micro_loop_1000:emit-c-compile",
+      "ms": 211.29985449999987,
+      "status": "pass"
+    },
+    {
+      "metric": "micro_loop_2000:node",
+      "ms": 198.03641650000003,
+      "status": "pass"
+    },
+    {
+      "metric": "micro_loop_2000:c",
+      "ms": 8.221125000000162,
+      "status": "pass"
+    },
+    {
+      "metric": "micro_loop_2000:emit-c-runtime",
+      "ms": 3.5291670000001663,
+      "status": "pass"
+    },
+    {
+      "metric": "micro_loop_2000:emit-c-compile",
+      "ms": 208.70168750000005,
+      "status": "pass"
+    },
+    {
+      "metric": "stdlib_hello:node",
+      "ms": 105.65270850000007,
+      "status": "pass"
+    },
+    {
+      "metric": "stdlib_hello:c",
+      "ms": 4.439812500000029,
+      "status": "pass"
+    },
+    {
+      "metric": "stdlib_hello:emit-c-runtime",
+      "ms": 2.3145210000001804,
+      "status": "pass"
+    },
+    {
+      "metric": "stdlib_hello:emit-c-compile",
+      "ms": 203.8611255,
+      "status": "pass"
+    },
+    {
+      "metric": "runtime_string_ops:node",
+      "ms": 114.65314599999977,
+      "status": "pass"
+    },
+    {
+      "metric": "runtime_string_ops:c",
+      "ms": 4.884354500000132,
+      "status": "pass"
+    },
+    {
+      "metric": "runtime_string_ops:emit-c-runtime",
+      "ms": 2.5081460000002664,
+      "status": "pass"
+    },
+    {
+      "metric": "runtime_string_ops:emit-c-compile",
+      "ms": 220.5806665000001,
+      "status": "pass"
+    },
+    {
+      "metric": "compiler_type_stress:node",
+      "ms": 96.67958300000024,
+      "status": "pass"
+    },
+    {
+      "metric": "compiler_type_stress:c",
+      "ms": 2.8422505000000875,
+      "status": "pass"
+    },
+    {
+      "metric": "compiler_type_stress:emit-c",
+      "ms": 134.78577049999973,
+      "status": "pass"
+    }
+  ],
+  "generated_at_utc": "2026-02-22T00:40:06Z",
+  "metrics": {
+    "compiler_type_stress:c": 2.8422505000000875,
+    "compiler_type_stress:emit-c": 134.78577049999973,
+    "compiler_type_stress:node": 96.67958300000024,
+    "micro_loop_1000:c": 5.983687500000001,
+    "micro_loop_1000:emit-c-compile": 211.29985449999987,
+    "micro_loop_1000:emit-c-runtime": 2.5775209999999715,
+    "micro_loop_1000:node": 159.226562,
+    "micro_loop_2000:c": 8.221125000000162,
+    "micro_loop_2000:emit-c-compile": 208.70168750000005,
+    "micro_loop_2000:emit-c-runtime": 3.5291670000001663,
+    "micro_loop_2000:node": 198.03641650000003,
+    "runtime_string_ops:c": 4.884354500000132,
+    "runtime_string_ops:emit-c-compile": 220.5806665000001,
+    "runtime_string_ops:emit-c-runtime": 2.5081460000002664,
+    "runtime_string_ops:node": 114.65314599999977,
+    "stdlib_hello:c": 4.439812500000029,
+    "stdlib_hello:emit-c-compile": 203.8611255,
+    "stdlib_hello:emit-c-runtime": 2.3145210000001804,
+    "stdlib_hello:node": 105.65270850000007
+  },
+  "mode": "quick",
+  "repeats": 2,
+  "summary": {
+    "fail": 0,
+    "pass": 19,
+    "total": 19
+  }
+}
