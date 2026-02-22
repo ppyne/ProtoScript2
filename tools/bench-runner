@@ -17,6 +17,17 @@ MANIFEST = ROOT / "tests" / "benchmarks" / "manifest.json"
 BASELINE = ROOT / "tests" / "benchmarks" / "baseline.json"
 REPORT_DIR = ROOT / "reports" / "benchmarks"
 
+EMIT_C_CC_FLAGS = [
+    "-std=c11",
+    "-Wall",
+    "-Wextra",
+    "-Wpedantic",
+    "-Werror",
+    "-Wno-unused-function",
+    "-x",
+    "c",
+]
+
 
 def ensure_c_bins() -> None:
     ps = ROOT / "c" / "ps"
@@ -33,54 +44,43 @@ def run_once(cmd: list[str]) -> tuple[int, float]:
     return proc.returncode, ms
 
 
+def emit_c_compile_once(case_path: str, out_dir: Path, out_name: str) -> tuple[bool, float, Path]:
+    c_path = out_dir / f"{out_name}.c"
+    bin_path = out_dir / f"{out_name}.bin"
+    t0 = time.perf_counter()
+    with c_path.open("w", encoding="utf-8") as out:
+        emit = subprocess.run(
+            [str(ROOT / "bin" / "protoscriptc"), "--emit-c", str(ROOT / case_path)],
+            cwd=str(ROOT),
+            stdout=out,
+            stderr=subprocess.PIPE,
+            text=True,
+        )
+    if emit.returncode != 0:
+        return (False, 0.0, bin_path)
+
+    cc = subprocess.run(
+        ["cc", *EMIT_C_CC_FLAGS, str(c_path), "-o", str(bin_path)],
+        cwd=str(ROOT),
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+    )
+    if cc.returncode != 0:
+        return (False, 0.0, bin_path)
+
+    ms = (time.perf_counter() - t0) * 1000.0
+    return (True, ms, bin_path)
+
+
 def measure_runtime(path_kind: str, case_path: str, repeats: int) -> tuple[bool, float]:
     def execute_once() -> tuple[bool, float]:
         if path_kind == "node":
-            cmd = [str(ROOT / "bin" / "protoscriptc"), "--run", str(ROOT / case_path)]
-            rc, ms = run_once(cmd)
+            rc, ms = run_once([str(ROOT / "bin" / "protoscriptc"), "--run", str(ROOT / case_path)])
             return (rc == 0, ms)
         if path_kind == "c":
-            cmd = [str(ROOT / "c" / "ps"), "run", str(ROOT / case_path)]
-            rc, ms = run_once(cmd)
+            rc, ms = run_once([str(ROOT / "c" / "ps"), "run", str(ROOT / case_path)])
             return (rc == 0, ms)
-        if path_kind == "emit-c":
-            with tempfile.TemporaryDirectory(prefix="ps_bench_emitc_") as td:
-                c_path = Path(td) / "case.c"
-                bin_path = Path(td) / "case.bin"
-                with c_path.open("w", encoding="utf-8") as out:
-                    emit = subprocess.run(
-                        [str(ROOT / "bin" / "protoscriptc"), "--emit-c", str(ROOT / case_path)],
-                        cwd=str(ROOT),
-                        stdout=out,
-                        stderr=subprocess.PIPE,
-                        text=True,
-                    )
-                if emit.returncode != 0:
-                    return (False, 0.0)
-                cc = subprocess.run(
-                    [
-                        "cc",
-                        "-std=c11",
-                        "-Wall",
-                        "-Wextra",
-                        "-Wpedantic",
-                        "-Werror",
-                        "-Wno-unused-function",
-                        "-x",
-                        "c",
-                        str(c_path),
-                        "-o",
-                        str(bin_path),
-                    ],
-                    cwd=str(ROOT),
-                    stdout=subprocess.PIPE,
-                    stderr=subprocess.PIPE,
-                    text=True,
-                )
-                if cc.returncode != 0:
-                    return (False, 0.0)
-                rc, ms = run_once([str(bin_path)])
-                return (rc == 0, ms)
         return (False, 0.0)
 
     warm_ok, _ = execute_once()
@@ -93,6 +93,42 @@ def measure_runtime(path_kind: str, case_path: str, repeats: int) -> tuple[bool,
         if not ok:
             return (False, 0.0)
         times.append(ms)
+    return (True, statistics.median(times))
+
+
+def measure_emit_c_runtime(case_path: str, repeats: int) -> tuple[bool, float]:
+    with tempfile.TemporaryDirectory(prefix="ps_bench_emitc_rt_") as td:
+        ok_compile, _, bin_path = emit_c_compile_once(case_path, Path(td), "case")
+        if not ok_compile:
+            return (False, 0.0)
+
+        warm_rc, _ = run_once([str(bin_path)])
+        if warm_rc != 0:
+            return (False, 0.0)
+
+        times: list[float] = []
+        for _ in range(repeats):
+            rc, ms = run_once([str(bin_path)])
+            if rc != 0:
+                return (False, 0.0)
+            times.append(ms)
+        return (True, statistics.median(times))
+
+
+def measure_emit_c_compile(case_path: str, repeats: int) -> tuple[bool, float]:
+    # Warm-up compile to absorb first-run startup effects.
+    with tempfile.TemporaryDirectory(prefix="ps_bench_emitc_cc_warm_") as td:
+        ok, _, _ = emit_c_compile_once(case_path, Path(td), "warm")
+        if not ok:
+            return (False, 0.0)
+
+    times: list[float] = []
+    for i in range(repeats):
+        with tempfile.TemporaryDirectory(prefix="ps_bench_emitc_cc_") as td:
+            ok, ms, _ = emit_c_compile_once(case_path, Path(td), f"case_{i}")
+            if not ok:
+                return (False, 0.0)
+            times.append(ms)
     return (True, statistics.median(times))
 
 
@@ -151,48 +187,73 @@ def main() -> int:
     fail_count = 0
     checks: list[dict[str, object]] = []
 
+    def record_metric(metric_key: str, ok: bool, median_ms: float) -> None:
+        nonlocal pass_count, fail_count
+        if not ok:
+            fail_count += 1
+            checks.append({"metric": metric_key, "status": "fail_exec"})
+            return
+        results[metric_key] = median_ms
+        pass_count += 1
+        checks.append({"metric": metric_key, "status": "pass", "ms": median_ms})
+
+        prev = base_metrics.get(metric_key)
+        if prev and prev > 0:
+            ratio = median_ms / prev
+            if ratio > args.pathological_factor:
+                fail_count += 1
+                checks.append({"metric": metric_key, "status": "fail_pathological", "ratio": ratio})
+            elif ratio > args.regress_factor:
+                fail_count += 1
+                checks.append({"metric": metric_key, "status": "fail_regression", "ratio": ratio})
+
     for case in cases:
         case_id = str(case.get("id"))
         case_path = str(case.get("path"))
         kind = str(case.get("kind"))
-        for path_kind in ("node", "c", "emit-c"):
-            metric_key = f"{case_id}:{path_kind}"
-            ok, median_ms = (
-                measure_runtime(path_kind, case_path, repeats)
-                if kind == "runtime"
-                else measure_compile(path_kind, case_path, repeats)
-            )
-            if not ok:
-                fail_count += 1
-                checks.append({"metric": metric_key, "status": "fail_exec"})
-                continue
-            results[metric_key] = median_ms
-            pass_count += 1
-            checks.append({"metric": metric_key, "status": "pass", "ms": median_ms})
 
-            prev = base_metrics.get(metric_key)
-            if prev and prev > 0:
-                ratio = median_ms / prev
-                if ratio > args.pathological_factor:
-                    fail_count += 1
-                    checks.append({"metric": metric_key, "status": "fail_pathological", "ratio": ratio})
-                elif ratio > args.regress_factor:
-                    fail_count += 1
-                    checks.append({"metric": metric_key, "status": "fail_regression", "ratio": ratio})
+        if kind == "runtime":
+            for path_kind in ("node", "c"):
+                metric_key = f"{case_id}:{path_kind}"
+                ok, median_ms = measure_runtime(path_kind, case_path, repeats)
+                record_metric(metric_key, ok, median_ms)
+
+            ok_rt, median_rt = measure_emit_c_runtime(case_path, repeats)
+            record_metric(f"{case_id}:emit-c-runtime", ok_rt, median_rt)
+
+            ok_cc, median_cc = measure_emit_c_compile(case_path, repeats)
+            record_metric(f"{case_id}:emit-c-compile", ok_cc, median_cc)
+            continue
+
+        if kind == "compile":
+            for path_kind in ("node", "c", "emit-c"):
+                metric_key = f"{case_id}:{path_kind}"
+                ok, median_ms = measure_compile(path_kind, case_path, repeats)
+                record_metric(metric_key, ok, median_ms)
+            continue
+
+        fail_count += 1
+        checks.append({"metric": case_id, "status": "fail_kind", "kind": kind})
 
     # Superlinear detection on declared scale groups.
-    by_group: dict[tuple[str, str], list[tuple[int, float]]] = {}
+    case_meta: dict[str, tuple[str, int]] = {}
     for case in cases:
         group = case.get("scale_group")
         scale = case.get("scale")
         case_id = str(case.get("id"))
-        if not group or not isinstance(scale, int):
+        if group and isinstance(scale, int):
+            case_meta[case_id] = (str(group), scale)
+
+    by_group: dict[tuple[str, str], list[tuple[int, float]]] = {}
+    for metric_key, metric_value in results.items():
+        case_id, _, path_kind = metric_key.partition(":")
+        if not path_kind:
             continue
-        for path_kind in ("node", "c", "emit-c"):
-            key = f"{case_id}:{path_kind}"
-            if key not in results:
-                continue
-            by_group.setdefault((str(group), path_kind), []).append((scale, results[key]))
+        meta = case_meta.get(case_id)
+        if not meta:
+            continue
+        group, scale = meta
+        by_group.setdefault((group, path_kind), []).append((scale, metric_value))
 
     for (group, path_kind), vals in by_group.items():
         vals = sorted(vals, key=lambda x: x[0])

@@ -1,0 +1,165 @@
+#!/usr/bin/env python3
+from __future__ import annotations
+
+import argparse
+import hashlib
+import json
+import platform
+import shutil
+import subprocess
+import sys
+import time
+from pathlib import Path
+
+
+ROOT = Path(__file__).resolve().parent.parent
+DIST_DIR = ROOT / "dist"
+REPORT_DIR = ROOT / "reports" / "release-build"
+
+
+def run_gate(name: str, cmd: list[str], gates: list[dict[str, object]]) -> None:
+    print(f"[release-build] RUN {name}: {' '.join(cmd)}", flush=True)
+    t0 = time.time()
+    proc = subprocess.run(cmd, cwd=str(ROOT))
+    duration_ms = int((time.time() - t0) * 1000)
+    gate = {
+        "name": name,
+        "command": " ".join(cmd),
+        "exit_code": proc.returncode,
+        "duration_ms": duration_ms,
+    }
+    gates.append(gate)
+    if proc.returncode != 0:
+        print(f"[release-build] FAIL {name} ({duration_ms} ms)", file=sys.stderr, flush=True)
+        raise SystemExit(proc.returncode)
+    print(f"[release-build] OK {name} ({duration_ms} ms)", flush=True)
+
+
+def read_version(cmd: list[str]) -> str:
+    try:
+        proc = subprocess.run(cmd, cwd=str(ROOT), stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+    except FileNotFoundError:
+        return "missing"
+    if proc.returncode != 0:
+        return f"error(rc={proc.returncode})"
+    out = proc.stdout.strip().splitlines()
+    return out[0].strip() if out else "unknown"
+
+
+def sha256_file(path: Path) -> str:
+    h = hashlib.sha256()
+    with path.open("rb") as f:
+        for chunk in iter(lambda: f.read(1024 * 1024), b""):
+            h.update(chunk)
+    return h.hexdigest()
+
+
+def git_commit() -> str:
+    proc = subprocess.run(["git", "rev-parse", "HEAD"], cwd=str(ROOT), stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True)
+    if proc.returncode != 0:
+        return "unknown"
+    return proc.stdout.strip()
+
+
+def normalize_platform() -> str:
+    sys_name = platform.system().lower()
+    if sys_name == "darwin":
+        sys_name = "macos"
+    arch = platform.machine().lower()
+    return f"{sys_name}-{arch}"
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(description="Build ProtoScript2 release artifacts and verify release gates.")
+    parser.add_argument("--version", default="1.0.0", help="Release version (default: 1.0.0)")
+    parser.add_argument("--nightly", action="store_true", help="Use full robustness gate instead of sanitizer smoke.")
+    args = parser.parse_args()
+
+    release_version = args.version
+    platform_tag = normalize_platform()
+    release_name = f"protoscript2-v{release_version}-{platform_tag}"
+    release_dir = DIST_DIR / release_name
+
+    DIST_DIR.mkdir(parents=True, exist_ok=True)
+    REPORT_DIR.mkdir(parents=True, exist_ok=True)
+
+    if release_dir.exists():
+        shutil.rmtree(release_dir)
+    (release_dir / "bin").mkdir(parents=True, exist_ok=True)
+
+    gates: list[dict[str, object]] = []
+
+    run_gate("build_c", ["make", "-C", "c"], gates)
+    run_gate("orchestrator_full", ["./tools/test-orchestrator", "--full", "--summary"], gates)
+    run_gate("emitc_conformance_runtime", ["tests/run_runtime_crosscheck.sh"], gates)
+
+    if args.nightly:
+        run_gate("robustness_full", ["tests/run_robustness.sh"], gates)
+    else:
+        run_gate("sanitizer_smoke", ["tests/run_sanitizer_smoke.sh"], gates)
+
+    artifacts_src = [
+        ROOT / "c" / "ps",
+        ROOT / "c" / "pscc",
+        ROOT / "bin" / "protoscriptc",
+        ROOT / "tests" / "manifest.json",
+        ROOT / "tests" / "spec_refs.json",
+    ]
+
+    copied: list[Path] = []
+    for src in artifacts_src:
+        if not src.exists():
+            print(f"[release-build] ERROR missing artifact source: {src}", file=sys.stderr)
+            return 2
+        dst = release_dir / ("bin" / src.name if src.parent.name in {"c", "bin"} else src.name)
+        shutil.copy2(src, dst)
+        copied.append(dst)
+
+    build_utc = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+    tool_versions = {
+        "node": read_version(["node", "--version"]),
+        "cc": read_version(["cc", "--version"]),
+        "make": read_version(["make", "--version"]),
+        "python": read_version([sys.executable, "--version"]),
+        "jq": read_version(["jq", "--version"]),
+    }
+
+    artifact_entries: list[dict[str, object]] = []
+    for path in sorted(copied):
+        rel = path.relative_to(DIST_DIR)
+        artifact_entries.append(
+            {
+                "path": str(rel),
+                "size": path.stat().st_size,
+                "sha256": sha256_file(path),
+            }
+        )
+
+    manifest = {
+        "release_version": release_version,
+        "release_name": release_name,
+        "build_utc": build_utc,
+        "nightly_mode": bool(args.nightly),
+        "git_commit": git_commit(),
+        "platform": {
+            "system": platform.system(),
+            "machine": platform.machine(),
+            "python": platform.python_version(),
+        },
+        "tool_versions": tool_versions,
+        "gates": gates,
+        "artifacts": artifact_entries,
+    }
+
+    manifest_path = DIST_DIR / "manifest.json"
+    manifest_path.write_text(json.dumps(manifest, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    (release_dir / "manifest.json").write_text(json.dumps(manifest, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    (REPORT_DIR / "latest.json").write_text(json.dumps(manifest, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+
+    print(f"[release-build] OK wrote {manifest_path}")
+    print(f"[release-build] release directory: {release_dir}")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

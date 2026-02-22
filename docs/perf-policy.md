@@ -21,7 +21,13 @@ Benchmarks are organized under:
 - Paths measured:
   - Node runtime/compiler path
   - C runtime/compiler path
-  - emit-c compiled path
+  - emit-c compile-time path
+  - emit-c runtime-only path
+
+For runtime benchmark cases, emit-c is split into two metrics:
+
+- `<case>:emit-c-compile`: `--emit-c` generation + C compilation
+- `<case>:emit-c-runtime`: execution timing only (compile once, run N times)
 
 ## Regression Rules
 
