@@ -1,5 +1,21 @@
 {
-  "version": 1,
-  "generated_at_utc": "",
-  "metrics": {}
+  "generated_at_utc": "2026-02-22T00:26:15Z",
+  "metrics": {
+    "compiler_type_stress:c": 2.885708000000875,
+    "compiler_type_stress:emit-c": 131.2020829999998,
+    "compiler_type_stress:node": 95.16175000000082,
+    "micro_loop_1000:c": 5.955417000000018,
+    "micro_loop_1000:emit-c": 170.98929100000015,
+    "micro_loop_1000:node": 146.43379099999999,
+    "micro_loop_2000:c": 7.079875000000513,
+    "micro_loop_2000:emit-c": 174.23449999999985,
+    "micro_loop_2000:node": 184.83849999999967,
+    "runtime_string_ops:c": 4.703457999999827,
+    "runtime_string_ops:emit-c": 174.43095900000037,
+    "runtime_string_ops:node": 114.17691699999999,
+    "stdlib_hello:c": 4.415750000000607,
+    "stdlib_hello:emit-c": 170.99283299999968,
+    "stdlib_hello:node": 103.09479200000027
+  },
+  "version": 1
 }

@@ -17,6 +17,7 @@ Benchmarks are organized under:
 
 - No absolute wall-clock thresholds are enforced.
 - Metrics are relative and median-based.
+- Each metric uses one warm-up execution (not measured) to reduce first-run outliers.
 - Paths measured:
   - Node runtime/compiler path
   - C runtime/compiler path
@@ -31,6 +32,12 @@ Configured by `tools/bench-runner`:
 - superlinear growth factor for scale-paired tests (default `4.0x` for 2x input scale)
 
 These are intended to catch major regressions and complexity pathologies, not small hardware noise.
+
+## emit-c Compile Policy
+
+- emit-c benchmark compilation is strict and warning-clean:
+  - `-Wall -Wextra -Wpedantic -Werror -Wno-unused-function`
+- Warnings are not silenced in benchmark compile path.
 
 ## Baseline Management
 

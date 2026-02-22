@@ -34,13 +34,16 @@ def run_once(cmd: list[str]) -> tuple[int, float]:
 
 
 def measure_runtime(path_kind: str, case_path: str, repeats: int) -> tuple[bool, float]:
-    times: list[float] = []
-    for _ in range(repeats):
+    def execute_once() -> tuple[bool, float]:
         if path_kind == "node":
             cmd = [str(ROOT / "bin" / "protoscriptc"), "--run", str(ROOT / case_path)]
-        elif path_kind == "c":
+            rc, ms = run_once(cmd)
+            return (rc == 0, ms)
+        if path_kind == "c":
             cmd = [str(ROOT / "c" / "ps"), "run", str(ROOT / case_path)]
-        elif path_kind == "emit-c":
+            rc, ms = run_once(cmd)
+            return (rc == 0, ms)
+        if path_kind == "emit-c":
             with tempfile.TemporaryDirectory(prefix="ps_bench_emitc_") as td:
                 c_path = Path(td) / "case.c"
                 bin_path = Path(td) / "case.bin"
@@ -55,7 +58,20 @@ def measure_runtime(path_kind: str, case_path: str, repeats: int) -> tuple[bool,
                 if emit.returncode != 0:
                     return (False, 0.0)
                 cc = subprocess.run(
-                    ["cc", "-std=c11", "-x", "c", str(c_path), "-w", "-o", str(bin_path)],
+                    [
+                        "cc",
+                        "-std=c11",
+                        "-Wall",
+                        "-Wextra",
+                        "-Wpedantic",
+                        "-Werror",
+                        "-Wno-unused-function",
+                        "-x",
+                        "c",
+                        str(c_path),
+                        "-o",
+                        str(bin_path),
+                    ],
                     cwd=str(ROOT),
                     stdout=subprocess.PIPE,
                     stderr=subprocess.PIPE,
@@ -64,22 +80,24 @@ def measure_runtime(path_kind: str, case_path: str, repeats: int) -> tuple[bool,
                 if cc.returncode != 0:
                     return (False, 0.0)
                 rc, ms = run_once([str(bin_path)])
-                if rc != 0:
-                    return (False, 0.0)
-                times.append(ms)
-                continue
-        else:
-            return (False, 0.0)
-        rc, ms = run_once(cmd)
-        if rc != 0:
+                return (rc == 0, ms)
+        return (False, 0.0)
+
+    warm_ok, _ = execute_once()
+    if not warm_ok:
+        return (False, 0.0)
+
+    times: list[float] = []
+    for _ in range(repeats):
+        ok, ms = execute_once()
+        if not ok:
             return (False, 0.0)
         times.append(ms)
     return (True, statistics.median(times))
 
 
 def measure_compile(path_kind: str, case_path: str, repeats: int) -> tuple[bool, float]:
-    times: list[float] = []
-    for _ in range(repeats):
+    def execute_once() -> tuple[bool, float]:
         if path_kind == "node":
             cmd = [str(ROOT / "bin" / "protoscriptc"), "--check", str(ROOT / case_path)]
         elif path_kind == "c":
@@ -89,7 +107,16 @@ def measure_compile(path_kind: str, case_path: str, repeats: int) -> tuple[bool,
         else:
             return (False, 0.0)
         rc, ms = run_once(cmd)
-        if rc != 0:
+        return (rc == 0, ms)
+
+    warm_ok, _ = execute_once()
+    if not warm_ok:
+        return (False, 0.0)
+
+    times: list[float] = []
+    for _ in range(repeats):
+        ok, ms = execute_once()
+        if not ok:
             return (False, 0.0)
         times.append(ms)
     return (True, statistics.median(times))

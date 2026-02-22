@@ -7,19 +7,60 @@ Generated from `/Users/avialle/dev/ProtoScript2/tests/manifest.json` + `/Users/a
 | spec_ref | tests |
 |---|---:|
 | `MANUAL:10.3.2` | 6 |
+| `MANUAL:10.5.1` | 1 |
+| `MANUAL:10.6` | 28 |
+| `MANUAL:11.1` | 5 |
+| `MANUAL:11.1.1` | 8 |
+| `MANUAL:11.2.1` | 10 |
+| `MANUAL:12.1` | 4 |
+| `MANUAL:13.7` | 15 |
+| `MANUAL:14.1` | 9 |
+| `MANUAL:14.4.1` | 8 |
+| `MANUAL:14.4.2` | 10 |
+| `MANUAL:14.4.3` | 6 |
+| `MANUAL:14.4.4` | 5 |
+| `MANUAL:15.2.2` | 1 |
+| `MANUAL:15.3` | 3 |
 | `MANUAL:2.1` | 7 |
 | `MANUAL:3.1` | 69 |
-| `MANUAL:7.1` | 27 |
-| `MANUAL:8.1` | 242 |
+| `MANUAL:3.2` | 2 |
+| `MANUAL:3.4` | 1 |
+| `MANUAL:3.5` | 8 |
+| `MANUAL:5.6` | 1 |
+| `MANUAL:7.1` | 28 |
+| `MANUAL:8.1` | 106 |
 | `MANUAL:8.2` | 23 |
-| `MANUAL:8.3` | 37 |
-| `SPEC:3.0` | 27 |
-| `SPEC:4.1` | 242 |
+| `MANUAL:8.2.4` | 1 |
+| `MANUAL:8.2.5` | 1 |
+| `MANUAL:8.3` | 38 |
+| `MANUAL:8.4` | 3 |
+| `MANUAL:9.3` | 1 |
+| `MANUAL:9.3.1` | 3 |
+| `SPEC:10.5` | 3 |
+| `SPEC:14.2` | 11 |
+| `SPEC:2.0` | 1 |
+| `SPEC:2.3` | 2 |
+| `SPEC:2.4` | 1 |
+| `SPEC:3.0` | 50 |
+| `SPEC:3.1` | 13 |
+| `SPEC:3.2` | 10 |
+| `SPEC:3.4` | 4 |
+| `SPEC:4.1` | 105 |
+| `SPEC:4.3` | 28 |
+| `SPEC:4.3.2` | 1 |
 | `SPEC:4.3.3` | 6 |
+| `SPEC:5.11.5` | 1 |
 | `SPEC:5.6` | 69 |
+| `SPEC:5.8` | 1 |
+| `SPEC:5.9` | 3 |
 | `SPEC:6.1` | 7 |
-| `SPEC:6.4` | 23 |
-| `SPEC:6.6` | 37 |
+| `SPEC:6.2` | 1 |
+| `SPEC:6.4` | 32 |
+| `SPEC:6.6` | 38 |
+| `SPEC:6.7` | 3 |
+| `SPEC:7.2` | 1 |
+| `SPEC:7.3` | 1 |
+| `SPEC:8.6` | 19 |
 
 ## Coverage Details
 
@@ -31,6 +72,161 @@ Generated from `/Users/avialle/dev/ProtoScript2/tests/manifest.json` + `/Users/a
 - `valid/visibility_internal/internal_access_child_method`
 - `valid/visibility_internal/internal_access_same_prototype_method`
 - `valid/visibility_internal/internal_call_internal_method_via_public`
+
+### `MANUAL:10.5.1`
+
+- `edge/default_values_proto`
+
+### `MANUAL:10.6`
+
+- `edge/call_static_basic`
+- `edge/call_static_nested`
+- `edge/civildatetime_clone_allowed`
+- `edge/civildatetime_subtype_runtime`
+- `edge/clone_inherited_override`
+- `edge/clone_super_initial_divergent`
+- `edge/handle_clone_binaryfile_direct`
+- `edge/handle_clone_dir_direct`
+- `edge/handle_clone_pathentry_direct`
+- `edge/handle_clone_pathinfo_direct`
+- `edge/handle_clone_processevent_direct`
+- `edge/handle_clone_processresult_direct`
+- `edge/handle_clone_regexp_direct`
+- `edge/handle_clone_regexpmatch_direct`
+- `edge/handle_clone_textfile_direct`
+- `edge/handle_clone_walker_direct`
+- `edge/override_chain_order_self_specialization`
+- `edge/override_multilevel_super_nested_self_deep`
+- `edge/proto_bool_field`
+- `edge/proto_field_init_clone_repeated`
+- `edge/proto_field_init_inheritance`
+- `edge/proto_field_init_list_literal`
+- `edge/proto_field_init_override_no_impact`
+- `edge/proto_field_init_scalar_const`
+- `edge/prototype_basic`
+- `edge/prototype_inherit_static`
+- `edge/prototype_parent_call`
+- `edge/super_clone_init`
+
+### `MANUAL:11.1`
+
+- `edge/index_get_list`
+- `edge/index_get_map`
+- `edge/index_set_list`
+- `edge/index_set_map`
+- `edge/oob_list_index`
+
+### `MANUAL:11.1.1`
+
+- `edge/list_join_concat`
+- `edge/list_methods_basic`
+- `edge/list_reverse_empty`
+- `edge/list_reverse_int`
+- `edge/list_reverse_proto`
+- `edge/list_reverse_sort_consistency`
+- `edge/list_reverse_string`
+- `edge/list_sort_suite`
+
+### `MANUAL:11.2.1`
+
+- `edge/map_alias_chain_set_updates_root`
+- `edge/map_alias_set_updates_original`
+- `edge/map_empty_literal_typed_set`
+- `edge/map_insert_on_set`
+- `edge/map_iteration_in`
+- `edge/map_iteration_of`
+- `edge/map_key_present`
+- `edge/map_methods_basic`
+- `edge/map_remove_order`
+- `edge/map_update_then_lookup`
+
+### `MANUAL:12.1`
+
+- `edge/slice_view_list_basic`
+- `edge/variadic_view_empty_length`
+- `edge/variadic_view_nonempty_length`
+- `edge/view_string_basic`
+
+### `MANUAL:13.7`
+
+- `edge/string_indexof_emoji`
+- `edge/string_indexof_notfound`
+- `edge/string_length_ascii`
+- `edge/string_length_combining`
+- `edge/string_length_emoji`
+- `edge/string_replace_basic`
+- `edge/string_split_basic`
+- `edge/string_split_empty`
+- `edge/string_starts_ends`
+- `edge/string_substring_emoji`
+- `edge/string_to_int_float`
+- `edge/string_trim_basic`
+- `edge/string_trim_start_end`
+- `edge/string_upper`
+- `edge/string_utf8_roundtrip`
+
+### `MANUAL:14.1`
+
+- `edge/module_import_name_priority`
+- `edge/module_import_name_search_paths_second`
+- `edge/module_import_path_basic`
+- `edge/module_import_path_selective`
+- `edge/module_import_simple_add`
+- `edge/module_namespace_call`
+- `edge/module_try_catch`
+- `edge/module_try_finally_rethrow`
+- `edge/module_utf8_roundtrip`
+
+### `MANUAL:14.4.1`
+
+- `edge/io_binary_read_write`
+- `edge/io_eof_length_text`
+- `edge/io_exceptions_basic`
+- `edge/io_print`
+- `edge/io_stdout_stderr`
+- `edge/io_temp_path`
+- `edge/io_text_roundtrip`
+- `edge/io_text_seek_tell`
+
+### `MANUAL:14.4.2`
+
+- `edge/math_abs_min_max`
+- `edge/math_constants`
+- `edge/math_domain_no_error`
+- `edge/math_extended`
+- `edge/math_floor_ceil_round_pow_exp`
+- `edge/math_numeric_limits`
+- `edge/math_random_loop`
+- `edge/math_random_range`
+- `edge/math_random_variability`
+- `edge/math_trig_hyper`
+
+### `MANUAL:14.4.3`
+
+- `edge/json_constructors`
+- `edge/json_decode_basic`
+- `edge/json_decode_object_basic`
+- `edge/json_decode_unicode_escape`
+- `edge/json_encode_basic`
+- `edge/json_isvalid`
+
+### `MANUAL:14.4.4`
+
+- `edge/time_dst_paris`
+- `edge/time_iso_parse_format`
+- `edge/time_iso_week`
+- `edge/time_timezone_validation`
+- `edge/time_utc_roundtrip`
+
+### `MANUAL:15.2.2`
+
+- `edge/overflow_int_add`
+
+### `MANUAL:15.3`
+
+- `edge/exception_derived`
+- `edge/runtime_exception_filter`
+- `edge/user_exception_filter`
 
 ### `MANUAL:2.1`
 
@@ -114,8 +310,33 @@ Generated from `/Users/avialle/dev/ProtoScript2/tests/manifest.json` + `/Users/a
 - `invalid/type/variadic_mutation_forbidden`
 - `invalid/type/view_index_write`
 
+### `MANUAL:3.2`
+
+- `edge/glyph_basic`
+- `edge/glyph_methods`
+
+### `MANUAL:3.4`
+
+- `edge/default_values_local`
+
+### `MANUAL:3.5`
+
+- `edge/float_methods`
+- `edge/int64_print`
+- `edge/int64_print_io`
+- `edge/int_bitwise_ops`
+- `edge/int_methods`
+- `edge/int_min_literal`
+- `edge/numeric_cast_valid`
+- `edge/numeric_literal_context`
+
+### `MANUAL:5.6`
+
+- `edge/group_stress`
+
 ### `MANUAL:7.1`
 
+- `edge/compound_assign`
 - `regexp/compile_basic`
 - `regexp/compile_forbidden_lookahead`
 - `regexp/compile_unclosed_paren`
@@ -146,65 +367,7 @@ Generated from `/Users/avialle/dev/ProtoScript2/tests/manifest.json` + `/Users/a
 
 ### `MANUAL:8.1`
 
-- `edge/call_static_basic`
-- `edge/call_static_nested`
-- `edge/civildatetime_clone_allowed`
-- `edge/civildatetime_subtype_runtime`
-- `edge/clone_inherited_override`
-- `edge/clone_super_initial_divergent`
-- `edge/compound_assign`
-- `edge/control_flow_continuation`
-- `edge/default_values_local`
-- `edge/default_values_proto`
-- `edge/exception_derived`
-- `edge/float_methods`
-- `edge/glyph_basic`
-- `edge/glyph_methods`
-- `edge/group_stress`
-- `edge/handle_clone_binaryfile_direct`
-- `edge/handle_clone_dir_direct`
-- `edge/handle_clone_pathentry_direct`
-- `edge/handle_clone_pathinfo_direct`
-- `edge/handle_clone_processevent_direct`
-- `edge/handle_clone_processresult_direct`
-- `edge/handle_clone_regexp_direct`
-- `edge/handle_clone_regexpmatch_direct`
-- `edge/handle_clone_textfile_direct`
-- `edge/handle_clone_walker_direct`
 - `edge/if_basic`
-- `edge/index_get_list`
-- `edge/index_get_map`
-- `edge/index_set_list`
-- `edge/index_set_map`
-- `edge/int64_print`
-- `edge/int64_print_io`
-- `edge/int_bitwise_ops`
-- `edge/int_methods`
-- `edge/int_min_literal`
-- `edge/io_binary_read_write`
-- `edge/io_eof_length_text`
-- `edge/io_exceptions_basic`
-- `edge/io_print`
-- `edge/io_stdout_stderr`
-- `edge/io_temp_path`
-- `edge/io_text_roundtrip`
-- `edge/io_text_seek_tell`
-- `edge/iter_list_in`
-- `edge/iter_list_of`
-- `edge/json_constructors`
-- `edge/json_decode_basic`
-- `edge/json_decode_object_basic`
-- `edge/json_decode_unicode_escape`
-- `edge/json_encode_basic`
-- `edge/json_isvalid`
-- `edge/list_join_concat`
-- `edge/list_methods_basic`
-- `edge/list_reverse_empty`
-- `edge/list_reverse_int`
-- `edge/list_reverse_proto`
-- `edge/list_reverse_sort_consistency`
-- `edge/list_reverse_string`
-- `edge/list_sort_suite`
 - `edge/manual_ex001`
 - `edge/manual_ex002`
 - `edge/manual_ex003`
@@ -310,84 +473,6 @@ Generated from `/Users/avialle/dev/ProtoScript2/tests/manifest.json` + `/Users/a
 - `edge/manual_ex115`
 - `edge/manual_ex116`
 - `edge/manual_ex117`
-- `edge/map_alias_chain_set_updates_root`
-- `edge/map_alias_set_updates_original`
-- `edge/map_empty_literal_typed_set`
-- `edge/map_insert_on_set`
-- `edge/map_iteration_in`
-- `edge/map_iteration_of`
-- `edge/map_key_present`
-- `edge/map_methods_basic`
-- `edge/map_remove_order`
-- `edge/map_update_then_lookup`
-- `edge/math_abs_min_max`
-- `edge/math_constants`
-- `edge/math_domain_no_error`
-- `edge/math_extended`
-- `edge/math_floor_ceil_round_pow_exp`
-- `edge/math_numeric_limits`
-- `edge/math_random_loop`
-- `edge/math_random_range`
-- `edge/math_random_variability`
-- `edge/math_trig_hyper`
-- `edge/method_variadic_empty`
-- `edge/method_variadic_fixed_plus`
-- `edge/method_variadic_with_args`
-- `edge/module_import_name_priority`
-- `edge/module_import_name_search_paths_second`
-- `edge/module_import_path_basic`
-- `edge/module_import_path_selective`
-- `edge/module_import_simple_add`
-- `edge/module_namespace_call`
-- `edge/module_try_catch`
-- `edge/module_try_finally_rethrow`
-- `edge/module_utf8_roundtrip`
-- `edge/numeric_cast_valid`
-- `edge/numeric_literal_context`
-- `edge/oob_list_index`
-- `edge/overflow_int_add`
-- `edge/override_chain_order_self_specialization`
-- `edge/override_multilevel_super_nested_self_deep`
-- `edge/proto_bool_field`
-- `edge/proto_field_init_clone_repeated`
-- `edge/proto_field_init_inheritance`
-- `edge/proto_field_init_list_literal`
-- `edge/proto_field_init_override_no_impact`
-- `edge/proto_field_init_scalar_const`
-- `edge/prototype_basic`
-- `edge/prototype_inherit_static`
-- `edge/prototype_parent_call`
-- `edge/runtime_exception_filter`
-- `edge/slice_view_list_basic`
-- `edge/string_indexof_emoji`
-- `edge/string_indexof_notfound`
-- `edge/string_length_ascii`
-- `edge/string_length_combining`
-- `edge/string_length_emoji`
-- `edge/string_replace_basic`
-- `edge/string_split_basic`
-- `edge/string_split_empty`
-- `edge/string_starts_ends`
-- `edge/string_substring_emoji`
-- `edge/string_to_int_float`
-- `edge/string_trim_basic`
-- `edge/string_trim_start_end`
-- `edge/string_upper`
-- `edge/string_utf8_roundtrip`
-- `edge/super_clone_init`
-- `edge/switch_cfg_case`
-- `edge/switch_cfg_default`
-- `edge/switch_no_termination`
-- `edge/time_dst_paris`
-- `edge/time_iso_parse_format`
-- `edge/time_iso_week`
-- `edge/time_timezone_validation`
-- `edge/time_utc_roundtrip`
-- `edge/user_exception_filter`
-- `edge/variadic_empty_call`
-- `edge/variadic_view_empty_length`
-- `edge/variadic_view_nonempty_length`
-- `edge/view_string_basic`
 
 ### `MANUAL:8.2`
 
@@ -415,8 +500,17 @@ Generated from `/Users/avialle/dev/ProtoScript2/tests/manifest.json` + `/Users/a
 - `sys_execute/stderr_only`
 - `sys_execute/stdout_only`
 
+### `MANUAL:8.2.4`
+
+- `edge/iter_list_of`
+
+### `MANUAL:8.2.5`
+
+- `edge/iter_list_in`
+
 ### `MANUAL:8.3`
 
+- `edge/control_flow_continuation`
 - `invalid/runtime/div_zero_int`
 - `invalid/runtime/glyph_add`
 - `invalid/runtime/glyph_unary`
@@ -455,8 +549,80 @@ Generated from `/Users/avialle/dev/ProtoScript2/tests/manifest.json` + `/Users/a
 - `invalid/runtime/view_invalidated_push`
 - `invalid/runtime/view_oob`
 
+### `MANUAL:8.4`
+
+- `edge/switch_cfg_case`
+- `edge/switch_cfg_default`
+- `edge/switch_no_termination`
+
+### `MANUAL:9.3`
+
+- `edge/variadic_empty_call`
+
+### `MANUAL:9.3.1`
+
+- `edge/method_variadic_empty`
+- `edge/method_variadic_fixed_plus`
+- `edge/method_variadic_with_args`
+
+### `SPEC:10.5`
+
+- `edge/exception_derived`
+- `edge/runtime_exception_filter`
+- `edge/user_exception_filter`
+
+### `SPEC:14.2`
+
+- `edge/math_abs_min_max`
+- `edge/math_constants`
+- `edge/math_domain_no_error`
+- `edge/math_extended`
+- `edge/math_floor_ceil_round_pow_exp`
+- `edge/math_numeric_limits`
+- `edge/math_random_loop`
+- `edge/math_random_range`
+- `edge/math_random_variability`
+- `edge/math_trig_hyper`
+- `edge/overflow_int_add`
+
+### `SPEC:2.0`
+
+- `edge/default_values_local`
+
+### `SPEC:2.3`
+
+- `edge/glyph_basic`
+- `edge/glyph_methods`
+
+### `SPEC:2.4`
+
+- `edge/group_stress`
+
 ### `SPEC:3.0`
 
+- `edge/float_methods`
+- `edge/int64_print`
+- `edge/int64_print_io`
+- `edge/int_bitwise_ops`
+- `edge/int_methods`
+- `edge/int_min_literal`
+- `edge/numeric_cast_valid`
+- `edge/numeric_literal_context`
+- `edge/string_indexof_emoji`
+- `edge/string_indexof_notfound`
+- `edge/string_length_ascii`
+- `edge/string_length_combining`
+- `edge/string_length_emoji`
+- `edge/string_replace_basic`
+- `edge/string_split_basic`
+- `edge/string_split_empty`
+- `edge/string_starts_ends`
+- `edge/string_substring_emoji`
+- `edge/string_to_int_float`
+- `edge/string_trim_basic`
+- `edge/string_trim_start_end`
+- `edge/string_upper`
+- `edge/string_utf8_roundtrip`
 - `regexp/compile_basic`
 - `regexp/compile_forbidden_lookahead`
 - `regexp/compile_unclosed_paren`
@@ -485,59 +651,12 @@ Generated from `/Users/avialle/dev/ProtoScript2/tests/manifest.json` + `/Users/a
 - `regexp/utf8_glyph_boundaries`
 - `regexp/utf8_indices`
 
-### `SPEC:4.1`
+### `SPEC:3.1`
 
-- `edge/call_static_basic`
-- `edge/call_static_nested`
-- `edge/civildatetime_clone_allowed`
-- `edge/civildatetime_subtype_runtime`
-- `edge/clone_inherited_override`
-- `edge/clone_super_initial_divergent`
-- `edge/compound_assign`
-- `edge/control_flow_continuation`
-- `edge/default_values_local`
-- `edge/default_values_proto`
-- `edge/exception_derived`
-- `edge/float_methods`
-- `edge/glyph_basic`
-- `edge/glyph_methods`
-- `edge/group_stress`
-- `edge/handle_clone_binaryfile_direct`
-- `edge/handle_clone_dir_direct`
-- `edge/handle_clone_pathentry_direct`
-- `edge/handle_clone_pathinfo_direct`
-- `edge/handle_clone_processevent_direct`
-- `edge/handle_clone_processresult_direct`
-- `edge/handle_clone_regexp_direct`
-- `edge/handle_clone_regexpmatch_direct`
-- `edge/handle_clone_textfile_direct`
-- `edge/handle_clone_walker_direct`
-- `edge/if_basic`
 - `edge/index_get_list`
 - `edge/index_get_map`
 - `edge/index_set_list`
 - `edge/index_set_map`
-- `edge/int64_print`
-- `edge/int64_print_io`
-- `edge/int_bitwise_ops`
-- `edge/int_methods`
-- `edge/int_min_literal`
-- `edge/io_binary_read_write`
-- `edge/io_eof_length_text`
-- `edge/io_exceptions_basic`
-- `edge/io_print`
-- `edge/io_stdout_stderr`
-- `edge/io_temp_path`
-- `edge/io_text_roundtrip`
-- `edge/io_text_seek_tell`
-- `edge/iter_list_in`
-- `edge/iter_list_of`
-- `edge/json_constructors`
-- `edge/json_decode_basic`
-- `edge/json_decode_object_basic`
-- `edge/json_decode_unicode_escape`
-- `edge/json_encode_basic`
-- `edge/json_isvalid`
 - `edge/list_join_concat`
 - `edge/list_methods_basic`
 - `edge/list_reverse_empty`
@@ -546,6 +665,30 @@ Generated from `/Users/avialle/dev/ProtoScript2/tests/manifest.json` + `/Users/a
 - `edge/list_reverse_sort_consistency`
 - `edge/list_reverse_string`
 - `edge/list_sort_suite`
+- `edge/oob_list_index`
+
+### `SPEC:3.2`
+
+- `edge/map_alias_chain_set_updates_root`
+- `edge/map_alias_set_updates_original`
+- `edge/map_empty_literal_typed_set`
+- `edge/map_insert_on_set`
+- `edge/map_iteration_in`
+- `edge/map_iteration_of`
+- `edge/map_key_present`
+- `edge/map_methods_basic`
+- `edge/map_remove_order`
+- `edge/map_update_then_lookup`
+
+### `SPEC:3.4`
+
+- `edge/slice_view_list_basic`
+- `edge/variadic_view_empty_length`
+- `edge/variadic_view_nonempty_length`
+- `edge/view_string_basic`
+
+### `SPEC:4.1`
+
 - `edge/manual_ex001`
 - `edge/manual_ex002`
 - `edge/manual_ex003`
@@ -651,42 +794,25 @@ Generated from `/Users/avialle/dev/ProtoScript2/tests/manifest.json` + `/Users/a
 - `edge/manual_ex115`
 - `edge/manual_ex116`
 - `edge/manual_ex117`
-- `edge/map_alias_chain_set_updates_root`
-- `edge/map_alias_set_updates_original`
-- `edge/map_empty_literal_typed_set`
-- `edge/map_insert_on_set`
-- `edge/map_iteration_in`
-- `edge/map_iteration_of`
-- `edge/map_key_present`
-- `edge/map_methods_basic`
-- `edge/map_remove_order`
-- `edge/map_update_then_lookup`
-- `edge/math_abs_min_max`
-- `edge/math_constants`
-- `edge/math_domain_no_error`
-- `edge/math_extended`
-- `edge/math_floor_ceil_round_pow_exp`
-- `edge/math_numeric_limits`
-- `edge/math_random_loop`
-- `edge/math_random_range`
-- `edge/math_random_variability`
-- `edge/math_trig_hyper`
-- `edge/method_variadic_empty`
-- `edge/method_variadic_fixed_plus`
-- `edge/method_variadic_with_args`
-- `edge/module_import_name_priority`
-- `edge/module_import_name_search_paths_second`
-- `edge/module_import_path_basic`
-- `edge/module_import_path_selective`
-- `edge/module_import_simple_add`
-- `edge/module_namespace_call`
-- `edge/module_try_catch`
-- `edge/module_try_finally_rethrow`
-- `edge/module_utf8_roundtrip`
-- `edge/numeric_cast_valid`
-- `edge/numeric_literal_context`
-- `edge/oob_list_index`
-- `edge/overflow_int_add`
+
+### `SPEC:4.3`
+
+- `edge/call_static_basic`
+- `edge/call_static_nested`
+- `edge/civildatetime_clone_allowed`
+- `edge/civildatetime_subtype_runtime`
+- `edge/clone_inherited_override`
+- `edge/clone_super_initial_divergent`
+- `edge/handle_clone_binaryfile_direct`
+- `edge/handle_clone_dir_direct`
+- `edge/handle_clone_pathentry_direct`
+- `edge/handle_clone_pathinfo_direct`
+- `edge/handle_clone_processevent_direct`
+- `edge/handle_clone_processresult_direct`
+- `edge/handle_clone_regexp_direct`
+- `edge/handle_clone_regexpmatch_direct`
+- `edge/handle_clone_textfile_direct`
+- `edge/handle_clone_walker_direct`
 - `edge/override_chain_order_self_specialization`
 - `edge/override_multilevel_super_nested_self_deep`
 - `edge/proto_bool_field`
@@ -698,37 +824,11 @@ Generated from `/Users/avialle/dev/ProtoScript2/tests/manifest.json` + `/Users/a
 - `edge/prototype_basic`
 - `edge/prototype_inherit_static`
 - `edge/prototype_parent_call`
-- `edge/runtime_exception_filter`
-- `edge/slice_view_list_basic`
-- `edge/string_indexof_emoji`
-- `edge/string_indexof_notfound`
-- `edge/string_length_ascii`
-- `edge/string_length_combining`
-- `edge/string_length_emoji`
-- `edge/string_replace_basic`
-- `edge/string_split_basic`
-- `edge/string_split_empty`
-- `edge/string_starts_ends`
-- `edge/string_substring_emoji`
-- `edge/string_to_int_float`
-- `edge/string_trim_basic`
-- `edge/string_trim_start_end`
-- `edge/string_upper`
-- `edge/string_utf8_roundtrip`
 - `edge/super_clone_init`
-- `edge/switch_cfg_case`
-- `edge/switch_cfg_default`
-- `edge/switch_no_termination`
-- `edge/time_dst_paris`
-- `edge/time_iso_parse_format`
-- `edge/time_iso_week`
-- `edge/time_timezone_validation`
-- `edge/time_utc_roundtrip`
-- `edge/user_exception_filter`
-- `edge/variadic_empty_call`
-- `edge/variadic_view_empty_length`
-- `edge/variadic_view_nonempty_length`
-- `edge/view_string_basic`
+
+### `SPEC:4.3.2`
+
+- `edge/default_values_proto`
 
 ### `SPEC:4.3.3`
 
@@ -738,6 +838,10 @@ Generated from `/Users/avialle/dev/ProtoScript2/tests/manifest.json` + `/Users/a
 - `valid/visibility_internal/internal_access_child_method`
 - `valid/visibility_internal/internal_access_same_prototype_method`
 - `valid/visibility_internal/internal_call_internal_method_via_public`
+
+### `SPEC:5.11.5`
+
+- `edge/compound_assign`
 
 ### `SPEC:5.6`
 
@@ -811,6 +915,16 @@ Generated from `/Users/avialle/dev/ProtoScript2/tests/manifest.json` + `/Users/a
 - `invalid/type/variadic_mutation_forbidden`
 - `invalid/type/view_index_write`
 
+### `SPEC:5.8`
+
+- `edge/variadic_empty_call`
+
+### `SPEC:5.9`
+
+- `edge/method_variadic_empty`
+- `edge/method_variadic_fixed_plus`
+- `edge/method_variadic_with_args`
+
 ### `SPEC:6.1`
 
 - `invalid/parse/manual_ex020`
@@ -821,8 +935,21 @@ Generated from `/Users/avialle/dev/ProtoScript2/tests/manifest.json` + `/Users/a
 - `invalid/parse/unclosed_block`
 - `invalid/parse/unexpected_token_comma`
 
+### `SPEC:6.2`
+
+- `edge/if_basic`
+
 ### `SPEC:6.4`
 
+- `edge/module_import_name_priority`
+- `edge/module_import_name_search_paths_second`
+- `edge/module_import_path_basic`
+- `edge/module_import_path_selective`
+- `edge/module_import_simple_add`
+- `edge/module_namespace_call`
+- `edge/module_try_catch`
+- `edge/module_try_finally_rethrow`
+- `edge/module_utf8_roundtrip`
 - `fs/dir_iterator`
 - `fs/exceptions`
 - `fs/import_fs`
@@ -849,6 +976,7 @@ Generated from `/Users/avialle/dev/ProtoScript2/tests/manifest.json` + `/Users/a
 
 ### `SPEC:6.6`
 
+- `edge/control_flow_continuation`
 - `invalid/runtime/div_zero_int`
 - `invalid/runtime/glyph_add`
 - `invalid/runtime/glyph_unary`
@@ -887,7 +1015,58 @@ Generated from `/Users/avialle/dev/ProtoScript2/tests/manifest.json` + `/Users/a
 - `invalid/runtime/view_invalidated_push`
 - `invalid/runtime/view_oob`
 
+### `SPEC:6.7`
+
+- `edge/switch_cfg_case`
+- `edge/switch_cfg_default`
+- `edge/switch_no_termination`
+
+### `SPEC:7.2`
+
+- `edge/iter_list_of`
+
+### `SPEC:7.3`
+
+- `edge/iter_list_in`
+
+### `SPEC:8.6`
+
+- `edge/io_binary_read_write`
+- `edge/io_eof_length_text`
+- `edge/io_exceptions_basic`
+- `edge/io_print`
+- `edge/io_stdout_stderr`
+- `edge/io_temp_path`
+- `edge/io_text_roundtrip`
+- `edge/io_text_seek_tell`
+- `edge/json_constructors`
+- `edge/json_decode_basic`
+- `edge/json_decode_object_basic`
+- `edge/json_decode_unicode_escape`
+- `edge/json_encode_basic`
+- `edge/json_isvalid`
+- `edge/time_dst_paris`
+- `edge/time_iso_parse_format`
+- `edge/time_iso_week`
+- `edge/time_timezone_validation`
+- `edge/time_utc_roundtrip`
+
 ## Clarifications Needed
+
+## Suite Integrity
+
+| suite | missing_refs | malformed_refs |
+|---|---:|---:|
+| `edge` | 0 | 0 |
+| `fs` | 0 | 0 |
+| `invalid/parse` | 0 | 0 |
+| `invalid/runtime` | 0 | 0 |
+| `invalid/type` | 0 | 0 |
+| `invalid/visibility_internal` | 0 | 0 |
+| `regexp` | 0 | 0 |
+| `sys` | 0 | 0 |
+| `sys_execute` | 0 | 0 |
+| `valid/visibility_internal` | 0 | 0 |
 
 No unresolved section IDs detected.
 

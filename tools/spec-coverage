@@ -33,6 +33,17 @@ def main() -> int:
     parser = argparse.ArgumentParser(description="Generate spec/manual test coverage mapping.")
     parser.add_argument("--check", action="store_true", help="Fail on missing or malformed spec_ref metadata.")
     parser.add_argument("--write", action="store_true", help=f"Write coverage report to {OUT}.")
+    parser.add_argument(
+        "--required-suite",
+        action="append",
+        default=[],
+        help="Suite that must have complete spec_ref metadata (repeatable).",
+    )
+    parser.add_argument(
+        "--strict-unresolved",
+        action="store_true",
+        help="Fail when spec_ref points to unresolved SPEC/MANUAL section IDs.",
+    )
     args = parser.parse_args()
 
     manifest = json.loads(MANIFEST.read_text(encoding="utf-8"))
@@ -48,23 +59,32 @@ def main() -> int:
     unresolved: list[str] = []
     by_ref: dict[str, list[str]] = defaultdict(list)
 
-    for suite_cases in suites.values():
+    required_suites = set(args.required_suite or [])
+    unknown_required = sorted(s for s in required_suites if s not in suites)
+    missing_by_suite: dict[str, int] = defaultdict(int)
+    malformed_by_suite: dict[str, int] = defaultdict(int)
+
+    for suite_name, suite_cases in suites.items():
         for case_id in suite_cases:
             meta = case_refs.get(case_id)
             if not isinstance(meta, dict):
                 missing.append(case_id)
+                missing_by_suite[suite_name] += 1
                 continue
             spec_ref = meta.get("spec_ref")
             if not isinstance(spec_ref, list) or not spec_ref:
                 missing.append(case_id)
+                missing_by_suite[suite_name] += 1
                 continue
             for ref in spec_ref:
                 if not isinstance(ref, str):
                     malformed.append(f"{case_id}: non-string ref")
+                    malformed_by_suite[suite_name] += 1
                     continue
                 m = REF_RE.match(ref)
                 if not m:
                     malformed.append(f"{case_id}: {ref}")
+                    malformed_by_suite[suite_name] += 1
                     continue
                 ns, sid = m.group(1), m.group(2)
                 if ns == "SPEC" and sid not in spec_sections:
@@ -97,6 +117,16 @@ def main() -> int:
 
     lines.append("## Clarifications Needed")
     lines.append("")
+
+    lines.append("## Suite Integrity")
+    lines.append("")
+    lines.append("| suite | missing_refs | malformed_refs |")
+    lines.append("|---|---:|---:|")
+    for suite_name in sorted(suites.keys()):
+        lines.append(
+            f"| `{suite_name}` | {missing_by_suite.get(suite_name, 0)} | {malformed_by_suite.get(suite_name, 0)} |"
+        )
+    lines.append("")
     if unresolved:
         lines.append("The following refs do not match an extracted heading ID and need clarification:")
         for item in sorted(set(unresolved)):
@@ -109,17 +139,39 @@ def main() -> int:
         OUT.write_text("\n".join(lines) + "\n", encoding="utf-8")
 
     bad = bool(missing or malformed)
+    required_bad = False
+    if required_suites:
+        for suite_name in required_suites:
+            if missing_by_suite.get(suite_name, 0) > 0 or malformed_by_suite.get(suite_name, 0) > 0:
+                required_bad = True
+                break
+    unresolved_bad = bool(unresolved) and args.strict_unresolved
     if args.check and bad:
         if missing:
             print(f"ERROR: missing spec_ref metadata for {len(missing)} tests", file=sys.stderr)
         if malformed:
             print(f"ERROR: malformed spec_ref metadata entries: {len(malformed)}", file=sys.stderr)
         return 1
+    if args.check and unknown_required:
+        print(
+            "ERROR: required suite(s) not found in manifest: "
+            + ", ".join(unknown_required),
+            file=sys.stderr,
+        )
+        return 1
+    if args.check and required_bad:
+        print("ERROR: required suite(s) contain missing/malformed spec_ref metadata", file=sys.stderr)
+        return 1
+    if args.check and unresolved_bad:
+        print(f"ERROR: unresolved spec_ref section IDs: {len(set(unresolved))}", file=sys.stderr)
+        return 1
 
-    print(f"Summary: PASS={0 if bad else 1} FAIL={1 if bad else 0} TOTAL=1")
+    fail_total = 1 if (bad or required_bad or unresolved_bad) else 0
+    pass_total = 0 if fail_total else 1
+    print(f"Summary: PASS={pass_total} FAIL={fail_total} TOTAL=1")
     if unresolved:
         print(f"note: unresolved refs needing clarification: {len(set(unresolved))}")
-    return 0 if not bad else 1
+    return 0
 
 
 if __name__ == "__main__":

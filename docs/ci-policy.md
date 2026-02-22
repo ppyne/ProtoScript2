@@ -17,11 +17,18 @@ Profile includes:
 
 - orchestrator prerequisite guard
 - spec/manual traceability check + coverage generation
+  - enforced required suites: `edge`, `invalid/parse`, `invalid/type`, `invalid/runtime`, `invalid/visibility_internal`
+  - unresolved section IDs are treated as failures (`--strict-unresolved`)
 - sanitizer smoke pass (C + emit-c sanitizer policy)
 - short fuzz pass (ASan/UBSan + libFuzzer)
 - quick benchmark pass with relative regression checks
 
 If any step fails, PR CI fails.
+
+Traceability note:
+
+- The current manifest does not expose dedicated suite IDs named `conformance` or `spec`.
+- Required-suite enforcement therefore targets normative suites present in CI scope: `edge` and `invalid/*`.
 
 ## Nightly Policy
 

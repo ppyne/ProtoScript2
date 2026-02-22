@@ -39,7 +39,7 @@ def _flow_defs() -> List[Dict[str, object]]:
         {
             "id": "spec_traceability",
             "script": "tools/spec-coverage",
-            "cmd": "tools/spec-coverage --check --write",
+            "cmd": "tools/spec-coverage --check --write --required-suite edge --required-suite invalid/parse --required-suite invalid/type --required-suite invalid/runtime --required-suite invalid/visibility_internal --strict-unresolved",
             "paths": ["node"],
             "sanitizer": False,
             "emit_c": False,

@@ -2,356 +2,356 @@
   "cases": {
     "edge/call_static_basic": {
       "spec_ref": [
-        "SPEC:4.1",
-        "MANUAL:8.1"
+        "SPEC:4.3",
+        "MANUAL:10.6"
       ]
     },
     "edge/call_static_nested": {
       "spec_ref": [
-        "SPEC:4.1",
-        "MANUAL:8.1"
+        "SPEC:4.3",
+        "MANUAL:10.6"
       ]
     },
     "edge/civildatetime_clone_allowed": {
       "spec_ref": [
-        "SPEC:4.1",
-        "MANUAL:8.1"
+        "SPEC:4.3",
+        "MANUAL:10.6"
       ]
     },
     "edge/civildatetime_subtype_runtime": {
       "spec_ref": [
-        "SPEC:4.1",
-        "MANUAL:8.1"
+        "SPEC:4.3",
+        "MANUAL:10.6"
       ]
     },
     "edge/clone_inherited_override": {
       "spec_ref": [
-        "SPEC:4.1",
-        "MANUAL:8.1"
+        "SPEC:4.3",
+        "MANUAL:10.6"
       ]
     },
     "edge/clone_super_initial_divergent": {
       "spec_ref": [
-        "SPEC:4.1",
-        "MANUAL:8.1"
+        "SPEC:4.3",
+        "MANUAL:10.6"
       ]
     },
     "edge/compound_assign": {
       "spec_ref": [
-        "SPEC:4.1",
-        "MANUAL:8.1"
+        "SPEC:5.11.5",
+        "MANUAL:7.1"
       ]
     },
     "edge/control_flow_continuation": {
       "spec_ref": [
-        "SPEC:4.1",
-        "MANUAL:8.1"
+        "SPEC:6.6",
+        "MANUAL:8.3"
       ]
     },
     "edge/default_values_local": {
       "spec_ref": [
-        "SPEC:4.1",
-        "MANUAL:8.1"
+        "SPEC:2.0",
+        "MANUAL:3.4"
       ]
     },
     "edge/default_values_proto": {
       "spec_ref": [
-        "SPEC:4.1",
-        "MANUAL:8.1"
+        "SPEC:4.3.2",
+        "MANUAL:10.5.1"
       ]
     },
     "edge/exception_derived": {
       "spec_ref": [
-        "SPEC:4.1",
-        "MANUAL:8.1"
+        "SPEC:10.5",
+        "MANUAL:15.3"
       ]
     },
     "edge/float_methods": {
       "spec_ref": [
-        "SPEC:4.1",
-        "MANUAL:8.1"
+        "SPEC:3.0",
+        "MANUAL:3.5"
       ]
     },
     "edge/glyph_basic": {
       "spec_ref": [
-        "SPEC:4.1",
-        "MANUAL:8.1"
+        "SPEC:2.3",
+        "MANUAL:3.2"
       ]
     },
     "edge/glyph_methods": {
       "spec_ref": [
-        "SPEC:4.1",
-        "MANUAL:8.1"
+        "SPEC:2.3",
+        "MANUAL:3.2"
       ]
     },
     "edge/group_stress": {
       "spec_ref": [
-        "SPEC:4.1",
-        "MANUAL:8.1"
+        "SPEC:2.4",
+        "MANUAL:5.6"
       ]
     },
     "edge/handle_clone_binaryfile_direct": {
       "spec_ref": [
-        "SPEC:4.1",
-        "MANUAL:8.1"
+        "SPEC:4.3",
+        "MANUAL:10.6"
       ]
     },
     "edge/handle_clone_dir_direct": {
       "spec_ref": [
-        "SPEC:4.1",
-        "MANUAL:8.1"
+        "SPEC:4.3",
+        "MANUAL:10.6"
       ]
     },
     "edge/handle_clone_pathentry_direct": {
       "spec_ref": [
-        "SPEC:4.1",
-        "MANUAL:8.1"
+        "SPEC:4.3",
+        "MANUAL:10.6"
       ]
     },
     "edge/handle_clone_pathinfo_direct": {
       "spec_ref": [
-        "SPEC:4.1",
-        "MANUAL:8.1"
+        "SPEC:4.3",
+        "MANUAL:10.6"
       ]
     },
     "edge/handle_clone_processevent_direct": {
       "spec_ref": [
-        "SPEC:4.1",
-        "MANUAL:8.1"
+        "SPEC:4.3",
+        "MANUAL:10.6"
       ]
     },
     "edge/handle_clone_processresult_direct": {
       "spec_ref": [
-        "SPEC:4.1",
-        "MANUAL:8.1"
+        "SPEC:4.3",
+        "MANUAL:10.6"
       ]
     },
     "edge/handle_clone_regexp_direct": {
       "spec_ref": [
-        "SPEC:4.1",
-        "MANUAL:8.1"
+        "SPEC:4.3",
+        "MANUAL:10.6"
       ]
     },
     "edge/handle_clone_regexpmatch_direct": {
       "spec_ref": [
-        "SPEC:4.1",
-        "MANUAL:8.1"
+        "SPEC:4.3",
+        "MANUAL:10.6"
       ]
     },
     "edge/handle_clone_textfile_direct": {
       "spec_ref": [
-        "SPEC:4.1",
-        "MANUAL:8.1"
+        "SPEC:4.3",
+        "MANUAL:10.6"
       ]
     },
     "edge/handle_clone_walker_direct": {
       "spec_ref": [
-        "SPEC:4.1",
-        "MANUAL:8.1"
+        "SPEC:4.3",
+        "MANUAL:10.6"
       ]
     },
     "edge/if_basic": {
       "spec_ref": [
-        "SPEC:4.1",
+        "SPEC:6.2",
         "MANUAL:8.1"
       ]
     },
     "edge/index_get_list": {
       "spec_ref": [
-        "SPEC:4.1",
-        "MANUAL:8.1"
+        "SPEC:3.1",
+        "MANUAL:11.1"
       ]
     },
     "edge/index_get_map": {
       "spec_ref": [
-        "SPEC:4.1",
-        "MANUAL:8.1"
+        "SPEC:3.1",
+        "MANUAL:11.1"
       ]
     },
     "edge/index_set_list": {
       "spec_ref": [
-        "SPEC:4.1",
-        "MANUAL:8.1"
+        "SPEC:3.1",
+        "MANUAL:11.1"
       ]
     },
     "edge/index_set_map": {
       "spec_ref": [
-        "SPEC:4.1",
-        "MANUAL:8.1"
+        "SPEC:3.1",
+        "MANUAL:11.1"
       ]
     },
     "edge/int64_print": {
       "spec_ref": [
-        "SPEC:4.1",
-        "MANUAL:8.1"
+        "SPEC:3.0",
+        "MANUAL:3.5"
       ]
     },
     "edge/int64_print_io": {
       "spec_ref": [
-        "SPEC:4.1",
-        "MANUAL:8.1"
+        "SPEC:3.0",
+        "MANUAL:3.5"
       ]
     },
     "edge/int_bitwise_ops": {
       "spec_ref": [
-        "SPEC:4.1",
-        "MANUAL:8.1"
+        "SPEC:3.0",
+        "MANUAL:3.5"
       ]
     },
     "edge/int_methods": {
       "spec_ref": [
-        "SPEC:4.1",
-        "MANUAL:8.1"
+        "SPEC:3.0",
+        "MANUAL:3.5"
       ]
     },
     "edge/int_min_literal": {
       "spec_ref": [
-        "SPEC:4.1",
-        "MANUAL:8.1"
+        "SPEC:3.0",
+        "MANUAL:3.5"
       ]
     },
     "edge/io_binary_read_write": {
       "spec_ref": [
-        "SPEC:4.1",
-        "MANUAL:8.1"
+        "SPEC:8.6",
+        "MANUAL:14.4.1"
       ]
     },
     "edge/io_eof_length_text": {
       "spec_ref": [
-        "SPEC:4.1",
-        "MANUAL:8.1"
+        "SPEC:8.6",
+        "MANUAL:14.4.1"
       ]
     },
     "edge/io_exceptions_basic": {
       "spec_ref": [
-        "SPEC:4.1",
-        "MANUAL:8.1"
+        "SPEC:8.6",
+        "MANUAL:14.4.1"
       ]
     },
     "edge/io_print": {
       "spec_ref": [
-        "SPEC:4.1",
-        "MANUAL:8.1"
+        "SPEC:8.6",
+        "MANUAL:14.4.1"
       ]
     },
     "edge/io_stdout_stderr": {
       "spec_ref": [
-        "SPEC:4.1",
-        "MANUAL:8.1"
+        "SPEC:8.6",
+        "MANUAL:14.4.1"
       ]
     },
     "edge/io_temp_path": {
       "spec_ref": [
-        "SPEC:4.1",
-        "MANUAL:8.1"
+        "SPEC:8.6",
+        "MANUAL:14.4.1"
       ]
     },
     "edge/io_text_roundtrip": {
       "spec_ref": [
-        "SPEC:4.1",
-        "MANUAL:8.1"
+        "SPEC:8.6",
+        "MANUAL:14.4.1"
       ]
     },
     "edge/io_text_seek_tell": {
       "spec_ref": [
-        "SPEC:4.1",
-        "MANUAL:8.1"
+        "SPEC:8.6",
+        "MANUAL:14.4.1"
       ]
     },
     "edge/iter_list_in": {
       "spec_ref": [
-        "SPEC:4.1",
-        "MANUAL:8.1"
+        "SPEC:7.3",
+        "MANUAL:8.2.5"
       ]
     },
     "edge/iter_list_of": {
       "spec_ref": [
-        "SPEC:4.1",
-        "MANUAL:8.1"
+        "SPEC:7.2",
+        "MANUAL:8.2.4"
       ]
     },
     "edge/json_constructors": {
       "spec_ref": [
-        "SPEC:4.1",
-        "MANUAL:8.1"
+        "SPEC:8.6",
+        "MANUAL:14.4.3"
       ]
     },
     "edge/json_decode_basic": {
       "spec_ref": [
-        "SPEC:4.1",
-        "MANUAL:8.1"
+        "SPEC:8.6",
+        "MANUAL:14.4.3"
       ]
     },
     "edge/json_decode_object_basic": {
       "spec_ref": [
-        "SPEC:4.1",
-        "MANUAL:8.1"
+        "SPEC:8.6",
+        "MANUAL:14.4.3"
       ]
     },
     "edge/json_decode_unicode_escape": {
       "spec_ref": [
-        "SPEC:4.1",
-        "MANUAL:8.1"
+        "SPEC:8.6",
+        "MANUAL:14.4.3"
       ]
     },
     "edge/json_encode_basic": {
       "spec_ref": [
-        "SPEC:4.1",
-        "MANUAL:8.1"
+        "SPEC:8.6",
+        "MANUAL:14.4.3"
       ]
     },
     "edge/json_isvalid": {
       "spec_ref": [
-        "SPEC:4.1",
-        "MANUAL:8.1"
+        "SPEC:8.6",
+        "MANUAL:14.4.3"
       ]
     },
     "edge/list_join_concat": {
       "spec_ref": [
-        "SPEC:4.1",
-        "MANUAL:8.1"
+        "SPEC:3.1",
+        "MANUAL:11.1.1"
       ]
     },
     "edge/list_methods_basic": {
       "spec_ref": [
-        "SPEC:4.1",
-        "MANUAL:8.1"
+        "SPEC:3.1",
+        "MANUAL:11.1.1"
       ]
     },
     "edge/list_reverse_empty": {
       "spec_ref": [
-        "SPEC:4.1",
-        "MANUAL:8.1"
+        "SPEC:3.1",
+        "MANUAL:11.1.1"
       ]
     },
     "edge/list_reverse_int": {
       "spec_ref": [
-        "SPEC:4.1",
-        "MANUAL:8.1"
+        "SPEC:3.1",
+        "MANUAL:11.1.1"
       ]
     },
     "edge/list_reverse_proto": {
       "spec_ref": [
-        "SPEC:4.1",
-        "MANUAL:8.1"
+        "SPEC:3.1",
+        "MANUAL:11.1.1"
       ]
     },
     "edge/list_reverse_sort_consistency": {
       "spec_ref": [
-        "SPEC:4.1",
-        "MANUAL:8.1"
+        "SPEC:3.1",
+        "MANUAL:11.1.1"
       ]
     },
     "edge/list_reverse_string": {
       "spec_ref": [
-        "SPEC:4.1",
-        "MANUAL:8.1"
+        "SPEC:3.1",
+        "MANUAL:11.1.1"
       ]
     },
     "edge/list_sort_suite": {
       "spec_ref": [
-        "SPEC:4.1",
-        "MANUAL:8.1"
+        "SPEC:3.1",
+        "MANUAL:11.1.1"
       ]
     },
     "edge/manual_ex001": {
@@ -986,470 +986,470 @@
     },
     "edge/map_alias_chain_set_updates_root": {
       "spec_ref": [
-        "SPEC:4.1",
-        "MANUAL:8.1"
+        "SPEC:3.2",
+        "MANUAL:11.2.1"
       ]
     },
     "edge/map_alias_set_updates_original": {
       "spec_ref": [
-        "SPEC:4.1",
-        "MANUAL:8.1"
+        "SPEC:3.2",
+        "MANUAL:11.2.1"
       ]
     },
     "edge/map_empty_literal_typed_set": {
       "spec_ref": [
-        "SPEC:4.1",
-        "MANUAL:8.1"
+        "SPEC:3.2",
+        "MANUAL:11.2.1"
       ]
     },
     "edge/map_insert_on_set": {
       "spec_ref": [
-        "SPEC:4.1",
-        "MANUAL:8.1"
+        "SPEC:3.2",
+        "MANUAL:11.2.1"
       ]
     },
     "edge/map_iteration_in": {
       "spec_ref": [
-        "SPEC:4.1",
-        "MANUAL:8.1"
+        "SPEC:3.2",
+        "MANUAL:11.2.1"
       ]
     },
     "edge/map_iteration_of": {
       "spec_ref": [
-        "SPEC:4.1",
-        "MANUAL:8.1"
+        "SPEC:3.2",
+        "MANUAL:11.2.1"
       ]
     },
     "edge/map_key_present": {
       "spec_ref": [
-        "SPEC:4.1",
-        "MANUAL:8.1"
+        "SPEC:3.2",
+        "MANUAL:11.2.1"
       ]
     },
     "edge/map_methods_basic": {
       "spec_ref": [
-        "SPEC:4.1",
-        "MANUAL:8.1"
+        "SPEC:3.2",
+        "MANUAL:11.2.1"
       ]
     },
     "edge/map_remove_order": {
       "spec_ref": [
-        "SPEC:4.1",
-        "MANUAL:8.1"
+        "SPEC:3.2",
+        "MANUAL:11.2.1"
       ]
     },
     "edge/map_update_then_lookup": {
       "spec_ref": [
-        "SPEC:4.1",
-        "MANUAL:8.1"
+        "SPEC:3.2",
+        "MANUAL:11.2.1"
       ]
     },
     "edge/math_abs_min_max": {
       "spec_ref": [
-        "SPEC:4.1",
-        "MANUAL:8.1"
+        "SPEC:14.2",
+        "MANUAL:14.4.2"
       ]
     },
     "edge/math_constants": {
       "spec_ref": [
-        "SPEC:4.1",
-        "MANUAL:8.1"
+        "SPEC:14.2",
+        "MANUAL:14.4.2"
       ]
     },
     "edge/math_domain_no_error": {
       "spec_ref": [
-        "SPEC:4.1",
-        "MANUAL:8.1"
+        "SPEC:14.2",
+        "MANUAL:14.4.2"
       ]
     },
     "edge/math_extended": {
       "spec_ref": [
-        "SPEC:4.1",
-        "MANUAL:8.1"
+        "SPEC:14.2",
+        "MANUAL:14.4.2"
       ]
     },
     "edge/math_floor_ceil_round_pow_exp": {
       "spec_ref": [
-        "SPEC:4.1",
-        "MANUAL:8.1"
+        "SPEC:14.2",
+        "MANUAL:14.4.2"
       ]
     },
     "edge/math_numeric_limits": {
       "spec_ref": [
-        "SPEC:4.1",
-        "MANUAL:8.1"
+        "SPEC:14.2",
+        "MANUAL:14.4.2"
       ]
     },
     "edge/math_random_loop": {
       "spec_ref": [
-        "SPEC:4.1",
-        "MANUAL:8.1"
+        "SPEC:14.2",
+        "MANUAL:14.4.2"
       ]
     },
     "edge/math_random_range": {
       "spec_ref": [
-        "SPEC:4.1",
-        "MANUAL:8.1"
+        "SPEC:14.2",
+        "MANUAL:14.4.2"
       ]
     },
     "edge/math_random_variability": {
       "spec_ref": [
-        "SPEC:4.1",
-        "MANUAL:8.1"
+        "SPEC:14.2",
+        "MANUAL:14.4.2"
       ]
     },
     "edge/math_trig_hyper": {
       "spec_ref": [
-        "SPEC:4.1",
-        "MANUAL:8.1"
+        "SPEC:14.2",
+        "MANUAL:14.4.2"
       ]
     },
     "edge/method_variadic_empty": {
       "spec_ref": [
-        "SPEC:4.1",
-        "MANUAL:8.1"
+        "SPEC:5.9",
+        "MANUAL:9.3.1"
       ]
     },
     "edge/method_variadic_fixed_plus": {
       "spec_ref": [
-        "SPEC:4.1",
-        "MANUAL:8.1"
+        "SPEC:5.9",
+        "MANUAL:9.3.1"
       ]
     },
     "edge/method_variadic_with_args": {
       "spec_ref": [
-        "SPEC:4.1",
-        "MANUAL:8.1"
+        "SPEC:5.9",
+        "MANUAL:9.3.1"
       ]
     },
     "edge/module_import_name_priority": {
       "spec_ref": [
-        "SPEC:4.1",
-        "MANUAL:8.1"
+        "SPEC:6.4",
+        "MANUAL:14.1"
       ]
     },
     "edge/module_import_name_search_paths_second": {
       "spec_ref": [
-        "SPEC:4.1",
-        "MANUAL:8.1"
+        "SPEC:6.4",
+        "MANUAL:14.1"
       ]
     },
     "edge/module_import_path_basic": {
       "spec_ref": [
-        "SPEC:4.1",
-        "MANUAL:8.1"
+        "SPEC:6.4",
+        "MANUAL:14.1"
       ]
     },
     "edge/module_import_path_selective": {
       "spec_ref": [
-        "SPEC:4.1",
-        "MANUAL:8.1"
+        "SPEC:6.4",
+        "MANUAL:14.1"
       ]
     },
     "edge/module_import_simple_add": {
       "spec_ref": [
-        "SPEC:4.1",
-        "MANUAL:8.1"
+        "SPEC:6.4",
+        "MANUAL:14.1"
       ]
     },
     "edge/module_namespace_call": {
       "spec_ref": [
-        "SPEC:4.1",
-        "MANUAL:8.1"
+        "SPEC:6.4",
+        "MANUAL:14.1"
       ]
     },
     "edge/module_try_catch": {
       "spec_ref": [
-        "SPEC:4.1",
-        "MANUAL:8.1"
+        "SPEC:6.4",
+        "MANUAL:14.1"
       ]
     },
     "edge/module_try_finally_rethrow": {
       "spec_ref": [
-        "SPEC:4.1",
-        "MANUAL:8.1"
+        "SPEC:6.4",
+        "MANUAL:14.1"
       ]
     },
     "edge/module_utf8_roundtrip": {
       "spec_ref": [
-        "SPEC:4.1",
-        "MANUAL:8.1"
+        "SPEC:6.4",
+        "MANUAL:14.1"
       ]
     },
     "edge/numeric_cast_valid": {
       "spec_ref": [
-        "SPEC:4.1",
-        "MANUAL:8.1"
+        "SPEC:3.0",
+        "MANUAL:3.5"
       ]
     },
     "edge/numeric_literal_context": {
       "spec_ref": [
-        "SPEC:4.1",
-        "MANUAL:8.1"
+        "SPEC:3.0",
+        "MANUAL:3.5"
       ]
     },
     "edge/oob_list_index": {
       "spec_ref": [
-        "SPEC:4.1",
-        "MANUAL:8.1"
+        "SPEC:3.1",
+        "MANUAL:11.1"
       ]
     },
     "edge/overflow_int_add": {
       "spec_ref": [
-        "SPEC:4.1",
-        "MANUAL:8.1"
+        "SPEC:14.2",
+        "MANUAL:15.2.2"
       ]
     },
     "edge/override_chain_order_self_specialization": {
       "spec_ref": [
-        "SPEC:4.1",
-        "MANUAL:8.1"
+        "SPEC:4.3",
+        "MANUAL:10.6"
       ]
     },
     "edge/override_multilevel_super_nested_self_deep": {
       "spec_ref": [
-        "SPEC:4.1",
-        "MANUAL:8.1"
+        "SPEC:4.3",
+        "MANUAL:10.6"
       ]
     },
     "edge/proto_bool_field": {
       "spec_ref": [
-        "SPEC:4.1",
-        "MANUAL:8.1"
+        "SPEC:4.3",
+        "MANUAL:10.6"
       ]
     },
     "edge/proto_field_init_clone_repeated": {
       "spec_ref": [
-        "SPEC:4.1",
-        "MANUAL:8.1"
+        "SPEC:4.3",
+        "MANUAL:10.6"
       ]
     },
     "edge/proto_field_init_inheritance": {
       "spec_ref": [
-        "SPEC:4.1",
-        "MANUAL:8.1"
+        "SPEC:4.3",
+        "MANUAL:10.6"
       ]
     },
     "edge/proto_field_init_list_literal": {
       "spec_ref": [
-        "SPEC:4.1",
-        "MANUAL:8.1"
+        "SPEC:4.3",
+        "MANUAL:10.6"
       ]
     },
     "edge/proto_field_init_override_no_impact": {
       "spec_ref": [
-        "SPEC:4.1",
-        "MANUAL:8.1"
+        "SPEC:4.3",
+        "MANUAL:10.6"
       ]
     },
     "edge/proto_field_init_scalar_const": {
       "spec_ref": [
-        "SPEC:4.1",
-        "MANUAL:8.1"
+        "SPEC:4.3",
+        "MANUAL:10.6"
       ]
     },
     "edge/prototype_basic": {
       "spec_ref": [
-        "SPEC:4.1",
-        "MANUAL:8.1"
+        "SPEC:4.3",
+        "MANUAL:10.6"
       ]
     },
     "edge/prototype_inherit_static": {
       "spec_ref": [
-        "SPEC:4.1",
-        "MANUAL:8.1"
+        "SPEC:4.3",
+        "MANUAL:10.6"
       ]
     },
     "edge/prototype_parent_call": {
       "spec_ref": [
-        "SPEC:4.1",
-        "MANUAL:8.1"
+        "SPEC:4.3",
+        "MANUAL:10.6"
       ]
     },
     "edge/runtime_exception_filter": {
       "spec_ref": [
-        "SPEC:4.1",
-        "MANUAL:8.1"
+        "SPEC:10.5",
+        "MANUAL:15.3"
       ]
     },
     "edge/slice_view_list_basic": {
       "spec_ref": [
-        "SPEC:4.1",
-        "MANUAL:8.1"
+        "SPEC:3.4",
+        "MANUAL:12.1"
       ]
     },
     "edge/string_indexof_emoji": {
       "spec_ref": [
-        "SPEC:4.1",
-        "MANUAL:8.1"
+        "SPEC:3.0",
+        "MANUAL:13.7"
       ]
     },
     "edge/string_indexof_notfound": {
       "spec_ref": [
-        "SPEC:4.1",
-        "MANUAL:8.1"
+        "SPEC:3.0",
+        "MANUAL:13.7"
       ]
     },
     "edge/string_length_ascii": {
       "spec_ref": [
-        "SPEC:4.1",
-        "MANUAL:8.1"
+        "SPEC:3.0",
+        "MANUAL:13.7"
       ]
     },
     "edge/string_length_combining": {
       "spec_ref": [
-        "SPEC:4.1",
-        "MANUAL:8.1"
+        "SPEC:3.0",
+        "MANUAL:13.7"
       ]
     },
     "edge/string_length_emoji": {
       "spec_ref": [
-        "SPEC:4.1",
-        "MANUAL:8.1"
+        "SPEC:3.0",
+        "MANUAL:13.7"
       ]
     },
     "edge/string_replace_basic": {
       "spec_ref": [
-        "SPEC:4.1",
-        "MANUAL:8.1"
+        "SPEC:3.0",
+        "MANUAL:13.7"
       ]
     },
     "edge/string_split_basic": {
       "spec_ref": [
-        "SPEC:4.1",
-        "MANUAL:8.1"
+        "SPEC:3.0",
+        "MANUAL:13.7"
       ]
     },
     "edge/string_split_empty": {
       "spec_ref": [
-        "SPEC:4.1",
-        "MANUAL:8.1"
+        "SPEC:3.0",
+        "MANUAL:13.7"
       ]
     },
     "edge/string_starts_ends": {
       "spec_ref": [
-        "SPEC:4.1",
-        "MANUAL:8.1"
+        "SPEC:3.0",
+        "MANUAL:13.7"
       ]
     },
     "edge/string_substring_emoji": {
       "spec_ref": [
-        "SPEC:4.1",
-        "MANUAL:8.1"
+        "SPEC:3.0",
+        "MANUAL:13.7"
       ]
     },
     "edge/string_to_int_float": {
       "spec_ref": [
-        "SPEC:4.1",
-        "MANUAL:8.1"
+        "SPEC:3.0",
+        "MANUAL:13.7"
       ]
     },
     "edge/string_trim_basic": {
       "spec_ref": [
-        "SPEC:4.1",
-        "MANUAL:8.1"
+        "SPEC:3.0",
+        "MANUAL:13.7"
       ]
     },
     "edge/string_trim_start_end": {
       "spec_ref": [
-        "SPEC:4.1",
-        "MANUAL:8.1"
+        "SPEC:3.0",
+        "MANUAL:13.7"
       ]
     },
     "edge/string_upper": {
       "spec_ref": [
-        "SPEC:4.1",
-        "MANUAL:8.1"
+        "SPEC:3.0",
+        "MANUAL:13.7"
       ]
     },
     "edge/string_utf8_roundtrip": {
       "spec_ref": [
-        "SPEC:4.1",
-        "MANUAL:8.1"
+        "SPEC:3.0",
+        "MANUAL:13.7"
       ]
     },
     "edge/super_clone_init": {
       "spec_ref": [
-        "SPEC:4.1",
-        "MANUAL:8.1"
+        "SPEC:4.3",
+        "MANUAL:10.6"
       ]
     },
     "edge/switch_cfg_case": {
       "spec_ref": [
-        "SPEC:4.1",
-        "MANUAL:8.1"
+        "SPEC:6.7",
+        "MANUAL:8.4"
       ]
     },
     "edge/switch_cfg_default": {
       "spec_ref": [
-        "SPEC:4.1",
-        "MANUAL:8.1"
+        "SPEC:6.7",
+        "MANUAL:8.4"
       ]
     },
     "edge/switch_no_termination": {
       "spec_ref": [
-        "SPEC:4.1",
-        "MANUAL:8.1"
+        "SPEC:6.7",
+        "MANUAL:8.4"
       ]
     },
     "edge/time_dst_paris": {
       "spec_ref": [
-        "SPEC:4.1",
-        "MANUAL:8.1"
+        "SPEC:8.6",
+        "MANUAL:14.4.4"
       ]
     },
     "edge/time_iso_parse_format": {
       "spec_ref": [
-        "SPEC:4.1",
-        "MANUAL:8.1"
+        "SPEC:8.6",
+        "MANUAL:14.4.4"
       ]
     },
     "edge/time_iso_week": {
       "spec_ref": [
-        "SPEC:4.1",
-        "MANUAL:8.1"
+        "SPEC:8.6",
+        "MANUAL:14.4.4"
       ]
     },
     "edge/time_timezone_validation": {
       "spec_ref": [
-        "SPEC:4.1",
-        "MANUAL:8.1"
+        "SPEC:8.6",
+        "MANUAL:14.4.4"
       ]
     },
     "edge/time_utc_roundtrip": {
       "spec_ref": [
-        "SPEC:4.1",
-        "MANUAL:8.1"
+        "SPEC:8.6",
+        "MANUAL:14.4.4"
       ]
     },
     "edge/user_exception_filter": {
       "spec_ref": [
-        "SPEC:4.1",
-        "MANUAL:8.1"
+        "SPEC:10.5",
+        "MANUAL:15.3"
       ]
     },
     "edge/variadic_empty_call": {
       "spec_ref": [
-        "SPEC:4.1",
-        "MANUAL:8.1"
+        "SPEC:5.8",
+        "MANUAL:9.3"
       ]
     },
     "edge/variadic_view_empty_length": {
       "spec_ref": [
-        "SPEC:4.1",
-        "MANUAL:8.1"
+        "SPEC:3.4",
+        "MANUAL:12.1"
       ]
     },
     "edge/variadic_view_nonempty_length": {
       "spec_ref": [
-        "SPEC:4.1",
-        "MANUAL:8.1"
+        "SPEC:3.4",
+        "MANUAL:12.1"
       ]
     },
     "edge/view_string_basic": {
       "spec_ref": [
-        "SPEC:4.1",
-        "MANUAL:8.1"
+        "SPEC:3.4",
+        "MANUAL:12.1"
       ]
     },
     "fs/dir_iterator": {
@@ -2466,6 +2466,5 @@
         "MANUAL:10.3.2"
       ]
     }
-  },
-  "version": 1
+  }
 }
