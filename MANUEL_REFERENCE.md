@@ -1477,7 +1477,7 @@ Ce prototype définit :
 
 ```c
 prototype Object {
-    function clone() : Self {}
+    function clone() : Object {}
 }
 ```
 
@@ -1588,19 +1588,67 @@ prototype B : A {
 
 ---
 
-## 10.6.8 Type `Self`
+## 10.6.8 Spécialisation automatique du retour de `clone()`
 
-`clone()` retourne `Self`.
+Règles pédagogiques à retenir :
 
-`Self` signifie :
+- affectation `=` d’instances : copie de référence (pas de copie d’objet)
+- `clone()` : instanciation d’un nouvel objet du prototype dynamique du receveur
+- typage spécial : après résolution de `E.clone()`, le type statique est `TypeOf(E)`
+- ce mécanisme est limité au nom exact `clone`
+- aucun type `Self` n’existe dans ProtoScript2
 
-> le type statique du receveur.
+Exemple mémoire (copie de référence) :
 
-Donc :
+```c
+prototype P { int n; }
 
-`B b = B.clone();   // OK`
+function main() : void {
+    P a = P.clone();
+    P b = a;
+    b.n = 7;
+    Debug.assert(a.n == 7); // vrai
+}
+```
 
-Le compilateur spécialise automatiquement le type.
+Exemple instanciation (`clone()` ne copie pas l’état dynamique) :
+
+```c
+prototype P { int n = 1; }
+
+function main() : void {
+    P p = P.clone();
+    p.n = 9;
+    P q = p.clone();
+    Debug.assert(q.n == 1); // réinitialisé
+}
+```
+
+Forme courte du typage spécial :
+
+```text
+si méthode résolue nommée "clone" :
+TypeOf(E.clone()) = TypeOf(E)
+```
+
+Exemple multi-niveaux :
+
+```c
+prototype A {
+    function clone() : A { return super.clone(); }
+}
+prototype B : A { }
+prototype C : B { }
+
+function main() : void {
+    C c = C.clone(); // valide
+}
+```
+
+Important :
+
+> Bien que la signature héritée puisse indiquer un type parent,  
+> l’expression `E.clone()` est toujours typée comme le type du receveur `E`.
 
 ---
 
@@ -1630,9 +1678,22 @@ Exemple :
 
 - `super` permet d’appeler la version parent.
 
-- Aucune primitive spéciale n’existe.
+- Le retour statique de `clone()` est spécialisé au prototype courant.
+
+- Aucun type `Self` n’existe.
 
 - L’instanciation est cohérente avec le modèle de délégation (d’héritage).
+
+## 10.6.11 Override et covariance du type de retour
+
+Lors d’un override :
+
+- les paramètres doivent rester identiques ;
+- le type de retour doit être identique ou un sous-type du retour parent.
+
+Règle :
+
+Si le type de retour de le méthode override est différent du type de retour de la méthode parente, alors c'est une violation qui déclanche l'erreur : `E3221 INVALID_OVERRIDE_RETURN_TYPE`.
 
 ---
 

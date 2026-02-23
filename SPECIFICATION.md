@@ -94,7 +94,6 @@ Règles normatives :
 6. Un correctif backend ne doit jamais modifier :
    - le lookup de `clone`,
    - la résolution de `super`,
-   - la spécialisation de `Self`,
    - la hiérarchie prototype,
    - le modèle d’erreur.
 7. Toute allocation spécifique backend doit être :
@@ -111,7 +110,7 @@ Règles normatives pour toute nouvelle structure builtin :
    - méthodes publiques,
    - signature de `clone()`,
    - comportement `super`,
-   - règles `Self`,
+   - règles de typage du retour de `clone()`,
    - erreurs normatives.
    - La surface publique d’un builtin doit être décrivable en ProtoScript (prototype + méthodes),
      sans champ magique requis côté utilisateur.
@@ -126,7 +125,7 @@ Règles normatives pour toute nouvelle structure builtin :
      - instanciation contrôlée par API/module ;
      - aucun clone implicite, aucune duplication best-effort.
    - `Data type` clonable :
-     - `clone()`, `super`, `Self` suivent les règles normales du langage.
+     - `clone()` et `super` suivent les règles normales du langage.
 4. Tests obligatoires :
    - `clone()`,
    - `super.clone()`,
@@ -1042,7 +1041,7 @@ Règles :
 
 # 4. Modèle objet & prototypes
 
-ProtoScript V2 adopte un **modèle objet prototype-based**, sans classes, inspiré de Self, tout en imposant des contraintes fortes de typage statique et de structure afin de garantir lisibilité, analyse statique et performances.
+ProtoScript V2 adopte un **modèle objet prototype-based**, sans classes, avec des contraintes fortes de typage statique et de structure afin de garantir lisibilité, analyse statique et performances.
 
 Conceptuellement, ProtoScript V2 met en œuvre une délégation statique, et non un héritage dynamique.
 
@@ -1130,7 +1129,30 @@ Règles :
 - Tous les prototypes héritent implicitement d’un prototype racine `Object`.
 - `clone()` est une méthode normale résolue par lookup d’héritage.
 - `Object.clone()` est la définition par défaut.
-- `Self` pour `clone()` se spécialise au type statique du receveur.
+
+### Modèle mémoire des objets
+
+Règles normatives :
+
+- Les instances issues de `prototype` sont manipulées par référence.
+- L’opérateur `=` copie uniquement la référence vers l’objet.
+- Aucune copie implicite (profonde ou superficielle) d’instance n’est effectuée.
+- Deux variables assignées à partir de la même valeur objet désignent la même instance.
+
+Exemple normatif :
+
+```c
+prototype P { int n; }
+
+function main() : void {
+  P a = P.clone();
+  P b = a;
+  b.n = 7;
+  Debug.assert(a.n == 7); // vrai
+}
+```
+
+> ProtoScript2 ne possède aucun mécanisme implicite de copie d’instance.
 
 ---
 
@@ -1151,6 +1173,74 @@ Règles normatives :
 7. Toute forme interne de lowering (ex. `__clone_static`) est un détail d’implémentation :
    - elle ne doit jamais contourner le lookup d’héritage de `clone()`,
    - elle ne peut pas modifier l’owner effectivement résolu pour `clone()`.
+
+Clarifications normatives supplémentaires :
+
+- `clone()` instancie le prototype dynamique du receveur.
+- L’objet retourné est distinct du receveur.
+- Les champs sont initialisés selon les règles du prototype.
+- `clone()` ne copie pas l’état dynamique d’une instance existante.
+
+Exemple normatif :
+
+```c
+prototype P { int n = 1; }
+
+function main() : void {
+  P p = P.clone();
+  p.n = 9;
+  P q = p.clone();
+  Debug.assert(q.n == 1); // réinitialisé, pas copié
+}
+```
+
+### Typage statique spécial de `clone()`
+
+`clone()` instancie toujours le prototype dynamique du receveur.
+
+Règle formelle (normative) :
+
+```text
+Après résolution complète d’un appel E.clone(),
+si la méthode résolue est nommée exactement "clone",
+alors TypeOf(E.clone()) = TypeOf(E).
+```
+
+Cette règle :
+
+- s’applique à tous les niveaux d’héritage,
+- ne constitue pas un mécanisme général de covariance implicite,
+- ne s’applique à aucune autre méthode.
+
+Exemple normatif :
+
+```c
+prototype A {
+    function clone() : A {
+        return super.clone();
+    }
+}
+
+prototype B : A { }
+
+function main() : void {
+    B b = B.clone();  // valide
+}
+```
+
+Exemple multi-niveaux :
+
+```c
+prototype A {
+  function clone() : A { return super.clone(); }
+}
+prototype B : A { }
+prototype C : B { }
+
+function main() : void {
+  C c = C.clone(); // valide
+}
+```
 
 Un module natif ProtoScript en C peut restreindre l’accès à certains prototypes non exportés.
 
@@ -1218,7 +1308,7 @@ Diagnostic minimal valide :
 
 ## 4.4 Héritage par délégation
 
-ProtoScript V2 supporte un **héritage par délégation statique**, inspiré de Self, mais fortement restreint afin de préserver la lisibilité et les performances.
+ProtoScript V2 supporte un **héritage par délégation statique**, fortement restreint afin de préserver la lisibilité et les performances.
 
 ### Déclaration d’un prototype avec parent
 
@@ -2147,7 +2237,7 @@ Point.moveAll(p, tmp);
 
 ### Override de méthodes (généralités)
 
-ProtoScript V2 autorise l’**override de méthodes** dans un prototype enfant **uniquement si la signature est strictement identique** à celle de la méthode du prototype parent.
+ProtoScript V2 autorise l’**override de méthodes** dans un prototype enfant avec les règles suivantes.
 
 Cela vaut pour **toutes les méthodes**, variadiques ou non.
 
@@ -2156,8 +2246,20 @@ Règles normatives :
 - le nom de la méthode doit être identique
 - le nombre de paramètres doit être identique
 - le type de chaque paramètre doit être identique et dans le même ordre
-- le type de retour doit être identique
+- le type de retour doit être identique ou un sous-type du retour parent
 - aucune surcharge par variation de paramètres n’est autorisée
+
+Règle formelle (normative) :
+
+```text
+ReturnType_override ≤ ReturnType_parent
+```
+
+Diagnostic en cas de violation :
+
+```text
+E3221 INVALID_OVERRIDE_RETURN_TYPE
+```
 
 Ainsi, ProtoScript V2 **ne supporte pas la surcharge de méthodes** au sens de Java ou C++.
 
@@ -2165,7 +2267,7 @@ Ainsi, ProtoScript V2 **ne supporte pas la surcharge de méthodes** au sens de J
 
 ### Override de méthodes variadiques
 
-Une **méthode variadique peut être override** dans un prototype enfant **uniquement si la signature est strictement identique**, y compris la partie variadique.
+Une **méthode variadique peut être override** dans un prototype enfant avec paramètres identiques, et un retour identique ou covariant.
 
 Règles normatives spécifiques :
 
@@ -3270,7 +3372,7 @@ ProtoScript V2 n’est pas un langage généraliste permissif. C’est un **lang
 ProtoScript V2 se positionne à l’intersection de plusieurs traditions :
 
 - la **sobriété du C**, pour la maîtrise des coûts et des représentations
-- le **modèle prototype-based de Self**, pour l’expressivité objet sans classes
+- un **modèle prototype-based**, pour l’expressivité objet sans classes
 - la **lisibilité syntaxique de JavaScript**, débarrassée de ses ambiguïtés
 - la **rigueur des langages compilés**, sans dépendance à un runtime spéculatif
 

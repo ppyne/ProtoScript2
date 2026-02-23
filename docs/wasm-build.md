@@ -8,6 +8,16 @@ make web-clean
 make web
 ```
 
+## Important — Rebuild WASM
+
+Any modification of the C frontend (`c/frontend.c`) requires a full rebuild of the WASM target:
+
+```bash
+make web
+```
+
+Running WASM tests without rebuilding can cause diagnostic divergences between native CLI and WASM.
+
 ## Toolchain
 
 Validated toolchain used for parity:
