@@ -4976,7 +4976,7 @@ function emitInstr(i, fnInf, state) {
           out.push(`${n(i.dst)}->is_runtime = ${i.proto === "RuntimeException" ? "1" : "0"};`);
         // Backend-C only: these allocations select the correct native storage size
         // for handle-backed builtins. They do not alter ProtoScript semantics:
-        // method lookup/dispatch, clone/super resolution, Self specialization,
+        // method lookup/dispatch and clone/super resolution
         // and prototype hierarchy are resolved upstream in IR/runtime logic.
         } else if (rt === "TextFile" || rt === "BinaryFile") {
           out.push(`${n(i.dst)} = (ps_file*)calloc(1, sizeof(ps_file));`);

@@ -1,0 +1,6 @@
+prototype A { }
+prototype B : A { }
+
+function main() : void {
+  B b = B.clone();
+}

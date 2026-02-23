@@ -3825,7 +3825,7 @@ static int collect_imports(Analyzer *a, AstNode *root) {
   return 1;
 }
 
-static int proto_same_signature(ProtoInfo *protos, ProtoMethod *a, ProtoMethod *b) {
+static int proto_same_signature(ProtoMethod *a, ProtoMethod *b) {
   if (!a || !b) return 0;
   if (a->param_count != b->param_count) return 0;
   if (a->fixed_count != b->fixed_count) return 0;
@@ -3835,13 +3835,15 @@ static int proto_same_signature(ProtoInfo *protos, ProtoMethod *a, ProtoMethod *
     const char *bt = b->param_types ? b->param_types[i] : NULL;
     if (!at || !bt || strcmp(at, bt) != 0) return 0;
   }
-  if (a->name && b->name && strcmp(a->name, "clone") == 0 && strcmp(b->name, "clone") == 0) {
-    const char *base = a->ret_type ? a->ret_type : "void";
-    const char *override = b->ret_type ? b->ret_type : "void";
-    return proto_is_subtype(protos, override, base);
-  }
-  if (strcmp(a->ret_type ? a->ret_type : "void", b->ret_type ? b->ret_type : "void") != 0) return 0;
   return 1;
+}
+
+static int proto_covariant_return(ProtoInfo *protos, ProtoMethod *base_method, ProtoMethod *override_method) {
+  if (!base_method || !override_method) return 0;
+  const char *base = base_method->ret_type ? base_method->ret_type : "void";
+  const char *over = override_method->ret_type ? override_method->ret_type : "void";
+  if (strcmp(base, over) == 0) return 1;
+  return proto_is_subtype(protos, over, base);
 }
 
 static ProtoInfo *proto_append(Analyzer *a, const char *name, const char *parent) {
@@ -4448,8 +4450,15 @@ static int collect_prototypes(Analyzer *a, AstNode *root) {
           had_error = 1;
           break;
         }
-        if (pm && !proto_same_signature(a->protos, pm, m)) {
+        if (pm && !proto_same_signature(pm, m)) {
           set_diag(a->diag, a->file, p->line, p->col, "E3001", "TYPE_MISMATCH_ASSIGNMENT", "override signature mismatch");
+          had_error = 1;
+          break;
+        }
+        if (pm && !proto_covariant_return(a->protos, pm, m)) {
+          char msg[320];
+          snprintf(msg, sizeof(msg), "invalid return type in override for '%s'", m->name ? m->name : "");
+          set_diag(a->diag, a->file, m->line, m->col, "E3221", "INVALID_OVERRIDE_RETURN_TYPE", msg);
           had_error = 1;
           break;
         }
@@ -5162,14 +5171,6 @@ static char *ir_type_elem_for_index(const char *t);
 static char *ir_type_map_key(const char *t);
 static char *ir_type_map_value(const char *t);
 
-static int builtin_clone_receiver(const char *t) {
-  if (!t) return 0;
-  return strcmp(t, "TextFile") == 0 || strcmp(t, "BinaryFile") == 0 || strcmp(t, "Dir") == 0 ||
-         strcmp(t, "Walker") == 0 || strcmp(t, "RegExp") == 0 || strcmp(t, "PathInfo") == 0 ||
-         strcmp(t, "PathEntry") == 0 || strcmp(t, "RegExpMatch") == 0 || strcmp(t, "ProcessEvent") == 0 ||
-         strcmp(t, "ProcessResult") == 0 || strcmp(t, "CivilDateTime") == 0;
-}
-
 static char *method_ret_type(const char *recv_t, const char *m) {
   if (!recv_t || !m) return NULL;
   if (strcmp(recv_t, "int") == 0) {
@@ -5421,6 +5422,9 @@ static char *infer_call_type(Analyzer *a, AstNode *e, Scope *scope, int *ok) {
             *ok = 0;
             return NULL;
           }
+          ProtoInfo *owner = NULL;
+          ProtoMethod *pm = proto_find_method_ex(a->protos, proto->name, mname, &owner);
+          if (!pm) return strdup(proto->name ? proto->name : "unknown");
           return strdup(proto->name ? proto->name : "unknown");
         }
         ProtoInfo *owner = NULL;
@@ -5474,6 +5478,9 @@ static char *infer_call_type(Analyzer *a, AstNode *e, Scope *scope, int *ok) {
               *ok = 0;
               return NULL;
             }
+            ProtoInfo *owner = NULL;
+            ProtoMethod *pm = proto_find_method_ex(a->protos, proto->name, mname, &owner);
+            if (!pm) return strdup(proto->name ? proto->name : "unknown");
             return strdup(proto->name ? proto->name : "unknown");
           }
           ProtoInfo *owner = NULL;
@@ -5540,12 +5547,30 @@ static char *infer_call_type(Analyzer *a, AstNode *e, Scope *scope, int *ok) {
       char *tt = infer_expr_type(a, target, scope, ok);
       if (tt) {
         if (proto_find(a->protos, tt)) {
-          if (strcmp(callee->text ? callee->text : "", "clone") == 0 && builtin_clone_receiver(tt)) {
+          if (strcmp(callee->text ? callee->text : "", "clone") == 0) {
             if (argc != 0) {
               set_diag(a->diag, a->file, e->line, e->col, "E1003", "ARITY_MISMATCH", "arity mismatch for 'clone'");
               *ok = 0;
               free(tt);
               return NULL;
+            }
+            ProtoInfo *owner = NULL;
+            ProtoMethod *pm = proto_find_method_ex(a->protos, tt, callee->text, &owner);
+            if (!pm) {
+              char *ret = strdup(tt);
+              free(tt);
+              return ret;
+            }
+            if (!check_visibility_or_diag(a, callee, callee->text ? callee->text : "", pm->is_internal,
+                                          owner ? owner->name : pm->owner_proto, owner ? owner->module_path : pm->module_path)) {
+              *ok = 0;
+              free(tt);
+              return NULL;
+            }
+            if (owner && owner->name && strcmp(owner->name, tt) != 0) {
+              char *ret = strdup(tt);
+              free(tt);
+              return ret;
             }
             char *ret = strdup(tt);
             free(tt);

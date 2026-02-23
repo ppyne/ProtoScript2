@@ -1,0 +1,27 @@
+import Io;
+
+prototype A {
+  int a;
+
+  function clone() : A {
+    A o = super.clone();
+    o.a = 1;
+    return o;
+  }
+}
+
+prototype B : A {
+  int b;
+
+  function clone() : B {
+    B o = super.clone();
+    o.b = 2;
+    return o;
+  }
+}
+
+function main() : void {
+  B x = B.clone();
+  Io.printLine(x.a.toString());
+  Io.printLine(x.b.toString());
+}

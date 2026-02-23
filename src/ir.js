@@ -1962,9 +1962,9 @@ class IRBuilder {
         const t = selfType ? selfType.type : null;
         if (t && t.kind === "NamedType" && this.prototypes.has(t.name)) {
           const p = this.prototypes.get(t.name);
-          const mm = p && p.parent ? this.resolvePrototypeMethod(p.parent, m.name) : null;
+          const info = p && p.parent ? this.resolvePrototypeMethodOwner(p.parent, m.name) : null;
           if (m.name === "clone") return t;
-          return mm ? mm.retType : { kind: "PrimitiveType", name: "unknown" };
+          return info && info.method ? info.method.retType : { kind: "PrimitiveType", name: "unknown" };
         }
         return { kind: "PrimitiveType", name: "unknown" };
       }
@@ -1976,14 +1976,15 @@ class IRBuilder {
         }
       }
       if (m.target.kind === "Identifier" && this.prototypes.has(m.target.name)) {
+        const info = this.resolvePrototypeMethodOwner(m.target.name, m.name);
         if (m.name === "clone") return { kind: "NamedType", name: m.target.name };
-        const mm = this.resolvePrototypeMethod(m.target.name, m.name);
-        return mm ? mm.retType : { kind: "PrimitiveType", name: "unknown" };
+        return info && info.method ? info.method.retType : { kind: "PrimitiveType", name: "unknown" };
       }
       const t = this.inferExprType(m.target, scope);
       if (t && t.kind === "NamedType" && this.prototypes.has(t.name)) {
-        const mm = this.resolvePrototypeMethod(t.name, m.name);
-        return mm ? mm.retType : { kind: "PrimitiveType", name: "unknown" };
+        const info = this.resolvePrototypeMethodOwner(t.name, m.name);
+        if (m.name === "clone") return t;
+        return info && info.method ? info.method.retType : { kind: "PrimitiveType", name: "unknown" };
       }
       if (t && t.kind === "NamedType" && (t.name === "TextFile" || t.name === "BinaryFile")) {
         if (m.name === "read") {

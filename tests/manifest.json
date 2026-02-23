@@ -80,7 +80,10 @@
       "invalid/type/builtin_sealed_inheritance_processevent",
       "invalid/type/builtin_sealed_inheritance_processresult",
       "invalid/type/super_outside_method",
-      "invalid/type/super_method_missing"
+      "invalid/type/super_method_missing",
+      "invalid/type/clone_override_return_contravariant",
+      "invalid/type/non_clone_inherited_return_not_specialized",
+      "invalid/type/non_clone_no_specialization_static"
     ],
     "invalid/runtime": [
       "invalid/runtime/int_overflow_add",
@@ -187,6 +190,14 @@
       "edge/map_remove_order",
       "edge/call_static_basic",
       "edge/call_static_nested",
+      "edge/clone_simple",
+      "edge/clone_instance",
+      "edge/clone_assignment_valid",
+      "edge/clone_deep_inheritance",
+      "edge/clone_inherited_return_specialized",
+      "edge/clone_override_intermediate",
+      "edge/clone_override_super",
+      "edge/clone_override_covariant",
       "edge/clone_super_initial_divergent",
       "edge/clone_inherited_override",
       "edge/civildatetime_subtype_runtime",

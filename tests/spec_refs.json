@@ -30,6 +30,54 @@
         "MANUAL:10.6"
       ]
     },
+    "edge/clone_deep_inheritance": {
+      "spec_ref": [
+        "SPEC:4.3",
+        "MANUAL:10.6"
+      ]
+    },
+    "edge/clone_assignment_valid": {
+      "spec_ref": [
+        "SPEC:4.3",
+        "MANUAL:10.6"
+      ]
+    },
+    "edge/clone_inherited_return_specialized": {
+      "spec_ref": [
+        "SPEC:4.3",
+        "MANUAL:10.6"
+      ]
+    },
+    "edge/clone_instance": {
+      "spec_ref": [
+        "SPEC:4.3",
+        "MANUAL:10.6"
+      ]
+    },
+    "edge/clone_override_covariant": {
+      "spec_ref": [
+        "SPEC:4.3",
+        "MANUAL:10.6"
+      ]
+    },
+    "edge/clone_override_intermediate": {
+      "spec_ref": [
+        "SPEC:4.3",
+        "MANUAL:10.6"
+      ]
+    },
+    "edge/clone_override_super": {
+      "spec_ref": [
+        "SPEC:4.3",
+        "MANUAL:10.6"
+      ]
+    },
+    "edge/clone_simple": {
+      "spec_ref": [
+        "SPEC:4.3",
+        "MANUAL:10.6"
+      ]
+    },
     "edge/clone_super_initial_divergent": {
       "spec_ref": [
         "SPEC:4.3",
@@ -1918,6 +1966,24 @@
       "spec_ref": [
         "SPEC:5.6",
         "MANUAL:3.1"
+      ]
+    },
+    "invalid/type/clone_override_return_contravariant": {
+      "spec_ref": [
+        "SPEC:4.3",
+        "MANUAL:10.6"
+      ]
+    },
+    "invalid/type/non_clone_inherited_return_not_specialized": {
+      "spec_ref": [
+        "SPEC:4.3",
+        "MANUAL:10.6"
+      ]
+    },
+    "invalid/type/non_clone_no_specialization_static": {
+      "spec_ref": [
+        "SPEC:4.3",
+        "MANUAL:10.6"
       ]
     },
     "invalid/type/civildatetime_field_assignment_forbidden": {

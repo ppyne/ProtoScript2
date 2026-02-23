@@ -1,0 +1,13 @@
+prototype A {
+  function clone() : A {
+    return super.clone();
+  }
+}
+
+prototype B : A { }
+prototype C : B { }
+prototype D : C { }
+
+function main() : void {
+  D d = D.clone();
+}

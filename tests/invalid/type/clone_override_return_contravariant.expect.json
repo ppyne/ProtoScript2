@@ -1,0 +1,12 @@
+{
+  "status": "reject-static",
+  "error_family": "E3xxx",
+  "error_code": "E3221",
+  "category": "INVALID_OVERRIDE_RETURN_TYPE",
+  "position": {
+    "file": "invalid/type/clone_override_return_contravariant.pts",
+    "line": 8,
+    "column": 3
+  },
+  "expected_output": "invalid/type/clone_override_return_contravariant.pts:8:3 E3221 INVALID_OVERRIDE_RETURN_TYPE: invalid return type in override for 'clone'"
+}

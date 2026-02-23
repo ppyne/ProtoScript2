@@ -1,0 +1,12 @@
+{
+  "status": "reject-static",
+  "error_family": "E3xxx",
+  "error_code": "E3001",
+  "category": "TYPE_MISMATCH_ASSIGNMENT",
+  "position": {
+    "file": "invalid/type/non_clone_inherited_return_not_specialized.pts",
+    "line": 16,
+    "column": 5
+  },
+  "expected_output": "invalid/type/non_clone_inherited_return_not_specialized.pts:16:5 E3001 TYPE_MISMATCH_ASSIGNMENT: cannot assign A to B"
+}

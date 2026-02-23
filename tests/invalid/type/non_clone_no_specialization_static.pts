@@ -1,0 +1,12 @@
+prototype A {
+  function f() : A {
+    return A.clone();
+  }
+}
+
+prototype B : A { }
+
+function main() : void {
+  B x = B.clone();
+  B b = x.f();
+}

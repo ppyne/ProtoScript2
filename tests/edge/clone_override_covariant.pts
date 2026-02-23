@@ -1,0 +1,16 @@
+prototype A {
+  function clone() : A {
+    return super.clone();
+  }
+}
+
+prototype B : A {
+  function clone() : B {
+    return super.clone();
+  }
+}
+
+function main() : void {
+  B b = B.clone();
+  A a = B.clone();
+}

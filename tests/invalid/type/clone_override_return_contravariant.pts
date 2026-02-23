@@ -1,0 +1,11 @@
+prototype A {
+  function clone() : A {
+    return super.clone();
+  }
+}
+
+prototype B : A {
+  function clone() : Object {
+    return super.clone();
+  }
+}

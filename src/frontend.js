@@ -2067,6 +2067,8 @@ class Analyzer {
           }
           if (!this.sameSignature(pm, m)) {
             this.addDiag(m, "E3001", "TYPE_MISMATCH_ASSIGNMENT", `override signature mismatch for '${mname}'`);
+          } else if (!this.hasCovariantReturnType(pm, m)) {
+            this.addDiag(m, "E3221", "INVALID_OVERRIDE_RETURN_TYPE", `invalid return type in override for '${mname}'`);
           }
         }
       }
@@ -2199,10 +2201,20 @@ class Analyzer {
   }
 
   resolvePrototypeMethod(protoName, methodName) {
+    const info = this.resolvePrototypeMethodInfo(protoName, methodName);
+    return info ? info.method : null;
+  }
+
+  resolvePrototypeMethodInfo(protoName, methodName) {
+    let currentName = protoName;
     let p = this.prototypes.get(protoName);
     while (p) {
-      if (p.methods.has(methodName)) return p.methods.get(methodName);
+      if (p.methods.has(methodName)) {
+        const owner = p.decl && p.decl.name ? p.decl.name : currentName;
+        return { method: p.methods.get(methodName), owner };
+      }
       if (!p.parent) break;
+      currentName = p.parent;
       p = this.prototypes.get(p.parent);
     }
     return null;
@@ -2215,10 +2227,12 @@ class Analyzer {
       if (!sameType(a.params[i].type, b.params[i].type)) return false;
       if (!!a.params[i].variadic !== !!b.params[i].variadic) return false;
     }
-    if (a.name === "clone" && b.name === "clone") {
-      return this.isSubtype(b.retType, a.retType);
-    }
-    return sameType(a.retType, b.retType);
+    return true;
+  }
+
+  hasCovariantReturnType(parentMethod, overrideMethod) {
+    if (!parentMethod || !overrideMethod) return false;
+    return sameType(parentMethod.retType, overrideMethod.retType) || this.isSubtype(overrideMethod.retType, parentMethod.retType);
   }
 
   isSubtype(child, parent) {
@@ -3127,11 +3141,12 @@ class Analyzer {
           this.addDiag(member, "E3211", "SUPER_NO_PARENT", "super call requires a parent prototype");
           return null;
         }
-        const pm = this.resolvePrototypeMethod(owner.parent, member.name);
-        if (!pm) {
+        const info = this.resolvePrototypeMethodInfo(owner.parent, member.name);
+        if (!info || !info.method) {
           this.addDiag(member, "E3212", "SUPER_METHOD_NOT_FOUND", `super.${member.name} not found`);
           return null;
         }
+        const pm = info.method;
         this.checkPrototypeMethodArity(expr, member.name, pm.params, false);
         expr._superCall = { fromProto: this.currentProto };
         if (member.name === "clone") return { kind: "NamedType", name: this.currentProto };
@@ -3139,14 +3154,15 @@ class Analyzer {
       }
       if (member.target.kind === "Identifier" && this.prototypes.has(member.target.name)) {
         const protoName = member.target.name;
-        const pm = this.resolvePrototypeMethod(protoName, member.name);
-        if (!pm) {
+        const info = this.resolvePrototypeMethodInfo(protoName, member.name);
+        if (!info || !info.method) {
           this.unresolvedMember(member, member.name, "method", `prototype '${protoName}'`, "member", this.collectPrototypeMemberNames(protoName));
           return null;
         }
+        const pm = info.method;
         if (!this.checkMemberVisibility(member, {
           visibility: pm.visibility || "public",
-          ownerProto: pm._ownerProto || protoName,
+          ownerProto: info.owner || pm._ownerProto || protoName,
           moduleFile: pm._moduleFile || (this.prototypes.get(protoName)?.moduleFile || null),
         }, member.name)) {
           return null;
@@ -3162,14 +3178,15 @@ class Analyzer {
         if (ns) {
           if (ns.kind === "proto") {
             const protoName = ns.name;
-            const pm = this.resolvePrototypeMethod(protoName, member.name);
-            if (!pm) {
+            const info = this.resolvePrototypeMethodInfo(protoName, member.name);
+            if (!info || !info.method) {
               this.unresolvedMember(member, member.name, "method", `prototype '${protoName}'`, "member", this.collectPrototypeMemberNames(protoName));
               return null;
             }
+            const pm = info.method;
             if (!this.checkMemberVisibility(member, {
               visibility: pm.visibility || "public",
-              ownerProto: pm._ownerProto || protoName,
+              ownerProto: info.owner || pm._ownerProto || protoName,
               moduleFile: pm._moduleFile || (this.prototypes.get(protoName)?.moduleFile || null),
             }, member.name)) {
               return null;
@@ -3215,14 +3232,15 @@ class Analyzer {
         targetType.name !== "BinaryFile" &&
         targetType.name !== "JSONValue"
       ) {
-        const pm = this.resolvePrototypeMethod(targetType.name, member.name);
-        if (!pm) {
+        const info = this.resolvePrototypeMethodInfo(targetType.name, member.name);
+        if (!info || !info.method) {
           this.unresolvedMember(member, member.name, "method", `prototype '${targetType.name}'`, "member", this.collectPrototypeMemberNames(targetType.name));
           return null;
         }
+        const pm = info.method;
         if (!this.checkMemberVisibility(member, {
           visibility: pm.visibility || "public",
-          ownerProto: pm._ownerProto || targetType.name,
+          ownerProto: info.owner || pm._ownerProto || targetType.name,
           moduleFile: pm._moduleFile || (this.prototypes.get(targetType.name)?.moduleFile || null),
         }, member.name)) {
           return null;
