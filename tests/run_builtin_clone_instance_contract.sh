@@ -4,6 +4,9 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 PS="${PS:-$ROOT_DIR/c/ps}"
 NODE_COMPILER="${NODE_COMPILER:-$ROOT_DIR/bin/protoscriptc}"
+BUILTIN_CLONE_INSTANCE_MODULES="${BUILTIN_CLONE_INSTANCE_MODULES:-1}"
+MODULES_BUILT=0
+MODULES_TMP_DIR=""
 
 if [[ ! -x "$PS" ]]; then
   echo "ERROR: missing CLI runtime: $PS" >&2
@@ -12,6 +15,35 @@ fi
 if [[ ! -x "$NODE_COMPILER" ]]; then
   echo "ERROR: missing node compiler: $NODE_COMPILER" >&2
   exit 2
+fi
+
+if [[ "$BUILTIN_CLONE_INSTANCE_MODULES" == "1" ]]; then
+  export PS_MODULE_REGISTRY="${PS_MODULE_REGISTRY:-$ROOT_DIR/modules/registry.json}"
+  if [[ -z "${PS_MODULE_PATH:-}" ]]; then
+    MODULES_TMP_DIR="$(mktemp -d "${TMPDIR:-/tmp}/ps_modules_clone_instance_XXXXXX")"
+    export PS_MODULE_PATH="$MODULES_TMP_DIR"
+  fi
+fi
+
+cleanup_modules_tmp() {
+  if [[ -n "$MODULES_TMP_DIR" && -d "$MODULES_TMP_DIR" ]]; then
+    rm -rf "$MODULES_TMP_DIR"
+  fi
+}
+trap cleanup_modules_tmp EXIT
+
+if [[ "$BUILTIN_CLONE_INSTANCE_MODULES" == "1" && "$MODULES_BUILT" == "0" ]]; then
+  if [[ -x "$ROOT_DIR/tests/build_modules.sh" ]]; then
+    "$ROOT_DIR/tests/build_modules.sh" >/tmp/ps_clone_instance_modules_build.out 2>&1 || {
+      echo "ERROR: failed to build test modules" >&2
+      sed -n '1,80p' /tmp/ps_clone_instance_modules_build.out >&2
+      exit 2
+    }
+    MODULES_BUILT=1
+  else
+    echo "ERROR: module build script missing: $ROOT_DIR/tests/build_modules.sh" >&2
+    exit 2
+  fi
 fi
 
 reject_cases=(
@@ -117,4 +149,3 @@ echo "Summary: PASS=$pass FAIL=$fail TOTAL=$total"
 if [[ $fail -ne 0 ]]; then
   exit 1
 fi
-

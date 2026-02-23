@@ -21,6 +21,26 @@ TMP_C_BUILTIN_OUT="$(mktemp)"
 TMP_C_BUILTIN_BIN="$(mktemp)"
 TMP_CLI_BUILTIN_NODE="$(mktemp)"
 TMP_CLI_BUILTIN_C="$(mktemp)"
+DEBUG_TESTS_MODULES="${DEBUG_TESTS_MODULES:-1}"
+MODULES_TMP_DIR=""
+
+if [[ "$DEBUG_TESTS_MODULES" == "1" ]]; then
+  export PS_MODULE_REGISTRY="${PS_MODULE_REGISTRY:-$ROOT_DIR/modules/registry.json}"
+  if [[ -z "${PS_MODULE_PATH:-}" ]]; then
+    MODULES_TMP_DIR="$(mktemp -d "${TMPDIR:-/tmp}/ps_modules_debug_tests_XXXXXX")"
+    export PS_MODULE_PATH="$MODULES_TMP_DIR"
+  fi
+  if [[ -x "$ROOT_DIR/tests/build_modules.sh" ]]; then
+    "$ROOT_DIR/tests/build_modules.sh" >/tmp/ps_debug_tests_modules_build.out 2>&1 || {
+      echo "FAIL building modules for debug tests" >&2
+      sed -n '1,80p' /tmp/ps_debug_tests_modules_build.out >&2 || true
+      exit 1
+    }
+  else
+    echo "FAIL missing module build script: $ROOT_DIR/tests/build_modules.sh" >&2
+    exit 1
+  fi
+fi
 
 cc -std=c11 -Wall -Wextra -Werror -O2 -Dps_module_init=ps_module_init_JSON \
   -I"$ROOT_DIR/include" -I"$ROOT_DIR/c" \
@@ -130,5 +150,9 @@ fi
 
 rm -f "$TMP_C_OUT" "$TMP_NODE_OUT" "$TMP_BIN" "$TMP_VARIADIC_NODE" "$TMP_VARIADIC_C" \
   "$TMP_BUILTIN_HANDLES_NODE" "$TMP_C_BUILTIN_OUT" "$TMP_C_BUILTIN_BIN" \
-  "$TMP_CLI_BUILTIN_NODE" "$TMP_CLI_BUILTIN_C" /tmp/ps_debug_tests_make_ps.out
+  "$TMP_CLI_BUILTIN_NODE" "$TMP_CLI_BUILTIN_C" /tmp/ps_debug_tests_make_ps.out \
+  /tmp/ps_debug_tests_modules_build.out
+if [[ -n "$MODULES_TMP_DIR" && -d "$MODULES_TMP_DIR" ]]; then
+  rm -rf "$MODULES_TMP_DIR"
+fi
 echo "PASS Debug module tests"

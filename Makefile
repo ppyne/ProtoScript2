@@ -1,6 +1,13 @@
 CC ?= cc
 EMCC ?= emcc
 EMAR ?= emar
+UNAME_S := $(shell uname -s)
+UNAME_M := $(shell uname -m)
+ARCH_CFLAGS :=
+ifeq ($(UNAME_S),Darwin)
+ARCH_CFLAGS := -arch $(UNAME_M)
+endif
+export ARCH_CFLAGS
 
 ROOT := $(shell pwd)
 WEB_DIR := $(ROOT)/web
@@ -60,10 +67,10 @@ WEB_LDFLAGS := -s WASM=1 -s MODULARIZE=1 -s EXPORT_NAME=ProtoScript -s EXIT_RUNT
 all: c vscode-package
 
 c:
-	$(MAKE) -C c
+	$(MAKE) -C c ARCH_CFLAGS="$(ARCH_CFLAGS)"
 
 clean:
-	$(MAKE) -C c clean
+	$(MAKE) -C c clean ARCH_CFLAGS="$(ARCH_CFLAGS)"
 
 web: $(WEB_OUT)
 

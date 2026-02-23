@@ -67,7 +67,7 @@ run_with_prefix() {
   local src="$2"
   local out_file="$3"
   set +e
-  bash -lc "$prefix \"\$1\"" -- "$src" >"$out_file" 2>&1
+  EMSDK_QUIET=1 bash -c "$prefix \"\$1\"" -- "$src" >"$out_file" 2>&1
   local code=$?
   set -e
   return "$code"

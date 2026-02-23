@@ -2,9 +2,12 @@ override CC := cc
 CFLAGS_BASE := -std=c11 -Wall -Wextra -Werror -O2 -I../include -I.
 
 UNAME_S := $(shell uname -s)
-ARCH_CFLAGS :=
+UNAME_M := $(shell uname -m)
+ARCH_CFLAGS ?=
 ifeq ($(UNAME_S),Darwin)
-ARCH_CFLAGS := -arch arm64
+ifeq ($(strip $(ARCH_CFLAGS)),)
+ARCH_CFLAGS := -arch $(UNAME_M)
+endif
 endif
 
 override CFLAGS := $(CFLAGS_BASE) $(ARCH_CFLAGS)
@@ -60,7 +63,7 @@ force-mcpp:
 
 print-build-vars:
 	@echo "CC=$(CC)"
-	@echo "ARCH=arm64"
+	@echo "ARCH=$(UNAME_M)"
 	@echo "ARCH_CFLAGS=$(ARCH_CFLAGS)"
 	@echo "CFLAGS=$(CFLAGS)"
 	@echo "MCPP_CFLAGS=$(MCPP_CFLAGS)"
