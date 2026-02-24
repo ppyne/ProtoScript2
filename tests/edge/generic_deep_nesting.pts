@@ -1,0 +1,6 @@
+import Io;
+
+function main() : void {
+    map<int, map<int, map<int, int>>> deep;
+    Io.printLine("ok");
+}

@@ -39,6 +39,7 @@ int ps_parse_file_syntax(const char *file, PsDiag *out_diag);
 int ps_parse_file_ast(const char *file, PsDiag *out_diag, FILE *out);
 int ps_check_file_static(const char *file, PsDiag *out_diag);
 int ps_emit_ir_json(const char *file, PsDiag *out_diag, FILE *out);
+int ps_dump_tokens_file(const char *file, PsDiag *out_diag, FILE *out);
 void ps_set_registry_exe_dir(const char *dir);
 
 #endif

@@ -1,5 +1,6 @@
 #include "frontend.h"
 
+#include <assert.h>
 #include <ctype.h>
 #include <limits.h>
 #include <math.h>
@@ -13,6 +14,12 @@
 #include "runtime/ps_json.h"
 #include "preprocess.h"
 #include "diag.h"
+
+#if defined(PS_DEBUG_LEXER_ASSERTS)
+#define LEX_ASSERT(cond) assert(cond)
+#else
+#define LEX_ASSERT(cond) ((void)0)
+#endif
 
 typedef struct AstNode AstNode;
 
@@ -139,6 +146,7 @@ typedef struct {
   int col;
   TokenVec toks;
   PsDiag *diag;
+  int generic_depth;
 } Lexer;
 
 typedef struct {
@@ -481,6 +489,35 @@ static int lex_add(Lexer *l, TokenKind kind, const char *text, int line, int col
   return 1;
 }
 
+static int lex_is_type_context_before_head(Lexer *l, size_t head_idx) {
+  if (!l || head_idx == 0 || head_idx > l->toks.len) return 1;
+  Token *prev = &l->toks.items[head_idx - 1];
+  if (l->generic_depth > 0 && prev->kind == TK_SYM &&
+      (strcmp(prev->text, "<") == 0 || strcmp(prev->text, ",") == 0)) {
+    return 1;
+  }
+  if (prev->kind == TK_KW && strcmp(prev->text, "const") == 0) return 1;
+  if (prev->kind == TK_SYM &&
+      (strcmp(prev->text, ";") == 0 || strcmp(prev->text, "{") == 0 || strcmp(prev->text, "}") == 0 ||
+       strcmp(prev->text, "(") == 0 || strcmp(prev->text, ",") == 0 || strcmp(prev->text, ":") == 0 ||
+       strcmp(prev->text, "=") == 0)) {
+    return 1;
+  }
+  return 0;
+}
+
+static int lex_last_is_generic_type_head(Lexer *l) {
+  if (!l || l->toks.len == 0) return 0;
+  size_t head_idx = l->toks.len - 1;
+  Token *t = &l->toks.items[head_idx];
+  if (t->kind != TK_KW) return 0;
+  if (!(strcmp(t->text, "list") == 0 || strcmp(t->text, "map") == 0 ||
+        strcmp(t->text, "slice") == 0 || strcmp(t->text, "view") == 0)) {
+    return 0;
+  }
+  return lex_is_type_context_before_head(l, head_idx);
+}
+
 static int is_two_sym(const char *s) {
   static const char *two[] = {"==", "!=", "<=", ">=", "&&", "||", "<<", ">>", "++", "--", "+=", "-=", "*=", "/=", NULL};
   for (int i = 0; two[i]; i++) if (strcmp(two[i], s) == 0) return 1;
@@ -725,6 +762,19 @@ static int run_lexer(Lexer *l) {
     }
 
     char two[3] = {l_ch(l, 0), l_ch(l, 1), '\0'};
+    if (strcmp(two, ">>") == 0 && l->generic_depth > 0) {
+      int first_col = l->col;
+      l_advance(l);
+      if (!lex_add(l, TK_SYM, ">", line, first_col)) return 0;
+      l->generic_depth -= 1;
+      LEX_ASSERT(l->generic_depth >= 0);
+      int second_col = l->col;
+      l_advance(l);
+      if (!lex_add(l, TK_SYM, ">", line, second_col)) return 0;
+      if (l->generic_depth > 0) l->generic_depth -= 1;
+      LEX_ASSERT(l->generic_depth >= 0);
+      continue;
+    }
     if (is_two_sym(two)) {
       l_advance(l); l_advance(l);
       if (!lex_add(l, TK_SYM, two, line, col)) return 0;
@@ -733,8 +783,18 @@ static int run_lexer(Lexer *l) {
 
     if (is_one_sym(c)) {
       char one[2] = {c, '\0'};
+      if (c == '<' && lex_last_is_generic_type_head(l)) {
+        l->generic_depth += 1;
+        LEX_ASSERT(l->generic_depth >= 0);
+      } else if (c == '>' && l->generic_depth > 0) {
+        l->generic_depth -= 1;
+        LEX_ASSERT(l->generic_depth >= 0);
+      }
       l_advance(l);
       if (!lex_add(l, TK_SYM, one, line, col)) return 0;
+      if (c == ';' || c == '{' || c == '}') {
+        LEX_ASSERT(l->generic_depth == 0);
+      }
       continue;
     }
 
@@ -744,6 +804,7 @@ static int run_lexer(Lexer *l) {
     return 0;
   }
 
+  LEX_ASSERT(l->generic_depth == 0);
   if (!lex_add(l, TK_EOF, "eof", l->line, l->col)) return 0;
   return 1;
 }
@@ -6812,6 +6873,71 @@ static int parse_file_internal(const char *file, PsDiag *out_diag, AstNode **out
   token_vec_free(&lx.toks);
   free(src);
   return ok ? 0 : 1;
+}
+
+static const char *token_kind_name(TokenKind k) {
+  switch (k) {
+    case TK_KW: return "kw";
+    case TK_ID: return "id";
+    case TK_NUM: return "num";
+    case TK_STR: return "str";
+    case TK_SYM: return "sym";
+    case TK_EOF: return "eof";
+    default: return "tok";
+  }
+}
+
+static void dump_token_value_escaped(FILE *out, const char *s) {
+  fputc('"', out);
+  if (!s) {
+    fputc('"', out);
+    return;
+  }
+  for (const unsigned char *p = (const unsigned char *)s; *p; p++) {
+    unsigned char ch = *p;
+    if (ch == '\\') fputs("\\\\", out);
+    else if (ch == '"') fputs("\\\"", out);
+    else if (ch == '\n') fputs("\\n", out);
+    else if (ch == '\r') fputs("\\r", out);
+    else if (ch == '\t') fputs("\\t", out);
+    else if (ch < 0x20) fprintf(out, "\\x%02X", (unsigned int)ch);
+    else fputc((int)ch, out);
+  }
+  fputc('"', out);
+}
+
+int ps_dump_tokens_file(const char *file, PsDiag *out_diag, FILE *out) {
+  memset(out_diag, 0, sizeof(*out_diag));
+  size_t n = 0;
+  char *src = read_file(file, &n, out_diag);
+  if (!src) return 2;
+
+  Lexer lx;
+  memset(&lx, 0, sizeof(lx));
+  lx.file = file;
+  lx.src = src;
+  lx.n = n;
+  lx.i = 0;
+  lx.line = 1;
+  lx.col = 1;
+  lx.diag = out_diag;
+
+  if (!run_lexer(&lx)) {
+    token_vec_free(&lx.toks);
+    free(src);
+    return 1;
+  }
+
+  for (size_t i = 0; i < lx.toks.len; i++) {
+    Token *t = &lx.toks.items[i];
+    fprintf(out, "%d:%d %s ", t->line, t->col, token_kind_name(t->kind));
+    dump_token_value_escaped(out, t->text);
+    fputc('\n', out);
+  }
+
+  token_vec_free(&lx.toks);
+  free(src);
+  return 0;
 }
 
 int ps_parse_file_syntax(const char *file, PsDiag *out_diag) { return parse_file_internal(file, out_diag, NULL); }

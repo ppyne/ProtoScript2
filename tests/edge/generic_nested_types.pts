@@ -1,0 +1,6 @@
+import Io;
+
+function main() : void {
+    map<glyph, map<glyph, int>> counts;
+    Io.printLine("ok");
+}

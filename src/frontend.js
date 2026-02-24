@@ -218,6 +218,8 @@ class Lexer {
     this.line = 1;
     this.col = 1;
     this.tokens = [];
+    this.genericDepth = 0;
+    this.debugLexerAsserts = process.env.PS_DEBUG_LEXER_ASSERT === "1";
   }
 
   eof() {
@@ -242,6 +244,39 @@ class Lexer {
 
   add(type, value, line, col) {
     this.tokens.push({ type, value, line, col });
+  }
+
+  lastToken() {
+    return this.tokens.length > 0 ? this.tokens[this.tokens.length - 1] : null;
+  }
+
+  isGenericTypeHeadToken(tok) {
+    return !!tok && tok.type === "kw" && ["list", "map", "slice", "view"].includes(tok.value);
+  }
+
+  genericDepthAssert(ok, line = this.line, col = this.col, msg = "lexer generic depth invariant violation") {
+    if (this.debugLexerAsserts && !ok) {
+      throw new FrontendError(diag(this.file, line, col, "E1001", "PARSE_UNEXPECTED_TOKEN", msg));
+    }
+  }
+
+  tokenBefore(tok) {
+    if (!tok || this.tokens.length < 2) return null;
+    return this.tokens[this.tokens.length - 2] || null;
+  }
+
+  isTypeContextBeforeGenericHead(tok) {
+    const prev = this.tokenBefore(tok);
+    if (!prev) return true;
+    if (this.genericDepth > 0 && prev.type === "sym" && (prev.value === "<" || prev.value === ",")) return true;
+    if (prev.type === "kw" && prev.value === "const") return true;
+    if (prev.type === "sym" && [";", "{", "}", "(", ",", ":", "="].includes(prev.value)) return true;
+    return false;
+  }
+
+  canOpenGenericList() {
+    const last = this.lastToken();
+    return this.isGenericTypeHeadToken(last) && this.isTypeContextBeforeGenericHead(last);
   }
 
   lex() {
@@ -412,6 +447,19 @@ class Lexer {
       }
 
       const two = this.src.slice(this.i, this.i + 2);
+      if (two === ">>" && this.genericDepth > 0) {
+        const firstCol = this.col;
+        this.advance();
+        this.add("sym", ">", line, firstCol);
+        this.genericDepth -= 1;
+        this.genericDepthAssert(this.genericDepth >= 0, line, firstCol);
+        const secondCol = this.col;
+        this.advance();
+        this.add("sym", ">", line, secondCol);
+        if (this.genericDepth > 0) this.genericDepth -= 1;
+        this.genericDepthAssert(this.genericDepth >= 0, line, secondCol);
+        continue;
+      }
       const twoSyms = new Set([
         "==",
         "!=",
@@ -462,8 +510,20 @@ class Lexer {
         ">",
       ]);
       if (oneSyms.has(c)) {
+        if (c === "<" && this.canOpenGenericList()) {
+          this.genericDepth += 1;
+          this.genericDepthAssert(this.genericDepth >= 0, line, col);
+        } else if (c === ">" && this.genericDepth > 0) {
+          this.genericDepth -= 1;
+          this.genericDepthAssert(this.genericDepth >= 0, line, col);
+        } else if (c === ">" && this.genericDepth === 0) {
+          this.genericDepthAssert(true, line, col);
+        }
         this.advance();
         this.add("sym", c, line, col);
+        if (c === ";" || c === "{" || c === "}") {
+          this.genericDepthAssert(this.genericDepth === 0, line, col, "generic depth must be zero at statement boundary");
+        }
         continue;
       }
 
@@ -472,6 +532,7 @@ class Lexer {
       );
     }
 
+    this.genericDepthAssert(this.genericDepth === 0, this.line, this.col, "generic depth must be zero at end of file");
     this.add("eof", "eof", this.line, this.col);
     return this.tokens;
   }
@@ -3490,6 +3551,10 @@ function parseOnly(file, src) {
   return { tokens, ast };
 }
 
+function lexOnly(file, src) {
+  return new Lexer(file, src).lex();
+}
+
 function psTypeName(typeNode) {
   if (!typeNode) return null;
   try {
@@ -4156,6 +4221,7 @@ module.exports = {
   check,
   parseAndAnalyze,
   parseOnly,
+  lexOnly,
   buildSemanticModel,
   formatDiag,
   FrontendError,

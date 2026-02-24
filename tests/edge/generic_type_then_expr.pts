@@ -1,0 +1,11 @@
+import Io;
+
+function main() : void {
+    map<int, int> m;
+    int a = 3;
+    int b = 2;
+    bool x = a < b;
+    int y = a >> b;
+    Io.printLine(x.toString());
+    Io.printLine(y.toString());
+}

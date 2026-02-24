@@ -276,6 +276,42 @@ expect_node_c_run_parity() {
   fi
 }
 
+expect_token_dump_parity() {
+  local desc="$1"
+  local src="$2"
+  local node_bin="$ROOT_DIR/bin/protoscriptc"
+  local c_bin="$ROOT_DIR/c/pscc"
+  set +e
+  "$node_bin" --dump-tokens "$src" >/tmp/ps_cli_tokens_node.out 2>/tmp/ps_cli_tokens_node.err
+  local rc_node=$?
+  "$c_bin" --dump-tokens "$src" >/tmp/ps_cli_tokens_c.out 2>/tmp/ps_cli_tokens_c.err
+  local rc_c=$?
+  set -e
+  if [[ "$rc_node" -ne 0 || "$rc_c" -ne 0 ]]; then
+    echo "FAIL $desc"
+    echo "  expected token dump success"
+    echo "  node rc=$rc_node c rc=$rc_c"
+    echo "  node stderr:"
+    sed -n '1,80p' /tmp/ps_cli_tokens_node.err
+    echo "  c stderr:"
+    sed -n '1,80p' /tmp/ps_cli_tokens_c.err
+    fail=$((fail + 1))
+    return
+  fi
+  if cmp -s /tmp/ps_cli_tokens_node.out /tmp/ps_cli_tokens_c.out; then
+    echo "PASS $desc"
+    pass=$((pass + 1))
+  else
+    echo "FAIL $desc"
+    echo "  token dump differs between Node and C"
+    echo "  node dump:"
+    sed -n '1,80p' /tmp/ps_cli_tokens_node.out
+    echo "  c dump:"
+    sed -n '1,80p' /tmp/ps_cli_tokens_c.out
+    fail=$((fail + 1))
+  fi
+}
+
 echo "== ProtoScript CLI Tests =="
 echo "PS: $PS"
 echo
@@ -290,6 +326,9 @@ expect_output_contains "run list concat" "hello world" "$PS" run "$ROOT_DIR/test
 expect_output_contains "run io temp path" "ok" "$PS" run "$ROOT_DIR/tests/cli/io_temp_path.pts"
 expect_output_contains "run proto bool field" "true" "$PS" run "$ROOT_DIR/tests/cli/proto_bool_field.pts"
 expect_output_contains "run control flow continuation" "after_try" "$PS" run "$ROOT_DIR/tests/cli/control_flow_continuation.pts"
+expect_output_contains "run generic compare shift" "true" "$PS" run "$ROOT_DIR/tests/edge/generic_compare_shift.pts"
+expect_output_contains "run generic type then expr bool" "false" "$PS" run "$ROOT_DIR/tests/edge/generic_type_then_expr.pts"
+expect_output_contains "run generic type then expr shift" "0" "$PS" run "$ROOT_DIR/tests/edge/generic_type_then_expr.pts"
 expect_node_c_run_parity "run parity clone inherited throw" "$ROOT_DIR/tests/cli/clone_inherited_throw_parity.pts"
 expect_output_contains "run manual ex008" "1" "$PS" run "$ROOT_DIR/tests/cli/manual_ex008.pts"
 expect_output_contains "run manual ex010" "12" "$PS" run "$ROOT_DIR/tests/cli/manual_ex010.pts"
@@ -367,6 +406,14 @@ expect_exit "pscc check manual ex018" 0 "$ROOT_DIR/c/pscc" --check "$ROOT_DIR/te
 expect_exit "pscc check manual ex019" 0 "$ROOT_DIR/c/pscc" --check "$ROOT_DIR/tests/cli/manual_ex019.pts"
 expect_exit "pscc check manual ex021" 0 "$ROOT_DIR/c/pscc" --check "$ROOT_DIR/tests/cli/manual_ex021.pts"
 expect_exit "pscc check manual ex024" 0 "$ROOT_DIR/c/pscc" --check "$ROOT_DIR/tests/cli/manual_ex024.pts"
+expect_exit "generic nested glyph check" 0 "$PS" check "$ROOT_DIR/tests/edge/generic_nested_types.pts"
+expect_exit "generic deep nesting check" 0 "$PS" check "$ROOT_DIR/tests/edge/generic_deep_nesting.pts"
+expect_exit "generic function param check" 0 "$PS" check "$ROOT_DIR/tests/edge/generic_function_param.pts"
+expect_exit "generic deep then shift check" 0 "$PS" check "$ROOT_DIR/tests/edge/generic_deep_then_shift.pts"
+expect_exit "pscc generic nested glyph check" 0 "$ROOT_DIR/c/pscc" --check "$ROOT_DIR/tests/edge/generic_nested_types.pts"
+expect_exit "pscc generic deep nesting check" 0 "$ROOT_DIR/c/pscc" --check "$ROOT_DIR/tests/edge/generic_deep_nesting.pts"
+expect_exit "pscc generic function param check" 0 "$ROOT_DIR/c/pscc" --check "$ROOT_DIR/tests/edge/generic_function_param.pts"
+expect_exit "pscc generic deep then shift check" 0 "$ROOT_DIR/c/pscc" --check "$ROOT_DIR/tests/edge/generic_deep_then_shift.pts"
 expect_exit "pscc check empty list no context" 1 "$ROOT_DIR/c/pscc" --check "$ROOT_DIR/tests/invalid/type/empty_list_no_context.pts"
 expect_exit "pscc check empty map no context" 1 "$ROOT_DIR/c/pscc" --check "$ROOT_DIR/tests/invalid/type/empty_map_no_context.pts"
 expect_exit "pscc check manual ex007" 0 "$ROOT_DIR/c/pscc" --check "$ROOT_DIR/tests/cli/manual_ex007.pts"
@@ -381,6 +428,7 @@ expect_exit "trace enabled" 0 "$PS" run "$ROOT_DIR/tests/cli/hello.pts" --trace
 expect_output_contains "trace-ir enabled" "[ir]" "$PS" run "$ROOT_DIR/tests/cli/hello.pts" --trace-ir
 expect_output_contains "time enabled" "time:" "$PS" run "$ROOT_DIR/tests/cli/hello.pts" --time
 expect_output_contains "pscc emit-c outputs C" "int main" "$ROOT_DIR/c/pscc" --emit-c "$ROOT_DIR/tests/cli/exit_code.pts"
+expect_token_dump_parity "token dump parity generic context" "$ROOT_DIR/tests/edge/generic_token_parity.pts"
 
 expect_output_exact() {
   local desc="$1"

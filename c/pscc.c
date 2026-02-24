@@ -17,6 +17,7 @@ static void usage(void) {
   fprintf(stderr, "  pscc --check-c-static-twice <file.pts>\n");
   fprintf(stderr, "  pscc --ast-c <file.pts>\n");
   fprintf(stderr, "  pscc --emit-ir-c-json <file.pts>\n");
+  fprintf(stderr, "  pscc --dump-tokens <file.pts>\n");
   fprintf(stderr, "  pscc --emit-ir <file.pts> [--opt]\n");
   fprintf(stderr, "  pscc --emit-c <file.pts> [--opt]\n");
   fprintf(stderr, "\n");
@@ -124,13 +125,15 @@ int main(int argc, char **argv) {
 
   if (!(strcmp(mode, "--check") == 0 || strcmp(mode, "--check-c") == 0 || strcmp(mode, "--check-c-static") == 0 ||
         strcmp(mode, "--check-c-static-twice") == 0 || strcmp(mode, "--ast-c") == 0 ||
-        strcmp(mode, "--emit-ir-c-json") == 0 || strcmp(mode, "--emit-ir") == 0 || strcmp(mode, "--emit-c") == 0)) {
+        strcmp(mode, "--emit-ir-c-json") == 0 || strcmp(mode, "--dump-tokens") == 0 ||
+        strcmp(mode, "--emit-ir") == 0 || strcmp(mode, "--emit-c") == 0)) {
     usage();
     return 2;
   }
 
   if ((strcmp(mode, "--check") == 0 || strcmp(mode, "--check-c") == 0 || strcmp(mode, "--check-c-static") == 0 ||
-       strcmp(mode, "--check-c-static-twice") == 0 || strcmp(mode, "--ast-c") == 0 || strcmp(mode, "--emit-ir-c-json") == 0) &&
+       strcmp(mode, "--check-c-static-twice") == 0 || strcmp(mode, "--ast-c") == 0 ||
+       strcmp(mode, "--emit-ir-c-json") == 0 || strcmp(mode, "--dump-tokens") == 0) &&
       opt_count > 0) {
     fprintf(stderr, "pscc: --opt is only valid with --emit-ir or --emit-c\n");
     return 2;
@@ -179,6 +182,16 @@ int main(int argc, char **argv) {
   if (strcmp(mode, "--emit-ir-c-json") == 0) {
     PsDiag d;
     int rc = ps_emit_ir_json(input, &d, stdout);
+    if (rc != 0) {
+      print_diag(stderr, input, &d);
+      return (rc == 2) ? 2 : 1;
+    }
+    return 0;
+  }
+
+  if (strcmp(mode, "--dump-tokens") == 0) {
+    PsDiag d;
+    int rc = ps_dump_tokens_file(input, &d, stdout);
     if (rc != 0) {
       print_diag(stderr, input, &d);
       return (rc == 2) ? 2 : 1;

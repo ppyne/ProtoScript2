@@ -73,6 +73,10 @@ echo "-- runtime triangle parity (VM C native ↔ WASM ↔ emit-C)"
 "$ROOT_DIR/tests/run_runtime_triangle_parity.sh"
 echo
 
+echo "-- lexer token parity (Node dump-tokens vs C dump-tokens)"
+"$ROOT_DIR/tests/run_lexer_token_parity.sh"
+echo
+
 echo "-- CLI tests (C)"
 "$ROOT_DIR/tests/run_cli_tests.sh"
 echo

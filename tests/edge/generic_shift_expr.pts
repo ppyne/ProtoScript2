@@ -1,0 +1,7 @@
+import Io;
+
+function main() : void {
+    int a = 16;
+    int b = 2;
+    Io.printLine((a >> b).toString());
+}

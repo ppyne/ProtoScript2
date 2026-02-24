@@ -3,7 +3,7 @@
 
 const fs = require("fs");
 const path = require("path");
-const { check, parseAndAnalyze, parseOnly, formatDiag, FrontendError } = require("../src/frontend");
+const { check, parseAndAnalyze, parseOnly, lexOnly, formatDiag, FrontendError } = require("../src/frontend");
 const { runProgram, RuntimeError, isExceptionValue } = require("../src/runtime");
 const { buildIR, printIR, serializeIR, validateSerializedIR } = require("../src/ir");
 const { generateC } = require("../src/c_backend");
@@ -16,6 +16,7 @@ function usage() {
   console.error("  protoscriptc --emit-ir <file.pts>");
   console.error("  protoscriptc --emit-ast-json <file.pts>");
   console.error("  protoscriptc --emit-ir-json <file.pts> [--opt]");
+  console.error("  protoscriptc --dump-tokens <file.pts>");
   console.error("  protoscriptc --validate-ir <file.json>");
   console.error("  protoscriptc --emit-c <file.pts> [--opt]");
   process.exit(2);
@@ -34,6 +35,7 @@ if (
   mode !== "--emit-ir" &&
   mode !== "--emit-ast-json" &&
   mode !== "--emit-ir-json" &&
+  mode !== "--dump-tokens" &&
   mode !== "--validate-ir" &&
   mode !== "--emit-c"
 ) {
@@ -72,6 +74,12 @@ try {
       for (const d of diags) console.error(formatDiag(d));
       process.exit(1);
     }
+    process.exit(0);
+  }
+
+  if (mode === "--dump-tokens") {
+    const tokens = lexOnly(file, src);
+    process.stdout.write(formatTokenDump(tokens));
     process.exit(0);
   }
 
@@ -173,4 +181,29 @@ function formatDiagMessage(shortMsg, got, expected) {
   if (got) return `${s}. got ${got}`;
   if (expected) return `${s}. expected ${expected}`;
   return s;
+}
+
+function escapeTokenValue(value) {
+  let out = '"';
+  for (let i = 0; i < value.length; i += 1) {
+    const ch = value[i];
+    const code = value.charCodeAt(i);
+    if (ch === "\\") out += "\\\\";
+    else if (ch === '"') out += '\\"';
+    else if (ch === "\n") out += "\\n";
+    else if (ch === "\r") out += "\\r";
+    else if (ch === "\t") out += "\\t";
+    else if (code < 0x20) out += `\\x${code.toString(16).toUpperCase().padStart(2, "0")}`;
+    else out += ch;
+  }
+  out += '"';
+  return out;
+}
+
+function formatTokenDump(tokens) {
+  let out = "";
+  for (const tok of tokens) {
+    out += `${tok.line}:${tok.col} ${tok.type} ${escapeTokenValue(String(tok.value ?? ""))}\n`;
+  }
+  return out;
 }

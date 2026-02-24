@@ -1,0 +1,8 @@
+import Io;
+
+function f(map<int, map<int, int>> x) : void {
+}
+
+function main() : void {
+    Io.printLine("ok");
+}
