@@ -62,12 +62,15 @@ WEB_LDFLAGS := -s WASM=1 -s MODULARIZE=1 -s EXPORT_NAME=ProtoScript -s EXIT_RUNT
   -s EXPORTED_RUNTIME_METHODS="['FS','callMain']" \
   --preload-file $(ROOT)/modules/registry.json@/modules/registry.json
 
-.PHONY: all c clean web web-clean test mcpp-web vscode-wasm vscode-build vscode-package vscode-install-local clean-vscode
+.PHONY: all c modules clean web web-clean test mcpp-web vscode-wasm vscode-build vscode-package vscode-install-local clean-vscode
 
-all: c vscode-package
+all: c modules vscode-package
 
 c:
 	$(MAKE) -C c ARCH_CFLAGS="$(ARCH_CFLAGS)"
+
+modules:
+	./scripts/build_modules.sh
 
 clean:
 	$(MAKE) -C c clean ARCH_CFLAGS="$(ARCH_CFLAGS)"

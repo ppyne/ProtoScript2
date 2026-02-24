@@ -17,8 +17,8 @@ cleanup_cli_modules_tmp() {
 }
 trap cleanup_cli_modules_tmp EXIT
 
-if [[ -x "$ROOT_DIR/tests/build_modules.sh" ]]; then
-  "$ROOT_DIR/tests/build_modules.sh" >/tmp/ps_cli_modules_build.out 2>&1 || {
+if [[ -x "$ROOT_DIR/scripts/build_modules.sh" ]]; then
+  "$ROOT_DIR/scripts/build_modules.sh" >/tmp/ps_cli_modules_build.out 2>&1 || {
     echo "ERROR: failed to build test modules" >&2
     sed -n '1,80p' /tmp/ps_cli_modules_build.out >&2
     exit 2

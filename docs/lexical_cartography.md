@@ -263,7 +263,7 @@ Source principale: `c/frontend.c` (`check_method_arity`, `method_ret_type`) and 
 
 ## 4. Native Modules
 
-Source: `modules/registry.json`, `c/modules/*.c`, `tests/modules_src/*.c`, `tests/build_modules.sh`.
+Source: `modules/registry.json`, `c/modules/*.c`, `tests/modules_src/*.c`, `scripts/build_modules.sh`.
 
 ### 4.1 Standard/Native Modules in Registry
 

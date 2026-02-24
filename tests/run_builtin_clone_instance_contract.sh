@@ -33,15 +33,15 @@ cleanup_modules_tmp() {
 trap cleanup_modules_tmp EXIT
 
 if [[ "$BUILTIN_CLONE_INSTANCE_MODULES" == "1" && "$MODULES_BUILT" == "0" ]]; then
-  if [[ -x "$ROOT_DIR/tests/build_modules.sh" ]]; then
-    "$ROOT_DIR/tests/build_modules.sh" >/tmp/ps_clone_instance_modules_build.out 2>&1 || {
+  if [[ -x "$ROOT_DIR/scripts/build_modules.sh" ]]; then
+    "$ROOT_DIR/scripts/build_modules.sh" >/tmp/ps_clone_instance_modules_build.out 2>&1 || {
       echo "ERROR: failed to build test modules" >&2
       sed -n '1,80p' /tmp/ps_clone_instance_modules_build.out >&2
       exit 2
     }
     MODULES_BUILT=1
   else
-    echo "ERROR: module build script missing: $ROOT_DIR/tests/build_modules.sh" >&2
+    echo "ERROR: module build script missing: $ROOT_DIR/scripts/build_modules.sh" >&2
     exit 2
   fi
 fi

@@ -176,8 +176,8 @@ while IFS= read -r case_id; do
   fi
 
   if [[ -n "$requires_modules" && "$CONFORMANCE_MODULES" == "1" && "$MODULES_BUILT" == "0" ]]; then
-    if [[ -x "$TESTS_DIR/build_modules.sh" ]]; then
-      "$TESTS_DIR/build_modules.sh"
+    if [[ -x "$ROOT_DIR/scripts/build_modules.sh" ]]; then
+      "$ROOT_DIR/scripts/build_modules.sh"
       MODULES_BUILT=1
     else
       echo "FAIL $case_id"

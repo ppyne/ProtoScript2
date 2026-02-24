@@ -80,8 +80,8 @@ while IFS= read -r case_id; do
   fi
 
   if [[ -n "$requires_modules" && "$CLI_RUNTIME_PARITY_MODULES" == "1" && "$MODULES_BUILT" == "0" ]]; then
-    if [[ -x "$TESTS_DIR/build_modules.sh" ]]; then
-      "$TESTS_DIR/build_modules.sh" >/tmp/ps_cli_runtime_modules_build.out 2>&1 || {
+    if [[ -x "$ROOT_DIR/scripts/build_modules.sh" ]]; then
+      "$ROOT_DIR/scripts/build_modules.sh" >/tmp/ps_cli_runtime_modules_build.out 2>&1 || {
         echo "FAIL $case_id"
         echo "  failed to build test modules"
         sed -n '1,80p' /tmp/ps_cli_runtime_modules_build.out

@@ -30,14 +30,14 @@ if [[ "$DEBUG_TESTS_MODULES" == "1" ]]; then
     MODULES_TMP_DIR="$(mktemp -d "${TMPDIR:-/tmp}/ps_modules_debug_tests_XXXXXX")"
     export PS_MODULE_PATH="$MODULES_TMP_DIR"
   fi
-  if [[ -x "$ROOT_DIR/tests/build_modules.sh" ]]; then
-    "$ROOT_DIR/tests/build_modules.sh" >/tmp/ps_debug_tests_modules_build.out 2>&1 || {
+  if [[ -x "$ROOT_DIR/scripts/build_modules.sh" ]]; then
+    "$ROOT_DIR/scripts/build_modules.sh" >/tmp/ps_debug_tests_modules_build.out 2>&1 || {
       echo "FAIL building modules for debug tests" >&2
       sed -n '1,80p' /tmp/ps_debug_tests_modules_build.out >&2 || true
       exit 1
     }
   else
-    echo "FAIL missing module build script: $ROOT_DIR/tests/build_modules.sh" >&2
+    echo "FAIL missing module build script: $ROOT_DIR/scripts/build_modules.sh" >&2
     exit 1
   fi
 fi
