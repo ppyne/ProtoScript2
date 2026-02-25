@@ -9,6 +9,10 @@ ProtoScript V2 peut être qualifié de langage prototype-based statique à layou
 
 Article en anglais qui annonce le lancement du langage : [ProtoScript2: A Static Prototype-Based Language](https://alexandre.vialle.ovh/Articles/Programming/protoscript2-a-static-prototype-based-language)
 
+Autre article en anglais : [ProtoScript2: At the Boundaries of Genericity](https://alexandre.vialle.ovh/Articles/Programming/protoscript2-at-the-boundaries-of-genericity)
+
+Autre article en anglais qui pourrait être le manifeste de ProtoScript2 [Prototype-Based Thinking — The ProtoScript2 Position](https://alexandre.vialle.ovh/Articles/Programming/prototype-based-thinking-the-protoscript2-position)
+
 Le projet est désormais spécifié, gouverné, et testable de façon indépendante.
 
 ![La magie cache les coûts. ProtoScript les rend visibles](slogan.png)
@@ -26,6 +30,7 @@ Le projet est désormais spécifié, gouverné, et testable de façon indépenda
 
 - le manuel utilisateur de référence est [`MANUEL_REFERENCE.md`](MANUEL_REFERENCE.md) (descriptif, aligné sur la spec)
 - la source normative est [`SPECIFICATION.md`](SPECIFICATION.md) (ProtoScript Language Specification v2.0)
+- le guide d’implémentation [`docs/implementation_guide.md`](docs/implementation_guide.md)
 - la suite de conformité (`tests/manifest.json`) fait partie du contrat
 - une implémentation est conforme uniquement si elle passe 100 % des tests normatifs
 - aucun changement sémantique sans bump de version majeure
