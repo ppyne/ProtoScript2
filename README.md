@@ -1,4 +1,6 @@
-![ProtoScript2](header.png)
+<img alt="ProtoScript2" src="logo.svg" width="400">
+
+---
 
 # ProtoScript V2 — Manifeste
 

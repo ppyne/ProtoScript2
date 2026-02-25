@@ -1,4 +1,6 @@
-![ProtoScript2](header.png)
+<img alt="ProtoScript2" src="logo.svg" width="400">
+
+---
 
 > If two data structures are different, they should be written as different.  
 > *– Niklaus Wirth, inventeur du langage Pascal*

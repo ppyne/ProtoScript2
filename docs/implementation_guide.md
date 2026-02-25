@@ -1,3 +1,7 @@
+<img alt="ProtoScript2" src="../logo.svg" width="400">
+
+---
+
 # Guide d’implémentation ProtoScript2 (auditable)
 
 ProtoScript2 est un langage d’ingénierie conçu autour de trois principes structurants : déterminisme, auditabilité et séparation explicite des responsabilités entre frontend, représentation intermédiaire (IR) et runtime.
