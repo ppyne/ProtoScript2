@@ -1,3 +1,5 @@
+#define _POSIX_C_SOURCE 200809L
+
 #include "frontend.h"
 
 #include <assert.h>
@@ -6,6 +8,7 @@
 #include <math.h>
 #include <stdarg.h>
 #include <stdio.h>
+#include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/stat.h>
@@ -14,6 +17,10 @@
 #include "runtime/ps_json.h"
 #include "preprocess.h"
 #include "diag.h"
+
+#ifndef PATH_MAX
+#define PATH_MAX 4096
+#endif
 
 #if defined(PS_DEBUG_LEXER_ASSERTS)
 #define LEX_ASSERT(cond) assert(cond)

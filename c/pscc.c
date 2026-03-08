@@ -1,3 +1,5 @@
+#define _POSIX_C_SOURCE 200809L
+
 #include <errno.h>
 #include <limits.h>
 #include <stdio.h>
@@ -8,6 +10,10 @@
 
 #include "frontend.h"
 #include "diag.h"
+
+#ifndef PATH_MAX
+#define PATH_MAX 4096
+#endif
 
 static void usage(void) {
   fprintf(stderr, "Usage:\n");
