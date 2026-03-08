@@ -2400,13 +2400,27 @@ static char *read_file_raw(const char *path, size_t *out_n) {
   return buf;
 }
 
+static int join_path(char *out, size_t out_cap, const char *base, const char *suffix) {
+  if (!out || !base || !suffix) return 0;
+  size_t base_len = strlen(base);
+  size_t suffix_len = strlen(suffix);
+  size_t need = base_len + 1 + suffix_len + 1;
+  if (need > out_cap) return 0;
+  memcpy(out, base, base_len);
+  out[base_len] = '/';
+  memcpy(out + base_len + 1, suffix, suffix_len);
+  out[base_len + 1 + suffix_len] = '\0';
+  return 1;
+}
+
 static char *read_registry_file(size_t *out_n) {
   const char *env = getenv("PS_MODULE_REGISTRY");
   char exe_path[PATH_MAX];
   const char *exe_candidate = NULL;
   if (g_registry_exe_dir_set) {
-    snprintf(exe_path, sizeof(exe_path), "%s/registry.json", g_registry_exe_dir);
-    exe_candidate = exe_path;
+    if (join_path(exe_path, sizeof(exe_path), g_registry_exe_dir, "registry.json")) {
+      exe_candidate = exe_path;
+    }
   }
   const char *candidates[] = {
     env,
@@ -2429,10 +2443,10 @@ static char *read_registry_file(size_t *out_n) {
     char cwd[PATH_MAX];
     if (getcwd(cwd, sizeof(cwd))) {
       char path[PATH_MAX];
-      snprintf(path, sizeof(path), "%s/registry.json", cwd);
-      data = read_file_raw(path, &n);
-      if (!data) {
-        snprintf(path, sizeof(path), "%s/modules/registry.json", cwd);
+      if (join_path(path, sizeof(path), cwd, "registry.json")) {
+        data = read_file_raw(path, &n);
+      }
+      if (!data && join_path(path, sizeof(path), cwd, "modules/registry.json")) {
         data = read_file_raw(path, &n);
       }
     }
