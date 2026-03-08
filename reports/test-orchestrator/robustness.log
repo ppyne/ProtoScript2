@@ -456,7 +456,7 @@ PASS invalid/parse/unexpected_token_comma
 PASS invalid/parse/unclosed_block
 PASS invalid/parse/manual_ex020
 PASS invalid/parse/manual_ex026
-modules built in /var/folders/88/nw43wg1s4xb4dr4z8k09jw100000gn/T//ps_modules_CN9T3S
+modules built in /var/folders/88/nw43wg1s4xb4dr4z8k09jw100000gn/T//ps_modules_AIdYhn
 PASS invalid/parse/manual_ex050
 PASS invalid/parse/manual_ex053
 PASS invalid/parse/manual_ex078
@@ -529,6 +529,9 @@ PASS invalid/type/builtin_sealed_inheritance_processevent
 PASS invalid/type/builtin_sealed_inheritance_processresult
 PASS invalid/type/super_outside_method
 PASS invalid/type/super_method_missing
+PASS invalid/type/clone_override_return_contravariant
+PASS invalid/type/non_clone_inherited_return_not_specialized
+PASS invalid/type/non_clone_no_specialization_static
 PASS invalid/runtime/int_overflow_add
 PASS invalid/runtime/div_zero_int
 PASS invalid/runtime/shift_range_int
@@ -625,6 +628,14 @@ PASS edge/map_methods_basic
 PASS edge/map_remove_order
 PASS edge/call_static_basic
 PASS edge/call_static_nested
+PASS edge/clone_simple
+PASS edge/clone_instance
+PASS edge/clone_assignment_valid
+PASS edge/clone_deep_inheritance
+PASS edge/clone_inherited_return_specialized
+PASS edge/clone_override_intermediate
+PASS edge/clone_override_super
+PASS edge/clone_override_covariant
 PASS edge/clone_super_initial_divergent
 PASS edge/clone_inherited_override
 PASS edge/civildatetime_subtype_runtime
@@ -683,6 +694,10 @@ PASS edge/int_methods
 PASS edge/numeric_cast_valid
 PASS edge/numeric_literal_context
 PASS edge/int_bitwise_ops
+PASS edge/generic_compare_shift
+PASS edge/generic_type_then_expr
+PASS edge/generic_shift_expr
+PASS edge/generic_shift_combined
 PASS edge/int64_print
 PASS edge/int64_print_io
 PASS edge/int_min_literal
@@ -865,7 +880,7 @@ PASS sys_execute/permission_denied
 PASS sys_execute/exec_failure
 PASS sys_execute/invalid_utf8_output
 
-Summary: PASS=412 FAIL=0 SKIP=0 TOTAL=412
+Summary: PASS=427 FAIL=0 SKIP=0 TOTAL=427
 Conformance PASSED (100%).
 
 -- crosscheck (Node  C, strict AST + static C, emit-c compiled with ASAN)
@@ -951,6 +966,9 @@ PASS invalid/type/builtin_sealed_inheritance_processevent
 PASS invalid/type/builtin_sealed_inheritance_processresult
 PASS invalid/type/super_outside_method
 PASS invalid/type/super_method_missing
+PASS invalid/type/clone_override_return_contravariant
+PASS invalid/type/non_clone_inherited_return_not_specialized
+PASS invalid/type/non_clone_no_specialization_static
 PASS invalid/runtime/int_overflow_add
 PASS invalid/runtime/div_zero_int
 PASS invalid/runtime/shift_range_int
@@ -1047,6 +1065,14 @@ PASS edge/map_methods_basic
 PASS edge/map_remove_order
 PASS edge/call_static_basic
 PASS edge/call_static_nested
+PASS edge/clone_simple
+PASS edge/clone_instance
+PASS edge/clone_assignment_valid
+PASS edge/clone_deep_inheritance
+PASS edge/clone_inherited_return_specialized
+PASS edge/clone_override_intermediate
+PASS edge/clone_override_super
+PASS edge/clone_override_covariant
 PASS edge/clone_super_initial_divergent
 PASS edge/clone_inherited_override
 PASS edge/civildatetime_subtype_runtime
@@ -1069,7 +1095,7 @@ PASS edge/index_get_map
 PASS edge/index_set_list
 PASS edge/index_set_map
 PASS edge/compound_assign
-SLOW edge/group_stress 9s
+SLOW edge/group_stress 8s
 PASS edge/group_stress
 PASS edge/exception_derived
 PASS edge/iter_list_of
@@ -1106,6 +1132,10 @@ PASS edge/int_methods
 PASS edge/numeric_cast_valid
 PASS edge/numeric_literal_context
 PASS edge/int_bitwise_ops
+PASS edge/generic_compare_shift
+PASS edge/generic_type_then_expr
+PASS edge/generic_shift_expr
+PASS edge/generic_shift_combined
 PASS edge/int64_print
 PASS edge/int64_print_io
 PASS edge/int_min_literal
@@ -1289,11 +1319,11 @@ PASS sys_execute/exec_failure
 PASS sys_execute/invalid_utf8_output
 
 Slow cases (>= 5s):
-  edge/group_stress:9s
+  edge/group_stress:8s
 
-Slowest case: edge/group_stress (9s)
+Slowest case: edge/group_stress (8s)
 
-Summary: PASS=411 FAIL=0 TOTAL=411
+Summary: PASS=426 FAIL=0 TOTAL=426
 
 == Strict AST check ==
 == AST Structural Crosscheck (Node AST vs C AST) ==
@@ -1369,6 +1399,9 @@ PASS invalid/type/builtin_sealed_inheritance_processevent
 PASS invalid/type/builtin_sealed_inheritance_processresult
 PASS invalid/type/super_outside_method
 PASS invalid/type/super_method_missing
+PASS invalid/type/clone_override_return_contravariant
+PASS invalid/type/non_clone_inherited_return_not_specialized
+PASS invalid/type/non_clone_no_specialization_static
 PASS invalid/runtime/int_overflow_add
 PASS invalid/runtime/div_zero_int
 PASS invalid/runtime/shift_range_int
@@ -1465,6 +1498,14 @@ PASS edge/map_methods_basic
 PASS edge/map_remove_order
 PASS edge/call_static_basic
 PASS edge/call_static_nested
+PASS edge/clone_simple
+PASS edge/clone_instance
+PASS edge/clone_assignment_valid
+PASS edge/clone_deep_inheritance
+PASS edge/clone_inherited_return_specialized
+PASS edge/clone_override_intermediate
+PASS edge/clone_override_super
+PASS edge/clone_override_covariant
 PASS edge/clone_super_initial_divergent
 PASS edge/clone_inherited_override
 PASS edge/civildatetime_subtype_runtime
@@ -1523,6 +1564,10 @@ PASS edge/int_methods
 PASS edge/numeric_cast_valid
 PASS edge/numeric_literal_context
 PASS edge/int_bitwise_ops
+PASS edge/generic_compare_shift
+PASS edge/generic_type_then_expr
+PASS edge/generic_shift_expr
+PASS edge/generic_shift_combined
 PASS edge/int64_print
 PASS edge/int64_print_io
 PASS edge/int_min_literal
@@ -1705,7 +1750,7 @@ PASS sys_execute/permission_denied
 PASS sys_execute/exec_failure
 PASS sys_execute/invalid_utf8_output
 
-Summary: PASS=404 FAIL=0 TOTAL=404
+Summary: PASS=419 FAIL=0 TOTAL=419
 AST structural crosscheck PASSED.
 
 == Strict Static C check ==
@@ -1782,6 +1827,9 @@ PASS invalid/type/builtin_sealed_inheritance_processevent
 PASS invalid/type/builtin_sealed_inheritance_processresult
 PASS invalid/type/super_outside_method
 PASS invalid/type/super_method_missing
+PASS invalid/type/clone_override_return_contravariant
+PASS invalid/type/non_clone_inherited_return_not_specialized
+PASS invalid/type/non_clone_no_specialization_static
 PASS invalid/visibility_internal/internal_access_from_global_same_file
 PASS invalid/visibility_internal/internal_access_from_unrelated_prototype_same_file
 PASS invalid/visibility_internal/internal_keyword_outside_prototype
@@ -1789,7 +1837,7 @@ PASS edge/switch_no_termination
 PASS fs/module_missing
 PASS sys/module_missing
 
-Summary: PASS=75 FAIL=0 TOTAL=75
+Summary: PASS=78 FAIL=0 TOTAL=78
 C static oracle crosscheck PASSED.
 Node/C crosscheck PASSED.
 
@@ -1894,6 +1942,14 @@ PASS edge/map_methods_basic
 PASS edge/map_remove_order
 PASS edge/call_static_basic
 PASS edge/call_static_nested
+PASS edge/clone_simple
+PASS edge/clone_instance
+PASS edge/clone_assignment_valid
+PASS edge/clone_deep_inheritance
+PASS edge/clone_inherited_return_specialized
+PASS edge/clone_override_intermediate
+PASS edge/clone_override_super
+PASS edge/clone_override_covariant
 PASS edge/clone_super_initial_divergent
 PASS edge/clone_inherited_override
 PASS edge/civildatetime_subtype_runtime
@@ -1952,6 +2008,10 @@ PASS edge/int_methods
 PASS edge/numeric_cast_valid
 PASS edge/numeric_literal_context
 PASS edge/int_bitwise_ops
+PASS edge/generic_compare_shift
+PASS edge/generic_type_then_expr
+PASS edge/generic_shift_expr
+PASS edge/generic_shift_combined
 PASS edge/int64_print
 PASS edge/int64_print_io
 PASS edge/int_min_literal
@@ -2132,7 +2192,7 @@ PASS sys_execute/permission_denied
 PASS sys_execute/exec_failure
 PASS sys_execute/invalid_utf8_output
 
-Summary: PASS=329 FAIL=0 SKIP=0 TOTAL=329
+Summary: PASS=341 FAIL=0 SKIP=0 TOTAL=341
 Runtime triangle parity PASSED.
 
 -- CLI tests (C, ASAN)
@@ -2149,6 +2209,9 @@ PASS run list concat
 PASS run io temp path
 PASS run proto bool field
 PASS run control flow continuation
+PASS run generic compare shift
+PASS run generic type then expr bool
+PASS run generic type then expr shift
 PASS run parity clone inherited throw
 PASS run manual ex008
 PASS run manual ex010
@@ -2192,6 +2255,14 @@ PASS pscc check manual ex018
 PASS pscc check manual ex019
 PASS pscc check manual ex021
 PASS pscc check manual ex024
+PASS generic nested glyph check
+PASS generic deep nesting check
+PASS generic function param check
+PASS generic deep then shift check
+PASS pscc generic nested glyph check
+PASS pscc generic deep nesting check
+PASS pscc generic function param check
+PASS pscc generic deep then shift check
 PASS pscc check empty list no context
 PASS pscc check empty map no context
 PASS pscc check manual ex007
@@ -2206,6 +2277,7 @@ PASS trace enabled
 PASS trace-ir enabled
 PASS time enabled
 PASS pscc emit-c outputs C
+PASS token dump parity generic context
 PASS run manual_ex001
 PASS run manual_ex002
 PASS run manual_ex003
@@ -2433,7 +2505,7 @@ PASS pscc check manual_ex115
 PASS pscc check manual_ex116
 PASS pscc check manual_ex117
 
-Summary: PASS=293 FAIL=0 TOTAL=293
+Summary: PASS=305 FAIL=0 TOTAL=305
 
 -- repeated-run loop (C, ASAN)
 Color.V1 = int(1)

@@ -9,7 +9,7 @@ PASS invalid/parse/unexpected_token_comma
 PASS invalid/parse/unclosed_block
 PASS invalid/parse/manual_ex020
 PASS invalid/parse/manual_ex026
-modules built in /var/folders/88/nw43wg1s4xb4dr4z8k09jw100000gn/T//ps_modules_4E7FLl
+modules built in /var/folders/88/nw43wg1s4xb4dr4z8k09jw100000gn/T//ps_modules_DcA9md
 PASS invalid/parse/manual_ex050
 PASS invalid/parse/manual_ex053
 PASS invalid/parse/manual_ex078
@@ -82,6 +82,9 @@ PASS invalid/type/builtin_sealed_inheritance_processevent
 PASS invalid/type/builtin_sealed_inheritance_processresult
 PASS invalid/type/super_outside_method
 PASS invalid/type/super_method_missing
+PASS invalid/type/clone_override_return_contravariant
+PASS invalid/type/non_clone_inherited_return_not_specialized
+PASS invalid/type/non_clone_no_specialization_static
 PASS invalid/runtime/int_overflow_add
 PASS invalid/runtime/div_zero_int
 PASS invalid/runtime/shift_range_int
@@ -178,6 +181,14 @@ PASS edge/map_methods_basic
 PASS edge/map_remove_order
 PASS edge/call_static_basic
 PASS edge/call_static_nested
+PASS edge/clone_simple
+PASS edge/clone_instance
+PASS edge/clone_assignment_valid
+PASS edge/clone_deep_inheritance
+PASS edge/clone_inherited_return_specialized
+PASS edge/clone_override_intermediate
+PASS edge/clone_override_super
+PASS edge/clone_override_covariant
 PASS edge/clone_super_initial_divergent
 PASS edge/clone_inherited_override
 PASS edge/civildatetime_subtype_runtime
@@ -236,6 +247,10 @@ PASS edge/int_methods
 PASS edge/numeric_cast_valid
 PASS edge/numeric_literal_context
 PASS edge/int_bitwise_ops
+PASS edge/generic_compare_shift
+PASS edge/generic_type_then_expr
+PASS edge/generic_shift_expr
+PASS edge/generic_shift_combined
 PASS edge/int64_print
 PASS edge/int64_print_io
 PASS edge/int_min_literal
@@ -418,5 +433,5 @@ PASS sys_execute/permission_denied
 PASS sys_execute/exec_failure
 PASS sys_execute/invalid_utf8_output
 
-Summary: PASS=412 FAIL=0 SKIP=0 TOTAL=412
+Summary: PASS=427 FAIL=0 SKIP=0 TOTAL=427
 Conformance PASSED (100%).
