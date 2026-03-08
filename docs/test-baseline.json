@@ -3,7 +3,7 @@
   "flows": [
     {
       "command": "tests/run_all.sh --robust",
-      "duration_ms": 1849382,
+      "duration_ms": 1757586,
       "emit_c": true,
       "exit_code": 0,
       "id": "run_all_robust",
@@ -18,8 +18,8 @@
       "sanitizer": true,
       "script": "tests/run_all.sh",
       "setup": {
-        "duration_ms": 0,
-        "log": null,
+        "duration_ms": 7370,
+        "log": "reports/test-orchestrator/run_all_robust.prebuild.log",
         "ok": true,
         "ran": true
       },
@@ -27,7 +27,7 @@
     },
     {
       "command": "CONFORMANCE_MODULES=1 tests/run_conformance.sh",
-      "duration_ms": 73395,
+      "duration_ms": 74340,
       "emit_c": false,
       "exit_code": 0,
       "id": "conformance_modules",
@@ -52,7 +52,7 @@
     },
     {
       "command": "tests/run_node_c_crosscheck.sh --strict-ast --strict-static-c",
-      "duration_ms": 396054,
+      "duration_ms": 389547,
       "emit_c": true,
       "exit_code": 0,
       "id": "node_c_crosscheck_strict",
@@ -64,7 +64,7 @@
       "sanitizer": false,
       "script": "tests/run_node_c_crosscheck.sh",
       "setup": {
-        "duration_ms": 5825,
+        "duration_ms": 5745,
         "log": "reports/test-orchestrator/node_c_crosscheck_strict.prebuild.log",
         "ok": true,
         "ran": true
@@ -78,7 +78,7 @@
     },
     {
       "command": "tests/run_runtime_crosscheck.sh",
-      "duration_ms": 241117,
+      "duration_ms": 232023,
       "emit_c": true,
       "exit_code": 0,
       "id": "runtime_crosscheck",
@@ -104,7 +104,7 @@
     },
     {
       "command": "tests/run_cli_runtime_parity.sh",
-      "duration_ms": 68677,
+      "duration_ms": 69656,
       "emit_c": false,
       "exit_code": 0,
       "id": "cli_runtime_parity",
@@ -130,7 +130,7 @@
     },
     {
       "command": "tests/run_runtime_triangle_parity.sh",
-      "duration_ms": 324367,
+      "duration_ms": 313935,
       "emit_c": true,
       "exit_code": 0,
       "id": "runtime_triangle_parity",
@@ -157,7 +157,7 @@
     },
     {
       "command": "tests/run_wasm_runtime_parity.sh",
-      "duration_ms": 2695,
+      "duration_ms": 2703,
       "emit_c": false,
       "exit_code": 0,
       "id": "wasm_runtime_parity",
@@ -182,7 +182,7 @@
     },
     {
       "command": "tests/run_robustness.sh",
-      "duration_ms": 910393,
+      "duration_ms": 1814156,
       "emit_c": true,
       "exit_code": 0,
       "id": "robustness",
@@ -210,7 +210,7 @@
       }
     }
   ],
-  "generated_at_utc": "2026-03-08T00:17:14Z",
+  "generated_at_utc": "2026-03-08T19:29:07Z",
   "overall_status": "pass",
   "per_execution_path": {
     "c": {
@@ -252,7 +252,7 @@
     "requested": true
   },
   "schema_version": 1,
-  "total_duration_ms": 3871917,
+  "total_duration_ms": 4667074,
   "total_flows_executed": 8,
   "total_tests_executed": 1839
 }
