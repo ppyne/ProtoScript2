@@ -9,6 +9,7 @@ import subprocess
 import sys
 import time
 from pathlib import Path
+import platform
 
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -16,6 +17,8 @@ REPORT_DIR = ROOT / "reports" / "fuzz"
 BIN_DIR = ROOT / "tests" / "fuzz" / "bin"
 FINDINGS_RAW = ROOT / "tests" / "fuzz" / "findings" / "raw"
 MCPP_LIB = ROOT / "third_party" / "mcpp" / "lib" / "libmcpp.a"
+if platform.system() == "Linux":
+    MCPP_LIB = ROOT / "third_party" / "mcpp" / "lib64" / "libmcpp.a"
 
 
 TARGETS = [
@@ -88,6 +91,7 @@ def build_target(target: dict[str, Path | str], clang: str, cflags: list[str], l
         *COMMON_SRCS,
         str(MCPP_LIB),
         "-ldl",
+        "-lm",
         "-o",
         str(bin_path),
     ]
@@ -125,6 +129,8 @@ def main() -> int:
         "-fsanitize=fuzzer,address,undefined",
         "-Wall",
         "-Wextra",
+        "-D_POSIX_C_SOURCE=200809L",
+        "-D_GNU_SOURCE",
     ]
 
     pass_count = 0
