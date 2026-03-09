@@ -23,6 +23,7 @@ EMIT_C_CC_FLAGS = [
     "-Wextra",
     "-Wpedantic",
     "-Wno-pedantic",
+    "-Wno-misleading-indentation",
     "-Werror",
     "-Wno-unused-function",
     "-D_POSIX_C_SOURCE=200809L",
