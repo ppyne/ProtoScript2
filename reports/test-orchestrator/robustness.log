@@ -456,7 +456,7 @@ PASS invalid/parse/unexpected_token_comma
 PASS invalid/parse/unclosed_block
 PASS invalid/parse/manual_ex020
 PASS invalid/parse/manual_ex026
-modules built in /var/folders/88/nw43wg1s4xb4dr4z8k09jw100000gn/T//ps_modules_2p37ss
+modules built in /var/folders/88/nw43wg1s4xb4dr4z8k09jw100000gn/T//ps_modules_sUkqaG
 PASS invalid/parse/manual_ex050
 PASS invalid/parse/manual_ex053
 PASS invalid/parse/manual_ex078
@@ -1095,7 +1095,7 @@ PASS edge/index_get_map
 PASS edge/index_set_list
 PASS edge/index_set_map
 PASS edge/compound_assign
-SLOW edge/group_stress 8s
+SLOW edge/group_stress 9s
 PASS edge/group_stress
 PASS edge/exception_derived
 PASS edge/iter_list_of
@@ -1319,9 +1319,9 @@ PASS sys_execute/exec_failure
 PASS sys_execute/invalid_utf8_output
 
 Slow cases (>= 5s):
-  edge/group_stress:8s
+  edge/group_stress:9s
 
-Slowest case: edge/group_stress (8s)
+Slowest case: edge/group_stress (9s)
 
 Summary: PASS=426 FAIL=0 TOTAL=426
 

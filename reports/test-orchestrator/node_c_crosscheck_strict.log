@@ -209,7 +209,7 @@ PASS edge/index_get_map
 PASS edge/index_set_list
 PASS edge/index_set_map
 PASS edge/compound_assign
-SLOW edge/group_stress 9s
+SLOW edge/group_stress 8s
 PASS edge/group_stress
 PASS edge/exception_derived
 PASS edge/iter_list_of
@@ -433,9 +433,9 @@ PASS sys_execute/exec_failure
 PASS sys_execute/invalid_utf8_output
 
 Slow cases (>= 5s):
-  edge/group_stress:9s
+  edge/group_stress:8s
 
-Slowest case: edge/group_stress (9s)
+Slowest case: edge/group_stress (8s)
 
 Summary: PASS=426 FAIL=0 TOTAL=426
 

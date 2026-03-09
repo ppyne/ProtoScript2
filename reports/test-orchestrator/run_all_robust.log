@@ -15,7 +15,6 @@ cc -O2 -Wno-deprecated-declarations -fno-common -arch arm64 -mmacosx-version-min
 mkdir -p lib
 ar rcs lib/libmcpp.a directive.o eval.o expand.o mcpp_main.o mbchar.o support.o system.o
 cc -std=c11 -Wall -Wextra -Werror -O2 -I../include -I. -arch arm64 -I../third_party/mcpp pscc.c frontend.c preprocess.c diag.c runtime/ps_json.c ../third_party/mcpp/lib/libmcpp.a -o pscc
-cc -std=c11 -Wall -Wextra -Werror -O2 -I../include -I. -arch arm64 -I../third_party/mcpp cli/ps.c frontend.c preprocess.c diag.c runtime/ps_api.c runtime/ps_errors.c runtime/ps_heap.c runtime/ps_value.c runtime/ps_string.c runtime/ps_list.c runtime/ps_object.c runtime/ps_map.c runtime/ps_dynlib_posix.c runtime/ps_json.c runtime/ps_modules.c runtime/ps_vm.c modules/time.o modules/time_civil.o modules_regexp.o modules_debug.o modules_io.o modules_json.o modules_math.o ../third_party/mcpp/lib/libmcpp.a -o ps -ldl
 
 -- docs ProtoScript syntax lint
 Docs ProtoScript lint PASSED
@@ -32,7 +31,7 @@ PASS invalid/parse/unexpected_token_comma
 PASS invalid/parse/unclosed_block
 PASS invalid/parse/manual_ex020
 PASS invalid/parse/manual_ex026
-modules built in /var/folders/88/nw43wg1s4xb4dr4z8k09jw100000gn/T//ps_modules_X9q3Ub
+modules built in /var/folders/88/nw43wg1s4xb4dr4z8k09jw100000gn/T//ps_modules_6MnC7F
 PASS invalid/parse/manual_ex050
 PASS invalid/parse/manual_ex053
 PASS invalid/parse/manual_ex078
@@ -671,7 +670,7 @@ PASS edge/index_get_map
 PASS edge/index_set_list
 PASS edge/index_set_map
 PASS edge/compound_assign
-SLOW edge/group_stress 8s
+SLOW edge/group_stress 9s
 PASS edge/group_stress
 PASS edge/exception_derived
 PASS edge/iter_list_of
@@ -895,9 +894,9 @@ PASS sys_execute/exec_failure
 PASS sys_execute/invalid_utf8_output
 
 Slow cases (>= 5s):
-  edge/group_stress:8s
+  edge/group_stress:9s
 
-Slowest case: edge/group_stress (8s)
+Slowest case: edge/group_stress (9s)
 
 Summary: PASS=426 FAIL=0 TOTAL=426
 
@@ -3044,7 +3043,7 @@ PASS invalid/parse/unexpected_token_comma
 PASS invalid/parse/unclosed_block
 PASS invalid/parse/manual_ex020
 PASS invalid/parse/manual_ex026
-modules built in /var/folders/88/nw43wg1s4xb4dr4z8k09jw100000gn/T//ps_modules_Uxtoap
+modules built in /var/folders/88/nw43wg1s4xb4dr4z8k09jw100000gn/T//ps_modules_7v6Q7V
 PASS invalid/parse/manual_ex050
 PASS invalid/parse/manual_ex053
 PASS invalid/parse/manual_ex078
