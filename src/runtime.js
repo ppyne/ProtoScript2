@@ -2530,6 +2530,27 @@ function buildModuleEnv(ast, file, hooks = null) {
       throw makeIoException("InvalidArgumentException", file, node, "invalid capture flags");
     }
 
+    if (program.includes("/")) {
+      let invalidExecFormat = false;
+      try {
+        const st = fs.statSync(program);
+        if (st.isFile() && (st.mode & 0o111) !== 0) {
+          const fd = fs.openSync(program, "r");
+          const buf = Buffer.alloc(4);
+          const n = fs.readSync(fd, buf, 0, buf.length, 0);
+          fs.closeSync(fd);
+          const isShebang = n >= 2 && buf[0] === 0x23 && buf[1] === 0x21;
+          const isElf = n >= 4 && buf[0] === 0x7f && buf[1] === 0x45 && buf[2] === 0x4c && buf[3] === 0x46;
+          if (!isShebang && !isElf) invalidExecFormat = true;
+        }
+      } catch (err) {
+        // Let spawnSync surface missing/permission errors.
+      }
+      if (invalidExecFormat) {
+        throw makeIoException("ProcessExecutionException", file, node, "execution failed");
+      }
+    }
+
     const argv = [];
     for (const it of args) {
       if (typeof it !== "string") throw makeIoException("InvalidArgumentException", file, node, "invalid args");

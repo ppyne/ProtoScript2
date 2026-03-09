@@ -6,6 +6,12 @@ TESTS_DIR="$ROOT_DIR/tests"
 MANIFEST="$TESTS_DIR/manifest.json"
 COMPILER="${COMPILER:-$ROOT_DIR/bin/protoscriptc}"
 RUNTIME_GCC_FLAGS="${RUNTIME_GCC_FLAGS:-}"
+DEFAULT_EMITC_GCC_FLAGS="-D_POSIX_C_SOURCE=200809L -D_GNU_SOURCE -lm"
+if [[ -z "$RUNTIME_GCC_FLAGS" ]]; then
+  RUNTIME_GCC_FLAGS="$DEFAULT_EMITC_GCC_FLAGS"
+else
+  RUNTIME_GCC_FLAGS="$RUNTIME_GCC_FLAGS $DEFAULT_EMITC_GCC_FLAGS"
+fi
 
 if ! command -v jq >/dev/null 2>&1; then
   if [[ -x "/usr/local/bin/jq" ]]; then
