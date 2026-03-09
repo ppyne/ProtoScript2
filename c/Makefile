@@ -19,9 +19,11 @@ MCPP_DIR := ../third_party/mcpp
 ifeq ($(UNAME_S),Linux)
 MCPP_LIB := $(MCPP_DIR)/lib64/libmcpp.a
 MATH_LIB := -lm
+EXPORT_DYNAMIC := -Wl,--export-dynamic
 else
 MCPP_LIB := $(MCPP_DIR)/lib/libmcpp.a
 MATH_LIB :=
+EXPORT_DYNAMIC :=
 endif
 MCPP_INC := -I$(MCPP_DIR)
 override MCPP_CFLAGS := -O2 -Wno-deprecated-declarations -fno-common $(ARCH_CFLAGS)
@@ -62,7 +64,7 @@ $(TARGET): $(SRC) $(MCPP_LIB)
 	$(CC) $(CFLAGS) $(MCPP_INC) $(SRC) $(MCPP_LIB) -o $(TARGET) $(MATH_LIB)
 
 $(TARGET_PS): $(SRC_PS) $(MODULE_OBJS) $(MCPP_LIB)
-	$(CC) $(CFLAGS) $(MCPP_INC) $(SRC_PS) $(MODULE_OBJS) $(MCPP_LIB) -o $(TARGET_PS) -ldl $(MATH_LIB)
+	$(CC) $(CFLAGS) $(MCPP_INC) $(SRC_PS) $(MODULE_OBJS) $(MCPP_LIB) -o $(TARGET_PS) -ldl $(MATH_LIB) $(EXPORT_DYNAMIC)
 
 $(MCPP_LIB): force-mcpp
 	$(MAKE) -C $(MCPP_DIR) clean
