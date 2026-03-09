@@ -394,7 +394,8 @@ static PS_Status sys_execute(PS_Context *ctx, int argc, PS_Value **argv, PS_Valu
     exec_argv[exec_argc] = NULL;
     execve(program, exec_argv, environ);
     int err = errno;
-    (void)write(exec_pipe[1], &err, sizeof(err));
+    ssize_t wrote = write(exec_pipe[1], &err, sizeof(err));
+    (void)wrote;
     _exit(127);
   }
 

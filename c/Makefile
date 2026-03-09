@@ -13,7 +13,11 @@ endif
 override CFLAGS := $(CFLAGS_BASE) $(ARCH_CFLAGS)
 
 MCPP_DIR := ../third_party/mcpp
+ifeq ($(UNAME_S),Linux)
+MCPP_LIB := $(MCPP_DIR)/lib64/libmcpp.a
+else
 MCPP_LIB := $(MCPP_DIR)/lib/libmcpp.a
+endif
 MCPP_INC := -I$(MCPP_DIR)
 override MCPP_CFLAGS := -O2 -Wno-deprecated-declarations -fno-common $(ARCH_CFLAGS)
 
