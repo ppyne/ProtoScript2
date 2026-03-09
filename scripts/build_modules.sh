@@ -8,7 +8,7 @@ SRC_DIR="$ROOT_DIR/tests/modules_src"
 mkdir -p "$OUT_DIR"
 
 CC="${CC:-cc}"
-CFLAGS="-std=c11 -Wall -Wextra -Werror -O2 -fPIC -I$ROOT_DIR/include"
+CFLAGS="-std=c11 -Wall -Wextra -Werror -O2 -fPIC -I$ROOT_DIR/include -D_POSIX_C_SOURCE=200809L -D_GNU_SOURCE"
 
 OS="$(uname -s)"
 EXT="so"
