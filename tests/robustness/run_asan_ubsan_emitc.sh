@@ -52,7 +52,7 @@ fi
 
 # Reference audit build: collect warnings without failing.
 set +e
-"$CC_BIN" $BASE_CFLAGS "$TMP_C" -o "$TMP_BIN" 2>"$TMP_WARN_RAW"
+"$CC_BIN" $BASE_CFLAGS "$TMP_C" -o "$TMP_BIN" -lm 2>"$TMP_WARN_RAW"
 rc_raw=$?
 set -e
 if [ $rc_raw -ne 0 ]; then
@@ -71,7 +71,7 @@ if [ -n "$non_whitelist" ]; then
 fi
 
 # Strict policy build: all warnings are errors except unused runtime helpers.
-"$CC_BIN" $BASE_CFLAGS -Werror -Wno-unused-function "$TMP_C" -o "$TMP_BIN" 2>"$TMP_WARN_STRICT"
+"$CC_BIN" $BASE_CFLAGS -Werror -Wno-unused-function "$TMP_C" -o "$TMP_BIN" -lm 2>"$TMP_WARN_STRICT"
 
 if [ -s "$TMP_WARN_STRICT" ]; then
   echo "ERROR: strict sanitizer build emitted warnings" >&2
