@@ -64,9 +64,14 @@ static int tz_path_exists(const char *tz) {
   for (size_t i = 0; dirs[i]; i++) {
     const char *dir = dirs[i];
     if (!dir || !*dir) continue;
-    size_t need = strlen(dir) + 1 + strlen(tz) + 1;
-    if (need >= sizeof(path)) continue;
-    snprintf(path, sizeof(path), "%s/%s", dir, tz);
+    size_t dir_len = strlen(dir);
+    size_t tz_len = strlen(tz);
+    size_t need = dir_len + 1 + tz_len + 1;
+    if (need > sizeof(path)) continue;
+    memcpy(path, dir, dir_len);
+    path[dir_len] = '/';
+    memcpy(path + dir_len + 1, tz, tz_len);
+    path[dir_len + 1 + tz_len] = '\0';
     struct stat st;
     if (stat(path, &st) == 0) return 1;
   }
