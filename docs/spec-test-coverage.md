@@ -8,7 +8,7 @@ Generated from `/Users/avialle/dev/ProtoScript2/tests/manifest.json` + `/Users/a
 |---|---:|
 | `MANUAL:10.3.2` | 6 |
 | `MANUAL:10.5.1` | 1 |
-| `MANUAL:10.6` | 28 |
+| `MANUAL:10.6` | 39 |
 | `MANUAL:11.1` | 5 |
 | `MANUAL:11.1.1` | 8 |
 | `MANUAL:11.2.1` | 10 |
@@ -43,13 +43,15 @@ Generated from `/Users/avialle/dev/ProtoScript2/tests/manifest.json` + `/Users/a
 | `SPEC:2.4` | 1 |
 | `SPEC:3.0` | 50 |
 | `SPEC:3.1` | 13 |
-| `SPEC:3.2` | 10 |
+| `SPEC:3.2` | 12 |
 | `SPEC:3.4` | 4 |
 | `SPEC:4.1` | 105 |
-| `SPEC:4.3` | 28 |
+| `SPEC:4.3` | 39 |
 | `SPEC:4.3.2` | 1 |
 | `SPEC:4.3.3` | 6 |
+| `SPEC:5.11.3` | 2 |
 | `SPEC:5.11.5` | 1 |
+| `SPEC:5.11.7` | 4 |
 | `SPEC:5.6` | 69 |
 | `SPEC:5.8` | 1 |
 | `SPEC:5.9` | 3 |
@@ -83,7 +85,15 @@ Generated from `/Users/avialle/dev/ProtoScript2/tests/manifest.json` + `/Users/a
 - `edge/call_static_nested`
 - `edge/civildatetime_clone_allowed`
 - `edge/civildatetime_subtype_runtime`
+- `edge/clone_assignment_valid`
+- `edge/clone_deep_inheritance`
 - `edge/clone_inherited_override`
+- `edge/clone_inherited_return_specialized`
+- `edge/clone_instance`
+- `edge/clone_override_covariant`
+- `edge/clone_override_intermediate`
+- `edge/clone_override_super`
+- `edge/clone_simple`
 - `edge/clone_super_initial_divergent`
 - `edge/handle_clone_binaryfile_direct`
 - `edge/handle_clone_dir_direct`
@@ -107,6 +117,9 @@ Generated from `/Users/avialle/dev/ProtoScript2/tests/manifest.json` + `/Users/a
 - `edge/prototype_inherit_static`
 - `edge/prototype_parent_call`
 - `edge/super_clone_init`
+- `invalid/type/clone_override_return_contravariant`
+- `invalid/type/non_clone_inherited_return_not_specialized`
+- `invalid/type/non_clone_no_specialization_static`
 
 ### `MANUAL:11.1`
 
@@ -669,6 +682,8 @@ Generated from `/Users/avialle/dev/ProtoScript2/tests/manifest.json` + `/Users/a
 
 ### `SPEC:3.2`
 
+- `edge/generic_shift_combined`
+- `edge/generic_type_then_expr`
 - `edge/map_alias_chain_set_updates_root`
 - `edge/map_alias_set_updates_original`
 - `edge/map_empty_literal_typed_set`
@@ -801,7 +816,15 @@ Generated from `/Users/avialle/dev/ProtoScript2/tests/manifest.json` + `/Users/a
 - `edge/call_static_nested`
 - `edge/civildatetime_clone_allowed`
 - `edge/civildatetime_subtype_runtime`
+- `edge/clone_assignment_valid`
+- `edge/clone_deep_inheritance`
 - `edge/clone_inherited_override`
+- `edge/clone_inherited_return_specialized`
+- `edge/clone_instance`
+- `edge/clone_override_covariant`
+- `edge/clone_override_intermediate`
+- `edge/clone_override_super`
+- `edge/clone_simple`
 - `edge/clone_super_initial_divergent`
 - `edge/handle_clone_binaryfile_direct`
 - `edge/handle_clone_dir_direct`
@@ -825,6 +848,9 @@ Generated from `/Users/avialle/dev/ProtoScript2/tests/manifest.json` + `/Users/a
 - `edge/prototype_inherit_static`
 - `edge/prototype_parent_call`
 - `edge/super_clone_init`
+- `invalid/type/clone_override_return_contravariant`
+- `invalid/type/non_clone_inherited_return_not_specialized`
+- `invalid/type/non_clone_no_specialization_static`
 
 ### `SPEC:4.3.2`
 
@@ -839,9 +865,21 @@ Generated from `/Users/avialle/dev/ProtoScript2/tests/manifest.json` + `/Users/a
 - `valid/visibility_internal/internal_access_same_prototype_method`
 - `valid/visibility_internal/internal_call_internal_method_via_public`
 
+### `SPEC:5.11.3`
+
+- `edge/generic_compare_shift`
+- `edge/generic_type_then_expr`
+
 ### `SPEC:5.11.5`
 
 - `edge/compound_assign`
+
+### `SPEC:5.11.7`
+
+- `edge/generic_compare_shift`
+- `edge/generic_shift_combined`
+- `edge/generic_shift_expr`
+- `edge/generic_type_then_expr`
 
 ### `SPEC:5.6`
 

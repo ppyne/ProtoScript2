@@ -138,6 +138,30 @@
         "MANUAL:5.6"
       ]
     },
+    "edge/generic_compare_shift": {
+      "spec_ref": [
+        "SPEC:5.11.3",
+        "SPEC:5.11.7"
+      ]
+    },
+    "edge/generic_shift_combined": {
+      "spec_ref": [
+        "SPEC:3.2",
+        "SPEC:5.11.7"
+      ]
+    },
+    "edge/generic_shift_expr": {
+      "spec_ref": [
+        "SPEC:5.11.7"
+      ]
+    },
+    "edge/generic_type_then_expr": {
+      "spec_ref": [
+        "SPEC:3.2",
+        "SPEC:5.11.3",
+        "SPEC:5.11.7"
+      ]
+    },
     "edge/handle_clone_binaryfile_direct": {
       "spec_ref": [
         "SPEC:4.3",
