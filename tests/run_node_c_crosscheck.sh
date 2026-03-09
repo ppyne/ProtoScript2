@@ -7,11 +7,19 @@ MANIFEST="$TESTS_DIR/manifest.json"
 COMPILER="${COMPILER:-$ROOT_DIR/bin/protoscriptc}"
 C_COMPILER="${C_COMPILER:-$ROOT_DIR/c/pscc}"
 CROSSCHECK_GCC_FLAGS="${CROSSCHECK_GCC_FLAGS:-}"
-DEFAULT_EMITC_GCC_FLAGS="-D_POSIX_C_SOURCE=200809L -D_GNU_SOURCE -lm"
-if [[ -z "$CROSSCHECK_GCC_FLAGS" ]]; then
-  CROSSCHECK_GCC_FLAGS="$DEFAULT_EMITC_GCC_FLAGS"
+DEFAULT_EMITC_CFLAGS="-D_POSIX_C_SOURCE=200809L -D_GNU_SOURCE"
+DEFAULT_EMITC_LDFLAGS="-lm"
+CROSSCHECK_CFLAGS="$CROSSCHECK_GCC_FLAGS"
+CROSSCHECK_LDFLAGS="$CROSSCHECK_GCC_FLAGS"
+if [[ -z "$CROSSCHECK_CFLAGS" ]]; then
+  CROSSCHECK_CFLAGS="$DEFAULT_EMITC_CFLAGS"
 else
-  CROSSCHECK_GCC_FLAGS="$CROSSCHECK_GCC_FLAGS $DEFAULT_EMITC_GCC_FLAGS"
+  CROSSCHECK_CFLAGS="$CROSSCHECK_CFLAGS $DEFAULT_EMITC_CFLAGS"
+fi
+if [[ -z "$CROSSCHECK_LDFLAGS" ]]; then
+  CROSSCHECK_LDFLAGS="$DEFAULT_EMITC_LDFLAGS"
+else
+  CROSSCHECK_LDFLAGS="$CROSSCHECK_LDFLAGS $DEFAULT_EMITC_LDFLAGS"
 fi
 STRICT_AST=0
 STRICT_STATIC_C=0
@@ -183,7 +191,7 @@ while IFS= read -r case_id; do
         "$COMPILER" --emit-c "$src" >"$c_file" 2>"$out_c"
         rc_emit_c=$?
         if [[ $rc_emit_c -eq 0 ]]; then
-          gcc -std=c11 -x c -w $CROSSCHECK_GCC_FLAGS "$c_file" -o "$c_bin" >>"$out_c" 2>&1
+          gcc -std=c11 -x c -w $CROSSCHECK_CFLAGS "$c_file" -o "$c_bin" $CROSSCHECK_LDFLAGS >>"$out_c" 2>&1
           rc_gcc=$?
           if [[ $rc_gcc -eq 0 ]]; then
             "$c_bin" >>"$out_c" 2>&1

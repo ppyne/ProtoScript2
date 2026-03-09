@@ -10,11 +10,19 @@ WASM_JS="${WASM_JS:-$ROOT_DIR/web/protoscript.js}"
 WASM_CASE_RUNNER="${WASM_CASE_RUNNER:-$ROOT_DIR/tests/wasm/run_wasm_case.js}"
 TRIANGLE_PARITY_MODULES="${TRIANGLE_PARITY_MODULES:-1}"
 TRIANGLE_GCC_FLAGS="${TRIANGLE_GCC_FLAGS:-}"
-DEFAULT_EMITC_GCC_FLAGS="-D_POSIX_C_SOURCE=200809L -D_GNU_SOURCE -lm"
-if [[ -z "$TRIANGLE_GCC_FLAGS" ]]; then
-  TRIANGLE_GCC_FLAGS="$DEFAULT_EMITC_GCC_FLAGS"
+DEFAULT_EMITC_CFLAGS="-D_POSIX_C_SOURCE=200809L -D_GNU_SOURCE"
+DEFAULT_EMITC_LDFLAGS="-lm"
+TRIANGLE_CFLAGS="$TRIANGLE_GCC_FLAGS"
+TRIANGLE_LDFLAGS="$TRIANGLE_GCC_FLAGS"
+if [[ -z "$TRIANGLE_CFLAGS" ]]; then
+  TRIANGLE_CFLAGS="$DEFAULT_EMITC_CFLAGS"
 else
-  TRIANGLE_GCC_FLAGS="$TRIANGLE_GCC_FLAGS $DEFAULT_EMITC_GCC_FLAGS"
+  TRIANGLE_CFLAGS="$TRIANGLE_CFLAGS $DEFAULT_EMITC_CFLAGS"
+fi
+if [[ -z "$TRIANGLE_LDFLAGS" ]]; then
+  TRIANGLE_LDFLAGS="$DEFAULT_EMITC_LDFLAGS"
+else
+  TRIANGLE_LDFLAGS="$TRIANGLE_LDFLAGS $DEFAULT_EMITC_LDFLAGS"
 fi
 
 MODULES_BUILT=0
@@ -178,7 +186,7 @@ while IFS= read -r case_id; do
   rc_emit_cc=0
   rc_emit=0
   if [[ $rc_emit_gen -eq 0 ]]; then
-    gcc -std=c11 -x c -w $TRIANGLE_GCC_FLAGS "$tmp_c" -o "$tmp_bin" >>"$err_emit_build" 2>&1
+    gcc -std=c11 -x c -w $TRIANGLE_CFLAGS "$tmp_c" -o "$tmp_bin" $TRIANGLE_LDFLAGS >>"$err_emit_build" 2>&1
     rc_emit_cc=$?
     if [[ $rc_emit_cc -eq 0 ]]; then
       "$tmp_bin" >"$out_emit" 2>"$err_emit"

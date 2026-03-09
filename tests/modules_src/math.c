@@ -24,6 +24,17 @@ static PS_Status ret_float(PS_Context *ctx, double v, PS_Value **out) {
   return PS_OK;
 }
 
+static double snap_int(double v) {
+  if (!isfinite(v)) return v;
+  double r = nearbyint(v);
+  if (fabs(v - r) <= 1e-12) return r;
+  return v;
+}
+
+static PS_Status ret_float_snap(PS_Context *ctx, double v, PS_Value **out) {
+  return ret_float(ctx, snap_int(v), out);
+}
+
 static PS_Status mod_abs(PS_Context *ctx, int argc, PS_Value **argv, PS_Value **out) {
   (void)argc;
   double x = 0.0;
@@ -103,7 +114,7 @@ static PS_Status mod_cbrt(PS_Context *ctx, int argc, PS_Value **argv, PS_Value *
   (void)argc;
   double x = 0.0;
   if (!get_float_arg(ctx, argv[0], &x)) return PS_ERR;
-  return ret_float(ctx, cbrt(x), out);
+  return ret_float_snap(ctx, cbrt(x), out);
 }
 
 static PS_Status mod_pow(PS_Context *ctx, int argc, PS_Value **argv, PS_Value **out) {
@@ -217,21 +228,21 @@ static PS_Status mod_log1p(PS_Context *ctx, int argc, PS_Value **argv, PS_Value 
   (void)argc;
   double x = 0.0;
   if (!get_float_arg(ctx, argv[0], &x)) return PS_ERR;
-  return ret_float(ctx, log1p(x), out);
+  return ret_float_snap(ctx, log1p(x), out);
 }
 
 static PS_Status mod_log2(PS_Context *ctx, int argc, PS_Value **argv, PS_Value **out) {
   (void)argc;
   double x = 0.0;
   if (!get_float_arg(ctx, argv[0], &x)) return PS_ERR;
-  return ret_float(ctx, log2(x), out);
+  return ret_float_snap(ctx, log2(x), out);
 }
 
 static PS_Status mod_log10(PS_Context *ctx, int argc, PS_Value **argv, PS_Value **out) {
   (void)argc;
   double x = 0.0;
   if (!get_float_arg(ctx, argv[0], &x)) return PS_ERR;
-  return ret_float(ctx, log10(x), out);
+  return ret_float_snap(ctx, log10(x), out);
 }
 
 static PS_Status mod_exp(PS_Context *ctx, int argc, PS_Value **argv, PS_Value **out) {
@@ -245,7 +256,7 @@ static PS_Status mod_expm1(PS_Context *ctx, int argc, PS_Value **argv, PS_Value 
   (void)argc;
   double x = 0.0;
   if (!get_float_arg(ctx, argv[0], &x)) return PS_ERR;
-  return ret_float(ctx, expm1(x), out);
+  return ret_float_snap(ctx, expm1(x), out);
 }
 
 static PS_Status mod_hypot(PS_Context *ctx, int argc, PS_Value **argv, PS_Value **out) {
@@ -253,7 +264,7 @@ static PS_Status mod_hypot(PS_Context *ctx, int argc, PS_Value **argv, PS_Value 
   double a = 0.0, b = 0.0;
   if (!get_float_arg(ctx, argv[0], &a)) return PS_ERR;
   if (!get_float_arg(ctx, argv[1], &b)) return PS_ERR;
-  return ret_float(ctx, hypot(a, b), out);
+  return ret_float_snap(ctx, hypot(a, b), out);
 }
 
 static uint32_t to_uint32(double x) {

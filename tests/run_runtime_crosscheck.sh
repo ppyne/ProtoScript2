@@ -6,11 +6,19 @@ TESTS_DIR="$ROOT_DIR/tests"
 MANIFEST="$TESTS_DIR/manifest.json"
 COMPILER="${COMPILER:-$ROOT_DIR/bin/protoscriptc}"
 RUNTIME_GCC_FLAGS="${RUNTIME_GCC_FLAGS:-}"
-DEFAULT_EMITC_GCC_FLAGS="-D_POSIX_C_SOURCE=200809L -D_GNU_SOURCE -lm"
-if [[ -z "$RUNTIME_GCC_FLAGS" ]]; then
-  RUNTIME_GCC_FLAGS="$DEFAULT_EMITC_GCC_FLAGS"
+DEFAULT_EMITC_CFLAGS="-D_POSIX_C_SOURCE=200809L -D_GNU_SOURCE"
+DEFAULT_EMITC_LDFLAGS="-lm"
+RUNTIME_CFLAGS="$RUNTIME_GCC_FLAGS"
+RUNTIME_LDFLAGS="$RUNTIME_GCC_FLAGS"
+if [[ -z "$RUNTIME_CFLAGS" ]]; then
+  RUNTIME_CFLAGS="$DEFAULT_EMITC_CFLAGS"
 else
-  RUNTIME_GCC_FLAGS="$RUNTIME_GCC_FLAGS $DEFAULT_EMITC_GCC_FLAGS"
+  RUNTIME_CFLAGS="$RUNTIME_CFLAGS $DEFAULT_EMITC_CFLAGS"
+fi
+if [[ -z "$RUNTIME_LDFLAGS" ]]; then
+  RUNTIME_LDFLAGS="$DEFAULT_EMITC_LDFLAGS"
+else
+  RUNTIME_LDFLAGS="$RUNTIME_LDFLAGS $DEFAULT_EMITC_LDFLAGS"
 fi
 
 if ! command -v jq >/dev/null 2>&1; then
@@ -73,7 +81,7 @@ while IFS= read -r case_id; do
   rc_gcc=0
   rc_c=0
   if [[ $rc_emit_c -eq 0 ]]; then
-    gcc -std=c11 -x c -w $RUNTIME_GCC_FLAGS "$c_file" -o "$c_bin" >>"$out_c" 2>&1
+    gcc -std=c11 -x c -w $RUNTIME_CFLAGS "$c_file" -o "$c_bin" $RUNTIME_LDFLAGS >>"$out_c" 2>&1
     rc_gcc=$?
     if [[ $rc_gcc -eq 0 ]]; then
       "$c_bin" >>"$out_c" 2>&1
