@@ -10,7 +10,7 @@ echo "== Builtin Contract Guard =="
 
 # 1) IR non-clonable builtin list
 for h in "${SEALED_NON_CLONABLE[@]}"; do
-  if ! rg -n "\"${h}\"" "$ROOT_DIR/src/ir.js" >/dev/null; then
+  if ! rg -n "['\"]${h}['\"]" "$ROOT_DIR/src/ir.js" >/dev/null; then
     echo "FAIL: src/ir.js missing non-clonable builtin ${h}" >&2
     exit 1
   fi
