@@ -7,6 +7,27 @@ ASAN_GCC_FLAGS="-fsanitize=address,undefined -fno-omit-frame-pointer"
 
 export ASAN_OPTIONS="${ASAN_OPTIONS:-detect_leaks=0}"
 
+SANITIZER_MODULES_TMP_DIR=""
+if [[ -z "${PS_MODULE_PATH:-}" ]]; then
+  SANITIZER_MODULES_TMP_DIR="$(mktemp -d "${TMPDIR:-/tmp}/ps_modules_sanitizer_XXXXXX")"
+  export PS_MODULE_PATH="$SANITIZER_MODULES_TMP_DIR"
+fi
+
+cleanup_sanitizer_modules_tmp() {
+  if [[ -n "$SANITIZER_MODULES_TMP_DIR" && -d "$SANITIZER_MODULES_TMP_DIR" ]]; then
+    rm -rf "$SANITIZER_MODULES_TMP_DIR"
+  fi
+}
+trap cleanup_sanitizer_modules_tmp EXIT
+
+if [[ -x "$ROOT_DIR/scripts/build_modules.sh" ]]; then
+  "$ROOT_DIR/scripts/build_modules.sh" >/tmp/ps_sanitizer_modules_build.out 2>&1 || {
+    echo "ERROR: failed to build test modules" >&2
+    sed -n '1,80p' /tmp/ps_sanitizer_modules_build.out >&2
+    exit 2
+  }
+fi
+
 echo "== Sanitizer Smoke (C + emit-c) =="
 echo
 
