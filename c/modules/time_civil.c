@@ -1,3 +1,5 @@
+#define _POSIX_C_SOURCE 200809L
+
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
@@ -8,6 +10,10 @@
 #include <pthread.h>
 
 #include "ps/ps_api.h"
+
+#ifndef PATH_MAX
+#define PATH_MAX 4096
+#endif
 
 #define DST_EARLIER 0
 #define DST_LATER 1
