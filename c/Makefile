@@ -4,6 +4,9 @@ CFLAGS_BASE := -std=c11 -Wall -Wextra -Werror -O2 -I../include -I.
 UNAME_S := $(shell uname -s)
 UNAME_M := $(shell uname -m)
 ARCH_CFLAGS ?=
+ifeq ($(UNAME_S),Linux)
+CFLAGS_BASE += -D_POSIX_C_SOURCE=200809L -D_GNU_SOURCE
+endif
 ifeq ($(UNAME_S),Darwin)
 ifeq ($(strip $(ARCH_CFLAGS)),)
 ARCH_CFLAGS := -arch $(UNAME_M)

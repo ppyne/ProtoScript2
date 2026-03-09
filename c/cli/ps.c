@@ -12,6 +12,10 @@
 #include "../runtime/ps_list.h"
 #include "../diag.h"
 
+#ifndef PATH_MAX
+#define PATH_MAX 4096
+#endif
+
 static const char *g_last_run_file = NULL;
 
 static void usage(void) {
