@@ -15,8 +15,10 @@ override CFLAGS := $(CFLAGS_BASE) $(ARCH_CFLAGS)
 MCPP_DIR := ../third_party/mcpp
 ifeq ($(UNAME_S),Linux)
 MCPP_LIB := $(MCPP_DIR)/lib64/libmcpp.a
+MATH_LIB := -lm
 else
 MCPP_LIB := $(MCPP_DIR)/lib/libmcpp.a
+MATH_LIB :=
 endif
 MCPP_INC := -I$(MCPP_DIR)
 override MCPP_CFLAGS := -O2 -Wno-deprecated-declarations -fno-common $(ARCH_CFLAGS)
@@ -54,10 +56,10 @@ MODULE_OBJS = \
 all: $(TARGET) $(TARGET_PS)
 
 $(TARGET): $(SRC) $(MCPP_LIB)
-	$(CC) $(CFLAGS) $(MCPP_INC) $(SRC) $(MCPP_LIB) -o $(TARGET)
+	$(CC) $(CFLAGS) $(MCPP_INC) $(SRC) $(MCPP_LIB) -o $(TARGET) $(MATH_LIB)
 
 $(TARGET_PS): $(SRC_PS) $(MODULE_OBJS) $(MCPP_LIB)
-	$(CC) $(CFLAGS) $(MCPP_INC) $(SRC_PS) $(MODULE_OBJS) $(MCPP_LIB) -o $(TARGET_PS) -ldl
+	$(CC) $(CFLAGS) $(MCPP_INC) $(SRC_PS) $(MODULE_OBJS) $(MCPP_LIB) -o $(TARGET_PS) -ldl $(MATH_LIB)
 
 $(MCPP_LIB): force-mcpp
 	$(MAKE) -C $(MCPP_DIR) clean
