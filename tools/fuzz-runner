@@ -109,6 +109,7 @@ def main() -> int:
     asan_opts = os.environ.get("ASAN_OPTIONS", "")
     if "detect_leaks=" not in asan_opts:
         os.environ["ASAN_OPTIONS"] = (asan_opts + (":" if asan_opts else "") + "detect_leaks=0")
+    os.environ.setdefault("PS_DISABLE_PREPROCESS", "1")
 
     mode = "short"
     if args.nightly:

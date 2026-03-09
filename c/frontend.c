@@ -2460,6 +2460,12 @@ static void preprocess_config_load_once(void) {
   preprocess_config_init(&g_preprocess_config);
   g_preprocess_config_loaded = 1;
 
+  const char *disable_pp = getenv("PS_DISABLE_PREPROCESS");
+  if (disable_pp && *disable_pp && strcmp(disable_pp, "0") != 0) {
+    g_preprocess_config.enabled = 0;
+    return;
+  }
+
   size_t n = 0;
   char *data = read_registry_file(&n);
   if (!data) return;
