@@ -26,7 +26,7 @@ cleanup() {
 }
 trap cleanup EXIT
 
-BASE_CFLAGS="-std=c11 -Wall -Wextra -Wpedantic -Wno-pedantic -D_POSIX_C_SOURCE=200809L -D_GNU_SOURCE -fsanitize=address,undefined -fno-omit-frame-pointer -g"
+BASE_CFLAGS="-std=c11 -Wall -Wextra -Wpedantic -Wno-pedantic -Wno-misleading-indentation -D_POSIX_C_SOURCE=200809L -D_GNU_SOURCE -fsanitize=address,undefined -fno-omit-frame-pointer -g"
 
 "$COMPILER" --emit-c "$SRC" >"$TMP_C"
 "$COMPILER" --emit-ir-json "$SRC" >"$TMP_IR"
