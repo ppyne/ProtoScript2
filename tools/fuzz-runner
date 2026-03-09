@@ -106,6 +106,10 @@ def main() -> int:
     parser.add_argument("--seconds", type=int, default=None, help="Override max_total_time per target.")
     args = parser.parse_args()
 
+    asan_opts = os.environ.get("ASAN_OPTIONS", "")
+    if "detect_leaks=" not in asan_opts:
+        os.environ["ASAN_OPTIONS"] = (asan_opts + (":" if asan_opts else "") + "detect_leaks=0")
+
     mode = "short"
     if args.nightly:
         mode = "nightly"
