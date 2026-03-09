@@ -6,6 +6,9 @@ OUT_BIN="$ROOT_DIR/tests/robustness/group_lifecycle"
 
 MCPP_DIR="$ROOT_DIR/third_party/mcpp"
 MCPP_LIB="$MCPP_DIR/lib/libmcpp.a"
+if [[ "$(uname -s)" == "Linux" && -f "$MCPP_DIR/lib64/libmcpp.a" ]]; then
+  MCPP_LIB="$MCPP_DIR/lib64/libmcpp.a"
+fi
 if [ ! -f "$MCPP_LIB" ]; then
   make -C "$MCPP_DIR" clean
   make -C "$MCPP_DIR" CFLAGS="-O2 -Wno-deprecated-declarations -fno-common"
