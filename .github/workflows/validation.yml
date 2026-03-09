@@ -42,7 +42,7 @@ jobs:
             docs/test-baseline.json
 
   nightly-gate:
-    if: github.event_name == 'schedule'
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
