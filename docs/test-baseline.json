@@ -2,200 +2,65 @@
   "emit_c_compilation_status": "pass",
   "flows": [
     {
-      "command": "tests/run_all.sh --robust",
-      "duration_ms": 1735630,
-      "emit_c": true,
-      "exit_code": 0,
-      "id": "run_all_robust",
-      "log": "reports/test-orchestrator/run_all_robust.log",
-      "paths": [
-        "node",
-        "c",
-        "emit-c",
-        "wasm",
-        "robust"
-      ],
-      "sanitizer": true,
-      "script": "tests/run_all.sh",
-      "setup": {
-        "duration_ms": 5443,
-        "log": "reports/test-orchestrator/run_all_robust.prebuild.log",
-        "ok": true,
-        "ran": true
-      },
-      "summary": null
-    },
-    {
-      "command": "CONFORMANCE_MODULES=1 tests/run_conformance.sh",
-      "duration_ms": 69160,
+      "command": "tools/spec-coverage --check --write --required-suite edge --required-suite invalid/parse --required-suite invalid/type --required-suite invalid/runtime --required-suite invalid/visibility_internal --strict-unresolved",
+      "duration_ms": 43,
       "emit_c": false,
       "exit_code": 0,
-      "id": "conformance_modules",
-      "log": "reports/test-orchestrator/conformance_modules.log",
+      "id": "spec_traceability",
+      "log": "reports/test-orchestrator/spec_traceability.log",
       "paths": [
         "node"
       ],
       "sanitizer": false,
-      "script": "tests/run_conformance.sh",
+      "script": "tools/spec-coverage",
       "setup": {
         "duration_ms": 0,
         "log": null,
         "ok": true,
         "ran": false
       },
-      "summary": {
-        "fail": 0,
-        "pass": 427,
-        "skip": 0,
-        "total": 427
-      }
+      "summary": null
     },
     {
-      "command": "tests/run_node_c_crosscheck.sh --strict-ast --strict-static-c",
-      "duration_ms": 378988,
-      "emit_c": true,
-      "exit_code": 0,
-      "id": "node_c_crosscheck_strict",
-      "log": "reports/test-orchestrator/node_c_crosscheck_strict.log",
-      "paths": [
-        "node",
-        "emit-c"
-      ],
-      "sanitizer": false,
-      "script": "tests/run_node_c_crosscheck.sh",
-      "setup": {
-        "duration_ms": 5633,
-        "log": "reports/test-orchestrator/node_c_crosscheck_strict.prebuild.log",
-        "ok": true,
-        "ran": true
-      },
-      "summary": {
-        "fail": 0,
-        "pass": 78,
-        "skip": 0,
-        "total": 78
-      }
-    },
-    {
-      "command": "tests/run_runtime_crosscheck.sh",
-      "duration_ms": 243862,
-      "emit_c": true,
-      "exit_code": 0,
-      "id": "runtime_crosscheck",
-      "log": "reports/test-orchestrator/runtime_crosscheck.log",
-      "paths": [
-        "node",
-        "emit-c"
-      ],
-      "sanitizer": false,
-      "script": "tests/run_runtime_crosscheck.sh",
-      "setup": {
-        "duration_ms": 0,
-        "log": null,
-        "ok": true,
-        "ran": true
-      },
-      "summary": {
-        "fail": 0,
-        "pass": 341,
-        "skip": 0,
-        "total": 341
-      }
-    },
-    {
-      "command": "tests/run_cli_runtime_parity.sh",
-      "duration_ms": 67166,
+      "command": "tools/fuzz-runner --nightly",
+      "duration_ms": 668938,
       "emit_c": false,
       "exit_code": 0,
-      "id": "cli_runtime_parity",
-      "log": "reports/test-orchestrator/cli_runtime_parity.log",
-      "paths": [
-        "node",
-        "c"
-      ],
-      "sanitizer": false,
-      "script": "tests/run_cli_runtime_parity.sh",
-      "setup": {
-        "duration_ms": 0,
-        "log": null,
-        "ok": true,
-        "ran": true
-      },
-      "summary": {
-        "fail": 0,
-        "pass": 341,
-        "skip": 0,
-        "total": 341
-      }
-    },
-    {
-      "command": "tests/run_runtime_triangle_parity.sh",
-      "duration_ms": 323620,
-      "emit_c": true,
-      "exit_code": 0,
-      "id": "runtime_triangle_parity",
-      "log": "reports/test-orchestrator/runtime_triangle_parity.log",
+      "id": "fuzz_nightly",
+      "log": "reports/test-orchestrator/fuzz_nightly.log",
       "paths": [
         "c",
-        "emit-c",
-        "wasm"
-      ],
-      "sanitizer": false,
-      "script": "tests/run_runtime_triangle_parity.sh",
-      "setup": {
-        "duration_ms": 0,
-        "log": null,
-        "ok": true,
-        "ran": true
-      },
-      "summary": {
-        "fail": 0,
-        "pass": 341,
-        "skip": 0,
-        "total": 341
-      }
-    },
-    {
-      "command": "tests/run_wasm_runtime_parity.sh",
-      "duration_ms": 2698,
-      "emit_c": false,
-      "exit_code": 0,
-      "id": "wasm_runtime_parity",
-      "log": "reports/test-orchestrator/wasm_runtime_parity.log",
-      "paths": [
-        "wasm"
-      ],
-      "sanitizer": false,
-      "script": "tests/run_wasm_runtime_parity.sh",
-      "setup": {
-        "duration_ms": 0,
-        "log": null,
-        "ok": true,
-        "ran": false
-      },
-      "summary": {
-        "fail": 0,
-        "pass": 6,
-        "skip": 0,
-        "total": 6
-      }
-    },
-    {
-      "command": "tests/run_robustness.sh",
-      "duration_ms": 903906,
-      "emit_c": true,
-      "exit_code": 0,
-      "id": "robustness",
-      "log": "reports/test-orchestrator/robustness.log",
-      "paths": [
-        "robust",
-        "node",
-        "c",
-        "emit-c",
-        "wasm"
+        "robust"
       ],
       "sanitizer": true,
-      "script": "tests/run_robustness.sh",
+      "script": "tools/fuzz-runner",
+      "setup": {
+        "duration_ms": 0,
+        "log": null,
+        "ok": true,
+        "ran": false
+      },
+      "summary": {
+        "fail": 0,
+        "pass": 2,
+        "skip": 0,
+        "total": 2
+      }
+    },
+    {
+      "command": "tools/bench-runner --full",
+      "duration_ms": 14904,
+      "emit_c": true,
+      "exit_code": 0,
+      "id": "bench_full",
+      "log": "reports/test-orchestrator/bench_full.log",
+      "paths": [
+        "node",
+        "c",
+        "emit-c"
+      ],
+      "sanitizer": false,
+      "script": "tools/bench-runner",
       "setup": {
         "duration_ms": 0,
         "log": null,
@@ -204,55 +69,49 @@
       },
       "summary": {
         "fail": 0,
-        "pass": 305,
+        "pass": 19,
         "skip": 0,
-        "total": 305
+        "total": 19
       }
     }
   ],
-  "generated_at_utc": "2026-03-09T11:43:23Z",
+  "generated_at_utc": "2026-03-10T23:17:04Z",
   "overall_status": "pass",
   "per_execution_path": {
     "c": {
       "fail": 0,
-      "pass": 987,
+      "pass": 21,
       "skip": 0,
-      "total": 987
+      "total": 21
     },
     "emit-c": {
       "fail": 0,
-      "pass": 1065,
+      "pass": 19,
       "skip": 0,
-      "total": 1065
+      "total": 19
     },
     "node": {
       "fail": 0,
-      "pass": 1492,
+      "pass": 19,
       "skip": 0,
-      "total": 1492
+      "total": 19
     },
     "robust": {
       "fail": 0,
-      "pass": 305,
+      "pass": 2,
       "skip": 0,
-      "total": 305
-    },
-    "wasm": {
-      "fail": 0,
-      "pass": 652,
-      "skip": 0,
-      "total": 652
+      "total": 2
     }
   },
-  "profile": "full",
+  "profile": "custom",
   "root": "/Users/avialle/dev/ProtoScript2",
   "sanitizer": {
     "all_passed": true,
     "ran": true,
-    "requested": true
+    "requested": false
   },
   "schema_version": 1,
-  "total_duration_ms": 3736117,
-  "total_flows_executed": 8,
-  "total_tests_executed": 1839
+  "total_duration_ms": 683888,
+  "total_flows_executed": 3,
+  "total_tests_executed": 21
 }

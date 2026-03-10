@@ -1,31 +1,33 @@
 {
-  "generated_at_utc": "2026-02-22T00:26:45Z",
-  "max_seconds_per_target": 30,
-  "mode": "short",
+  "generated_at_utc": "2026-03-10T23:05:40Z",
+  "max_seconds_per_target": 300,
+  "mode": "nightly",
   "summary": {
     "fail": 0,
-    "pass": 0,
-    "skip": 2,
+    "pass": 2,
+    "skip": 0,
     "total": 2
   },
   "targets": [
     {
       "build_log": "reports/fuzz/fuzz_parse_syntax.build.log",
-      "build_ms": 25756,
-      "build_rc": 1,
+      "build_ms": 33155,
+      "build_rc": 0,
       "id": "fuzz_parse_syntax",
-      "run_ms": null,
-      "run_rc": null,
-      "status": "skip_engine_missing"
+      "run_log": "reports/fuzz/fuzz_parse_syntax.run.log",
+      "run_ms": 301490,
+      "run_rc": 0,
+      "status": "pass"
     },
     {
       "build_log": "reports/fuzz/fuzz_static_check.build.log",
-      "build_ms": 25743,
-      "build_rc": 1,
+      "build_ms": 32697,
+      "build_rc": 0,
       "id": "fuzz_static_check",
-      "run_ms": null,
-      "run_rc": null,
-      "status": "skip_engine_missing"
+      "run_log": "reports/fuzz/fuzz_static_check.run.log",
+      "run_ms": 301545,
+      "run_rc": 0,
+      "status": "pass"
     }
   ]
 }
