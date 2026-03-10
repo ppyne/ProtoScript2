@@ -906,6 +906,7 @@ static int looks_like_group_decl(Parser *p) {
 
 static int parse_expr(Parser *p, AstNode **out);
 static int parse_stmt(Parser *p);
+static int parse_stmt_nested(Parser *p);
 static int parse_try_stmt(Parser *p);
 static int parse_type(Parser *p);
 static int parse_postfix_expr(Parser *p, AstNode **out);
@@ -947,7 +948,7 @@ static int parse_block(Parser *p) {
       p_ast_pop(p);
       return 0;
     }
-    if (!parse_stmt(p)) {
+    if (!parse_stmt_nested(p)) {
       p_ast_pop(p);
       return 0;
     }
@@ -1119,7 +1120,7 @@ static int parse_switch_stmt(Parser *p) {
         return 0;
       }
       while (!p_at(p, TK_KW, "case") && !p_at(p, TK_KW, "default") && !p_at(p, TK_SYM, "}")) {
-        if (!parse_stmt(p)) return 0;
+        if (!parse_stmt_nested(p)) return 0;
       }
       p_ast_pop(p);
       continue;
@@ -1132,7 +1133,7 @@ static int parse_switch_stmt(Parser *p) {
       if (!p_ast_add(p, "DefaultClause", NULL, def_kw->line, def_kw->col, &def_node)) return 0;
       if (!p_ast_push(p, def_node)) return 0;
       while (!p_at(p, TK_KW, "case") && !p_at(p, TK_SYM, "}")) {
-        if (!parse_stmt(p)) return 0;
+        if (!parse_stmt_nested(p)) return 0;
       }
       p_ast_pop(p);
       continue;
@@ -1173,13 +1174,13 @@ static int parse_if_stmt(Parser *p) {
     p_ast_pop(p);
     return 0;
   }
-  if (!parse_stmt(p)) {
+  if (!parse_stmt_nested(p)) {
     p_ast_pop(p);
     return 0;
   }
   if (p_at(p, TK_KW, "else")) {
     p_eat(p, TK_KW, "else");
-    if (!parse_stmt(p)) {
+    if (!parse_stmt_nested(p)) {
       p_ast_pop(p);
       return 0;
     }
@@ -1215,7 +1216,7 @@ static int parse_while_stmt(Parser *p) {
     p_ast_pop(p);
     return 0;
   }
-  if (!parse_stmt(p)) {
+  if (!parse_stmt_nested(p)) {
     p_ast_pop(p);
     return 0;
   }
@@ -1232,7 +1233,7 @@ static int parse_do_while_stmt(Parser *p) {
     p_ast_pop(p);
     return 0;
   }
-  if (!parse_stmt(p)) {
+  if (!parse_stmt_nested(p)) {
     p_ast_pop(p);
     return 0;
   }
@@ -1518,20 +1519,13 @@ static int parse_for_stmt(Parser *p) {
     p_ast_pop(p);
     return 0;
   }
-  int ok = parse_stmt(p);
+  int ok = parse_stmt_nested(p);
   p_ast_pop(p);
   return ok;
 }
 
 static int parse_stmt(Parser *p) {
-#define STMT_RETURN(x) do { p->stmt_depth--; return (x); } while (0)
-  if (p->stmt_depth >= PARSE_STMT_MAX_DEPTH) {
-    Token *t = p_t(p, 0);
-    set_diag(p->diag, p->file, t ? t->line : 1, t ? t->col : 1, "E1003", "PARSE_NESTING_TOO_DEEP",
-             "statement nesting too deep");
-    return 0;
-  }
-  p->stmt_depth++;
+#define STMT_RETURN(x) do { return (x); } while (0)
 
   if (p_at(p, TK_SYM, "{")) STMT_RETURN(parse_block(p));
   if (p_at(p, TK_KW, "internal")) {
@@ -1644,6 +1638,19 @@ static int parse_stmt(Parser *p) {
   }
   STMT_RETURN(1);
 #undef STMT_RETURN
+}
+
+static int parse_stmt_nested(Parser *p) {
+  if (p->stmt_depth >= PARSE_STMT_MAX_DEPTH) {
+    Token *t = p_t(p, 0);
+    set_diag(p->diag, p->file, t ? t->line : 1, t ? t->col : 1, "E1003", "PARSE_NESTING_TOO_DEEP",
+             "statement nesting too deep");
+    return 0;
+  }
+  p->stmt_depth++;
+  int ok = parse_stmt(p);
+  p->stmt_depth--;
+  return ok;
 }
 
 static int parse_primary_expr(Parser *p, AstNode **out) {
