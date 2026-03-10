@@ -98,6 +98,28 @@ def build_target(target: dict[str, Path | str], clang: str, cflags: list[str], l
     return run_cmd(cmd, log_file)
 
 
+def select_clang() -> str | None:
+    env_cc = os.environ.get("CC")
+    if env_cc:
+        return env_cc
+
+    if platform.system() == "Darwin":
+        mp_clang = "/opt/local/bin/clang"
+        if os.path.exists(mp_clang):
+            return mp_clang
+
+    return shutil.which("clang")
+
+
+def ensure_darwin_fuzz_env(clang: str) -> None:
+    if platform.system() != "Darwin":
+        return
+    if os.environ.get("MACOSX_DEPLOYMENT_TARGET"):
+        return
+    if clang.startswith("/opt/local/"):
+        os.environ["MACOSX_DEPLOYMENT_TARGET"] = "26.0"
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="Run ProtoScript2 fuzz targets under ASan/UBSan.")
     g = parser.add_mutually_exclusive_group()
@@ -116,10 +138,11 @@ def main() -> int:
         mode = "nightly"
     max_seconds = args.seconds if args.seconds is not None else (30 if mode == "short" else 300)
 
-    clang = shutil.which("clang")
+    clang = select_clang()
     if not clang:
         print("ERROR: clang is required for fuzzing.", file=sys.stderr)
         return 2
+    ensure_darwin_fuzz_env(clang)
 
     REPORT_DIR.mkdir(parents=True, exist_ok=True)
     BIN_DIR.mkdir(parents=True, exist_ok=True)

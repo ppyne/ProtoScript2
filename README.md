@@ -66,6 +66,12 @@ Try it now: [ppyne.github.io/ProtoScript2/](https://ppyne.github.io/ProtoScript2
 - `jq` (pour la suite de tests)
 - [mcpp](https://github.com/zeroc-ice/mcpp) (préprocesseur intégré) récupéré via submodule Git
 
+Notes macOS (fuzzing):
+
+- Le fuzzing (`tools/fuzz-runner`) nécessite un `clang` avec runtime libFuzzer.
+- Xcode peut ne pas fournir ce runtime. Utilisez alors `clang` via MacPorts (ex: `clang-18`).
+- Le runner fuzz détecte automatiquement `/opt/local/bin/clang` et fixe `MACOSX_DEPLOYMENT_TARGET=26.0` si besoin.
+
 Récupérer les sources du préprocesseur mcpp (submodule) :
 
 ```bash

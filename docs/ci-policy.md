@@ -45,6 +45,12 @@ Profile includes:
 - long fuzz pass
 - full benchmark pass
 
+## macOS local notes
+
+- Le fuzzing requiert un `clang` avec libFuzzer (le runtime n’est pas toujours présent dans Xcode).
+- Utiliser `clang` de MacPorts (`/opt/local/bin/clang`) permet d’exécuter les fuzz localement.
+- `tools/fuzz-runner` sélectionne automatiquement `clang` MacPorts et fixe `MACOSX_DEPLOYMENT_TARGET=26.0` si nécessaire.
+
 ## Artifacts
 
 CI stores at least:
