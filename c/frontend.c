@@ -144,7 +144,7 @@ typedef struct AstNode {
 #define AST_FLAG_SEALED (1 << 1)
 #define AST_FLAG_INTERNAL (1 << 2)
 
-#define PARSE_STMT_MAX_DEPTH 32
+#define PARSE_STMT_MAX_DEPTH 64
 
 typedef struct {
   const char *file;
