@@ -8,9 +8,15 @@ CLONABLE_NON_SEALED=(CivilDateTime)
 
 echo "== Builtin Contract Guard =="
 
+if command -v rg >/dev/null 2>&1; then
+  search() { rg -n "$1" "$2"; }
+else
+  search() { grep -nE "$1" "$2"; }
+fi
+
 # 1) IR non-clonable builtin list
 for h in "${SEALED_NON_CLONABLE[@]}"; do
-  if ! rg -n "['\"]${h}['\"]" "$ROOT_DIR/src/ir.js" >/dev/null; then
+  if ! search "['\"]${h}['\"]" "$ROOT_DIR/src/ir.js" >/dev/null; then
     echo "FAIL: src/ir.js missing non-clonable builtin ${h}" >&2
     exit 1
   fi
@@ -18,13 +24,13 @@ done
 
 # 2) JS frontend builtins sealed
 for h in "${SEALED_NON_CLONABLE[@]}"; do
-  if ! rg -n "this\.prototypes\.set\(\"${h}\".*sealed: true" "$ROOT_DIR/src/frontend.js" >/dev/null; then
+  if ! search "this\.prototypes\.set\(\"${h}\".*sealed: true" "$ROOT_DIR/src/frontend.js" >/dev/null; then
     echo "FAIL: src/frontend.js ${h} must be sealed: true" >&2
     exit 1
   fi
 done
 for h in "${CLONABLE_NON_SEALED[@]}"; do
-  if rg -n "this\.prototypes\.set\(\"${h}\".*sealed: true" "$ROOT_DIR/src/frontend.js" >/dev/null; then
+  if search "this\.prototypes\.set\(\"${h}\".*sealed: true" "$ROOT_DIR/src/frontend.js" >/dev/null; then
     echo "FAIL: src/frontend.js ${h} must stay non-sealed" >&2
     exit 1
   fi
@@ -32,7 +38,7 @@ done
 
 # 3) C frontend builtins sealed
 for h in "${SEALED_NON_CLONABLE[@]}"; do
-  if ! rg -n "proto_find\(a->protos, \"${h}\"\)|sealed = 1" "$ROOT_DIR/c/frontend.c" >/dev/null; then
+  if ! search "proto_find\(a->protos, \"${h}\"\)|sealed = 1" "$ROOT_DIR/c/frontend.c" >/dev/null; then
     echo "FAIL: c/frontend.c ${h} must be sealed" >&2
     exit 1
   fi
@@ -72,7 +78,7 @@ for h in textfile binaryfile dir walker regexp pathinfo pathentry regexpmatch pr
       echo "FAIL: missing test expect for handle clone ${h} ${mode}" >&2
       exit 1
     fi
-    if ! rg -n '"error_code": "R1013"' "$expect" >/dev/null; then
+    if ! search '"error_code": "R1013"' "$expect" >/dev/null; then
       echo "FAIL: handle clone ${h} ${mode} must assert R1013" >&2
       exit 1
     fi
