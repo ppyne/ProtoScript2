@@ -144,6 +144,8 @@ typedef struct AstNode {
 #define AST_FLAG_SEALED (1 << 1)
 #define AST_FLAG_INTERNAL (1 << 2)
 
+#define PARSE_STMT_MAX_DEPTH 512
+
 typedef struct {
   const char *file;
   const char *src;
@@ -164,6 +166,7 @@ typedef struct {
   AstNode *ast_root;
   AstNode *ast_stack[256];
   size_t ast_sp;
+  int stmt_depth;
 } Parser;
 
 static char *dup_range(const char *s, size_t a, size_t b) {
@@ -1521,12 +1524,21 @@ static int parse_for_stmt(Parser *p) {
 }
 
 static int parse_stmt(Parser *p) {
-  if (p_at(p, TK_SYM, "{")) return parse_block(p);
+#define STMT_RETURN(x) do { p->stmt_depth--; return (x); } while (0)
+  if (p->stmt_depth >= PARSE_STMT_MAX_DEPTH) {
+    Token *t = p_t(p, 0);
+    set_diag(p->diag, p->file, t ? t->line : 1, t ? t->col : 1, "E1003", "PARSE_NESTING_TOO_DEEP",
+             "statement nesting too deep");
+    return 0;
+  }
+  p->stmt_depth++;
+
+  if (p_at(p, TK_SYM, "{")) STMT_RETURN(parse_block(p));
   if (p_at(p, TK_KW, "internal")) {
     Token *t = p_t(p, 0);
     set_diag(p->diag, p->file, t->line, t->col, "E3200", "INVALID_VISIBILITY_LOCATION",
              "keyword 'internal' is only allowed in prototype members");
-    return 0;
+    STMT_RETURN(0);
   }
   if (p_at(p, TK_KW, "var") || p_at(p, TK_KW, "const") || looks_like_type_start(p)) {
     AstNode *decl = NULL;
@@ -1538,99 +1550,100 @@ static int parse_stmt(Parser *p) {
       AstNode *parent = p_ast_parent(p);
       if (!parent || !ast_add_child(parent, decl)) {
         ast_free(decl);
-        return 0;
+        STMT_RETURN(0);
       }
-      return 1;
+      STMT_RETURN(1);
     }
     if (commit_decl && p->diag && prev_diag.message[0] != '\0' && strcmp(p->diag->message, prev_diag.message) != 0) {
       ast_free(decl);
-      return 0;
+      STMT_RETURN(0);
     }
     if (commit_decl && p->diag && p->diag->message[0] != '\0' && prev_diag.message[0] == '\0') {
       ast_free(decl);
-      return 0;
+      STMT_RETURN(0);
     }
     if (p->diag) *p->diag = prev_diag;
     ast_free(decl);
     p->i = mark;
   }
-  if (p_at(p, TK_KW, "if")) return parse_if_stmt(p);
-  if (p_at(p, TK_KW, "while")) return parse_while_stmt(p);
-  if (p_at(p, TK_KW, "do")) return parse_do_while_stmt(p);
-  if (p_at(p, TK_KW, "for")) return parse_for_stmt(p);
-  if (p_at(p, TK_KW, "switch")) return parse_switch_stmt(p);
-  if (p_at(p, TK_KW, "try")) return parse_try_stmt(p);
+  if (p_at(p, TK_KW, "if")) STMT_RETURN(parse_if_stmt(p));
+  if (p_at(p, TK_KW, "while")) STMT_RETURN(parse_while_stmt(p));
+  if (p_at(p, TK_KW, "do")) STMT_RETURN(parse_do_while_stmt(p));
+  if (p_at(p, TK_KW, "for")) STMT_RETURN(parse_for_stmt(p));
+  if (p_at(p, TK_KW, "switch")) STMT_RETURN(parse_switch_stmt(p));
+  if (p_at(p, TK_KW, "try")) STMT_RETURN(parse_try_stmt(p));
   if (p_at(p, TK_KW, "return")) {
     Token *t = p_t(p, 0);
     p_eat(p, TK_KW, "return");
     AstNode *expr = NULL;
-    if (!p_at(p, TK_SYM, ";") && !parse_expr(p, &expr)) return 0;
-    if (!p_eat(p, TK_SYM, ";")) return 0;
+    if (!p_at(p, TK_SYM, ";") && !parse_expr(p, &expr)) STMT_RETURN(0);
+    if (!p_eat(p, TK_SYM, ";")) STMT_RETURN(0);
     AstNode *node = NULL;
-    if (!p_ast_add(p, "ReturnStmt", NULL, t->line, t->col, &node)) return 0;
+    if (!p_ast_add(p, "ReturnStmt", NULL, t->line, t->col, &node)) STMT_RETURN(0);
     if (expr && !ast_add_child(node, expr)) {
       ast_free(expr);
-      return 0;
+      STMT_RETURN(0);
     }
-    return 1;
+    STMT_RETURN(1);
   }
   if (p_at(p, TK_KW, "break")) {
     Token *t = p_t(p, 0);
-    if (!(p_eat(p, TK_KW, "break") && p_eat(p, TK_SYM, ";"))) return 0;
-    return p_ast_add(p, "BreakStmt", NULL, t->line, t->col, NULL);
+    if (!(p_eat(p, TK_KW, "break") && p_eat(p, TK_SYM, ";"))) STMT_RETURN(0);
+    STMT_RETURN(p_ast_add(p, "BreakStmt", NULL, t->line, t->col, NULL));
   }
   if (p_at(p, TK_KW, "continue")) {
     Token *t = p_t(p, 0);
-    if (!(p_eat(p, TK_KW, "continue") && p_eat(p, TK_SYM, ";"))) return 0;
-    return p_ast_add(p, "ContinueStmt", NULL, t->line, t->col, NULL);
+    if (!(p_eat(p, TK_KW, "continue") && p_eat(p, TK_SYM, ";"))) STMT_RETURN(0);
+    STMT_RETURN(p_ast_add(p, "ContinueStmt", NULL, t->line, t->col, NULL));
   }
   if (p_at(p, TK_KW, "throw")) {
     Token *t = p_t(p, 0);
     AstNode *expr = NULL;
-    if (!(p_eat(p, TK_KW, "throw") && parse_expr(p, &expr) && p_eat(p, TK_SYM, ";"))) return 0;
+    if (!(p_eat(p, TK_KW, "throw") && parse_expr(p, &expr) && p_eat(p, TK_SYM, ";"))) STMT_RETURN(0);
     AstNode *node = NULL;
-    if (!p_ast_add(p, "ThrowStmt", NULL, t->line, t->col, &node)) return 0;
+    if (!p_ast_add(p, "ThrowStmt", NULL, t->line, t->col, &node)) STMT_RETURN(0);
     if (expr && !ast_add_child(node, expr)) {
       ast_free(expr);
-      return 0;
+      STMT_RETURN(0);
     }
-    return 1;
+    STMT_RETURN(1);
   }
   if (looks_like_assign_stmt(p)) {
     Token *t = p_t(p, 0);
     AstNode *target = NULL;
-    if (!parse_postfix_expr(p, &target)) return 0;
-    if (!p_eat(p, TK_SYM, NULL)) return 0;
+    if (!parse_postfix_expr(p, &target)) STMT_RETURN(0);
+    if (!p_eat(p, TK_SYM, NULL)) STMT_RETURN(0);
     Token *op = &p->toks->items[p->i - 1];
     if (!(strcmp(op->text, "=") == 0 || strcmp(op->text, "+=") == 0 || strcmp(op->text, "-=") == 0 ||
           strcmp(op->text, "*=") == 0 || strcmp(op->text, "/=") == 0)) {
       parse_unexpected(p, op, "assignment operator (=, +=, -=, *=, /=)");
-      return 0;
+      STMT_RETURN(0);
     }
     AstNode *rhs = NULL;
-    if (!(parse_conditional_expr(p, &rhs) && p_eat(p, TK_SYM, ";"))) return 0;
+    if (!(parse_conditional_expr(p, &rhs) && p_eat(p, TK_SYM, ";"))) STMT_RETURN(0);
     AstNode *node = NULL;
-    if (!p_ast_add(p, "AssignStmt", op->text, t->line, t->col, &node)) return 0;
+    if (!p_ast_add(p, "AssignStmt", op->text, t->line, t->col, &node)) STMT_RETURN(0);
     if (target && !ast_add_child(node, target)) {
       ast_free(target);
-      return 0;
+      STMT_RETURN(0);
     }
     if (rhs && !ast_add_child(node, rhs)) {
       ast_free(rhs);
-      return 0;
+      STMT_RETURN(0);
     }
-    return 1;
+    STMT_RETURN(1);
   }
   Token *t = p_t(p, 0);
   AstNode *expr = NULL;
-  if (!(parse_expr(p, &expr) && p_eat(p, TK_SYM, ";"))) return 0;
+  if (!(parse_expr(p, &expr) && p_eat(p, TK_SYM, ";"))) STMT_RETURN(0);
   AstNode *node = NULL;
-  if (!p_ast_add(p, "ExprStmt", NULL, t->line, t->col, &node)) return 0;
+  if (!p_ast_add(p, "ExprStmt", NULL, t->line, t->col, &node)) STMT_RETURN(0);
   if (expr && !ast_add_child(node, expr)) {
     ast_free(expr);
-    return 0;
+    STMT_RETURN(0);
   }
-  return 1;
+  STMT_RETURN(1);
+#undef STMT_RETURN
 }
 
 static int parse_primary_expr(Parser *p, AstNode **out) {
