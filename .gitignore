@@ -13,3 +13,5 @@ memo.txt
 tools/vscode/protoscript2/dist
 tools/vscode/protoscript2/node_modules
 tests/robustness/bin/*
+tests/fuzz/corpus/*
+!tests/fuzz/corpus/**/seed_*.pts
