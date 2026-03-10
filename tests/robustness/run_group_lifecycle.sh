@@ -37,6 +37,7 @@ cc $CFLAGS \
   "$MCPP_LIB" \
   -Dps_module_init=ps_module_init_Debug \
   -ldl \
+  -lm \
   -o "$OUT_BIN"
 
 "$OUT_BIN" "$ROOT_DIR/stress.pts"

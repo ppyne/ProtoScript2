@@ -46,6 +46,7 @@ build_test() {
     "$MCPP_LIB" \
     -Dps_module_init=ps_module_init_Debug \
     -ldl \
+    -lm \
     -o "$OUT_DIR/$name"
 }
 
