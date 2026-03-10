@@ -24,11 +24,27 @@ static void cleanup_temp_file(void) {
 
 static int ensure_temp_file(void) {
   if (g_fd >= 0) return 1;
+#if defined(__APPLE__)
+  char tmpl[] = "/tmp/ps_fuzz_parse_XXXXXX";
+  g_fd = mkstemp(tmpl);
+  if (g_fd < 0) return 0;
+  char with_ext[sizeof(tmpl) + 4];
+  snprintf(with_ext, sizeof(with_ext), "%s.pts", tmpl);
+  if (rename(tmpl, with_ext) != 0) {
+    close(g_fd);
+    g_fd = -1;
+    unlink(tmpl);
+    return 0;
+  }
+  snprintf(g_path, sizeof(g_path), "%s", with_ext);
+  return 1;
+#else
   char tmpl[] = "/tmp/ps_fuzz_parse_XXXXXX.pts";
   g_fd = mkstemps(tmpl, 4);
   if (g_fd < 0) return 0;
   snprintf(g_path, sizeof(g_path), "%s", tmpl);
   return 1;
+#endif
 }
 
 static int write_input_file(const uint8_t *data, size_t size) {
