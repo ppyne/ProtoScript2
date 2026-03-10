@@ -15,3 +15,8 @@ tools/vscode/protoscript2/node_modules
 tests/robustness/bin/*
 tests/fuzz/corpus/*
 !tests/fuzz/corpus/**/seed_*.pts
+reports/fuzz/*.run.log
+reports/test-orchestrator/*.log
+tests/fuzz/bin/
+tests/fuzz/findings/raw/*
+!tests/fuzz/findings/raw/.gitkeep
